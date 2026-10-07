@@ -10,15 +10,20 @@ import {
   Truck,
   ArrowLeft,
   FileCheck2,
+  Camera,
+  ShieldCheck,
+  X,
 } from 'lucide-react';
 import {
   CitizenReport,
   ReportCategory,
   ReportUrgency,
+  ReportStatus,
   WasteBankUnit,
   AppView,
 } from '../types';
 import { IMG_DRAINASE, IMG_BANK_SAMPAH, IMG_KERJA_BAKTI } from '../data/initialData';
+import { resolveImageUrl } from '../utils/resolveImageUrl';
 
 interface UntukWargaViewProps {
   reports: CitizenReport[];
@@ -86,6 +91,12 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
   const [activeTab, setActiveTab] = useState<'lapor' | 'pantau' | 'jadwal'>('lapor');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('Semua');
+  const [filterStatus, setFilterStatus] = useState<'Semua' | ReportStatus>('Semua');
+  const [lightboxImage, setLightboxImage] = useState<{
+    url: string;
+    caption: string;
+    ticketCode: string;
+  } | null>(null);
 
   // Form states
   const [reporterName, setReporterName] = useState('');
@@ -145,7 +156,8 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
       r.locationName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.rw.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = filterCategory === 'Semua' || r.category === filterCategory;
-    return matchesSearch && matchesCategory;
+    const matchesStatus = filterStatus === 'Semua' || r.status === filterStatus;
+    return matchesSearch && matchesCategory && matchesStatus;
   });
 
   return (
@@ -192,7 +204,7 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
                 : 'text-slate-700 hover:text-slate-900'
             }`}
           >
-            Pantau Laporan ({reports.length})
+            Pantau & Tindak Lanjut ({reports.length})
           </button>
           <button
             type="button"
@@ -545,27 +557,51 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
         </div>
       )}
 
-      {/* TAB 2: PANTAU STATUS LAPORAN WARGA */}
+      {/* TAB 2: PANTAU STATUS LAPORAN & TINDAK LANJUT PETUGAS */}
       {activeTab === 'pantau' && (
         <div className="mt-8 space-y-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari nomor tiket (mis. PNK-2026-0148), lokasi jalan, atau RW..."
-                className="w-full pl-10 pr-4 py-2 text-sm rounded-xl border border-slate-200 focus:border-[#0277BD] focus:outline-none"
-              />
+          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 space-y-3.5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Cari nomor tiket (mis. PNK-2026-0148), lokasi jalan, atau RW..."
+                  className="w-full pl-10 pr-4 py-2 text-sm rounded-xl border border-slate-200 focus:border-[#0277BD] focus:outline-none"
+                />
+              </div>
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+                {(['Semua', 'Menunggu Verifikasi', 'Sedang Ditangani', 'Selesai'] as const).map(
+                  (st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => setFilterStatus(st)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                        filterStatus === st
+                          ? 'bg-[#0277BD] text-white'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {st}
+                    </button>
+                  )
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+
+            <div className="flex items-center gap-1.5 overflow-x-auto pt-2 border-t border-slate-100">
+              <span className="text-xs font-semibold text-slate-500 mr-1 whitespace-nowrap">
+                Kategori:
+              </span>
               {['Semua', ...CATEGORY_OPTIONS].map((cat) => (
                 <button
                   key={cat}
                   type="button"
                   onClick={() => setFilterCategory(cat)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
                     filterCategory === cat
                       ? 'bg-[#0D3868] text-white'
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -577,88 +613,285 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
             </div>
           </div>
 
-          <div className="space-y-4">
-            {filteredReports.map((rep) => (
-              <div
-                key={rep.id}
-                className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 flex flex-col md:flex-row gap-5 justify-between"
-              >
-                <div className="space-y-2 flex-1">
-                  {/* Unboxed Metadata Line (Zero-Pill Discipline) */}
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                    <span className="font-mono-num font-bold text-[#0D3868]">{rep.ticketCode}</span>
-                    <span aria-hidden="true">·</span>
-                    <span className="font-medium text-slate-700">{rep.category}</span>
-                    <span aria-hidden="true">·</span>
-                    <span>
-                      {rep.rw} / {rep.rt}
-                    </span>
-                    <span aria-hidden="true">·</span>
-                    <span className="font-mono-num">{rep.createdAt}</span>
-                    <span aria-hidden="true">·</span>
-                    <span className="inline-flex items-center gap-1 font-semibold">
-                      {rep.status === 'Selesai' && (
-                        <>
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                          <span className="text-emerald-700">Selesai Ditangani</span>
-                        </>
-                      )}
-                      {rep.status === 'Sedang Ditangani' && (
-                        <>
-                          <Clock className="w-3.5 h-3.5 text-sky-600" />
-                          <span className="text-sky-700">Sedang Ditangani Petugas</span>
-                        </>
-                      )}
-                      {rep.status === 'Menunggu Verifikasi' && (
-                        <>
-                          <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                          <span className="text-amber-700">Menunggu Verifikasi</span>
-                        </>
-                      )}
-                    </span>
+          <div className="space-y-5">
+            {filteredReports.map((rep) => {
+              const isVerified =
+                rep.status === 'Sedang Ditangani' ||
+                rep.status === 'Selesai' ||
+                Boolean(rep.verifiedBy);
+              const isInProgress =
+                rep.status === 'Sedang Ditangani' || rep.status === 'Selesai';
+              const isCompleted = rep.status === 'Selesai';
+
+              const officerPhotos =
+                Array.isArray(rep.followUpPhotos) && rep.followUpPhotos.length > 0
+                  ? rep.followUpPhotos
+                  : rep.completionPhotoUrl
+                  ? [rep.completionPhotoUrl]
+                  : [];
+
+              return (
+                <div
+                  key={rep.id}
+                  className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-4 shadow-xs"
+                >
+                  <div className="flex flex-col md:flex-row gap-4 justify-between">
+                    <div className="space-y-1.5 flex-1">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                        <span className="font-mono-num font-bold text-[#0D3868]">
+                          {rep.ticketCode}
+                        </span>
+                        <span aria-hidden="true">·</span>
+                        <span className="font-medium text-slate-700">{rep.category}</span>
+                        <span aria-hidden="true">·</span>
+                        <span>
+                          {rep.rw} / {rep.rt}
+                        </span>
+                        <span aria-hidden="true">·</span>
+                        <span className="font-mono-num">{rep.createdAt}</span>
+                        <span aria-hidden="true">·</span>
+                        <span className="inline-flex items-center gap-1 font-bold">
+                          {rep.status === 'Selesai' && (
+                            <>
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              <span className="text-emerald-700">Selesai Diselesaikan Petugas</span>
+                            </>
+                          )}
+                          {rep.status === 'Sedang Ditangani' && (
+                            <>
+                              <Clock className="w-3.5 h-3.5 text-sky-600" />
+                              <span className="text-sky-700">Diverifikasi & Sedang Diproses</span>
+                            </>
+                          )}
+                          {rep.status === 'Menunggu Verifikasi' && (
+                            <>
+                              <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                              <span className="text-amber-700">Menunggu Verifikasi Admin/Operator</span>
+                            </>
+                          )}
+                        </span>
+                      </div>
+
+                      <h3 className="text-base sm:text-lg font-extrabold text-[#0D3868]">
+                        {rep.title}
+                      </h3>
+                      <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                        {rep.description}
+                      </p>
+
+                      <div className="pt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
+                        <span className="inline-flex items-center gap-1 font-medium text-slate-800">
+                          <MapPin className="w-3.5 h-3.5 text-[#0277BD]" />
+                          {rep.locationName}
+                        </span>
+                        <span aria-hidden="true">·</span>
+                        <span>Pelapor: {rep.reporterName}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex md:flex-col items-center md:items-end justify-between gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => onUpvoteReport(rep.id)}
+                        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-sky-50 hover:border-sky-300 text-xs font-semibold text-slate-800 transition-colors cursor-pointer"
+                      >
+                        <ThumbsUp className="w-3.5 h-3.5 text-[#0277BD]" />
+                        <span>Dukung Prioritas</span>
+                        <span className="font-mono-num font-bold text-[#0277BD]">
+                          {rep.upvotes}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => onNavigate('peta')}
+                        className="text-xs font-semibold text-[#0277BD] hover:underline cursor-pointer"
+                      >
+                        Lihat Titik di Peta →
+                      </button>
+                    </div>
                   </div>
 
-                  <h3 className="text-base sm:text-lg font-bold text-slate-900">{rep.title}</h3>
-                  <p className="text-sm text-slate-600 leading-relaxed">{rep.description}</p>
+                  {/* 3-Step Visual Progress Tracker: Verifikasi -> Diproses -> Selesai */}
+                  <div className="pt-3 border-t border-slate-100">
+                    <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 mb-2.5 flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#1C8237]" />
+                      <span>Alur Tindak Lanjut Aksi Petugas (Admin / Operator & Satgas)</span>
+                    </div>
 
-                  <div className="pt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
-                    <span className="inline-flex items-center gap-1 font-medium text-slate-800">
-                      <MapPin className="w-3.5 h-3.5 text-[#0277BD]" />
-                      {rep.locationName}
-                    </span>
-                    <span aria-hidden="true">·</span>
-                    <span>Pelapor: {rep.reporterName}</span>
-                    <span aria-hidden="true">·</span>
-                    <span>Unit Pelaksana: {rep.assignedTeam}</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      {/* Step 1: Verifikasi */}
+                      <div
+                        className={`p-3 rounded-xl border text-xs ${
+                          isVerified
+                            ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
+                            : 'bg-amber-50/60 border-amber-200 text-amber-950'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between font-bold">
+                          <span>1. Verifikasi Laporan</span>
+                          {isVerified ? (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          ) : (
+                            <Clock className="w-4 h-4 text-amber-600" />
+                          )}
+                        </div>
+                        <div className="mt-1 text-[11px] text-slate-600">
+                          {isVerified
+                            ? `Diverifikasi oleh: ${rep.verifiedBy || 'Admin / Operator Kelurahan'}`
+                            : 'Menunggu verifikasi Admin / Operator di halaman Administrator'}
+                        </div>
+                        {rep.verifiedAt && (
+                          <div className="mt-0.5 text-[10px] font-mono-num text-slate-500">
+                            {rep.verifiedAt}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Step 2: Diproses Petugas */}
+                      <div
+                        className={`p-3 rounded-xl border text-xs ${
+                          isInProgress
+                            ? 'bg-sky-50/70 border-sky-200 text-sky-950'
+                            : 'bg-slate-50 border-slate-200 text-slate-500'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between font-bold">
+                          <span>2. Diproses Petugas</span>
+                          {isInProgress && <Clock className="w-4 h-4 text-sky-600" />}
+                        </div>
+                        <div className="mt-1 text-[11px]">
+                          {isInProgress
+                            ? `Unit Pelaksana: ${rep.assignedTeam}`
+                            : 'Menunggu penugasan tim petugas lapangan'}
+                        </div>
+                        {isInProgress && (
+                          <div className="mt-0.5 text-[10px] font-mono-num text-slate-500">
+                            Update: {rep.updatedAt}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Step 3: Selesai Dikerjakan */}
+                      <div
+                        className={`p-3 rounded-xl border text-xs ${
+                          isCompleted
+                            ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
+                            : 'bg-slate-50 border-slate-200 text-slate-500'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between font-bold">
+                          <span>3. Selesai Dikerjakan</span>
+                          {isCompleted && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
+                        </div>
+                        <div className="mt-1 text-[11px]">
+                          {isCompleted
+                            ? 'Pengerjaan lapangan telah tuntas diselesaikan oleh petugas'
+                            : 'Menunggu penyelesaian pengerjaan lapangan'}
+                        </div>
+                        {rep.completedAt && (
+                          <div className="mt-0.5 text-[10px] font-mono-num text-emerald-800">
+                            Selesai: {rep.completedAt}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="mt-3 pt-3 border-t border-slate-100 text-xs text-slate-700">
-                    <span className="font-semibold text-slate-900">Tindak Lanjut Kelurahan: </span>
-                    {rep.responseNote}
+                  {/* Detailed Officer Action Note & Work Completion Photo Proof */}
+                  <div className="rounded-xl bg-slate-50 border border-slate-200/90 p-4 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <div className="text-xs font-extrabold text-[#0D3868]">
+                        Laporan Tindak Lanjut & Pengerjaan Petugas Kelurahan:
+                      </div>
+                      <div className="text-[11px] font-mono-num text-slate-500">
+                        Diperbarui: {rep.updatedAt}
+                      </div>
+                    </div>
+
+                    <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
+                      {rep.responseNote}
+                    </p>
+
+                    {/* Photos Comparison: Citizen Initial Photo & Officer Completion Photo(s) */}
+                    <div className="pt-2 grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+                      {/* Citizen Initial Photo */}
+                      {rep.imageUrl && (
+                        <div className="md:col-span-4">
+                          <div className="text-[11px] font-semibold text-slate-600 mb-1.5 flex items-center gap-1">
+                            <Camera className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Foto Laporan Awal Warga:</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setLightboxImage({
+                                url: resolveImageUrl(rep.imageUrl),
+                                caption: `Foto Laporan Awal Warga — ${rep.title}`,
+                                ticketCode: rep.ticketCode,
+                              })
+                            }
+                            className="group relative h-36 w-full rounded-xl overflow-hidden border border-slate-200 bg-slate-900 cursor-pointer block"
+                          >
+                            <img
+                              src={resolveImageUrl(rep.imageUrl)}
+                              alt={`Laporan ${rep.ticketCode}`}
+                              referrerPolicy="no-referrer"
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                            />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Officer Attached Follow-Up / Work Completion Photos */}
+                      <div className={rep.imageUrl ? 'md:col-span-8' : 'md:col-span-12'}>
+                        <div className="text-[11px] font-bold text-[#1C8237] mb-1.5 flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-[#1C8237]" />
+                          <span>
+                            Lampiran Foto Bukti Tindak Lanjut / Pengerjaan Petugas (
+                            {officerPhotos.length} Foto):
+                          </span>
+                        </div>
+
+                        {officerPhotos.length === 0 ? (
+                          <div className="h-36 rounded-xl border border-dashed border-slate-300 bg-white flex items-center justify-center p-4 text-center text-xs text-slate-500">
+                            Petugas (Admin / Operator) belum melampirkan foto pengerjaan untuk
+                            laporan ini.
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                            {officerPhotos.map((photoUrl, idx) => (
+                              <button
+                                key={`${rep.id}-followup-${idx}`}
+                                type="button"
+                                onClick={() =>
+                                  setLightboxImage({
+                                    url: resolveImageUrl(photoUrl),
+                                    caption: `Bukti Pengerjaan Petugas (${rep.assignedTeam}) — ${rep.title}`,
+                                    ticketCode: rep.ticketCode,
+                                  })
+                                }
+                                className="group relative h-36 w-full rounded-xl overflow-hidden border-2 border-emerald-500/40 bg-slate-900 cursor-pointer block"
+                              >
+                                <img
+                                  src={resolveImageUrl(photoUrl)}
+                                  alt={`Bukti Pengerjaan ${rep.ticketCode} #${idx + 1}`}
+                                  referrerPolicy="no-referrer"
+                                  className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform"
+                                />
+                                <div className="absolute bottom-1.5 left-1.5 right-1.5 px-2 py-1 rounded-lg bg-slate-900/75 text-white text-[10px] font-semibold truncate">
+                                  Bukti Pengerjaan #{idx + 1}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
-
-                <div className="flex md:flex-col items-center md:items-end justify-between gap-3 shrink-0 border-t md:border-t-0 pt-3 md:pt-0 border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => onUpvoteReport(rep.id)}
-                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-sky-50 hover:border-sky-300 text-xs font-semibold text-slate-800 transition-colors cursor-pointer"
-                  >
-                    <ThumbsUp className="w-3.5 h-3.5 text-[#0277BD]" />
-                    <span>Dukung Prioritas</span>
-                    <span className="font-mono-num font-bold text-[#0277BD]">{rep.upvotes}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('peta')}
-                    className="text-xs font-semibold text-[#0277BD] hover:underline cursor-pointer"
-                  >
-                    Lihat Titik di Peta →
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -711,6 +944,45 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox Modal for Viewing Report / Officer Completion Photo */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => setLightboxImage(null)}
+        >
+          <div
+            className="bg-white rounded-3xl max-w-3xl w-full overflow-hidden border border-slate-200 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <div className="text-xs font-mono-num font-bold text-[#0277BD]">
+                  Tiket Laporan: {lightboxImage.ticketCode}
+                </div>
+                <div className="text-sm font-extrabold text-slate-900">
+                  {lightboxImage.caption}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLightboxImage(null)}
+                className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="relative h-80 sm:h-[460px] w-full bg-slate-950 flex items-center justify-center">
+              <img
+                src={lightboxImage.url}
+                alt={lightboxImage.caption}
+                referrerPolicy="no-referrer"
+                className="max-h-full max-w-full object-contain"
+              />
+            </div>
           </div>
         </div>
       )}

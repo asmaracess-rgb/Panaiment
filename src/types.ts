@@ -1,6 +1,7 @@
 export type AppView =
   | 'beranda'
   | 'profil'
+  | 'rtrw'
   | 'warga'
   | 'lurah'
   | 'peta'
@@ -41,6 +42,32 @@ export interface CitizenReport {
   responseNote: string;
   upvotes: number;
   imageUrl: string;
+  // Follow-up & work completion proof fields populated by Admin / Operator
+  verifiedBy?: string;
+  verifiedAt?: string;
+  completedAt?: string;
+  completionPhotoUrl?: string;
+  followUpPhotos?: string[];
+}
+
+export interface RtItem {
+  id: string;
+  rtCode: string;
+  rtName: string;
+  ketuaRtName: string;
+  phone: string;
+  areaDescription: string;
+  householdsCount: number;
+}
+
+export interface RwGroup {
+  id: string;
+  rwCode: string;
+  rwName: string;
+  ketuaRwName: string;
+  phone: string;
+  areaDescription: string;
+  rtList: RtItem[];
 }
 
 export interface WasteBankUnit {

@@ -9,6 +9,9 @@ import {
   FileSpreadsheet,
   TrendingDown,
   BarChart3,
+  Lock,
+  ShieldCheck,
+  LogIn,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -24,6 +27,7 @@ import {
 } from 'recharts';
 import { CitizenReport, ReportStatus, WasteBankUnit, CleanupEvent, AppView } from '../types';
 import { INITIAL_MONTHLY_TRENDS } from '../data/initialData';
+import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
 
 interface DashboardLurahViewProps {
   reports: CitizenReport[];
@@ -36,6 +40,8 @@ interface DashboardLurahViewProps {
     responseNote: string
   ) => void;
   onNavigate: (view: AppView) => void;
+  isEmbeddedInAdmin?: boolean;
+  onRedirectToAdminLogin?: () => void;
 }
 
 const TEAM_OPTIONS = [
@@ -50,6 +56,8 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
   wasteUnits,
   onUpdateReportStatus,
   onNavigate,
+  isEmbeddedInAdmin = false,
+  onRedirectToAdminLogin,
 }) => {
   const [statusFilter, setStatusFilter] = useState<'Semua' | ReportStatus>('Semua');
   const [rwFilter, setRwFilter] = useState<string>('Semua');
@@ -136,25 +144,107 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
     return matchStatus && matchRw;
   });
 
+  // If accessed from the public visitor menu (not inside the Lurah Admin Panel),
+  // block regular user access and display the required notice directing Lurah to Admin Login.
+  if (!isEmbeddedInAdmin) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 sm:px-6 py-12">
+        <button
+          type="button"
+          onClick={() => onNavigate('beranda')}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0D3868] hover:text-[#0277BD] mb-6 cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Kembali ke Portal Utama</span>
+        </button>
+
+        <div className="bg-white rounded-3xl border-2 border-amber-200/90 shadow-[0_16px_40px_-12px_rgba(13,56,104,0.12)] overflow-hidden">
+          <div className="bg-gradient-to-r from-[#0D3868] via-[#0A2E56] to-[#1C8237] px-6 py-8 text-center text-white">
+            <div className="inline-flex items-center justify-center gap-4 mb-4">
+              <EmblemKotaMakassar className="w-12 h-14" />
+              <div className="w-12 h-12 rounded-2xl bg-white/15 border border-white/25 flex items-center justify-center">
+                <Lock className="w-6 h-6 text-amber-300" />
+              </div>
+              <EmblemKelurahanPanaikang className="w-12 h-14" />
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 border border-amber-300/40 text-amber-200 text-[11px] font-bold uppercase tracking-wider mb-2">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Akses Terbatas Khusus Pimpinan Kelurahan</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+              Menu Ini hanya dapat diakses oleh Lurah
+            </h1>
+          </div>
+
+          <div className="p-6 sm:p-10 text-center max-w-2xl mx-auto space-y-6">
+            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 text-sm font-semibold leading-relaxed">
+              Menu Ini hanya dapat diakses oleh Lurah dan tidak dapat diakses oleh pengguna biasa.
+            </div>
+
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              Halaman <strong>Dashboard Eksekutif Lurah Panaikang</strong> memuat kendali mutu
+              disposisi laporan warga, evaluasi kinerja wilayah RW/RT, dan statistik eksekutif
+              kelurahan. Apabila Bapak/Ibu <strong>Lurah</strong> ingin mengakses menu ini, silakan
+              masuk melalui <strong>Menu Login Admin</strong> terlebih dahulu lalu buka tab{' '}
+              <strong>Dashboard Lurah</strong>.
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (onRedirectToAdminLogin) {
+                    onRedirectToAdminLogin();
+                  } else {
+                    onNavigate('admin');
+                  }
+                }}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs sm:text-sm font-bold shadow-sm transition-colors cursor-pointer"
+              >
+                <LogIn className="w-4 h-4 text-emerald-300" />
+                <span>Masuk ke Menu Login Admin (Khusus Lurah)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onNavigate('beranda')}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-semibold transition-colors cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Kembali ke Halaman Utama</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8">
+    <div className={isEmbeddedInAdmin ? 'mt-6' : 'mx-auto max-w-6xl px-4 sm:px-6 py-8'}>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200">
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <button
-            type="button"
-            onClick={() => onNavigate('beranda')}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-900 mb-2 cursor-pointer"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Kembali ke Portal Utama</span>
-          </button>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0D3868] tracking-tight">
+          {!isEmbeddedInAdmin && (
+            <button
+              type="button"
+              onClick={() => onNavigate('beranda')}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-900 mb-2 cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Kembali ke Portal Utama</span>
+            </button>
+          )}
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[#1C8237] text-[11px] font-bold mb-1.5">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>AKSES EKSKLUSIF LURAH PANAIKANG</span>
+          </div>
+          <h2 className="text-xl sm:text-2xl font-extrabold text-[#0D3868] tracking-tight">
             Dashboard Eksekutif Lurah Panaikang
-          </h1>
-          <p className="mt-1 text-sm text-slate-600">
+          </h2>
+          <p className="mt-1 text-xs sm:text-sm text-slate-600">
             Kendali mutu penanganan laporan warga, visualisasi tren bulanan, disposisi Satgas
-            Kebersihan, dan evaluasi kinerja lingkungan RW 01 – RW 06.
+            Kebersihan, dan evaluasi kinerja lingkungan RW 01 – RW 07.
           </p>
         </div>
 

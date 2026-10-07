@@ -10,6 +10,7 @@ import {
   INITIAL_WASTE_LOGS,
   INITIAL_CLEANUP_EVENTS,
   INITIAL_KELURAHAN_INFOS,
+  INITIAL_RW_GROUPS,
 } from './src/data/initialData.ts';
 import {
   KelurahanProfile,
@@ -18,6 +19,7 @@ import {
   WasteLogEntry,
   CleanupEvent,
   KelurahanInfoItem,
+  RwGroup,
 } from './src/types.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -25,6 +27,7 @@ const __dirname = path.dirname(__filename);
 
 interface DatabaseSchema {
   profile: KelurahanProfile;
+  rwGroups: RwGroup[];
   reports: CitizenReport[];
   wasteUnits: WasteBankUnit[];
   wasteLogs: WasteLogEntry[];
@@ -46,9 +49,67 @@ function loadDatabase(): DatabaseSchema {
       const parsed = JSON.parse(raw) as DatabaseSchema;
       if (parsed && parsed.profile && Array.isArray(parsed.reports)) {
         let changed = false;
+        if (!Array.isArray(parsed.rwGroups) || parsed.rwGroups.length === 0) {
+          parsed.rwGroups = INITIAL_RW_GROUPS;
+          changed = true;
+        }
+        // Ensure initial reports include follow-up verification & completion photo examples
+        parsed.reports = parsed.reports.map((rep) => {
+          const initRep = INITIAL_REPORTS.find((r) => r.id === rep.id);
+          if (initRep) {
+            return {
+              ...initRep,
+              ...rep,
+              verifiedBy: rep.verifiedBy ?? initRep.verifiedBy,
+              verifiedAt: rep.verifiedAt ?? initRep.verifiedAt,
+              completedAt: rep.completedAt ?? initRep.completedAt,
+              completionPhotoUrl: rep.completionPhotoUrl ?? initRep.completionPhotoUrl,
+              followUpPhotos:
+                Array.isArray(rep.followUpPhotos) && rep.followUpPhotos.length > 0
+                  ? rep.followUpPhotos
+                  : initRep.followUpPhotos,
+            };
+          }
+          return rep;
+        });
+
         if (!Array.isArray(parsed.cleanupEvents) || parsed.cleanupEvents.length === 0) {
           parsed.cleanupEvents = INITIAL_CLEANUP_EVENTS;
           changed = true;
+        } else {
+          // Ensure scheduled cleanup events do not use photos, and seed completed initial events if missing
+          const existingIds = new Set(parsed.cleanupEvents.map((e) => e.id));
+          for (const initEv of INITIAL_CLEANUP_EVENTS) {
+            if (!existingIds.has(initEv.id)) {
+              parsed.cleanupEvents.push(initEv);
+              changed = true;
+            }
+          }
+          parsed.cleanupEvents = parsed.cleanupEvents.map((ev) => {
+            if (ev.status !== 'Tuntas') {
+              if (ev.imageUrl !== '' || (ev.documentationPhotos && ev.documentationPhotos.length > 0)) {
+                changed = true;
+              }
+              return {
+                ...ev,
+                imageUrl: '',
+                documentationPhotos: [],
+              };
+            }
+            const initEv = INITIAL_CLEANUP_EVENTS.find((i) => i.id === ev.id);
+            const fallbackImg = initEv?.imageUrl || '/images/ig_post_6_Dd-xlSLvXKn.jpg';
+            const docs =
+              Array.isArray(ev.documentationPhotos) && ev.documentationPhotos.length > 0
+                ? ev.documentationPhotos
+                : initEv?.documentationPhotos && initEv.documentationPhotos.length > 0
+                ? initEv.documentationPhotos
+                : [ev.imageUrl || fallbackImg];
+            return {
+              ...ev,
+              imageUrl: ev.imageUrl || docs[0],
+              documentationPhotos: docs,
+            };
+          });
         }
         if (!Array.isArray(parsed.wasteUnits) || parsed.wasteUnits.length === 0) {
           parsed.wasteUnits = INITIAL_WASTE_UNITS;
@@ -58,43 +119,34 @@ function loadDatabase(): DatabaseSchema {
           parsed.kelurahanInfos = INITIAL_KELURAHAN_INFOS;
           changed = true;
         } else {
-          // Ensure default info-3 uses the updated Nipah Mall Makassar image
-          const info3Idx = parsed.kelurahanInfos.findIndex((i) => i.id === 'info-3');
-          if (
-            info3Idx !== -1 &&
-            parsed.kelurahanInfos[info3Idx].imageUrl.includes('dokumentasi_kerja_bakti')
-          ) {
-            parsed.kelurahanInfos[info3Idx] = INITIAL_KELURAHAN_INFOS[2];
+          // Remove legacy synthetic info-1..info-6 items so only real @kelurahan.panaikang posts & custom admin posts remain
+          const legacyIds = new Set(['info-1', 'info-2', 'info-3', 'info-4', 'info-5', 'info-6']);
+          const filtered = parsed.kelurahanInfos.filter((item) => !legacyIds.has(item.id));
+          if (filtered.length !== parsed.kelurahanInfos.length) {
+            parsed.kelurahanInfos = filtered;
             changed = true;
           }
-          // Ensure all initial items have @kelurahan.panaikang metadata
-          parsed.kelurahanInfos = parsed.kelurahanInfos.map((item) => {
-            const match = INITIAL_KELURAHAN_INFOS.find((init) => init.id === item.id);
-            if (!item.instagramHandle) {
-              changed = true;
+
+          // Ensure all 12 real @kelurahan.panaikang posts are synced with their exact real images & captions
+          const customPosts = parsed.kelurahanInfos.filter(
+            (item) => !INITIAL_KELURAHAN_INFOS.some((init) => init.id === item.id)
+          );
+          const syncedOfficialPosts = INITIAL_KELURAHAN_INFOS.map((initItem) => {
+            const existing = parsed.kelurahanInfos.find((i) => i.id === initItem.id);
+            if (existing) {
               return {
-                ...item,
-                instagramHandle: match?.instagramHandle || '@kelurahan.panaikang',
-                instagramPostUrl:
-                  match?.instagramPostUrl || 'https://www.instagram.com/kelurahan.panaikang/',
-                instagramLikes: match?.instagramLikes ?? 150,
-                instagramCommentsCount: match?.instagramCommentsCount ?? 22,
+                ...initItem,
+                ...existing,
+                imageUrl: initItem.imageUrl,
+                instagramHandle: '@kelurahan.panaikang',
+                instagramPostUrl: initItem.instagramPostUrl,
                 isInstagramSynced: true,
-                hashtags: match?.hashtags || [
-                  '#KelurahanPanaikang',
-                  '#PanaikangSmartEnvironment',
-                  '#KotaMakassar',
-                ],
               };
             }
-            return item;
+            changed = true;
+            return initItem;
           });
-          for (const initItem of INITIAL_KELURAHAN_INFOS) {
-            if (!parsed.kelurahanInfos.some((i) => i.id === initItem.id)) {
-              parsed.kelurahanInfos.push(initItem);
-              changed = true;
-            }
-          }
+          parsed.kelurahanInfos = [...customPosts, ...syncedOfficialPosts];
         }
         if (changed) {
           saveDatabase(parsed);
@@ -108,6 +160,7 @@ function loadDatabase(): DatabaseSchema {
 
   const initialDb: DatabaseSchema = {
     profile: INITIAL_KELURAHAN_PROFILE,
+    rwGroups: INITIAL_RW_GROUPS,
     reports: INITIAL_REPORTS,
     wasteUnits: INITIAL_WASTE_UNITS,
     wasteLogs: INITIAL_WASTE_LOGS,
@@ -339,6 +392,80 @@ async function startServer() {
     res.json({ ok: true, data: db.profile });
   });
 
+  // 2B. Data RT & RW CRUD
+  app.put('/api/rw-groups', (req, res) => {
+    const incoming = req.body as RwGroup[];
+    if (!Array.isArray(incoming)) {
+      res.status(400).json({ ok: false, errors: ['Format data RW/RT tidak valid.'] });
+      return;
+    }
+    db.rwGroups = incoming;
+    db.profile.totalRw = incoming.length;
+    db.profile.totalRt = incoming.reduce((acc, rw) => acc + (rw.rtList?.length || 0), 0);
+    saveDatabase(db);
+    res.json({ ok: true, data: db.rwGroups, profile: db.profile });
+  });
+
+  app.post('/api/rw-groups', (req, res) => {
+    const incoming = req.body as Partial<RwGroup>;
+    if (!incoming.rwCode || !incoming.rwName || !incoming.ketuaRwName) {
+      res.status(400).json({
+        ok: false,
+        errors: ['Kode RW, Nama RW, dan Nama Ketua RW wajib diisi.'],
+      });
+      return;
+    }
+    const newRw: RwGroup = {
+      id: `rw-${Date.now()}`,
+      rwCode: incoming.rwCode.trim(),
+      rwName: incoming.rwName.trim(),
+      ketuaRwName: incoming.ketuaRwName.trim(),
+      phone: incoming.phone?.trim() || '',
+      areaDescription: incoming.areaDescription?.trim() || 'Wilayah Kelurahan Panaikang',
+      rtList: Array.isArray(incoming.rtList) ? incoming.rtList : [],
+    };
+    db.rwGroups = [...db.rwGroups, newRw];
+    db.profile.totalRw = db.rwGroups.length;
+    db.profile.totalRt = db.rwGroups.reduce((acc, rw) => acc + (rw.rtList?.length || 0), 0);
+    saveDatabase(db);
+    res.status(201).json({ ok: true, data: newRw, rwGroups: db.rwGroups });
+  });
+
+  app.put('/api/rw-groups/:id', (req, res) => {
+    const { id } = req.params;
+    const idx = db.rwGroups.findIndex((rw) => rw.id === id);
+    if (idx === -1) {
+      res.status(404).json({ ok: false, errors: ['Data RW tidak ditemukan.'] });
+      return;
+    }
+    const merged: RwGroup = {
+      ...db.rwGroups[idx],
+      ...req.body,
+      rtList: Array.isArray(req.body.rtList) ? req.body.rtList : db.rwGroups[idx].rtList,
+    };
+    if (!merged.rwCode || !merged.rwName || !merged.ketuaRwName) {
+      res.status(400).json({
+        ok: false,
+        errors: ['Kode RW, Nama RW, dan Nama Ketua RW wajib diisi.'],
+      });
+      return;
+    }
+    db.rwGroups[idx] = merged;
+    db.profile.totalRw = db.rwGroups.length;
+    db.profile.totalRt = db.rwGroups.reduce((acc, rw) => acc + (rw.rtList?.length || 0), 0);
+    saveDatabase(db);
+    res.json({ ok: true, data: merged, rwGroups: db.rwGroups });
+  });
+
+  app.delete('/api/rw-groups/:id', (req, res) => {
+    const { id } = req.params;
+    db.rwGroups = db.rwGroups.filter((rw) => rw.id !== id);
+    db.profile.totalRw = db.rwGroups.length;
+    db.profile.totalRt = db.rwGroups.reduce((acc, rw) => acc + (rw.rtList?.length || 0), 0);
+    saveDatabase(db);
+    res.json({ ok: true, deletedId: id, rwGroups: db.rwGroups });
+  });
+
   // 3. Citizen Reports CRUD
   app.post('/api/reports', (req, res) => {
     const incoming = req.body as Partial<CitizenReport>;
@@ -372,7 +499,12 @@ async function startServer() {
         incoming.responseNote ||
         'Laporan baru telah masuk dan tervalidasi dalam sistem Satu Data Panaikang.',
       upvotes: typeof incoming.upvotes === 'number' ? incoming.upvotes : 1,
-      imageUrl: incoming.imageUrl || '/src/assets/images/dokumentasi_drainase_bersih_1791349273322.jpg',
+      imageUrl: incoming.imageUrl || '/images/dokumentasi_drainase_bersih_1791349273322.jpg',
+      verifiedBy: incoming.verifiedBy,
+      verifiedAt: incoming.verifiedAt,
+      completedAt: incoming.completedAt,
+      completionPhotoUrl: incoming.completionPhotoUrl,
+      followUpPhotos: Array.isArray(incoming.followUpPhotos) ? incoming.followUpPhotos : [],
     };
 
     db.reports = [newReport, ...db.reports];
@@ -543,6 +675,14 @@ async function startServer() {
       return;
     }
 
+    const isCompleted = incoming.status === 'Tuntas';
+    const rawDocs =
+      isCompleted && Array.isArray(incoming.documentationPhotos) && incoming.documentationPhotos.length > 0
+        ? incoming.documentationPhotos
+        : isCompleted && incoming.imageUrl
+        ? [incoming.imageUrl]
+        : [];
+
     const created: CleanupEvent = {
       id: `kb-${Date.now()}`,
       title: incoming.title!.trim(),
@@ -557,7 +697,7 @@ async function startServer() {
       status: incoming.status || 'Terjadwal',
       targetParticipants: Number(incoming.targetParticipants) || 80,
       registeredParticipants: Number(incoming.registeredParticipants) || 10,
-      collectedWasteKg: Number(incoming.collectedWasteKg) || 0,
+      collectedWasteKg: isCompleted ? Number(incoming.collectedWasteKg) || 0 : 0,
       focusAreas:
         Array.isArray(incoming.focusAreas) && incoming.focusAreas.length > 0
           ? incoming.focusAreas
@@ -566,12 +706,8 @@ async function startServer() {
         Array.isArray(incoming.equipmentNeeded) && incoming.equipmentNeeded.length > 0
           ? incoming.equipmentNeeded
           : ['Sapu lidi', 'Cangkul', 'Kantong pilah sampah'],
-      imageUrl:
-        incoming.imageUrl || '/src/assets/images/dokumentasi_kerja_bakti_1_1791349247077.jpg',
-      documentationPhotos:
-        Array.isArray(incoming.documentationPhotos) && incoming.documentationPhotos.length > 0
-          ? incoming.documentationPhotos
-          : [incoming.imageUrl || '/src/assets/images/dokumentasi_kerja_bakti_1_1791349247077.jpg'],
+      imageUrl: isCompleted ? incoming.imageUrl || rawDocs[0] || '' : '',
+      documentationPhotos: isCompleted ? rawDocs : [],
       summaryNote:
         incoming.summaryNote?.trim() || 'Kegiatan gotong royong rutin warga Kelurahan Panaikang.',
     };
@@ -589,16 +725,29 @@ async function startServer() {
       return;
     }
 
-    const merged = {
+    const nextStatus = req.body.status ?? db.cleanupEvents[idx].status;
+    const isCompleted = nextStatus === 'Tuntas';
+    const incomingDocs = Array.isArray(req.body.documentationPhotos)
+      ? req.body.documentationPhotos
+      : db.cleanupEvents[idx].documentationPhotos || [];
+
+    const merged: CleanupEvent = {
       ...db.cleanupEvents[idx],
       ...req.body,
+      status: nextStatus,
       targetParticipants: Number(
         req.body.targetParticipants ?? db.cleanupEvents[idx].targetParticipants
       ),
       registeredParticipants: Number(
         req.body.registeredParticipants ?? db.cleanupEvents[idx].registeredParticipants
       ),
-      collectedWasteKg: Number(req.body.collectedWasteKg ?? db.cleanupEvents[idx].collectedWasteKg),
+      collectedWasteKg: isCompleted
+        ? Number(req.body.collectedWasteKg ?? db.cleanupEvents[idx].collectedWasteKg)
+        : 0,
+      imageUrl: isCompleted
+        ? req.body.imageUrl ?? db.cleanupEvents[idx].imageUrl ?? incomingDocs[0] ?? ''
+        : '',
+      documentationPhotos: isCompleted ? incomingDocs : [],
     };
 
     const errors = validateCleanupEvent(merged);
@@ -660,17 +809,11 @@ async function startServer() {
   });
 
   app.post('/api/infos/sync-instagram', (_req, res) => {
-    const existingIds = new Set(db.kelurahanInfos.map((i) => i.id));
-    const missingInitials = INITIAL_KELURAHAN_INFOS.filter((i) => !existingIds.has(i.id));
-    db.kelurahanInfos = [
-      ...db.kelurahanInfos.map((item) => ({
-        ...item,
-        instagramHandle: item.instagramHandle || '@kelurahan.panaikang',
-        instagramPostUrl: item.instagramPostUrl || 'https://www.instagram.com/kelurahan.panaikang/',
-        isInstagramSynced: true,
-      })),
-      ...missingInitials,
-    ];
+    const legacyIds = new Set(['info-1', 'info-2', 'info-3', 'info-4', 'info-5', 'info-6']);
+    const customPosts = db.kelurahanInfos.filter(
+      (i) => !legacyIds.has(i.id) && !INITIAL_KELURAHAN_INFOS.some((init) => init.id === i.id)
+    );
+    db.kelurahanInfos = [...customPosts, ...INITIAL_KELURAHAN_INFOS];
     saveDatabase(db);
     res.json({
       ok: true,

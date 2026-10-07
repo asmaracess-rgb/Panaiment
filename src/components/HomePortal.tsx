@@ -13,9 +13,22 @@ import {
   MessageCircle,
   ExternalLink,
   RefreshCw,
+  Users,
+  Camera,
 } from 'lucide-react';
-import { AppView, CitizenReport, WasteBankUnit, CleanupEvent, KelurahanInfoItem } from '../types';
-import { HERO_IMAGE_PATH, INITIAL_KELURAHAN_INFOS } from '../data/initialData';
+import {
+  AppView,
+  CitizenReport,
+  WasteBankUnit,
+  CleanupEvent,
+  KelurahanInfoItem,
+  RwGroup,
+} from '../types';
+import {
+  HERO_IMAGE_PATH,
+  IG_PROFILE_PANAIKANG,
+  INITIAL_KELURAHAN_INFOS,
+} from '../data/initialData';
 import { resolveImageUrl } from '../utils/resolveImageUrl';
 import {
   EmblemKotaMakassar,
@@ -34,6 +47,7 @@ interface HomePortalProps {
   wasteUnits: WasteBankUnit[];
   cleanupEvents: CleanupEvent[];
   kelurahanInfos: KelurahanInfoItem[];
+  rwGroups?: RwGroup[];
   onSyncInstagram: () => Promise<{ ok: boolean; syncedAt?: string }>;
   onQuickReportClick: () => void;
 }
@@ -44,6 +58,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
   wasteUnits,
   cleanupEvents,
   kelurahanInfos,
+  rwGroups = [],
   onSyncInstagram,
   onQuickReportClick,
 }) => {
@@ -95,7 +110,10 @@ export const HomePortal: React.FC<HomePortalProps> = ({
   const completedReports = reports.filter((r) => r.status === 'Selesai').length;
   const activeReports = reports.filter((r) => r.status !== 'Selesai').length;
   const totalRecycledKg = wasteUnits.reduce((acc, u) => acc + u.organikKg + u.anorganikKg, 0);
-  const upcomingCleanups = cleanupEvents.filter((e) => e.status !== 'Tuntas').length;
+  const scheduledCleanups = cleanupEvents.filter((e) => e.status !== 'Tuntas');
+  const completedCleanups = cleanupEvents.filter((e) => e.status === 'Tuntas');
+  const upcomingCleanups = scheduledCleanups.length;
+  const totalRtCount = rwGroups.reduce((acc, rw) => acc + (rw.rtList?.length || 0), 0);
 
   return (
     <div className="relative overflow-hidden bg-white">
@@ -264,9 +282,32 @@ export const HomePortal: React.FC<HomePortalProps> = ({
           </button>
         </div>
 
-        {/* BOTTOM ROW: 2 Centered Compact Portal Menu Cards (Monitoring Sampah, Monitoring Kerja Bakti) */}
-        <div className="mt-2.5 sm:mt-3.5 grid grid-cols-2 gap-2.5 sm:gap-3.5 max-w-md mx-auto">
-          {/* Card 4: Monitoring Sampah (Orange/Amber Gradient) */}
+        {/* BOTTOM ROW: 3 Compact Portal Menu Cards (Data RT & RW, Monitoring Sampah, Monitoring Kerja Bakti) */}
+        <div className="mt-2.5 sm:mt-3.5 max-w-2xl mx-auto grid grid-cols-3 gap-2.5 sm:gap-3.5">
+          {/* Card 4: Data RT dan RW (Navy/Indigo Gradient) */}
+          <button
+            type="button"
+            onClick={() => onNavigate('rtrw')}
+            className="group relative flex flex-col items-center justify-between text-center rounded-2xl p-2.5 sm:p-3.5 bg-gradient-to-b from-[#1E4E8C] via-[#0D3868] to-[#072647] text-white shadow-[0_6px_16px_-4px_rgba(13,56,104,0.4)] border border-sky-200/40 hover:-translate-y-0.5 transition-transform duration-150 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-700"
+          >
+            <div className="flex flex-col items-center">
+              <div className="mb-1.5 p-1.5 rounded-xl bg-white/10 group-hover:scale-105 transition-transform duration-150 flex items-center justify-center w-8 h-7 sm:w-9 sm:h-8">
+                <Users className="w-6 h-6 sm:w-7 sm:h-7 text-emerald-300" />
+              </div>
+              <h3 className="text-xs sm:text-sm font-extrabold tracking-tight text-white leading-tight">
+                Data RT dan RW
+              </h3>
+              <p className="mt-1 text-[10px] sm:text-[11px] font-medium text-sky-100 leading-tight max-w-[175px] line-clamp-2">
+                Nama RW & daftar RT yang terbagi di tiap wilayah RW.
+              </p>
+            </div>
+
+            <div className="mt-2 flex items-center justify-center w-6 h-6 rounded-full bg-white text-[#0D3868] shadow-xs group-hover:translate-x-0.5 transition-transform duration-150">
+              <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
+            </div>
+          </button>
+
+          {/* Card 5: Monitoring Sampah (Orange/Amber Gradient) */}
           <button
             type="button"
             onClick={() => onNavigate('sampah')}
@@ -289,7 +330,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
             </div>
           </button>
 
-          {/* Card 5: Monitoring Kerja Bakti (Purple/Indigo Gradient) */}
+          {/* Card 6: Monitoring Kerja Bakti (Purple/Indigo Gradient) */}
           <button
             type="button"
             onClick={() => onNavigate('kerjabakti')}
@@ -326,6 +367,16 @@ export const HomePortal: React.FC<HomePortalProps> = ({
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onNavigate('rtrw')}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-[#0D3868] text-xs font-bold transition-colors whitespace-nowrap cursor-pointer"
+              >
+                <Users className="w-3.5 h-3.5 text-[#1C8237]" />
+                <span>
+                  Data RT & RW ({rwGroups.length || 6} RW / {totalRtCount || 30} RT)
+                </span>
+              </button>
               <button
                 type="button"
                 onClick={() => onNavigate('profil')}
@@ -418,6 +469,155 @@ export const HomePortal: React.FC<HomePortalProps> = ({
           </div>
         </div>
 
+        {/* ================= JADWAL & DOKUMENTASI FOTO KERJA BAKTI DI HALAMAN UTAMA ================= */}
+        <div className="mt-10 pt-8 border-t border-slate-200/80">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-5">
+            <div>
+              <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5E35B1]">
+                <Calendar className="w-4 h-4" />
+                <span>AGENDA TERJADWAL & DOKUMENTASI KERJA BAKTI SELESAI</span>
+              </div>
+              <h3 className="mt-1 text-lg sm:text-xl font-extrabold text-[#0D3868] tracking-tight">
+                Monitoring Kerja Bakti Kelurahan Panaikang
+              </h3>
+              <p className="mt-0.5 text-xs text-slate-600">
+                Pemisahan antara kerja bakti yang masih terjadwal (tanpa foto) dan kerja bakti yang
+                telah selesai dilaksanakan beserta lampiran foto dokumentasi.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onNavigate('kerjabakti')}
+              className="self-start sm:self-auto inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#5E35B1] hover:bg-[#4527A0] text-white text-xs font-bold transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <span>Buka Menu Kerja Bakti Lengkap</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            {/* Left 5 Cols: Kerja Bakti yang Masih Terjadwal (Tanpa Foto) */}
+            <div className="lg:col-span-5 bg-slate-50 rounded-2xl border border-slate-200 p-4 sm:p-5 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                  <div className="flex items-center gap-2 text-xs font-extrabold text-[#5E35B1] uppercase tracking-wider">
+                    <Clock className="w-4 h-4" />
+                    <span>Kerja Bakti Terjadwal ({scheduledCleanups.length})</span>
+                  </div>
+                  <span className="text-[11px] font-semibold text-slate-500">Tanpa Foto</span>
+                </div>
+
+                <div className="mt-3 space-y-3">
+                  {scheduledCleanups.length === 0 ? (
+                    <div className="p-4 text-xs text-slate-500 text-center">
+                      Belum ada jadwal kerja bakti yang akan datang.
+                    </div>
+                  ) : (
+                    scheduledCleanups.slice(0, 3).map((ev) => (
+                      <div
+                        key={ev.id}
+                        onClick={() => onNavigate('kerjabakti')}
+                        className="p-3.5 rounded-xl bg-white border border-slate-200 hover:border-purple-300 transition-colors cursor-pointer"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-500">
+                          <span className="font-bold text-[#5E35B1]">
+                            {ev.rw} · {ev.rtScope}
+                          </span>
+                          <span className="font-mono-num font-semibold text-amber-700">
+                            Terjadwal: {ev.date}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-xs sm:text-sm font-bold text-[#0D3868] line-clamp-2">
+                          {ev.title}
+                        </div>
+                        <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
+                          <span className="truncate">{ev.locationName}</span>
+                          <span className="font-mono-num font-semibold text-slate-700 shrink-0 ml-2">
+                            {ev.registeredParticipants}/{ev.targetParticipants} peserta
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => onNavigate('kerjabakti')}
+                className="mt-4 w-full py-2 px-3 rounded-xl border border-purple-200 bg-white hover:bg-purple-50 text-xs font-bold text-[#5E35B1] transition-colors cursor-pointer"
+              >
+                Lihat Jadwal & Daftar Hadir Warga →
+              </button>
+            </div>
+
+            {/* Right 7 Cols: Kerja Bakti yang Telah Selesai Dilaksanakan (Dengan Foto) */}
+            <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-4 sm:p-5">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2 text-xs font-extrabold text-[#1C8237] uppercase tracking-wider">
+                  <Camera className="w-4 h-4" />
+                  <span>
+                    Kerja Bakti Telah Dilaksanakan & Lampiran Foto ({completedCleanups.length})
+                  </span>
+                </div>
+                <span className="text-[11px] font-semibold text-emerald-700">
+                  Selesai Dilaksanakan
+                </span>
+              </div>
+
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {completedCleanups.slice(0, 3).map((ev) => {
+                  const photos =
+                    Array.isArray(ev.documentationPhotos) && ev.documentationPhotos.length > 0
+                      ? ev.documentationPhotos.filter(Boolean)
+                      : ev.imageUrl
+                      ? [ev.imageUrl]
+                      : [];
+                  const mainPhoto = photos[0] || ev.imageUrl;
+
+                  return (
+                    <div
+                      key={ev.id}
+                      onClick={() => onNavigate('kerjabakti')}
+                      className="group rounded-xl border border-slate-200 overflow-hidden bg-slate-50 hover:border-emerald-300 transition-all cursor-pointer flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="relative h-36 w-full bg-slate-900 overflow-hidden">
+                          {mainPhoto && (
+                            <img
+                              src={resolveImageUrl(mainPhoto)}
+                              alt={ev.title}
+                              referrerPolicy="no-referrer"
+                              className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-150"
+                            />
+                          )}
+                          <div className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-slate-900/75 text-white text-[10px] font-bold">
+                            {photos.length} Foto
+                          </div>
+                        </div>
+                        <div className="p-3">
+                          <div className="text-[10px] font-bold text-[#1C8237] font-mono-num">
+                            {ev.rw} · {ev.date}
+                          </div>
+                          <h4 className="mt-0.5 text-xs font-bold text-[#0D3868] line-clamp-2">
+                            {ev.title}
+                          </h4>
+                        </div>
+                      </div>
+                      <div className="px-3 py-2 bg-white border-t border-slate-100 flex items-center justify-between text-[10px] font-semibold text-slate-600">
+                        <span>Tuntas</span>
+                        <span className="font-mono-num font-bold text-emerald-700">
+                          {ev.collectedWasteKg} kg terangkat
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* ================= INFORMASI SEPUTAR KELURAHAN PANAIKANG & INSTAGRAM @kelurahan.panaikang ================= */}
         <div className="mt-12 pt-8 border-t border-slate-200/80">
           <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 mb-6">
@@ -478,7 +678,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
           {/* Connected Official Instagram Profile Header Card (@kelurahan.panaikang) */}
           <div className="mb-7 rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-50 via-white to-rose-50/40 p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3.5 sm:gap-4">
-              {/* Instagram Story Ring around Kelurahan Panaikang Emblem */}
+              {/* Instagram Story Ring around Official @kelurahan.panaikang Profile Picture */}
               <a
                 href="https://www.instagram.com/kelurahan.panaikang/"
                 target="_blank"
@@ -486,8 +686,13 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                 className="p-0.5 rounded-full bg-gradient-to-tr from-amber-500 via-pink-600 to-purple-700 shrink-0 hover:scale-105 transition-transform"
                 title="Buka Instagram @kelurahan.panaikang"
               >
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white flex items-center justify-center p-1">
-                  <EmblemKelurahanPanaikang className="w-11 h-12" />
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white flex items-center justify-center p-0.5 overflow-hidden">
+                  <img
+                    src={resolveImageUrl(IG_PROFILE_PANAIKANG)}
+                    alt="Foto Profil Resmi @kelurahan.panaikang"
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full rounded-full object-cover"
+                  />
                 </div>
               </a>
 
@@ -504,22 +709,27 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                   </a>
                   <span className="inline-flex items-center gap-1 text-[11px] font-bold text-sky-700">
                     <CheckCircle2 className="w-3.5 h-3.5 text-sky-600" />
-                    <span>Akun Resmi Kelurahan</span>
+                    <span>Kelurahan panaikang · Layanan Publik & Pemerintah</span>
                   </span>
                 </div>
 
                 <p className="mt-0.5 text-xs text-slate-600">
-                  Pemerintah Kelurahan Panaikang · Kecamatan Panakkukang, Kota Makassar
+                  Akun Resmi Pemerintah Kelurahan Panaikang · Kecamatan Panakkukang, Kota Makassar
                 </p>
 
                 <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-slate-500">
                   <span>
+                    <strong className="font-mono-num text-slate-800">206</strong> kiriman (
                     <strong className="font-mono-num text-slate-800">{activeInfos.length}</strong>{' '}
-                    postingan ditampilkan
+                    tampil)
                   </span>
                   <span aria-hidden="true">·</span>
                   <span>
-                    <strong className="font-mono-num text-slate-800">2.840</strong> pengikut warga
+                    <strong className="font-mono-num text-slate-800">638</strong> pengikut
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span>
+                    <strong className="font-mono-num text-slate-800">174</strong> diikuti
                   </span>
                   <span aria-hidden="true">·</span>
                   <span className="text-emerald-700 font-semibold">{igSyncStatus}</span>
@@ -556,7 +766,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
             <div className="flex items-center justify-between mb-3.5">
               <div className="flex items-center gap-2 text-xs sm:text-sm font-extrabold text-slate-900">
                 <Instagram className="w-4 h-4 text-[#E1306C]" />
-                <span>Feed Galeri Postingan Instagram @kelurahan.panaikang</span>
+                <span>Feed Galeri Postingan Instagram @kelurahan.panaikang ({activeInfos.length} Postingan)</span>
               </div>
               <span className="text-[11px] font-medium text-slate-500">
                 Klik foto untuk melihat detail postingan
@@ -566,20 +776,20 @@ export const HomePortal: React.FC<HomePortalProps> = ({
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
               {activeInfos.map((post) => {
                 const postLikes =
-                  (post.instagramLikes ?? 142) + (localLikesOffset[post.id] || 0);
-                const postComments = post.instagramCommentsCount ?? 24;
+                  (post.instagramLikes ?? 47) + (localLikesOffset[post.id] || 0);
+                const postComments = post.instagramCommentsCount ?? 7;
                 return (
                   <button
                     key={`grid-${post.id}`}
                     type="button"
                     onClick={() => setSelectedInfo(post)}
-                    className="group relative aspect-square w-full rounded-xl overflow-hidden bg-slate-100 border border-slate-200 cursor-pointer focus:outline-none"
+                    className="group relative aspect-[4/5] w-full rounded-xl overflow-hidden bg-slate-900 border border-slate-200 cursor-pointer focus:outline-none"
                   >
                     <img
                       src={resolveImageUrl(post.imageUrl)}
                       alt={post.title}
                       referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-150"
+                      className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-150"
                     />
                     <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-slate-900/60 text-white flex items-center justify-center">
                       <Instagram className="w-3.5 h-3.5" />
@@ -595,8 +805,8 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                           {postComments}
                         </span>
                       </div>
-                      <span className="mt-1.5 text-[10px] font-medium line-clamp-2 text-slate-100">
-                        {post.title}
+                      <span className="mt-1.5 text-[10px] font-medium line-clamp-3 text-slate-100">
+                        {post.content}
                       </span>
                     </div>
                   </button>
@@ -611,11 +821,11 @@ export const HomePortal: React.FC<HomePortalProps> = ({
               Operator dapat menambahkan melalui Panel Administrator.
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredInfos.map((info) => {
                 const isLiked = !!likedPosts[info.id];
-                const likeCount = (info.instagramLikes ?? 142) + (localLikesOffset[info.id] || 0);
-                const commentCount = info.instagramCommentsCount ?? 24;
+                const likeCount = (info.instagramLikes ?? 47) + (localLikesOffset[info.id] || 0);
+                const commentCount = info.instagramCommentsCount ?? 7;
                 const handle = info.instagramHandle || '@kelurahan.panaikang';
                 const postUrl =
                   info.instagramPostUrl || 'https://www.instagram.com/kelurahan.panaikang/';
@@ -623,6 +833,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                   info.hashtags && info.hashtags.length > 0
                     ? info.hashtags
                     : ['#KelurahanPanaikang', '#PanaikangSmartEnvironment', '#KotaMakassar'];
+                const resolvedImg = resolveImageUrl(info.imageUrl);
 
                 return (
                   <article
@@ -635,8 +846,13 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                       <div className="px-4 py-3 flex items-center justify-between border-b border-slate-100">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div className="p-0.5 rounded-full bg-gradient-to-tr from-amber-500 via-pink-600 to-purple-700 shrink-0">
-                            <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center p-0.5">
-                              <EmblemKelurahanPanaikang className="w-6 h-6" />
+                            <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center p-0.5 overflow-hidden">
+                              <img
+                                src={resolveImageUrl(IG_PROFILE_PANAIKANG)}
+                                alt={handle}
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full rounded-full object-cover"
+                              />
                             </div>
                           </div>
                           <div className="min-w-0">
@@ -645,7 +861,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                               <CheckCircle2 className="w-3.5 h-3.5 text-sky-600 shrink-0" />
                             </div>
                             <div className="text-[11px] text-slate-500 truncate">
-                              Kelurahan Panaikang, Kota Makassar · {info.category}
+                              Kelurahan Panaikang · {info.publishedAt}
                             </div>
                           </div>
                         </div>
@@ -662,17 +878,24 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                         </a>
                       </div>
 
-                      {/* Post Image */}
-                      <div className="relative h-60 sm:h-64 w-full overflow-hidden bg-slate-100">
+                      {/* Post Image — Full uncropped Instagram visual with ambient backdrop */}
+                      <div className="relative h-80 sm:h-96 w-full overflow-hidden bg-slate-950 flex items-center justify-center">
                         <img
-                          src={resolveImageUrl(info.imageUrl)}
+                          src={resolvedImg}
+                          alt=""
+                          aria-hidden="true"
+                          referrerPolicy="no-referrer"
+                          className="absolute inset-0 w-full h-full object-cover blur-xl opacity-45 scale-110"
+                        />
+                        <img
+                          src={resolvedImg}
                           alt={info.title}
                           referrerPolicy="no-referrer"
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-150"
+                          className="relative z-10 max-h-full max-w-full object-contain group-hover:scale-[1.02] transition-transform duration-150"
                         />
                       </div>
 
-                      {/* Instagram Interaction & Caption Area */}
+                      {/* Instagram Interaction & Exact Caption Area */}
                       <div className="p-4 sm:p-5">
                         {/* Action Row: Like, Comment, Published Date */}
                         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -702,21 +925,15 @@ export const HomePortal: React.FC<HomePortalProps> = ({
 
                           <div className="text-xs text-slate-500">
                             <span className="font-mono-num">{info.publishedAt}</span>
-                            <span aria-hidden="true"> · </span>
-                            <span>{info.author}</span>
                           </div>
                         </div>
 
-                        {/* Title & Caption */}
-                        <h4 className="mt-3 text-base font-bold text-[#0D3868] group-hover:text-[#0277BD] transition-colors line-clamp-2">
-                          {info.title}
-                        </h4>
-
-                        <p className="mt-1.5 text-xs sm:text-sm text-slate-600 leading-relaxed line-clamp-3">
-                          <span className="font-bold text-slate-900 mr-1.5">
+                        {/* Exact Instagram Caption */}
+                        <p className="mt-3 text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-line line-clamp-5">
+                          <span className="font-extrabold text-slate-900 mr-1.5">
                             {handle.replace(/^@/, '')}
                           </span>
-                          {info.summary || info.content}
+                          {info.content}
                         </p>
 
                         {/* Hashtags line (unboxed text, zero-pill discipline) */}
@@ -728,9 +945,9 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                       </div>
                     </div>
 
-                    <div className="px-5 py-3 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between text-xs font-bold">
+                    <div className="px-4 py-3 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between text-xs font-bold">
                       <span className="text-[#0277BD] inline-flex items-center gap-1">
-                        <span>Baca Caption & Informasi Lengkap</span>
+                        <span>Lihat Caption & Gambar Penuh</span>
                         <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform duration-150" />
                       </span>
 
@@ -767,8 +984,13 @@ export const HomePortal: React.FC<HomePortalProps> = ({
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-0.5 rounded-full bg-gradient-to-tr from-amber-500 via-pink-600 to-purple-700">
-                  <div className="w-9 h-9 rounded-full bg-white flex items-center justify-center p-0.5">
-                    <EmblemKelurahanPanaikang className="w-7 h-7" />
+                  <div className="w-9 h-9 rounded-full bg-white flex items-center justify-center p-0.5 overflow-hidden">
+                    <img
+                      src={resolveImageUrl(IG_PROFILE_PANAIKANG)}
+                      alt="@kelurahan.panaikang"
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full rounded-full object-cover"
+                    />
                   </div>
                 </div>
                 <div>
@@ -792,12 +1014,19 @@ export const HomePortal: React.FC<HomePortalProps> = ({
               </button>
             </div>
 
-            <div className="relative h-64 sm:h-80 w-full bg-slate-100">
+            <div className="relative h-80 sm:h-[440px] w-full bg-slate-950 flex items-center justify-center overflow-hidden">
+              <img
+                src={resolveImageUrl(selectedInfo.imageUrl)}
+                alt=""
+                aria-hidden="true"
+                referrerPolicy="no-referrer"
+                className="absolute inset-0 w-full h-full object-cover blur-xl opacity-45 scale-110"
+              />
               <img
                 src={resolveImageUrl(selectedInfo.imageUrl)}
                 alt={selectedInfo.title}
                 referrerPolicy="no-referrer"
-                className="w-full h-full object-cover"
+                className="relative z-10 max-h-full max-w-full object-contain"
               />
             </div>
 

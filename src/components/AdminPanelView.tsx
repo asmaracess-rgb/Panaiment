@@ -24,6 +24,10 @@ import {
   Image as ImageIcon,
   Instagram,
   RefreshCw,
+  Users,
+  Clock,
+  Camera,
+  BarChart3,
 } from 'lucide-react';
 import {
   AppView,
@@ -35,6 +39,8 @@ import {
   WasteLogEntry,
   CleanupEvent,
   KelurahanInfoItem,
+  RwGroup,
+  RtItem,
 } from '../types';
 import {
   HERO_IMAGE_PATH,
@@ -42,9 +48,15 @@ import {
   IMG_DRAINASE,
   IMG_BANK_SAMPAH,
   IMG_KERJA_BAKTI,
+  IG_POST_1,
+  IG_POST_6,
+  IG_POST_8,
+  IG_POST_10,
+  IG_POST_12,
 } from '../data/initialData';
 import { resolveImageUrl } from '../utils/resolveImageUrl';
 import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
+import { DashboardLurahView } from './DashboardLurahView';
 
 interface AdminSession {
   token: string;
@@ -57,12 +69,14 @@ interface AdminSession {
 
 interface AdminPanelViewProps {
   profile: KelurahanProfile;
+  rwGroups: RwGroup[];
   reports: CitizenReport[];
   wasteUnits: WasteBankUnit[];
   wasteLogs: WasteLogEntry[];
   cleanupEvents: CleanupEvent[];
   kelurahanInfos: KelurahanInfoItem[];
   onSaveProfile: (updated: KelurahanProfile) => Promise<{ ok: boolean; errors?: string[] }>;
+  onSaveRwGroups: (updated: RwGroup[]) => Promise<{ ok: boolean; errors?: string[] }>;
   onCreateReport: (rep: Partial<CitizenReport>) => Promise<{ ok: boolean; errors?: string[] }>;
   onUpdateReport: (
     id: string,
@@ -96,9 +110,23 @@ interface AdminPanelViewProps {
   onDeleteInfo: (id: string) => Promise<{ ok: boolean; errors?: string[] }>;
   onSyncInstagram: () => Promise<{ ok: boolean; syncedAt?: string }>;
   onNavigate: (view: AppView) => void;
+  initialTab?: AdminTab;
+  onUpdateReportStatus?: (
+    id: string,
+    newStatus: ReportStatus,
+    assignedTeam: string,
+    responseNote: string
+  ) => void;
 }
 
-type AdminTab = 'profil' | 'info' | 'laporan' | 'sampah' | 'kerjabakti';
+export type AdminTab =
+  | 'dashboard_lurah'
+  | 'profil'
+  | 'rtrw'
+  | 'info'
+  | 'laporan'
+  | 'sampah'
+  | 'kerjabakti';
 
 const RW_LIST = ['RW 01', 'RW 02', 'RW 03', 'RW 04', 'RW 05', 'RW 06', 'RW 07', 'RW 08'];
 const RT_LIST = ['RT 01', 'RT 02', 'RT 03', 'RT 04', 'RT 05'];
@@ -111,12 +139,14 @@ const CATEGORIES: ReportCategory[] = [
 
 export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   profile,
-  reports,
-  wasteUnits,
-  wasteLogs,
-  cleanupEvents,
-  kelurahanInfos,
+  rwGroups = [],
+  reports = [],
+  wasteUnits = [],
+  wasteLogs = [],
+  cleanupEvents = [],
+  kelurahanInfos = [],
   onSaveProfile,
+  onSaveRwGroups,
   onCreateReport,
   onUpdateReport,
   onDeleteReport,
@@ -132,6 +162,8 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   onDeleteInfo,
   onSyncInstagram,
   onNavigate,
+  initialTab,
+  onUpdateReportStatus,
 }) => {
   // ================= AUTHENTICATION STATE =================
   const [adminSession, setAdminSession] = useState<AdminSession | null>(() => {
@@ -148,7 +180,19 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<AdminTab>('profil');
+  const [activeTab, setActiveTab] = useState<AdminTab>(initialTab || 'dashboard_lurah');
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
+  const isLurahSession = Boolean(
+    adminSession &&
+      (adminSession.role.toLowerCase().includes('lurah') ||
+        adminSession.username.toLowerCase() === 'admin' ||
+        adminSession.username.toLowerCase() === 'lurah')
+  );
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [successMessage, setSuccessMessage] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -235,6 +279,30 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     setLoginError('');
   };
 
+  // ================= 1B. DATA RT & RW CRUD STATE =================
+  const [editingRwId, setEditingRwId] = useState<string | null>(null);
+  const [showRwForm, setShowRwForm] = useState(false);
+  const [confirmDeleteRwId, setConfirmDeleteRwId] = useState<string | null>(null);
+  const [rwForm, setRwForm] = useState<Partial<RwGroup>>({
+    rwCode: 'RW 07',
+    rwName: '',
+    ketuaRwName: '',
+    phone: '',
+    areaDescription: '',
+  });
+
+  const [activeRwForRt, setActiveRwForRt] = useState<string | null>(null);
+  const [editingRtId, setEditingRtId] = useState<string | null>(null);
+  const [confirmDeleteRtKey, setConfirmDeleteRtKey] = useState<string | null>(null);
+  const [rtForm, setRtForm] = useState<Partial<RtItem>>({
+    rtCode: 'RT 01',
+    rtName: '',
+    ketuaRtName: '',
+    phone: '',
+    areaDescription: '',
+    householdsCount: 120,
+  });
+
   // ================= 2. LAPORAN WARGA CRUD STATE =================
   const [reportSearch, setReportSearch] = useState('');
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
@@ -254,6 +322,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     assignedTeam: 'Satgas Drainase & Kebersihan Kelurahan Panaikang',
     responseNote: '',
     imageUrl: IMG_DRAINASE,
+    verifiedBy: '',
+    completionPhotoUrl: '',
+    followUpPhotos: [],
   });
 
   // ================= 3. BANK SAMPAH UNIT CRUD STATE =================
@@ -472,7 +543,276 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     setNewMisiText('');
   };
 
+  // ---------- DATA RT & RW HANDLERS ----------
+  const openAddRwForm = () => {
+    clearFeedback();
+    setEditingRwId(null);
+    const nextNum = String(rwGroups.length + 1).padStart(2, '0');
+    setRwForm({
+      rwCode: `RW ${nextNum}`,
+      rwName: `RW ${nextNum} — Kawasan Kelurahan Panaikang`,
+      ketuaRwName: '',
+      phone: '0812-4100-xxxx',
+      areaDescription: '',
+    });
+    setShowRwForm(true);
+  };
+
+  const openEditRwForm = (rw: RwGroup) => {
+    clearFeedback();
+    setEditingRwId(rw.id);
+    setRwForm({ ...rw });
+    setShowRwForm(true);
+  };
+
+  const handleRwFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    clearFeedback();
+    if (!rwForm.rwCode?.trim() || !rwForm.rwName?.trim() || !rwForm.ketuaRwName?.trim()) {
+      setValidationErrors(['Kode RW, Nama RW, dan Nama Ketua RW wajib diisi.']);
+      return;
+    }
+    setIsSubmitting(true);
+    let nextGroups: RwGroup[];
+    if (editingRwId) {
+      nextGroups = rwGroups.map((rw) =>
+        rw.id === editingRwId
+          ? {
+              ...rw,
+              rwCode: rwForm.rwCode!.trim(),
+              rwName: rwForm.rwName!.trim(),
+              ketuaRwName: rwForm.ketuaRwName!.trim(),
+              phone: rwForm.phone?.trim() || '',
+              areaDescription: rwForm.areaDescription?.trim() || 'Wilayah Kelurahan Panaikang',
+            }
+          : rw
+      );
+    } else {
+      const createdRw: RwGroup = {
+        id: `rw-${Date.now()}`,
+        rwCode: rwForm.rwCode.trim(),
+        rwName: rwForm.rwName.trim(),
+        ketuaRwName: rwForm.ketuaRwName.trim(),
+        phone: rwForm.phone?.trim() || '',
+        areaDescription: rwForm.areaDescription?.trim() || 'Wilayah Kelurahan Panaikang',
+        rtList: [],
+      };
+      nextGroups = [...rwGroups, createdRw];
+    }
+    const res = await onSaveRwGroups(nextGroups);
+    setIsSubmitting(false);
+    if (!res.ok) {
+      setValidationErrors(res.errors || ['Gagal menyimpan perubahan data RW.']);
+    } else {
+      setShowRwForm(false);
+      setEditingRwId(null);
+      setSuccessMessage(
+        editingRwId
+          ? 'Data Rukun Warga (RW) berhasil diperbarui dan ditampilkan pada menu Data RT dan RW.'
+          : 'Wilayah Rukun Warga (RW) baru berhasil ditambahkan.'
+      );
+    }
+  };
+
+  const handleExecuteDeleteRw = async (rwId: string) => {
+    clearFeedback();
+    const nextGroups = rwGroups.filter((rw) => rw.id !== rwId);
+    const res = await onSaveRwGroups(nextGroups);
+    setConfirmDeleteRwId(null);
+    if (res.ok) {
+      setSuccessMessage('Data RW beserta daftar RT di dalamnya berhasil dihapus.');
+    }
+  };
+
+  const openAddRtForm = (rw: RwGroup) => {
+    clearFeedback();
+    setActiveRwForRt(rw.id);
+    setEditingRtId(null);
+    const nextRtNum = String((rw.rtList?.length || 0) + 1).padStart(2, '0');
+    setRtForm({
+      rtCode: `RT ${nextRtNum}`,
+      rtName: `RT ${nextRtNum} / ${rw.rwCode} — Kelurahan Panaikang`,
+      ketuaRtName: '',
+      phone: '0813-4200-xxxx',
+      areaDescription: '',
+      householdsCount: 120,
+    });
+  };
+
+  const openEditRtForm = (rw: RwGroup, rt: RtItem) => {
+    clearFeedback();
+    setActiveRwForRt(rw.id);
+    setEditingRtId(rt.id);
+    setRtForm({ ...rt });
+  };
+
+  const handleRtFormSubmit = async (e: React.FormEvent, rwId: string) => {
+    e.preventDefault();
+    clearFeedback();
+    if (!rtForm.rtCode?.trim() || !rtForm.rtName?.trim() || !rtForm.ketuaRtName?.trim()) {
+      setValidationErrors(['Kode RT, Nama RT, dan Nama Ketua RT wajib diisi.']);
+      return;
+    }
+    setIsSubmitting(true);
+    const nextGroups = rwGroups.map((rw) => {
+      if (rw.id !== rwId) return rw;
+      const currentRtList = Array.isArray(rw.rtList) ? rw.rtList : [];
+      if (editingRtId) {
+        return {
+          ...rw,
+          rtList: currentRtList.map((rt) =>
+            rt.id === editingRtId
+              ? {
+                  ...rt,
+                  rtCode: rtForm.rtCode!.trim(),
+                  rtName: rtForm.rtName!.trim(),
+                  ketuaRtName: rtForm.ketuaRtName!.trim(),
+                  phone: rtForm.phone?.trim() || '',
+                  areaDescription: rtForm.areaDescription?.trim() || rw.areaDescription,
+                  householdsCount: Number(rtForm.householdsCount) || 100,
+                }
+              : rt
+          ),
+        };
+      }
+      const newRt: RtItem = {
+        id: `rt-${Date.now()}`,
+        rtCode: rtForm.rtCode!.trim(),
+        rtName: rtForm.rtName!.trim(),
+        ketuaRtName: rtForm.ketuaRtName!.trim(),
+        phone: rtForm.phone?.trim() || '',
+        areaDescription: rtForm.areaDescription?.trim() || rw.areaDescription,
+        householdsCount: Number(rtForm.householdsCount) || 100,
+      };
+      return {
+        ...rw,
+        rtList: [...currentRtList, newRt],
+      };
+    });
+
+    const res = await onSaveRwGroups(nextGroups);
+    setIsSubmitting(false);
+    if (!res.ok) {
+      setValidationErrors(res.errors || ['Gagal menyimpan data RT.']);
+    } else {
+      setActiveRwForRt(null);
+      setEditingRtId(null);
+      setSuccessMessage(
+        editingRtId
+          ? 'Data Rukun Tetangga (RT) berhasil diperbarui.'
+          : 'Rukun Tetangga (RT) baru berhasil ditambahkan ke dalam wilayah RW.'
+      );
+    }
+  };
+
+  const handleExecuteDeleteRt = async (rwId: string, rtId: string) => {
+    clearFeedback();
+    const nextGroups = rwGroups.map((rw) =>
+      rw.id === rwId
+        ? { ...rw, rtList: (rw.rtList || []).filter((rt) => rt.id !== rtId) }
+        : rw
+    );
+    const res = await onSaveRwGroups(nextGroups);
+    setConfirmDeleteRtKey(null);
+    if (res.ok) {
+      setSuccessMessage('Data Rukun Tetangga (RT) berhasil dihapus dari wilayah RW.');
+    }
+  };
+
   // ---------- LAPORAN WARGA HANDLERS ----------
+  const handleReportFollowUpPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    Array.from(files).forEach((file) => {
+      if (!file.type.startsWith('image/')) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          const dataUrl = reader.result;
+          setReportForm((prev) => {
+            const existing = Array.isArray(prev.followUpPhotos) ? prev.followUpPhotos : [];
+            const nextPhotos = [dataUrl, ...existing.filter((p) => p !== dataUrl)];
+            return {
+              ...prev,
+              completionPhotoUrl: dataUrl,
+              followUpPhotos: nextPhotos,
+            };
+          });
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleRemoveReportFollowUpPhoto = (idx: number) => {
+    setReportForm((prev) => {
+      const existing = Array.isArray(prev.followUpPhotos) ? prev.followUpPhotos : [];
+      const nextPhotos = existing.filter((_, i) => i !== idx);
+      return {
+        ...prev,
+        followUpPhotos: nextPhotos,
+        completionPhotoUrl: nextPhotos[0] || '',
+      };
+    });
+  };
+
+  const handleQuickReportAction = async (
+    rep: CitizenReport,
+    action: 'verifikasi' | 'proses' | 'selesai'
+  ) => {
+    clearFeedback();
+    const officerLabel =
+      adminSession?.fullName || 'Petugas Administrator / Operator Kelurahan Panaikang';
+    const nowTime = '06 Okt 2026 · ' + new Date().toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+    }) + ' WITA';
+
+    if (action === 'verifikasi') {
+      const res = await onUpdateReport(rep.id, {
+        status: 'Sedang Ditangani',
+        verifiedBy: officerLabel,
+        verifiedAt: nowTime,
+        assignedTeam: rep.assignedTeam || `Satgas Kebersihan & Koordinator ${rep.rw}`,
+        responseNote:
+          rep.responseNote && !rep.responseNote.includes('Menunggu verifikasi')
+            ? rep.responseNote
+            : `Laporan telah diverifikasi oleh ${officerLabel} dan sedang ditindaklanjuti di lapangan oleh ${rep.assignedTeam || 'Satgas Kebersihan'}.`,
+      });
+      if (res.ok) {
+        setSuccessMessage(
+          `Laporan ${rep.ticketCode} berhasil DIVERIFIKASI dan diteruskan untuk penanganan lapangan.`
+        );
+      }
+      return;
+    }
+
+    // For 'proses' or 'selesai', open the detailed follow-up & photo attachment form pre-filled
+    const existingFollowUps =
+      Array.isArray(rep.followUpPhotos) && rep.followUpPhotos.length > 0
+        ? rep.followUpPhotos
+        : rep.completionPhotoUrl
+        ? [rep.completionPhotoUrl]
+        : action === 'selesai'
+        ? [IG_POST_6]
+        : [];
+    setEditingReportId(rep.id);
+    setReportForm({
+      ...rep,
+      status: action === 'selesai' ? 'Selesai' : 'Sedang Ditangani',
+      verifiedBy: rep.verifiedBy || officerLabel,
+      verifiedAt: rep.verifiedAt || nowTime,
+      completedAt: action === 'selesai' ? nowTime : rep.completedAt,
+      completionPhotoUrl: existingFollowUps[0] || '',
+      followUpPhotos: existingFollowUps,
+      responseNote:
+        action === 'selesai'
+          ? `Pengerjaan tindak lanjut laporan warga telah SELESAI dilaksanakan oleh ${rep.assignedTeam}. Dokumentasi foto pengerjaan terlampir.`
+          : rep.responseNote,
+    });
+    setShowReportForm(true);
+  };
+
   const openAddReportForm = () => {
     clearFeedback();
     setEditingReportId(null);
@@ -490,6 +830,10 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       assignedTeam: 'Satgas Drainase & Kebersihan Kelurahan Panaikang',
       responseNote: 'Laporan telah diverifikasi oleh Administrator Kelurahan.',
       imageUrl: IMG_DRAINASE,
+      verifiedBy: adminSession?.fullName || 'Administrator Kelurahan Panaikang',
+      verifiedAt: '06 Okt 2026',
+      completionPhotoUrl: '',
+      followUpPhotos: [],
     });
     setShowReportForm(true);
   };
@@ -497,7 +841,18 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   const openEditReportForm = (rep: CitizenReport) => {
     clearFeedback();
     setEditingReportId(rep.id);
-    setReportForm({ ...rep });
+    const existingFollowUps =
+      Array.isArray(rep.followUpPhotos) && rep.followUpPhotos.length > 0
+        ? rep.followUpPhotos
+        : rep.completionPhotoUrl
+        ? [rep.completionPhotoUrl]
+        : [];
+    setReportForm({
+      ...rep,
+      verifiedBy: rep.verifiedBy || adminSession?.fullName || 'Administrator Kelurahan',
+      completionPhotoUrl: existingFollowUps[0] || '',
+      followUpPhotos: existingFollowUps,
+    });
     setShowReportForm(true);
   };
 
@@ -505,9 +860,30 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     e.preventDefault();
     clearFeedback();
     setIsSubmitting(true);
+    const nowTime = '06 Okt 2026 · Diperbarui Petugas';
+    const followUps = Array.isArray(reportForm.followUpPhotos)
+      ? reportForm.followUpPhotos.filter(Boolean)
+      : reportForm.completionPhotoUrl
+      ? [reportForm.completionPhotoUrl]
+      : [];
+    const payload: Partial<CitizenReport> = {
+      ...reportForm,
+      verifiedBy:
+        reportForm.status !== 'Menunggu Verifikasi'
+          ? reportForm.verifiedBy || adminSession?.fullName || 'Petugas Kelurahan Panaikang'
+          : reportForm.verifiedBy,
+      verifiedAt:
+        reportForm.status !== 'Menunggu Verifikasi'
+          ? reportForm.verifiedAt || nowTime
+          : reportForm.verifiedAt,
+      completedAt:
+        reportForm.status === 'Selesai' ? reportForm.completedAt || nowTime : undefined,
+      completionPhotoUrl: followUps[0] || '',
+      followUpPhotos: followUps,
+    };
     const res = editingReportId
-      ? await onUpdateReport(editingReportId, reportForm)
-      : await onCreateReport(reportForm);
+      ? await onUpdateReport(editingReportId, payload)
+      : await onCreateReport(payload);
     setIsSubmitting(false);
 
     if (!res.ok) {
@@ -517,7 +893,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       setEditingReportId(null);
       setSuccessMessage(
         editingReportId
-          ? 'Data laporan warga berhasil diperbarui dan disimpan.'
+          ? 'Tindak lanjut aksi petugas & lampiran foto pengerjaan berhasil disimpan dan langsung ditampilkan kepada warga pada menu Untuk Warga.'
           : 'Data laporan warga baru berhasil ditambahkan dan tervalidasi.'
       );
     }
@@ -658,24 +1034,25 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     });
   };
 
-  const openAddCleanupForm = () => {
+  const openAddCleanupForm = (initialStatus: CleanupEvent['status'] = 'Terjadwal') => {
     clearFeedback();
     setEditingCleanupId(null);
+    const isCompleted = initialStatus === 'Tuntas';
     setCleanupForm({
       title: '',
-      date: 'Sabtu, 17 Oktober 2026',
+      date: isCompleted ? 'Jumat, 02 Oktober 2026' : 'Sabtu, 17 Oktober 2026',
       timeRange: '06:30 – 09:30 WITA',
       rw: 'RW 01',
       rtScope: 'Seluruh RT',
       locationName: '',
       coordinator: 'Lurah Panaikang & Satgas Kebersihan',
-      status: 'Tuntas',
+      status: initialStatus,
       targetParticipants: 90,
-      registeredParticipants: 85,
-      collectedWasteKg: 320,
+      registeredParticipants: isCompleted ? 85 : 20,
+      collectedWasteKg: isCompleted ? 320 : 0,
       summaryNote: '',
-      imageUrl: IMG_KERJA_BAKTI,
-      documentationPhotos: [IMG_KERJA_BAKTI],
+      imageUrl: isCompleted ? IG_POST_6 : '',
+      documentationPhotos: isCompleted ? [IG_POST_6] : [],
     });
     setShowCleanupForm(true);
   };
@@ -683,15 +1060,19 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   const openEditCleanupForm = (ev: CleanupEvent, markCompleted = false) => {
     clearFeedback();
     setEditingCleanupId(ev.id);
-    const docs =
-      Array.isArray(ev.documentationPhotos) && ev.documentationPhotos.length > 0
+    const targetStatus = markCompleted ? 'Tuntas' : ev.status;
+    const isCompleted = targetStatus === 'Tuntas';
+    const docs = isCompleted
+      ? Array.isArray(ev.documentationPhotos) && ev.documentationPhotos.length > 0
         ? ev.documentationPhotos
         : ev.imageUrl
         ? [ev.imageUrl]
-        : [IMG_KERJA_BAKTI];
+        : [IG_POST_6]
+      : [];
     setCleanupForm({
       ...ev,
-      status: markCompleted ? 'Tuntas' : ev.status,
+      status: targetStatus,
+      imageUrl: isCompleted ? ev.imageUrl || docs[0] || IG_POST_6 : '',
       documentationPhotos: docs,
     });
     setShowCleanupForm(true);
@@ -701,15 +1082,20 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     e.preventDefault();
     clearFeedback();
     setIsSubmitting(true);
+    const isCompleted = cleanupForm.status === 'Tuntas';
     const docs =
+      isCompleted &&
       Array.isArray(cleanupForm.documentationPhotos) &&
       cleanupForm.documentationPhotos.length > 0
         ? cleanupForm.documentationPhotos
-        : [cleanupForm.imageUrl || IMG_KERJA_BAKTI];
+        : isCompleted
+        ? [cleanupForm.imageUrl || IG_POST_6]
+        : [];
     const payload: Partial<CleanupEvent> = {
       ...cleanupForm,
-      imageUrl: cleanupForm.imageUrl || docs[0] || IMG_KERJA_BAKTI,
-      documentationPhotos: docs,
+      collectedWasteKg: isCompleted ? Number(cleanupForm.collectedWasteKg) || 0 : 0,
+      imageUrl: isCompleted ? cleanupForm.imageUrl || docs[0] || IG_POST_6 : '',
+      documentationPhotos: isCompleted ? docs : [],
     };
     const res = editingCleanupId
       ? await onUpdateCleanup(editingCleanupId, payload)
@@ -722,9 +1108,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       setShowCleanupForm(false);
       setEditingCleanupId(null);
       setSuccessMessage(
-        editingCleanupId
-          ? 'Data & foto dokumentasi kegiatan kerja bakti berhasil diperbarui dan ditampilkan pada halaman pengunjung Monitoring Kerja Bakti.'
-          : 'Kegiatan & foto dokumentasi kerja bakti baru berhasil disimpan dan ditampilkan pada halaman pengunjung Monitoring Kerja Bakti.'
+        isCompleted
+          ? 'Data kerja bakti yang telah selesai dilaksanakan beserta foto dokumentasinya berhasil disimpan dan ditampilkan di Halaman Utama & Menu Kerja Bakti.'
+          : 'Jadwal kerja bakti terjadwal (tanpa foto) berhasil disimpan.'
       );
     }
   };
@@ -777,6 +1163,16 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
           {/* Login Form Body */}
           <div className="p-6 sm:p-8">
+            {initialTab === 'dashboard_lurah' && (
+              <div className="mb-5 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs font-semibold text-amber-950 flex items-start gap-2.5">
+                <Lock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                <span>
+                  Menu Ini hanya dapat diakses oleh Lurah. Silakan masuk menggunakan akun Lurah
+                  Panaikang untuk membuka tab <strong>Dashboard Lurah</strong>.
+                </span>
+              </div>
+            )}
+
             {loginError && (
               <div className="mb-5 p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs font-medium text-red-800 flex items-start gap-2.5">
                 <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
@@ -906,8 +1302,20 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           </p>
         </div>
 
-        {/* Navigation Tabs for 5 Database Modules */}
+        {/* Navigation Tabs for Database Modules + Dashboard Lurah */}
         <div className="flex flex-wrap items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200 self-start">
+          <button
+            type="button"
+            onClick={() => handleTabSwitch('dashboard_lurah')}
+            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer ${
+              activeTab === 'dashboard_lurah'
+                ? 'bg-[#2E7D32] text-white shadow-xs'
+                : 'text-slate-700 hover:text-slate-900'
+            }`}
+          >
+            <BarChart3 className="w-3.5 h-3.5" />
+            <span>Dashboard Lurah</span>
+          </button>
           <button
             type="button"
             onClick={() => handleTabSwitch('profil')}
@@ -968,6 +1376,21 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             <Calendar className="w-3.5 h-3.5" />
             <span>Kerja Bakti ({cleanupEvents.length})</span>
           </button>
+          <button
+            type="button"
+            onClick={() => handleTabSwitch('rtrw')}
+            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer ${
+              activeTab === 'rtrw'
+                ? 'bg-[#0D3868] text-white shadow-xs'
+                : 'text-slate-700 hover:text-slate-900'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>
+              Data RT & RW ({rwGroups.length} RW /{' '}
+              {rwGroups.reduce((acc, r) => acc + (r.rtList?.length || 0), 0)} RT)
+            </span>
+          </button>
         </div>
       </div>
 
@@ -1008,6 +1431,54 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           >
             Tutup
           </button>
+        </div>
+      )}
+
+      {/* ================= TAB 0: DASHBOARD LURAH (KHUSUS LURAH) ================= */}
+      {activeTab === 'dashboard_lurah' && (
+        <div>
+          {isLurahSession ? (
+            <DashboardLurahView
+              reports={reports}
+              wasteUnits={wasteUnits}
+              cleanupEvents={cleanupEvents}
+              onUpdateReportStatus={(id, newStatus, assignedTeam, responseNote) => {
+                if (onUpdateReportStatus) {
+                  onUpdateReportStatus(id, newStatus, assignedTeam, responseNote);
+                } else {
+                  onUpdateReport(id, {
+                    status: newStatus,
+                    assignedTeam,
+                    responseNote,
+                  });
+                }
+              }}
+              onNavigate={onNavigate}
+              isEmbeddedInAdmin={true}
+            />
+          ) : (
+            <div className="mt-6 bg-white rounded-2xl border-2 border-amber-200 p-8 text-center max-w-2xl mx-auto space-y-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto">
+                <Lock className="w-6 h-6" />
+              </div>
+              <h2 className="text-xl font-extrabold text-[#0D3868]">
+                Menu Ini hanya dapat diakses oleh Lurah
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                Anda saat ini masuk sebagai <strong>{adminSession.role}</strong>. Tab{' '}
+                <strong>Dashboard Lurah</strong> hanya dapat dilihat oleh Lurah Panaikang. Silakan
+                keluar dan masuk kembali menggunakan akun Lurah.
+              </p>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Keluar & Login sebagai Lurah</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -1772,14 +2243,19 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           {showReportForm && (
             <form
               onSubmit={handleReportFormSubmit}
-              className="bg-white rounded-2xl border-2 border-sky-200 p-6 space-y-4"
+              className="bg-white rounded-2xl border-2 border-sky-200 p-6 space-y-5 shadow-xs"
             >
               <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-                <h3 className="text-base font-bold text-[#0D3868]">
-                  {editingReportId
-                    ? 'Edit & Validasi Data Laporan Warga'
-                    : 'Tambah Data Laporan Warga Baru'}
-                </h3>
+                <div>
+                  <h3 className="text-base font-bold text-[#0D3868]">
+                    {editingReportId
+                      ? 'Verifikasi, Proses & Selesaikan Tindak Lanjut Laporan Warga'
+                      : 'Tambah Data Laporan Warga Baru'}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Petugas (Admin / Operator) dapat memverifikasi, memproses, menyelesaikan laporan, serta melampirkan foto pengerjaan untuk dilihat oleh warga.
+                  </p>
+                </div>
                 <button
                   type="button"
                   onClick={() => setShowReportForm(false)}
@@ -1787,6 +2263,93 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 >
                   <X className="w-5 h-5" />
                 </button>
+              </div>
+
+              {/* Tombol Tahapan Cepat Tindak Lanjut Petugas */}
+              <div className="p-3.5 rounded-xl bg-sky-50/70 border border-sky-200">
+                <div className="text-[11px] font-bold text-[#0D3868] uppercase tracking-wider mb-2">
+                  Pilih Tahapan Tindak Lanjut Petugas (Admin / Operator):
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setReportForm({
+                        ...reportForm,
+                        status: 'Menunggu Verifikasi',
+                      })
+                    }
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                      reportForm.status === 'Menunggu Verifikasi'
+                        ? 'bg-amber-50 border-amber-400 text-amber-950 font-bold'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="text-xs font-bold">1. Menunggu Verifikasi</div>
+                    <div className="text-[11px] text-slate-500">Laporan baru masuk dari warga</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setReportForm({
+                        ...reportForm,
+                        status: 'Sedang Ditangani',
+                        verifiedBy:
+                          reportForm.verifiedBy ||
+                          adminSession?.fullName ||
+                          'Petugas Operator Kelurahan',
+                        verifiedAt: reportForm.verifiedAt || '06 Okt 2026 · Diverifikasi Petugas',
+                        assignedTeam:
+                          reportForm.assignedTeam ||
+                          `Satgas Kebersihan & Koordinator ${reportForm.rw || 'RW'}`,
+                        responseNote:
+                          reportForm.responseNote &&
+                          !reportForm.responseNote.includes('Menunggu verifikasi')
+                            ? reportForm.responseNote
+                            : 'Laporan telah diverifikasi oleh petugas kelurahan dan saat ini sedang dalam proses pengerjaan di lapangan.',
+                      })
+                    }
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                      reportForm.status === 'Sedang Ditangani'
+                        ? 'bg-sky-100/80 border-sky-500 text-sky-950 font-bold'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="text-xs font-bold">2. Verifikasi & Proses Lapangan</div>
+                    <div className="text-[11px] text-slate-500">Disposisi petugas sedang bekerja</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setReportForm({
+                        ...reportForm,
+                        status: 'Selesai',
+                        verifiedBy:
+                          reportForm.verifiedBy ||
+                          adminSession?.fullName ||
+                          'Petugas Operator Kelurahan',
+                        verifiedAt: reportForm.verifiedAt || '06 Okt 2026 · Diverifikasi Petugas',
+                        completedAt: '06 Okt 2026 · Tuntas Dikerjakan',
+                        assignedTeam:
+                          reportForm.assignedTeam ||
+                          `Satgas Kebersihan & Koordinator ${reportForm.rw || 'RW'}`,
+                        responseNote:
+                          reportForm.responseNote &&
+                          !reportForm.responseNote.includes('sedang dalam proses')
+                            ? reportForm.responseNote
+                            : 'Tindak lanjut pengerjaan lapangan telah SELESAI dilaksanakan secara tuntas oleh petugas Kelurahan Panaikang. Foto bukti pengerjaan terlampir.',
+                      })
+                    }
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                      reportForm.status === 'Selesai'
+                        ? 'bg-emerald-100/80 border-emerald-500 text-emerald-950 font-bold'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="text-xs font-bold">3. Selesaikan & Lampirkan Foto</div>
+                    <div className="text-[11px] text-slate-500">Laporan selesai + bukti foto petugas</div>
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1872,7 +2435,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Status Validasi *
+                    Status Tindak Lanjut *
                   </label>
                   <select
                     value={reportForm.status || 'Menunggu Verifikasi'}
@@ -1882,16 +2445,16 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                         status: e.target.value as ReportStatus,
                       })
                     }
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white font-semibold"
                   >
                     <option value="Menunggu Verifikasi">Menunggu Verifikasi</option>
-                    <option value="Sedang Ditangani">Sedang Ditangani</option>
-                    <option value="Selesai">Selesai</option>
+                    <option value="Sedang Ditangani">Sedang Ditangani (Diproses)</option>
+                    <option value="Selesai">Selesai (Tuntas)</option>
                   </select>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Lokasi / Patokan Jalan *
@@ -1907,7 +2470,21 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Unit Pelaksana Disposisi
+                    Petugas Verifikator (Admin / Operator)
+                  </label>
+                  <input
+                    type="text"
+                    value={reportForm.verifiedBy || ''}
+                    onChange={(e) =>
+                      setReportForm({ ...reportForm, verifiedBy: e.target.value })
+                    }
+                    placeholder={adminSession?.fullName || 'Administrator / Operator Kelurahan'}
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Unit Pelaksana Disposisi Lapangan
                   </label>
                   <input
                     type="text"
@@ -1915,6 +2492,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     onChange={(e) =>
                       setReportForm({ ...reportForm, assignedTeam: e.target.value })
                     }
+                    placeholder="Contoh: Satgas Drainase & Kebersihan Kelurahan"
                     className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
                   />
                 </div>
@@ -1922,7 +2500,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Deskripsi Kondisi Lapangan * (Min. 10 karakter)
+                  Deskripsi Kondisi Lapangan (Laporan Warga) * (Min. 10 karakter)
                 </label>
                 <textarea
                   rows={2}
@@ -1936,16 +2514,119 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Catatan Tindak Lanjut Petugas / Kelurahan
+                  Laporan Pengerjaan & Catatan Tindak Lanjut Petugas (Ditampilkan ke Warga) *
                 </label>
-                <input
-                  type="text"
+                <textarea
+                  rows={2}
                   value={reportForm.responseNote || ''}
                   onChange={(e) =>
                     setReportForm({ ...reportForm, responseNote: e.target.value })
                   }
+                  placeholder="Tuliskan rincian tindakan verifikasi, pengerjaan lapangan, atau penyelesaian oleh petugas..."
                   className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
                 />
+              </div>
+
+              {/* LAMPIRAN FOTO LAPORAN PENGERJAAN OLEH ADMIN / OPERATOR */}
+              <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <div className="text-xs sm:text-sm font-bold text-[#146329] flex items-center gap-1.5">
+                      <Camera className="w-4 h-4" />
+                      <span>
+                        Lampiran Foto Laporan Pengerjaan / Tindak Lanjut Petugas (Admin / Operator)
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      Unggah foto bukti penanganan atau penyelesaian laporan warga. Foto ini akan tampil secara transparan kepada warga pada menu Untuk Warga.
+                    </p>
+                  </div>
+                  <label className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold cursor-pointer shrink-0">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload Foto Pengerjaan</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleReportFollowUpPhotoUpload}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {/* Pilihan Cepat Dokumentasi Lapangan Petugas */}
+                <div>
+                  <div className="text-[11px] font-semibold text-slate-600 mb-1.5">
+                    Atau lampirkan cepat foto dokumentasi pengerjaan lapangan Kelurahan Panaikang:
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { label: 'Pengerukan Drainase', url: IMG_DRAINASE },
+                      { label: 'Pengangkutan Sampah', url: IMG_KERJA_BAKTI },
+                      { label: 'Penanganan BSU', url: IMG_BANK_SAMPAH },
+                      { label: 'Pemangkasan & Kebersihan', url: IG_POST_6 },
+                    ].map((preset) => (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() =>
+                          setReportForm((prev) => {
+                            const existing = Array.isArray(prev.followUpPhotos)
+                              ? prev.followUpPhotos
+                              : [];
+                            const nextPhotos = [
+                              preset.url,
+                              ...existing.filter((p) => p !== preset.url),
+                            ];
+                            return {
+                              ...prev,
+                              completionPhotoUrl: preset.url,
+                              followUpPhotos: nextPhotos,
+                            };
+                          })
+                        }
+                        className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-emerald-100 border border-emerald-200 text-xs font-semibold text-[#146329] cursor-pointer"
+                      >
+                        + {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Galeri Foto Tindak Lanjut yang Terlampir */}
+                {Array.isArray(reportForm.followUpPhotos) &&
+                reportForm.followUpPhotos.length > 0 ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+                    {reportForm.followUpPhotos.map((photo, idx) => (
+                      <div
+                        key={idx}
+                        className="relative h-24 rounded-xl overflow-hidden border border-emerald-300 bg-white group"
+                      >
+                        <img
+                          src={resolveImageUrl(photo)}
+                          alt={`Foto Pengerjaan ${idx + 1}`}
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover"
+                        />
+                        <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-emerald-950/80 text-white text-[10px] font-semibold">
+                          Bukti #{idx + 1}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveReportFollowUpPhoto(idx)}
+                          className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-600 text-white flex items-center justify-center text-xs font-bold cursor-pointer"
+                          title="Hapus foto pengerjaan"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-3 px-4 rounded-xl bg-white/80 border border-dashed border-emerald-300 text-xs text-slate-500 text-center">
+                    Belum ada foto laporan pengerjaan petugas yang dilampirkan.
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">
@@ -1959,10 +2640,14 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#0277BD] hover:bg-[#01579B] text-white text-xs font-bold cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#0277BD] hover:bg-[#01579B] text-white text-xs font-bold cursor-pointer"
                 >
                   <Check className="w-4 h-4" />
-                  <span>{editingReportId ? 'Simpan Perubahan' : 'Validasi & Tambah Data'}</span>
+                  <span>
+                    {editingReportId
+                      ? 'Simpan Tindak Lanjut & Lampiran Foto'
+                      : 'Validasi & Tambah Data'}
+                  </span>
                 </button>
               </div>
             </form>
@@ -1999,18 +2684,40 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                           {rep.rw} / {rep.rt}
                         </div>
                       </td>
-                      <td className="py-3.5 px-4 whitespace-nowrap font-semibold">
+                      <td className="py-3.5 px-4">
                         <span
-                          className={
+                          className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
                             rep.status === 'Selesai'
-                              ? 'text-emerald-700'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                               : rep.status === 'Sedang Ditangani'
-                              ? 'text-sky-700'
-                              : 'text-amber-700'
-                          }
+                              ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}
                         >
                           {rep.status}
                         </span>
+                        {rep.verifiedBy && (
+                          <div className="text-[11px] text-slate-500 mt-1">
+                            Petugas: <span className="font-semibold text-slate-700">{rep.verifiedBy}</span>
+                          </div>
+                        )}
+                        {(rep.completionPhotoUrl ||
+                          (Array.isArray(rep.followUpPhotos) &&
+                            rep.followUpPhotos.length > 0)) && (
+                          <div className="mt-1.5 flex items-center gap-1.5">
+                            <img
+                              src={resolveImageUrl(
+                                rep.completionPhotoUrl || rep.followUpPhotos?.[0]
+                              )}
+                              alt="Bukti Pengerjaan"
+                              referrerPolicy="no-referrer"
+                              className="w-10 h-7 rounded object-cover border border-emerald-300"
+                            />
+                            <span className="text-[10px] font-bold text-[#1C8237]">
+                              Foto Pengerjaan Terlampir
+                            </span>
+                          </div>
+                        )}
                       </td>
                       <td className="py-3.5 px-4 text-right whitespace-nowrap">
                         {confirmDeleteReportId === rep.id ? (
@@ -2031,14 +2738,36 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                             </button>
                           </div>
                         ) : (
-                          <div className="inline-flex items-center gap-1.5">
+                          <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
+                            {rep.status === 'Menunggu Verifikasi' && (
+                              <button
+                                type="button"
+                                onClick={() => handleQuickReportAction(rep, 'verifikasi')}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 border border-sky-200 text-[#0277BD] font-bold cursor-pointer"
+                                title="Verifikasi & Teruskan ke Petugas Lapangan"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Verifikasi</span>
+                              </button>
+                            )}
+                            {rep.status !== 'Selesai' && (
+                              <button
+                                type="button"
+                                onClick={() => handleQuickReportAction(rep, 'selesai')}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-[#1C8237] font-bold cursor-pointer"
+                                title="Selesaikan Laporan & Lampirkan Foto Pengerjaan"
+                              >
+                                <Camera className="w-3.5 h-3.5" />
+                                <span>Selesaikan + Foto</span>
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => openEditReportForm(rep)}
                               className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-semibold cursor-pointer"
                             >
                               <Edit3 className="w-3.5 h-3.5 text-[#0277BD]" />
-                              <span>Edit</span>
+                              <span>Tindak Lanjut</span>
                             </button>
                             <button
                               type="button"
@@ -2399,11 +3128,19 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               </button>
               <button
                 type="button"
-                onClick={openAddCleanupForm}
+                onClick={() => openAddCleanupForm('Terjadwal')}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold cursor-pointer whitespace-nowrap"
+              >
+                <Clock className="w-4 h-4" />
+                <span>+ Jadwal Kerja Bakti (Tanpa Foto)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => openAddCleanupForm('Tuntas')}
                 className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#5E35B1] hover:bg-[#4527A0] text-white text-xs sm:text-sm font-bold cursor-pointer whitespace-nowrap"
               >
                 <Upload className="w-4 h-4" />
-                <span>Tambah & Upload Foto Kerja Bakti</span>
+                <span>+ Kerja Bakti Selesai & Upload Foto</span>
               </button>
             </div>
           </div>
@@ -2490,17 +3227,24 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                   </label>
                   <select
                     value={cleanupForm.status || 'Tuntas'}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const nextStatus = e.target.value as CleanupEvent['status'];
                       setCleanupForm({
                         ...cleanupForm,
-                        status: e.target.value as CleanupEvent['status'],
-                      })
-                    }
+                        status: nextStatus,
+                        imageUrl: nextStatus === 'Tuntas' ? cleanupForm.imageUrl || IG_POST_6 : '',
+                        documentationPhotos:
+                          nextStatus === 'Tuntas'
+                            ? cleanupForm.documentationPhotos?.length
+                              ? cleanupForm.documentationPhotos
+                              : [IG_POST_6]
+                            : [],
+                      });
+                    }}
                     className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white font-semibold"
                   >
-                    <option value="Tuntas">Tuntas (Telah Dilaksanakan)</option>
-                    <option value="Sedang Berlangsung">Sedang Berlangsung</option>
-                    <option value="Terjadwal">Terjadwal (Akan Datang)</option>
+                    <option value="Terjadwal">Terjadwal (Akan Datang — Tanpa Foto)</option>
+                    <option value="Tuntas">Tuntas (Telah Dilaksanakan — Dengan Foto)</option>
                   </select>
                 </div>
                 <div>
@@ -2537,7 +3281,39 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 />
               </div>
 
-              {/* PHOTO UPLOAD SECTION FOR COMPLETED KERJA BAKTI */}
+              {/* PHOTO UPLOAD SECTION FOR COMPLETED KERJA BAKTI ONLY */}
+              {cleanupForm.status !== 'Tuntas' ? (
+                <div className="p-4 sm:p-5 rounded-2xl bg-amber-50 border border-amber-200 flex items-start gap-3">
+                  <Clock className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-xs sm:text-sm font-bold text-amber-950">
+                      Kerja Bakti Terjadwal Tidak Menggunakan Foto Dokumentasi
+                    </div>
+                    <p className="text-xs text-amber-900 mt-1 leading-relaxed">
+                      Sesuai ketentuan, kegiatan kerja bakti yang masih berstatus{' '}
+                      <strong>Terjadwal</strong> hanya menampilkan jadwal waktu, wilayah RW/RT, dan lokasi titik kumpul tanpa lampiran foto. Hanya kerja bakti yang telah selesai dilaksanakan (status <strong>Tuntas</strong>) yang dapat melampirkan foto kegiatan.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCleanupForm({
+                          ...cleanupForm,
+                          status: 'Tuntas',
+                          imageUrl: cleanupForm.imageUrl || IG_POST_6,
+                          documentationPhotos:
+                            cleanupForm.documentationPhotos?.length
+                              ? cleanupForm.documentationPhotos
+                              : [IG_POST_6],
+                        })
+                      }
+                      className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#5E35B1] hover:bg-[#4527A0] text-white text-xs font-bold cursor-pointer"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>Ubah ke Tuntas (Telah Dilaksanakan) & Lampirkan Foto</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
               <div className="p-4 sm:p-5 rounded-2xl bg-purple-50/50 border border-purple-200/80 space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
@@ -2682,6 +3458,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                   </div>
                 </div>
               </div>
+              )}
 
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
@@ -2707,116 +3484,672 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             </form>
           )}
 
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
-                    <th className="py-3.5 px-4">Foto Dokumentasi</th>
-                    <th className="py-3.5 px-4">Kegiatan & Lokasi</th>
-                    <th className="py-3.5 px-4">Waktu & RW</th>
-                    <th className="py-3.5 px-4">Status & Capaian</th>
-                    <th className="py-3.5 px-4 text-right">Aksi Admin (Upload Foto / Edit / Hapus)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 text-xs">
-                  {cleanupEvents.map((ev) => {
-                    const photoCount =
-                      Array.isArray(ev.documentationPhotos) && ev.documentationPhotos.length > 0
-                        ? ev.documentationPhotos.length
-                        : 1;
-                    return (
-                      <tr key={ev.id} className="hover:bg-slate-50/80">
-                        <td className="py-3.5 px-4 whitespace-nowrap">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-16 h-12 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 shrink-0">
-                              <img
-                                src={resolveImageUrl(ev.imageUrl)}
-                                alt={ev.title}
-                                referrerPolicy="no-referrer"
-                                className="w-full h-full object-cover"
-                              />
+          {/* PEMISAHAN DAFTAR KERJA BAKTI: 1. TERJADWAL (TANPA FOTO) & 2. TELAH DILAKSANAKAN (DENGAN FOTO) */}
+          <div className="space-y-6">
+            {/* TABEL 1: KERJA BAKTI TERJADWAL (TANPA FOTO) */}
+            <div className="bg-white rounded-2xl border border-amber-200 overflow-hidden">
+              <div className="px-5 py-3.5 bg-amber-50/80 border-b border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-amber-700" />
+                  <h3 className="text-xs sm:text-sm font-bold text-amber-950">
+                    1. Daftar Kerja Bakti Terjadwal (Akan Datang — Tidak Menggunakan Foto)
+                  </h3>
+                </div>
+                <span className="text-xs font-bold text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-full">
+                  {cleanupEvents.filter((e) => e.status !== 'Tuntas').length} Agenda Terjadwal
+                </span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
+                      <th className="py-3 px-4">Kegiatan & Lokasi Titik Kumpul</th>
+                      <th className="py-3 px-4">Jadwal & Wilayah RW</th>
+                      <th className="py-3 px-4">Target Partisipan</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4 text-right">Aksi Admin</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 text-xs">
+                    {cleanupEvents
+                      .filter((ev) => ev.status !== 'Tuntas')
+                      .map((ev) => (
+                        <tr key={ev.id} className="hover:bg-amber-50/30">
+                          <td className="py-3.5 px-4">
+                            <div className="font-bold text-slate-900">{ev.title}</div>
+                            <div className="text-slate-500 mt-0.5">{ev.locationName}</div>
+                          </td>
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <div className="font-semibold text-amber-800">
+                              {ev.rw} · {ev.rtScope}
                             </div>
-                            <span className="text-[11px] font-semibold text-[#5E35B1]">
-                              {photoCount} Foto
+                            <div className="text-slate-500 font-mono-num">{ev.date}</div>
+                          </td>
+                          <td className="py-3.5 px-4 whitespace-nowrap font-mono-num">
+                            {ev.registeredParticipants}/{ev.targetParticipants} warga terdaftar
+                          </td>
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <span className="inline-block px-2.5 py-1 rounded-md bg-amber-50 border border-amber-200 text-amber-800 font-bold">
+                              Terjadwal (Tanpa Foto)
                             </span>
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <div className="font-bold text-slate-900">{ev.title}</div>
-                          <div className="text-slate-500 mt-0.5">{ev.locationName}</div>
-                        </td>
-                        <td className="py-3.5 px-4 whitespace-nowrap">
-                          <div className="font-semibold text-[#5E35B1]">{ev.rw}</div>
-                          <div className="text-slate-500 font-mono-num">{ev.date}</div>
-                        </td>
-                        <td className="py-3.5 px-4 whitespace-nowrap font-mono-num">
-                          <div
-                            className={`font-bold ${
-                              ev.status === 'Tuntas' ? 'text-emerald-700' : 'text-slate-800'
-                            }`}
-                          >
-                            {ev.status === 'Tuntas' ? 'Tuntas (Terlaksana)' : ev.status}
-                          </div>
-                          <div className="text-slate-500">
-                            {ev.registeredParticipants}/{ev.targetParticipants} warga ·{' '}
-                            {ev.collectedWasteKg} kg
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                          {confirmDeleteCleanupId === ev.id ? (
-                            <div className="inline-flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => handleExecuteDeleteCleanup(ev.id)}
-                                className="px-2.5 py-1 rounded-lg bg-red-600 text-white font-bold cursor-pointer"
-                              >
-                                Ya, Hapus
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setConfirmDeleteCleanupId(null)}
-                                className="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-700 font-semibold cursor-pointer"
-                              >
-                                Batal
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="inline-flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => openEditCleanupForm(ev, true)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 border border-purple-200 text-[#5E35B1] font-bold cursor-pointer"
-                                title="Unggah foto dokumentasi kerja bakti yang telah dilaksanakan"
-                              >
-                                <Upload className="w-3.5 h-3.5" />
-                                <span>Upload Foto</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => openEditCleanupForm(ev, false)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-semibold cursor-pointer"
-                              >
-                                <Edit3 className="w-3.5 h-3.5 text-[#5E35B1]" />
-                                <span>Edit</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setConfirmDeleteCleanupId(ev.id)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 bg-red-50/60 hover:bg-red-100 text-red-700 font-semibold cursor-pointer"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                <span>Hapus</span>
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                          </td>
+                          <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                            {confirmDeleteCleanupId === ev.id ? (
+                              <div className="inline-flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleExecuteDeleteCleanup(ev.id)}
+                                  className="px-2.5 py-1 rounded-lg bg-red-600 text-white font-bold cursor-pointer"
+                                >
+                                  Ya, Hapus
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmDeleteCleanupId(null)}
+                                  className="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-700 font-semibold cursor-pointer"
+                                >
+                                  Batal
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="inline-flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => openEditCleanupForm(ev, true)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold cursor-pointer"
+                                  title="Tandai Selesai Dilaksanakan & Lampirkan Foto Kegiatan"
+                                >
+                                  <Camera className="w-3.5 h-3.5" />
+                                  <span>Selesai & Lampirkan Foto</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => openEditCleanupForm(ev, false)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-semibold cursor-pointer"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5 text-amber-700" />
+                                  <span>Edit Jadwal</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmDeleteCleanupId(ev.id)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 bg-red-50/60 hover:bg-red-100 text-red-700 font-semibold cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <span>Hapus</span>
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
+
+            {/* TABEL 2: KERJA BAKTI TELAH DILAKSANAKAN / TUNTAS (DENGAN FOTO DOKUMENTASI) */}
+            <div className="bg-white rounded-2xl border border-emerald-200 overflow-hidden">
+              <div className="px-5 py-3.5 bg-emerald-50/80 border-b border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Camera className="w-4 h-4 text-[#1C8237]" />
+                  <h3 className="text-xs sm:text-sm font-bold text-emerald-950">
+                    2. Daftar Kerja Bakti Telah Dilaksanakan / Tuntas (Dengan Lampiran Foto Dokumentasi)
+                  </h3>
+                </div>
+                <span className="text-xs font-bold text-emerald-900 bg-emerald-100 px-2.5 py-0.5 rounded-full">
+                  {cleanupEvents.filter((e) => e.status === 'Tuntas').length} Kegiatan Terlaksana
+                </span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
+                      <th className="py-3.5 px-4">Foto Dokumentasi</th>
+                      <th className="py-3.5 px-4">Kegiatan & Lokasi</th>
+                      <th className="py-3.5 px-4">Waktu & RW</th>
+                      <th className="py-3.5 px-4">Status & Capaian</th>
+                      <th className="py-3.5 px-4 text-right">
+                        Aksi Admin (Upload Foto / Edit / Hapus)
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 text-xs">
+                    {cleanupEvents
+                      .filter((ev) => ev.status === 'Tuntas')
+                      .map((ev) => {
+                        const photoCount =
+                          Array.isArray(ev.documentationPhotos) &&
+                          ev.documentationPhotos.length > 0
+                            ? ev.documentationPhotos.length
+                            : ev.imageUrl
+                            ? 1
+                            : 0;
+                        return (
+                          <tr key={ev.id} className="hover:bg-slate-50/80">
+                            <td className="py-3.5 px-4 whitespace-nowrap">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-16 h-12 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 shrink-0">
+                                  <img
+                                    src={resolveImageUrl(ev.imageUrl)}
+                                    alt={ev.title}
+                                    referrerPolicy="no-referrer"
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                                <span className="text-[11px] font-semibold text-[#5E35B1]">
+                                  {photoCount} Foto
+                                </span>
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <div className="font-bold text-slate-900">{ev.title}</div>
+                              <div className="text-slate-500 mt-0.5">{ev.locationName}</div>
+                            </td>
+                            <td className="py-3.5 px-4 whitespace-nowrap">
+                              <div className="font-semibold text-[#5E35B1]">{ev.rw}</div>
+                              <div className="text-slate-500 font-mono-num">{ev.date}</div>
+                            </td>
+                            <td className="py-3.5 px-4 whitespace-nowrap font-mono-num">
+                              <div className="font-bold text-emerald-700">
+                                Tuntas (Terlaksana)
+                              </div>
+                              <div className="text-slate-500">
+                                {ev.registeredParticipants}/{ev.targetParticipants} warga ·{' '}
+                                {ev.collectedWasteKg} kg
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                              {confirmDeleteCleanupId === ev.id ? (
+                                <div className="inline-flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleExecuteDeleteCleanup(ev.id)}
+                                    className="px-2.5 py-1 rounded-lg bg-red-600 text-white font-bold cursor-pointer"
+                                  >
+                                    Ya, Hapus
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmDeleteCleanupId(null)}
+                                    className="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-700 font-semibold cursor-pointer"
+                                  >
+                                    Batal
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="inline-flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditCleanupForm(ev, true)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 border border-purple-200 text-[#5E35B1] font-bold cursor-pointer"
+                                    title="Unggah foto dokumentasi kerja bakti yang telah dilaksanakan"
+                                  >
+                                    <Upload className="w-3.5 h-3.5" />
+                                    <span>Upload Foto</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditCleanupForm(ev, false)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-semibold cursor-pointer"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5 text-[#5E35B1]" />
+                                    <span>Edit</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmDeleteCleanupId(ev.id)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 bg-red-50/60 hover:bg-red-100 text-red-700 font-semibold cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <span>Hapus</span>
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= TAB 6: KELOLA DATA RT & RW (CRUD PER RW & RT) ================= */}
+      {activeTab === 'rtrw' && (
+        <div className="mt-6 space-y-6">
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-base font-bold text-[#0D3868]">
+                Manajemen Data Rukun Warga (RW) & Rukun Tetangga (RT) Kelurahan Panaikang
+              </h2>
+              <p className="text-xs text-slate-500">
+                Setiap RT dibagi berdasarkan RW masing-masing. Seluruh data RW dan RT dapat ditambah, diubah, diedit, dan dihapus oleh Administrator.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => onNavigate('rtrw')}
+                className="px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
+                Lihat Halaman Publik RT/RW
+              </button>
+              <button
+                type="button"
+                onClick={openAddRwForm}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs sm:text-sm font-bold cursor-pointer whitespace-nowrap"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Tambah Wilayah RW Baru</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Form Tambah / Edit RW */}
+          {showRwForm && (
+            <form
+              onSubmit={handleRwFormSubmit}
+              className="bg-white rounded-2xl border-2 border-sky-200 p-6 space-y-4"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                <h3 className="text-base font-bold text-[#0D3868]">
+                  {editingRwId ? 'Edit Data Wilayah RW' : 'Tambah Wilayah RW Baru'}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowRwForm(false)}
+                  className="p-1 text-slate-400 hover:text-slate-700 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Kode RW *
+                  </label>
+                  <input
+                    type="text"
+                    value={rwForm.rwCode || ''}
+                    onChange={(e) => setRwForm({ ...rwForm, rwCode: e.target.value })}
+                    placeholder="Contoh: RW 08"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Nama Lengkap Wilayah RW *
+                  </label>
+                  <input
+                    type="text"
+                    value={rwForm.rwName || ''}
+                    onChange={(e) => setRwForm({ ...rwForm, rwName: e.target.value })}
+                    placeholder="Contoh: RW 08 — Kawasan Koridor Panaikang"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Nama Ketua RW *
+                  </label>
+                  <input
+                    type="text"
+                    value={rwForm.ketuaRwName || ''}
+                    onChange={(e) => setRwForm({ ...rwForm, ketuaRwName: e.target.value })}
+                    placeholder="Nama Ketua RW"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Nomor Kontak / Telepon RW
+                  </label>
+                  <input
+                    type="text"
+                    value={rwForm.phone || ''}
+                    onChange={(e) => setRwForm({ ...rwForm, phone: e.target.value })}
+                    placeholder="0812-4100-xxxx"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-mono-num"
+                  />
+                </div>
+                <div className="sm:col-span-3">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Deskripsi Cakupan Wilayah RW
+                  </label>
+                  <input
+                    type="text"
+                    value={rwForm.areaDescription || ''}
+                    onChange={(e) =>
+                      setRwForm({ ...rwForm, areaDescription: e.target.value })
+                    }
+                    placeholder="Contoh: Koridor Jl. Urip Sumoharjo & Sekitarnya"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowRwForm(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>{editingRwId ? 'Simpan Perubahan RW' : 'Simpan RW Baru'}</span>
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Daftar RW beserta Pembagian RT di Masing-Masing RW */}
+          <div className="space-y-6">
+            {rwGroups.map((rw) => (
+              <div
+                key={rw.id}
+                className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs"
+              >
+                {/* Header RW */}
+                <div className="bg-[#0D3868] text-white px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-xs font-extrabold">
+                        {rw.rwCode}
+                      </span>
+                      <h3 className="text-sm sm:text-base font-bold text-white">
+                        {rw.rwName}
+                      </h3>
+                    </div>
+                    <div className="text-xs text-sky-100 mt-1">
+                      Ketua {rw.rwCode}: <strong>{rw.ketuaRwName}</strong> · Kontak:{' '}
+                      <span className="font-mono-num">{rw.phone}</span> · Cakupan:{' '}
+                      {rw.areaDescription} ({rw.rtList?.length || 0} RT)
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => openAddRtForm(rw)}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Tambah RT di {rw.rwCode}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openEditRwForm(rw)}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-white text-xs font-semibold cursor-pointer"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Edit RW</span>
+                    </button>
+                    {confirmDeleteRwId === rw.id ? (
+                      <div className="inline-flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleExecuteDeleteRw(rw.id)}
+                          className="px-2.5 py-1 rounded-lg bg-red-600 text-white text-xs font-bold cursor-pointer"
+                        >
+                          Ya, Hapus RW
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteRwId(null)}
+                          className="px-2 py-1 rounded-lg bg-white/20 text-white text-xs cursor-pointer"
+                        >
+                          Batal
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteRwId(rw.id)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-100 text-xs font-semibold cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Hapus RW</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Form Tambah / Edit RT khusus di dalam RW ini */}
+                {activeRwForRt === rw.id && (
+                  <form
+                    onSubmit={(e) => handleRtFormSubmit(e, rw.id)}
+                    className="p-5 bg-emerald-50/70 border-b border-emerald-200 space-y-4"
+                  >
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs sm:text-sm font-bold text-[#146329]">
+                        {editingRtId
+                          ? `Edit Data RT pada ${rw.rwCode}`
+                          : `Tambah Rukun Tetangga (RT) Baru pada ${rw.rwCode}`}
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveRwForRt(null);
+                          setEditingRtId(null);
+                        }}
+                        className="text-xs font-semibold text-slate-500 hover:text-slate-800 cursor-pointer"
+                      >
+                        Tutup Form RT
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Kode RT *
+                        </label>
+                        <input
+                          type="text"
+                          value={rtForm.rtCode || ''}
+                          onChange={(e) =>
+                            setRtForm({ ...rtForm, rtCode: e.target.value })
+                          }
+                          placeholder="RT 01"
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Nama RT *
+                        </label>
+                        <input
+                          type="text"
+                          value={rtForm.rtName || ''}
+                          onChange={(e) =>
+                            setRtForm({ ...rtForm, rtName: e.target.value })
+                          }
+                          placeholder={`RT 01 / ${rw.rwCode} — Kawasan ...`}
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Nama Ketua RT *
+                        </label>
+                        <input
+                          type="text"
+                          value={rtForm.ketuaRtName || ''}
+                          onChange={(e) =>
+                            setRtForm({ ...rtForm, ketuaRtName: e.target.value })
+                          }
+                          placeholder="Nama Ketua RT"
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Jumlah KK
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={rtForm.householdsCount ?? 100}
+                          onChange={(e) =>
+                            setRtForm({
+                              ...rtForm,
+                              householdsCount: Number(e.target.value),
+                            })
+                          }
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-mono-num"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Nomor Kontak Ketua RT
+                        </label>
+                        <input
+                          type="text"
+                          value={rtForm.phone || ''}
+                          onChange={(e) =>
+                            setRtForm({ ...rtForm, phone: e.target.value })
+                          }
+                          placeholder="0813-4200-xxxx"
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-mono-num"
+                        />
+                      </div>
+                      <div className="sm:col-span-4">
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Cakupan Jalan / Lorong Wilayah RT
+                        </label>
+                        <input
+                          type="text"
+                          value={rtForm.areaDescription || ''}
+                          onChange={(e) =>
+                            setRtForm({ ...rtForm, areaDescription: e.target.value })
+                          }
+                          placeholder="Contoh: Lorong 1 - 3 Jl. Urip Sumoharjo"
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveRwForRt(null);
+                          setEditingRtId(null);
+                        }}
+                        className="px-3.5 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-700 cursor-pointer"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold cursor-pointer"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>{editingRtId ? 'Simpan Perubahan RT' : 'Simpan RT Baru'}</span>
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* Tabel Daftar RT dalam RW ini */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
+                        <th className="py-3 px-4">Kode & Nama RT</th>
+                        <th className="py-3 px-4">Ketua RT</th>
+                        <th className="py-3 px-4">Kontak</th>
+                        <th className="py-3 px-4">Cakupan Lorong / Wilayah</th>
+                        <th className="py-3 px-4 text-right">Jumlah KK</th>
+                        <th className="py-3 px-4 text-right">Aksi Admin (Edit / Hapus)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 text-xs">
+                      {(rw.rtList || []).map((rt) => {
+                        const deleteKey = `${rw.id}:${rt.id}`;
+                        return (
+                          <tr key={rt.id} className="hover:bg-slate-50/80">
+                            <td className="py-3 px-4">
+                              <span className="inline-block px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-[#1C8237] font-bold mr-2">
+                                {rt.rtCode}
+                              </span>
+                              <span className="font-bold text-slate-900">{rt.rtName}</span>
+                            </td>
+                            <td className="py-3 px-4 font-semibold text-slate-800">
+                              {rt.ketuaRtName}
+                            </td>
+                            <td className="py-3 px-4 font-mono-num text-slate-600">
+                              {rt.phone}
+                            </td>
+                            <td className="py-3 px-4 text-slate-600">
+                              {rt.areaDescription}
+                            </td>
+                            <td className="py-3 px-4 text-right font-mono-num font-semibold text-slate-800">
+                              {rt.householdsCount} KK
+                            </td>
+                            <td className="py-3 px-4 text-right whitespace-nowrap">
+                              {confirmDeleteRtKey === deleteKey ? (
+                                <div className="inline-flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleExecuteDeleteRt(rw.id, rt.id)}
+                                    className="px-2.5 py-1 rounded-lg bg-red-600 text-white font-bold cursor-pointer"
+                                  >
+                                    Ya, Hapus
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmDeleteRtKey(null)}
+                                    className="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-700 font-semibold cursor-pointer"
+                                  >
+                                    Batal
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="inline-flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditRtForm(rw, rt)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-semibold cursor-pointer"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5 text-[#1C8237]" />
+                                    <span>Edit RT</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmDeleteRtKey(deleteKey)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 bg-red-50/60 hover:bg-red-100 text-red-700 font-semibold cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <span>Hapus</span>
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {(!rw.rtList || rw.rtList.length === 0) && (
+                        <tr>
+                          <td colSpan={6} className="py-5 text-center text-slate-400">
+                            Belum ada data RT pada {rw.rwCode}. Klik tombol "Tambah RT di {rw.rwCode}" di atas.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

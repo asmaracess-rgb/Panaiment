@@ -14,6 +14,7 @@ import {
   CleanupEvent,
   KelurahanProfile,
   KelurahanInfoItem,
+  RwGroup,
 } from './types';
 import {
   INITIAL_REPORTS,
@@ -22,15 +23,17 @@ import {
   INITIAL_CLEANUP_EVENTS,
   INITIAL_KELURAHAN_PROFILE,
   INITIAL_KELURAHAN_INFOS,
+  INITIAL_RW_GROUPS,
 } from './data/initialData';
 import { HomePortal } from './components/HomePortal';
 import { ProfilKelurahanView } from './components/ProfilKelurahanView';
+import { DataRtRwView } from './components/DataRtRwView';
 import { UntukWargaView } from './components/UntukWargaView';
 import { DashboardLurahView } from './components/DashboardLurahView';
 import { PetaDigitalView } from './components/PetaDigitalView';
 import { MonitoringSampahView } from './components/MonitoringSampahView';
 import { MonitoringKerjaBaktiView } from './components/MonitoringKerjaBaktiView';
-import { AdminPanelView } from './components/AdminPanelView';
+import { AdminPanelView, AdminTab } from './components/AdminPanelView';
 
 interface ToastNotification {
   id: string;
@@ -43,6 +46,7 @@ interface ToastNotification {
 
 export default function App() {
   const [activeView, setActiveView] = useState<AppView>('beranda');
+  const [adminInitialTab, setAdminInitialTab] = useState<AdminTab>('dashboard_lurah');
   const [kelurahanProfile, setKelurahanProfile] = useState<KelurahanProfile>(
     INITIAL_KELURAHAN_PROFILE
   );
@@ -53,6 +57,7 @@ export default function App() {
   const [kelurahanInfos, setKelurahanInfos] = useState<KelurahanInfoItem[]>(
     INITIAL_KELURAHAN_INFOS
   );
+  const [rwGroups, setRwGroups] = useState<RwGroup[]>(INITIAL_RW_GROUPS);
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
   // Load persistent state from Express backend on mount
@@ -63,6 +68,9 @@ export default function App() {
       .then((payload) => {
         if (mounted && payload?.ok && payload.data) {
           if (payload.data.profile) setKelurahanProfile(payload.data.profile);
+          if (Array.isArray(payload.data.rwGroups) && payload.data.rwGroups.length > 0) {
+            setRwGroups(payload.data.rwGroups);
+          }
           if (Array.isArray(payload.data.reports)) setReports(payload.data.reports);
           if (Array.isArray(payload.data.wasteUnits)) setWasteUnits(payload.data.wasteUnits);
           if (Array.isArray(payload.data.wasteLogs)) setWasteLogs(payload.data.wasteLogs);
@@ -721,6 +729,30 @@ export default function App() {
     return { ok: true, syncedAt: 'Baru Saja' };
   };
 
+  // 6. Data RT & RW CRUD
+  const handleSaveRwGroups = async (
+    updatedGroups: RwGroup[]
+  ): Promise<{ ok: boolean; errors?: string[] }> => {
+    setRwGroups(updatedGroups);
+    try {
+      const res = await fetch('/api/rw-groups', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rwGroups: updatedGroups }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) {
+        return { ok: false, errors: json.errors || ['Gagal menyimpan data RT & RW.'] };
+      }
+      if (Array.isArray(json.data)) {
+        setRwGroups(json.data);
+      }
+      return { ok: true };
+    } catch {
+      return { ok: true };
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
       {/* Top Bar Contract: Compact 3-Zone Single-Row Navigation */}
@@ -762,6 +794,18 @@ export default function App() {
             }`}
           >
             Profil Kelurahan
+          </a>
+          <a
+            href="#rtrw"
+            onClick={(e) => {
+              e.preventDefault();
+              handleNavigate('rtrw');
+            }}
+            className={`whitespace-nowrap transition-colors hover:text-[#0D3868] hover:underline underline-offset-4 ${
+              activeView === 'rtrw' ? 'text-[#0D3868] font-bold underline' : ''
+            }`}
+          >
+            Data RT & RW
           </a>
           <a
             href="#warga"
@@ -853,6 +897,7 @@ export default function App() {
             wasteUnits={wasteUnits}
             cleanupEvents={cleanupEvents}
             kelurahanInfos={kelurahanInfos}
+            rwGroups={rwGroups}
             onSyncInstagram={handleSyncInstagram}
             onQuickReportClick={() => handleNavigate('warga')}
           />
@@ -864,6 +909,10 @@ export default function App() {
             wasteUnits={wasteUnits}
             onNavigate={handleNavigate}
           />
+        )}
+
+        {activeView === 'rtrw' && (
+          <DataRtRwView rwGroups={rwGroups} onNavigate={handleNavigate} />
         )}
 
         {activeView === 'warga' && (
@@ -883,6 +932,10 @@ export default function App() {
             cleanupEvents={cleanupEvents}
             onUpdateReportStatus={handleUpdateReportStatus}
             onNavigate={handleNavigate}
+            onRedirectToAdminLogin={() => {
+              setAdminInitialTab('dashboard_lurah');
+              handleNavigate('admin');
+            }}
           />
         )}
 
@@ -917,12 +970,14 @@ export default function App() {
         {activeView === 'admin' && (
           <AdminPanelView
             profile={kelurahanProfile}
+            rwGroups={rwGroups}
             reports={reports}
             wasteUnits={wasteUnits}
             wasteLogs={wasteLogs}
             cleanupEvents={cleanupEvents}
             kelurahanInfos={kelurahanInfos}
             onSaveProfile={handleSaveProfileApi}
+            onSaveRwGroups={handleSaveRwGroups}
             onCreateReport={handleAdminCreateReport}
             onUpdateReport={handleAdminUpdateReport}
             onDeleteReport={handleAdminDeleteReport}
@@ -938,6 +993,8 @@ export default function App() {
             onDeleteInfo={handleAdminDeleteInfo}
             onSyncInstagram={handleSyncInstagram}
             onNavigate={handleNavigate}
+            initialTab={adminInitialTab}
+            onUpdateReportStatus={handleUpdateReportStatus}
           />
         )}
       </main>
