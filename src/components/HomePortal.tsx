@@ -335,13 +335,6 @@ export const HomePortal: React.FC<HomePortalProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => onNavigate('admin')}
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition-colors whitespace-nowrap cursor-pointer"
-              >
-                <span>Panel Administrator</span>
-              </button>
-              <button
-                type="button"
                 onClick={onQuickReportClick}
                 className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1C8237] hover:bg-[#15652B] text-white text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer shadow-xs"
               >

@@ -823,18 +823,6 @@ export default function App() {
           >
             Kerja Bakti
           </a>
-          <a
-            href="#admin"
-            onClick={(e) => {
-              e.preventDefault();
-              handleNavigate('admin');
-            }}
-            className={`hidden xl:inline-block whitespace-nowrap transition-colors hover:text-[#0D3868] hover:underline underline-offset-4 ${
-              activeView === 'admin' ? 'text-[#0D3868] font-bold underline' : ''
-            }`}
-          >
-            Administrator
-          </a>
         </nav>
 
         {/* Zone 3: Compact Primary Actions */}
