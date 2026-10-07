@@ -43,6 +43,7 @@ import {
   IMG_BANK_SAMPAH,
   IMG_KERJA_BAKTI,
 } from '../data/initialData';
+import { resolveImageUrl } from '../utils/resolveImageUrl';
 import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
 
 interface AdminSession {
@@ -1628,7 +1629,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                   <div className="h-36 w-full rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
                     {infoForm.imageUrl ? (
                       <img
-                        src={infoForm.imageUrl}
+                        src={resolveImageUrl(infoForm.imageUrl)}
                         alt="Pratinjau Gambar Informasi"
                         referrerPolicy="no-referrer"
                         className="w-full h-full object-cover"
@@ -1676,7 +1677,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 <div>
                   <div className="h-44 w-full bg-slate-100 overflow-hidden">
                     <img
-                      src={info.imageUrl}
+                      src={resolveImageUrl(info.imageUrl)}
                       alt={info.title}
                       referrerPolicy="no-referrer"
                       className="w-full h-full object-cover"
@@ -2635,7 +2636,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     <div className="h-36 w-full rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
                       {cleanupForm.imageUrl ? (
                         <img
-                          src={cleanupForm.imageUrl}
+                          src={resolveImageUrl(cleanupForm.imageUrl)}
                           alt="Pratinjau Foto Utama Kerja Bakti"
                           referrerPolicy="no-referrer"
                           className="w-full h-full object-cover"
@@ -2657,7 +2658,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                               className="relative w-14 h-14 rounded-lg overflow-hidden border border-slate-300 bg-white group"
                             >
                               <img
-                                src={photo}
+                                src={resolveImageUrl(photo)}
                                 alt={`Dokumentasi ${idx + 1}`}
                                 referrerPolicy="no-referrer"
                                 onClick={() =>
@@ -2730,7 +2731,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                           <div className="flex items-center gap-2.5">
                             <div className="w-16 h-12 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 shrink-0">
                               <img
-                                src={ev.imageUrl}
+                                src={resolveImageUrl(ev.imageUrl)}
                                 alt={ev.title}
                                 referrerPolicy="no-referrer"
                                 className="w-full h-full object-cover"

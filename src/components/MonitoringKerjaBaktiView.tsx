@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { CleanupEvent, AppView } from '../types';
 import { IMG_KERJA_BAKTI } from '../data/initialData';
+import { resolveImageUrl } from '../utils/resolveImageUrl';
 
 interface MonitoringKerjaBaktiViewProps {
   cleanupEvents: CleanupEvent[];
@@ -222,7 +223,7 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
               >
                 <div className="relative h-36 sm:h-40 w-full overflow-hidden bg-slate-200">
                   <img
-                    src={item.photoUrl}
+                    src={resolveImageUrl(item.photoUrl)}
                     alt={item.event.title}
                     referrerPolicy="no-referrer"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
@@ -385,7 +386,7 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
                   className="relative h-52 sm:h-56 lg:flex-1 bg-slate-100 cursor-pointer group overflow-hidden"
                 >
                   <img
-                    src={currentMainPhoto}
+                    src={resolveImageUrl(currentMainPhoto)}
                     alt={ev.title}
                     referrerPolicy="no-referrer"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
@@ -413,7 +414,7 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
                         }`}
                       >
                         <img
-                          src={photo}
+                          src={resolveImageUrl(photo)}
                           alt={`Dokumentasi ${idx + 1}`}
                           referrerPolicy="no-referrer"
                           className="w-full h-full object-cover"
@@ -603,7 +604,7 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
           >
             <div className="relative h-72 sm:h-96 bg-slate-900">
               <img
-                src={lightboxItem.photoUrl}
+                src={resolveImageUrl(lightboxItem.photoUrl)}
                 alt={lightboxItem.event.title}
                 referrerPolicy="no-referrer"
                 className="w-full h-full object-contain"

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { AppView, CitizenReport, WasteBankUnit, CleanupEvent, KelurahanInfoItem } from '../types';
 import { HERO_IMAGE_PATH, INITIAL_KELURAHAN_INFOS } from '../data/initialData';
+import { resolveImageUrl } from '../utils/resolveImageUrl';
 import {
   EmblemKotaMakassar,
   EmblemKelurahanPanaikang,
@@ -104,7 +105,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
         <div className="relative h-[300px] sm:h-[340px] lg:h-[370px] w-full overflow-hidden bg-gradient-to-b from-sky-400 via-sky-200 to-white">
           {!heroImgError ? (
             <img
-              src={HERO_IMAGE_PATH}
+              src={resolveImageUrl(HERO_IMAGE_PATH)}
               alt="Panorama Nipah Mall Makassar, Kampus UMI, dan Jalan Urip Sumoharjo di Kelurahan Panaikang Kota Makassar"
               referrerPolicy="no-referrer"
               onError={() => setHeroImgError(true)}
@@ -582,7 +583,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                     className="group relative aspect-square w-full rounded-xl overflow-hidden bg-slate-100 border border-slate-200 cursor-pointer focus:outline-none"
                   >
                     <img
-                      src={post.imageUrl}
+                      src={resolveImageUrl(post.imageUrl)}
                       alt={post.title}
                       referrerPolicy="no-referrer"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-150"
@@ -671,7 +672,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                       {/* Post Image */}
                       <div className="relative h-60 sm:h-64 w-full overflow-hidden bg-slate-100">
                         <img
-                          src={info.imageUrl}
+                          src={resolveImageUrl(info.imageUrl)}
                           alt={info.title}
                           referrerPolicy="no-referrer"
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-150"
@@ -800,7 +801,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
 
             <div className="relative h-64 sm:h-80 w-full bg-slate-100">
               <img
-                src={selectedInfo.imageUrl}
+                src={resolveImageUrl(selectedInfo.imageUrl)}
                 alt={selectedInfo.title}
                 referrerPolicy="no-referrer"
                 className="w-full h-full object-cover"

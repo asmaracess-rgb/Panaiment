@@ -8,11 +8,11 @@ import {
   KelurahanInfoItem,
 } from '../types';
 
-export const HERO_IMAGE_PATH = '/src/assets/images/hero_nipah_mall_panaikang_1791355921119.jpg';
-export const IMG_NIPAH_MALL = '/src/assets/images/gedung_nipah_mall_makassar_1791355936725.jpg';
-export const IMG_KERJA_BAKTI = '/src/assets/images/dokumentasi_kerja_bakti_1_1791349247077.jpg';
-export const IMG_BANK_SAMPAH = '/src/assets/images/dokumentasi_bank_sampah_1791349262115.jpg';
-export const IMG_DRAINASE = '/src/assets/images/dokumentasi_drainase_bersih_1791349273322.jpg';
+export const HERO_IMAGE_PATH = '/images/hero_nipah_mall_panaikang_1791355921119.jpg';
+export const IMG_NIPAH_MALL = '/images/gedung_nipah_mall_makassar_1791355936725.jpg';
+export const IMG_KERJA_BAKTI = '/images/dokumentasi_kerja_bakti_1_1791349247077.jpg';
+export const IMG_BANK_SAMPAH = '/images/dokumentasi_bank_sampah_1791349262115.jpg';
+export const IMG_DRAINASE = '/images/dokumentasi_drainase_bersih_1791349273322.jpg';
 
 export const INITIAL_REPORTS: CitizenReport[] = [
   {
