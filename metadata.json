@@ -1,0 +1,8 @@
+{
+  "name": "Panaikang Smart Environment",
+  "description": "Aplikasi layanan pelaporan lingkungan warga, dashboard lurah, peta digital, monitoring sampah, dan monitoring kerja bakti Kelurahan Panaikang, Kota Makassar.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

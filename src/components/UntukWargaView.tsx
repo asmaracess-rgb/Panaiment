@@ -1,0 +1,719 @@
+import React, { useState } from 'react';
+import {
+  Send,
+  Search,
+  MapPin,
+  ThumbsUp,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  Truck,
+  ArrowLeft,
+  FileCheck2,
+} from 'lucide-react';
+import {
+  CitizenReport,
+  ReportCategory,
+  ReportUrgency,
+  WasteBankUnit,
+  AppView,
+} from '../types';
+import { IMG_DRAINASE, IMG_BANK_SAMPAH, IMG_KERJA_BAKTI } from '../data/initialData';
+
+interface UntukWargaViewProps {
+  reports: CitizenReport[];
+  wasteUnits: WasteBankUnit[];
+  onAddReport: (newReport: Omit<CitizenReport, 'id' | 'ticketCode' | 'createdAt' | 'updatedAt' | 'upvotes' | 'status' | 'assignedTeam' | 'responseNote'>) => string;
+  onUpvoteReport: (id: string) => void;
+  onNavigate: (view: AppView) => void;
+}
+
+const RW_OPTIONS = ['RW 01', 'RW 02', 'RW 03', 'RW 04', 'RW 05', 'RW 06'];
+const RT_OPTIONS = ['RT 01', 'RT 02', 'RT 03', 'RT 04', 'RT 05'];
+const CATEGORY_OPTIONS: ReportCategory[] = [
+  'Sampah Liar & TPS',
+  'Drainase & Genangan',
+  'Pohon & Ruang Hijau',
+  'Ketertiban & Fasum',
+];
+
+const LANDMARK_PRESETS: Record<string, { label: string; x: number; y: number; coords: string }> = {
+  'RW 01': {
+    label: 'Jl. Racing Centre / Sisi Barat Nipah Mall',
+    x: 24,
+    y: 47,
+    coords: '-5.1388, 119.4408',
+  },
+  'RW 02': {
+    label: 'Koridor Jl. Urip Sumoharjo / Seberang Kampus UMI',
+    x: 50,
+    y: 45,
+    coords: '-5.1379, 119.4470',
+  },
+  'RW 03': {
+    label: 'Jl. Urip Sumoharjo Lorong 2 / Sekitar UMI',
+    x: 57,
+    y: 35,
+    coords: '-5.1355, 119.4485',
+  },
+  'RW 04': {
+    label: 'Jl. Sukaria Raya & Lorong Warga',
+    x: 37,
+    y: 64,
+    coords: '-5.1415, 119.4432',
+  },
+  'RW 05': {
+    label: 'Kompleks Kejaksaan / Jl. Abd. Dg. Sirua Utara',
+    x: 65,
+    y: 67,
+    coords: '-5.1422, 119.4496',
+  },
+  'RW 06': {
+    label: 'Bantaran Kanal Panaikang / Akses Jl. Pampang',
+    x: 73,
+    y: 34,
+    coords: '-5.1345, 119.4515',
+  },
+};
+
+export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
+  reports,
+  wasteUnits,
+  onAddReport,
+  onUpvoteReport,
+  onNavigate,
+}) => {
+  const [activeTab, setActiveTab] = useState<'lapor' | 'pantau' | 'jadwal'>('lapor');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterCategory, setFilterCategory] = useState<string>('Semua');
+
+  // Form states
+  const [reporterName, setReporterName] = useState('');
+  const [reporterPhone, setReporterPhone] = useState('');
+  const [rw, setRw] = useState('RW 02');
+  const [rt, setRt] = useState('RT 01');
+  const [locationName, setLocationName] = useState(
+    'Koridor Jl. Urip Sumoharjo / Seberang Kampus UMI'
+  );
+  const [category, setCategory] = useState<ReportCategory>('Sampah Liar & TPS');
+  const [urgency, setUrgency] = useState<ReportUrgency>('Normal');
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [selectedPhoto, setSelectedPhoto] = useState<string>(IMG_DRAINASE);
+  const [formError, setFormError] = useState('');
+  const [submittedTicket, setSubmittedTicket] = useState<string | null>(null);
+
+  const handleRwChange = (newRw: string) => {
+    setRw(newRw);
+    if (LANDMARK_PRESETS[newRw]) {
+      setLocationName(LANDMARK_PRESETS[newRw].label);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reporterName.trim() || !title.trim() || !description.trim() || !locationName.trim()) {
+      setFormError('Mohon lengkapi nama pelapor, judul permasalahan, lokasi, dan rincian laporan.');
+      return;
+    }
+    setFormError('');
+    const preset = LANDMARK_PRESETS[rw] || LANDMARK_PRESETS['RW 02'];
+    const ticket = onAddReport({
+      title: title.trim(),
+      description: description.trim(),
+      category,
+      urgency,
+      reporterName: reporterName.trim(),
+      reporterPhone: reporterPhone.trim() || '0812-xxxx-xxxx',
+      rw,
+      rt,
+      locationName: locationName.trim(),
+      mapX: preset.x + Math.floor(Math.random() * 6 - 3),
+      mapY: preset.y + Math.floor(Math.random() * 6 - 3),
+      coordinatesLabel: preset.coords,
+      imageUrl: selectedPhoto,
+    });
+    setSubmittedTicket(ticket);
+    setTitle('');
+    setDescription('');
+  };
+
+  const filteredReports = reports.filter((r) => {
+    const matchesSearch =
+      r.ticketCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      r.locationName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      r.rw.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = filterCategory === 'Semua' || r.category === filterCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  return (
+    <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8">
+      {/* Header Navigation & Title */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200">
+        <div>
+          <button
+            type="button"
+            onClick={() => onNavigate('beranda')}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0277BD] hover:text-[#0D3868] mb-2 cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Kembali ke Portal Utama</span>
+          </button>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0D3868] tracking-tight">
+            Layanan Untuk Warga Panaikang
+          </h1>
+          <p className="mt-1 text-sm text-slate-600">
+            Sampaikan laporan lingkungan sekitar Anda, pantau tindak lanjut petugas, dan lihat jadwal
+            armada kebersihan RW.
+          </p>
+        </div>
+
+        {/* Functional Segmented Tab Control */}
+        <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200 self-start">
+          <button
+            type="button"
+            onClick={() => setActiveTab('lapor')}
+            className={`px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
+              activeTab === 'lapor'
+                ? 'bg-[#0277BD] text-white shadow-xs'
+                : 'text-slate-700 hover:text-slate-900'
+            }`}
+          >
+            Buat Laporan
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('pantau')}
+            className={`px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
+              activeTab === 'pantau'
+                ? 'bg-[#0277BD] text-white shadow-xs'
+                : 'text-slate-700 hover:text-slate-900'
+            }`}
+          >
+            Pantau Laporan ({reports.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('jadwal')}
+            className={`px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
+              activeTab === 'jadwal'
+                ? 'bg-[#0277BD] text-white shadow-xs'
+                : 'text-slate-700 hover:text-slate-900'
+            }`}
+          >
+            Jadwal Armada RW
+          </button>
+        </div>
+      </div>
+
+      {/* TAB 1: BUAT LAPORAN WARGA */}
+      {activeTab === 'lapor' && (
+        <div className="mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+          <div className="lg:col-span-7">
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8">
+              <h2 className="text-lg font-bold text-slate-900">
+                Formulir Pengaduan & Laporan Lingkungan Warga
+              </h2>
+              <p className="mt-1 text-xs sm:text-sm text-slate-500">
+                Setiap laporan terhubung langsung ke Dashboard Lurah dan Peta Digital Kelurahan
+                Panaikang.
+              </p>
+
+              {submittedTicket && (
+                <div className="mt-5 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950">
+                  <div className="flex items-start gap-3">
+                    <FileCheck2 className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <div className="text-sm font-bold text-emerald-900">
+                        Laporan Berhasil Diterima Sistem Satu Data Panaikang
+                      </div>
+                      <p className="mt-1 text-xs text-emerald-800">
+                        Nomor Tiket Laporan Anda:{' '}
+                        <span className="font-mono-num font-bold underline">{submittedTicket}</span>.
+                        Tim Kelurahan dan Koordinator RW telah menerima notifikasi lokasi.
+                      </p>
+                      <div className="mt-3 flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSubmittedTicket(null);
+                            setActiveTab('pantau');
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-800 transition-colors cursor-pointer"
+                        >
+                          Lihat Status Laporan
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onNavigate('peta')}
+                          className="px-3 py-1.5 rounded-lg bg-white border border-emerald-300 text-emerald-800 text-xs font-semibold hover:bg-emerald-100 transition-colors cursor-pointer"
+                        >
+                          Buka di Peta Digital
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {formError && (
+                <div className="mt-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs font-medium text-red-800">
+                  {formError}
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Nama Lengkap Pelapor *
+                    </label>
+                    <input
+                      type="text"
+                      value={reporterName}
+                      onChange={(e) => setReporterName(e.target.value)}
+                      placeholder="Contoh: Muh. Rizal Dg. Сикки"
+                      className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-[#0277BD] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Nomor WhatsApp / Telepon
+                    </label>
+                    <input
+                      type="tel"
+                      value={reporterPhone}
+                      onChange={(e) => setReporterPhone(e.target.value)}
+                      placeholder="Contoh: 0812-4210-xxxx"
+                      className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-[#0277BD] focus:outline-none font-mono-num"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Wilayah RW *
+                    </label>
+                    <select
+                      value={rw}
+                      onChange={(e) => handleRwChange(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm text-slate-900 bg-white focus:border-[#0277BD] focus:outline-none"
+                    >
+                      {RW_OPTIONS.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Wilayah RT *
+                    </label>
+                    <select
+                      value={rt}
+                      onChange={(e) => setRt(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm text-slate-900 bg-white focus:border-[#0277BD] focus:outline-none"
+                    >
+                      {RT_OPTIONS.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Kategori Permasalahan *
+                    </label>
+                    <select
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value as ReportCategory)}
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm text-slate-900 bg-white focus:border-[#0277BD] focus:outline-none"
+                    >
+                      {CATEGORY_OPTIONS.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Patokan Lokasi / Jalan di Kelurahan Panaikang *
+                  </label>
+                  <input
+                    type="text"
+                    value={locationName}
+                    onChange={(e) => setLocationName(e.target.value)}
+                    placeholder="Contoh: Jl. Urip Sumoharjo depan Kampus UMI / Jl. Sukaria Lr. 2"
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-[#0277BD] focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Judul Laporan Singkat *
+                  </label>
+                  <input
+                    type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Contoh: Saluran Drainase Tersumbat Sampah Plastik"
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-[#0277BD] focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Rincian Kondisi Lapangan *
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Jelaskan kondisi di lokasi agar Satgas Kebersihan dapat menyiapkan peralatan yang sesuai..."
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-[#0277BD] focus:outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Tingkat Urgensi Penanganan
+                    </label>
+                    <div className="flex items-center gap-2">
+                      {(['Normal', 'Tinggi', 'Darurat'] as ReportUrgency[]).map((level) => (
+                        <button
+                          key={level}
+                          type="button"
+                          onClick={() => setUrgency(level)}
+                          className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold border transition-colors cursor-pointer ${
+                            urgency === level
+                              ? 'bg-[#0D3868] text-white border-[#0D3868]'
+                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          {level}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Lampiran Visual Kondisi
+                    </label>
+                    <div className="flex items-center gap-2">
+                      {[
+                        { label: 'Drainase', url: IMG_DRAINASE },
+                        { label: 'Sampah/TPS', url: IMG_BANK_SAMPAH },
+                        { label: 'Jalur Hijau', url: IMG_KERJA_BAKTI },
+                      ].map((item) => (
+                        <button
+                          key={item.label}
+                          type="button"
+                          onClick={() => setSelectedPhoto(item.url)}
+                          className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-semibold border transition-colors whitespace-nowrap cursor-pointer ${
+                            selectedPhoto === item.url
+                              ? 'bg-sky-50 text-[#0277BD] border-[#0277BD]'
+                              : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[#0277BD] hover:bg-[#01579B] text-white text-sm font-bold shadow-sm transition-colors cursor-pointer"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span>Kirim Laporan ke Kelurahan Panaikang</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          {/* Right Column: Alur Satu Laporan Satu Data Satu Aksi */}
+          <div className="lg:col-span-5 space-y-6">
+            <div className="bg-white rounded-2xl border border-slate-200 p-6">
+              <h3 className="text-base font-bold text-[#0D3868]">
+                Standar Layanan: Satu Laporan, Satu Data, Satu Aksi
+              </h3>
+              <div className="mt-4 space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-7 h-7 rounded-lg bg-sky-100 text-[#0277BD] font-mono-num text-xs font-bold flex items-center justify-center shrink-0">
+                    01
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">
+                      Satu Laporan Warga Terverifikasi
+                    </div>
+                    <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
+                      Warga melaporkan titik sampah, drainase tersumbat, atau pohon rawan tumbang
+                      lengkap dengan titik RW/RT.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 font-mono-num text-xs font-bold flex items-center justify-center shrink-0">
+                    02
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">
+                      Satu Data di Dashboard Lurah & Peta Digital
+                    </div>
+                    <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
+                      Laporan otomatis tercatat dalam basis data spasial Kelurahan Panaikang untuk
+                      penentuan prioritas Satgas.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 font-mono-num text-xs font-bold flex items-center justify-center shrink-0">
+                    03
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">
+                      Satu Aksi Cepat Satgas & RT/RW
+                    </div>
+                    <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
+                      Petugas kebersihan dan koordinator RW menindaklanjuti di lapangan dengan
+                      target respon kurang dari 6 jam kerja.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Reports Quick Preview */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base font-bold text-slate-900">Laporan Terbaru Warga</h3>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('pantau')}
+                  className="text-xs font-semibold text-[#0277BD] hover:underline cursor-pointer"
+                >
+                  Lihat Semua
+                </button>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {reports.slice(0, 3).map((rep) => (
+                  <div key={rep.id} className="py-3 first:pt-0 last:pb-0">
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                      <span className="font-mono-num font-semibold text-slate-700">
+                        {rep.ticketCode}
+                      </span>
+                      <span aria-hidden="true">·</span>
+                      <span>{rep.rw}</span>
+                      <span aria-hidden="true">·</span>
+                      <span
+                        className={`font-semibold ${
+                          rep.status === 'Selesai'
+                            ? 'text-emerald-700'
+                            : rep.status === 'Sedang Ditangani'
+                            ? 'text-sky-700'
+                            : 'text-amber-700'
+                        }`}
+                      >
+                        {rep.status}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-sm font-semibold text-slate-900 line-clamp-1">
+                      {rep.title}
+                    </div>
+                    <div className="mt-0.5 text-xs text-slate-500">{rep.locationName}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: PANTAU STATUS LAPORAN WARGA */}
+      {activeTab === 'pantau' && (
+        <div className="mt-8 space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Cari nomor tiket (mis. PNK-2026-0148), lokasi jalan, atau RW..."
+                className="w-full pl-10 pr-4 py-2 text-sm rounded-xl border border-slate-200 focus:border-[#0277BD] focus:outline-none"
+              />
+            </div>
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+              {['Semua', ...CATEGORY_OPTIONS].map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setFilterCategory(cat)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                    filterCategory === cat
+                      ? 'bg-[#0D3868] text-white'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {filteredReports.map((rep) => (
+              <div
+                key={rep.id}
+                className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 flex flex-col md:flex-row gap-5 justify-between"
+              >
+                <div className="space-y-2 flex-1">
+                  {/* Unboxed Metadata Line (Zero-Pill Discipline) */}
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                    <span className="font-mono-num font-bold text-[#0D3868]">{rep.ticketCode}</span>
+                    <span aria-hidden="true">·</span>
+                    <span className="font-medium text-slate-700">{rep.category}</span>
+                    <span aria-hidden="true">·</span>
+                    <span>
+                      {rep.rw} / {rep.rt}
+                    </span>
+                    <span aria-hidden="true">·</span>
+                    <span className="font-mono-num">{rep.createdAt}</span>
+                    <span aria-hidden="true">·</span>
+                    <span className="inline-flex items-center gap-1 font-semibold">
+                      {rep.status === 'Selesai' && (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-emerald-700">Selesai Ditangani</span>
+                        </>
+                      )}
+                      {rep.status === 'Sedang Ditangani' && (
+                        <>
+                          <Clock className="w-3.5 h-3.5 text-sky-600" />
+                          <span className="text-sky-700">Sedang Ditangani Petugas</span>
+                        </>
+                      )}
+                      {rep.status === 'Menunggu Verifikasi' && (
+                        <>
+                          <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                          <span className="text-amber-700">Menunggu Verifikasi</span>
+                        </>
+                      )}
+                    </span>
+                  </div>
+
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900">{rep.title}</h3>
+                  <p className="text-sm text-slate-600 leading-relaxed">{rep.description}</p>
+
+                  <div className="pt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
+                    <span className="inline-flex items-center gap-1 font-medium text-slate-800">
+                      <MapPin className="w-3.5 h-3.5 text-[#0277BD]" />
+                      {rep.locationName}
+                    </span>
+                    <span aria-hidden="true">·</span>
+                    <span>Pelapor: {rep.reporterName}</span>
+                    <span aria-hidden="true">·</span>
+                    <span>Unit Pelaksana: {rep.assignedTeam}</span>
+                  </div>
+
+                  <div className="mt-3 pt-3 border-t border-slate-100 text-xs text-slate-700">
+                    <span className="font-semibold text-slate-900">Tindak Lanjut Kelurahan: </span>
+                    {rep.responseNote}
+                  </div>
+                </div>
+
+                <div className="flex md:flex-col items-center md:items-end justify-between gap-3 shrink-0 border-t md:border-t-0 pt-3 md:pt-0 border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => onUpvoteReport(rep.id)}
+                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-sky-50 hover:border-sky-300 text-xs font-semibold text-slate-800 transition-colors cursor-pointer"
+                  >
+                    <ThumbsUp className="w-3.5 h-3.5 text-[#0277BD]" />
+                    <span>Dukung Prioritas</span>
+                    <span className="font-mono-num font-bold text-[#0277BD]">{rep.upvotes}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('peta')}
+                    className="text-xs font-semibold text-[#0277BD] hover:underline cursor-pointer"
+                  >
+                    Lihat Titik di Peta →
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: JADWAL ARMADA KEBERSIHAN & BANK SAMPAH RW */}
+      {activeTab === 'jadwal' && (
+        <div className="mt-8 bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="p-6 border-b border-slate-200">
+            <h2 className="text-lg font-bold text-slate-900">
+              Jadwal Operasional Armada Motor Sampah (Tangkasaki / Fukuda) & Bank Sampah RW
+            </h2>
+            <p className="mt-1 text-xs sm:text-sm text-slate-600">
+              Warga diimbau mengeluarkan sampah terpilah (Organik & Anorganik) 30 menit sebelum jam
+              penjemputan armada RW.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
+                  <th className="py-3.5 px-4">Wilayah RW</th>
+                  <th className="py-3.5 px-4">Unit Bank Sampah / Armada</th>
+                  <th className="py-3.5 px-4">Cakupan Koridor & Lorong</th>
+                  <th className="py-3.5 px-4">Jadwal Penjemputan</th>
+                  <th className="py-3.5 px-4">Koordinator</th>
+                  <th className="py-3.5 px-4 text-right">KK Terlayani</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 text-sm">
+                {wasteUnits.map((unit) => (
+                  <tr key={unit.id} className="hover:bg-slate-50/80">
+                    <td className="py-3.5 px-4 font-bold text-[#0D3868] whitespace-nowrap">
+                      {unit.rw}
+                    </td>
+                    <td className="py-3.5 px-4 font-semibold text-slate-900">
+                      <div className="inline-flex items-center gap-2">
+                        <Truck className="w-4 h-4 text-emerald-700 shrink-0" />
+                        <span>{unit.unitName}</span>
+                      </div>
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-600 text-xs">{unit.locationLabel}</td>
+                    <td className="py-3.5 px-4 text-xs font-mono-num font-medium text-slate-800 whitespace-nowrap">
+                      {unit.pickupSchedule}
+                    </td>
+                    <td className="py-3.5 px-4 text-xs text-slate-700">{unit.coordinator}</td>
+                    <td className="py-3.5 px-4 text-right font-mono-num font-semibold text-slate-900">
+                      {unit.activeHouseholds} KK
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
