@@ -305,8 +305,7 @@ async function startServer() {
 
     res.status(401).json({
       ok: false,
-      error:
-        'Kredensial tidak valid. Gunakan username "admin" atau "operator" dengan kata sandi "panaikang2026".',
+      error: 'Username/NIP atau kata sandi yang dimasukkan tidak sesuai. Silakan coba kembali.',
     });
   });
 
