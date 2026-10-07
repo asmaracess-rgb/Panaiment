@@ -6,6 +6,7 @@ import {
   WasteLogEntry,
   CleanupEvent,
   KelurahanInfoItem,
+  WhatsAppRecipient,
 } from '../types';
 import {
   INITIAL_KELURAHAN_PROFILE,
@@ -15,6 +16,7 @@ import {
   INITIAL_WASTE_LOGS,
   INITIAL_CLEANUP_EVENTS,
   INITIAL_KELURAHAN_INFOS,
+  INITIAL_WHATSAPP_RECIPIENTS,
 } from '../data/initialData';
 
 export interface PersistedDatabase {
@@ -25,6 +27,7 @@ export interface PersistedDatabase {
   wasteLogs: WasteLogEntry[];
   cleanupEvents: CleanupEvent[];
   kelurahanInfos: KelurahanInfoItem[];
+  whatsappRecipients: WhatsAppRecipient[];
   updatedAt: number;
 }
 
@@ -51,6 +54,9 @@ export function loadPersistedDatabase(): PersistedDatabase | null {
       kelurahanInfos: Array.isArray(parsed.kelurahanInfos)
         ? parsed.kelurahanInfos
         : INITIAL_KELURAHAN_INFOS,
+      whatsappRecipients: Array.isArray(parsed.whatsappRecipients)
+        ? parsed.whatsappRecipients
+        : INITIAL_WHATSAPP_RECIPIENTS,
       updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : Date.now(),
     };
   } catch {

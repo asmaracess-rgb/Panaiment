@@ -179,3 +179,15 @@ export interface KelurahanInfoItem {
   isInstagramSynced?: boolean;
   hashtags?: string[];
 }
+
+export interface WhatsAppRecipient {
+  id: string;
+  name: string;
+  role: string;
+  phoneNumber: string;
+  isPrimary: boolean;
+  isActive: boolean;
+  rwScope: string;
+  notes?: string;
+}
+

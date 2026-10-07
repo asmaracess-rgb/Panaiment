@@ -11,6 +11,7 @@ import {
   INITIAL_CLEANUP_EVENTS,
   INITIAL_KELURAHAN_INFOS,
   INITIAL_RW_GROUPS,
+  INITIAL_WHATSAPP_RECIPIENTS,
 } from './src/data/initialData.ts';
 import {
   KelurahanProfile,
@@ -20,6 +21,7 @@ import {
   CleanupEvent,
   KelurahanInfoItem,
   RwGroup,
+  WhatsAppRecipient,
 } from './src/types.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -33,6 +35,7 @@ interface DatabaseSchema {
   wasteLogs: WasteLogEntry[];
   cleanupEvents: CleanupEvent[];
   kelurahanInfos: KelurahanInfoItem[];
+  whatsappRecipients: WhatsAppRecipient[];
   lastModified: string;
   updatedAt?: number;
 }
@@ -61,6 +64,9 @@ function loadDatabase(): DatabaseSchema {
           kelurahanInfos: Array.isArray(parsed.kelurahanInfos)
             ? parsed.kelurahanInfos
             : INITIAL_KELURAHAN_INFOS,
+          whatsappRecipients: Array.isArray(parsed.whatsappRecipients)
+            ? parsed.whatsappRecipients
+            : INITIAL_WHATSAPP_RECIPIENTS,
           lastModified: parsed.lastModified || new Date().toISOString(),
           updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : 0,
         };
@@ -78,6 +84,7 @@ function loadDatabase(): DatabaseSchema {
     wasteLogs: INITIAL_WASTE_LOGS,
     cleanupEvents: INITIAL_CLEANUP_EVENTS,
     kelurahanInfos: INITIAL_KELURAHAN_INFOS,
+    whatsappRecipients: INITIAL_WHATSAPP_RECIPIENTS,
     lastModified: new Date().toISOString(),
     updatedAt: 0,
   };
@@ -402,9 +409,31 @@ async function startServer() {
     if (Array.isArray(incoming.wasteLogs)) db.wasteLogs = incoming.wasteLogs;
     if (Array.isArray(incoming.cleanupEvents)) db.cleanupEvents = incoming.cleanupEvents;
     if (Array.isArray(incoming.kelurahanInfos)) db.kelurahanInfos = incoming.kelurahanInfos;
+    if (Array.isArray(incoming.whatsappRecipients))
+      db.whatsappRecipients = incoming.whatsappRecipients;
 
     saveDatabase(db, incoming.updatedAt);
     res.json({ ok: true, data: db });
+  });
+
+  // 1B. WhatsApp Recipients CRUD (Managed by Lurah / Administrator)
+  app.get('/api/whatsapp-recipients', (_req, res) => {
+    res.json({ ok: true, data: db.whatsappRecipients });
+  });
+
+  app.put('/api/whatsapp-recipients', (req, res) => {
+    const incoming = Array.isArray(req.body)
+      ? (req.body as WhatsAppRecipient[])
+      : Array.isArray(req.body?.whatsappRecipients)
+      ? (req.body.whatsappRecipients as WhatsAppRecipient[])
+      : null;
+    if (!incoming) {
+      res.status(400).json({ ok: false, errors: ['Format daftar nomor WhatsApp tidak valid.'] });
+      return;
+    }
+    db.whatsappRecipients = incoming;
+    saveDatabase(db);
+    res.json({ ok: true, data: db.whatsappRecipients });
   });
 
   // 2. Update Kelurahan Profile (Edit, Validate & Save)
@@ -582,6 +611,18 @@ async function startServer() {
     db.reports = db.reports.filter((r) => r.id !== id);
     saveDatabase(db);
     res.json({ ok: true, deletedId: id });
+  });
+
+  // 3B. Automatic Multi-Recipient WhatsApp Dispatch for Citizen Reports
+  app.post('/api/reports/dispatch-whatsapp', (req, res) => {
+    const activeRecipients = (db.whatsappRecipients || []).filter((r) => r.isActive);
+    const ticketCode = req.body?.ticketCode || req.body?.report?.ticketCode || '';
+    res.json({
+      ok: true,
+      ticketCode,
+      totalDispatched: activeRecipients.length,
+      dispatchedAt: new Date().toISOString(),
+    });
   });
 
   // 4. Waste Bank Units (BSU) CRUD

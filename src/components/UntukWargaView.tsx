@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Send,
   Search,
@@ -13,6 +13,11 @@ import {
   Camera,
   ShieldCheck,
   X,
+  MessageCircle,
+  Upload,
+  Copy,
+  Check,
+  Lock,
 } from 'lucide-react';
 import {
   CitizenReport,
@@ -21,20 +26,48 @@ import {
   ReportStatus,
   WasteBankUnit,
   AppView,
+  RwGroup,
+  WhatsAppRecipient,
 } from '../types';
-import { IMG_DRAINASE, IMG_BANK_SAMPAH, IMG_KERJA_BAKTI } from '../data/initialData';
+import {
+  IMG_DRAINASE,
+  IMG_BANK_SAMPAH,
+  IMG_KERJA_BAKTI,
+  INITIAL_WHATSAPP_RECIPIENTS,
+} from '../data/initialData';
 import { resolveImageUrl } from '../utils/resolveImageUrl';
+import { compressImageFile } from '../utils/compressImage';
+import {
+  buildReportWhatsAppMessage,
+  buildWhatsAppUrl,
+  getPreferredWhatsAppRecipient,
+  triggerWhatsAppRedirect,
+} from '../utils/whatsappHelper';
 
 interface UntukWargaViewProps {
   reports: CitizenReport[];
   wasteUnits: WasteBankUnit[];
-  onAddReport: (newReport: Omit<CitizenReport, 'id' | 'ticketCode' | 'createdAt' | 'updatedAt' | 'upvotes' | 'status' | 'assignedTeam' | 'responseNote'>) => string;
+  rwGroups?: RwGroup[];
+  whatsappRecipients?: WhatsAppRecipient[];
+  onAddReport: (
+    newReport: Omit<
+      CitizenReport,
+      | 'id'
+      | 'ticketCode'
+      | 'createdAt'
+      | 'updatedAt'
+      | 'upvotes'
+      | 'status'
+      | 'assignedTeam'
+      | 'responseNote'
+    >
+  ) => string;
   onUpvoteReport: (id: string) => void;
   onNavigate: (view: AppView) => void;
 }
 
-const RW_OPTIONS = ['RW 01', 'RW 02', 'RW 03', 'RW 04', 'RW 05', 'RW 06'];
-const RT_OPTIONS = ['RT 01', 'RT 02', 'RT 03', 'RT 04', 'RT 05'];
+const DEFAULT_RW_OPTIONS = ['RW 01', 'RW 02', 'RW 03', 'RW 04', 'RW 05', 'RW 06', 'RW 07'];
+const DEFAULT_RT_OPTIONS = ['RT 01', 'RT 02', 'RT 03', 'RT 04', 'RT 05'];
 const CATEGORY_OPTIONS: ReportCategory[] = [
   'Sampah Liar & TPS',
   'Drainase & Genangan',
@@ -84,6 +117,8 @@ const LANDMARK_PRESETS: Record<string, { label: string; x: number; y: number; co
 export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
   reports,
   wasteUnits,
+  rwGroups = [],
+  whatsappRecipients = INITIAL_WHATSAPP_RECIPIENTS,
   onAddReport,
   onUpvoteReport,
   onNavigate,
@@ -114,10 +149,79 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
   const [formError, setFormError] = useState('');
   const [submittedTicket, setSubmittedTicket] = useState<string | null>(null);
 
+  // WhatsApp connection states
+  const activeRecipients =
+    whatsappRecipients.filter((r) => r.isActive).length > 0
+      ? whatsappRecipients.filter((r) => r.isActive)
+      : whatsappRecipients;
+  const preferredRecipient = getPreferredWhatsAppRecipient(whatsappRecipients, rw);
+  const [selectedWaRecipientId, setSelectedWaRecipientId] = useState<string>(
+    preferredRecipient?.id || ''
+  );
+  const [autoSendWhatsApp, setAutoSendWhatsApp] = useState<boolean>(true);
+  const [copiedWaText, setCopiedWaText] = useState<boolean>(false);
+  const [lastSubmittedReport, setLastSubmittedReport] = useState<{
+    ticketCode: string;
+    title: string;
+    description: string;
+    category: ReportCategory;
+    urgency: ReportUrgency;
+    rw: string;
+    rt: string;
+    locationName: string;
+    coordinatesLabel: string;
+    reporterName: string;
+    reporterPhone: string;
+    recipientId: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (
+      !selectedWaRecipientId ||
+      !activeRecipients.some((r) => r.id === selectedWaRecipientId)
+    ) {
+      const fallback = getPreferredWhatsAppRecipient(whatsappRecipients, rw);
+      if (fallback) {
+        setSelectedWaRecipientId(fallback.id);
+      }
+    }
+  }, [whatsappRecipients, activeRecipients, selectedWaRecipientId, rw]);
+
+  const RW_OPTIONS =
+    rwGroups.length > 0 ? rwGroups.map((g) => g.rwCode) : DEFAULT_RW_OPTIONS;
+  const selectedRwGroup = rwGroups.find((g) => g.rwCode === rw);
+  const RT_OPTIONS =
+    selectedRwGroup && Array.isArray(selectedRwGroup.rtList) && selectedRwGroup.rtList.length > 0
+      ? selectedRwGroup.rtList.map((item) => item.rtCode)
+      : DEFAULT_RT_OPTIONS;
+
+  const selectedWaRecipient =
+    activeRecipients.find((r) => r.id === selectedWaRecipientId) || preferredRecipient;
+
   const handleRwChange = (newRw: string) => {
     setRw(newRw);
     if (LANDMARK_PRESETS[newRw]) {
       setLocationName(LANDMARK_PRESETS[newRw].label);
+    } else {
+      const rwObj = rwGroups.find((g) => g.rwCode === newRw);
+      if (rwObj?.areaDescription) {
+        setLocationName(rwObj.areaDescription);
+      }
+    }
+    const rwSpecificRecipient = activeRecipients.find((r) => r.rwScope === newRw);
+    if (rwSpecificRecipient) {
+      setSelectedWaRecipientId(rwSpecificRecipient.id);
+    }
+  };
+
+  const handleCitizenPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    try {
+      const compressed = await compressImageFile(file);
+      setSelectedPhoto(compressed);
+    } catch {
+      // ignore
     }
   };
 
@@ -129,7 +233,7 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
     }
     setFormError('');
     const preset = LANDMARK_PRESETS[rw] || LANDMARK_PRESETS['RW 02'];
-    const ticket = onAddReport({
+    const cleanPayload = {
       title: title.trim(),
       description: description.trim(),
       category,
@@ -143,10 +247,39 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
       mapY: preset.y + Math.floor(Math.random() * 6 - 3),
       coordinatesLabel: preset.coords,
       imageUrl: selectedPhoto,
-    });
+    };
+    const ticket = onAddReport(cleanPayload);
+    const submittedData = {
+      ...cleanPayload,
+      ticketCode: ticket,
+      recipientId: selectedWaRecipient?.id || '',
+    };
     setSubmittedTicket(ticket);
+    setLastSubmittedReport(submittedData);
     setTitle('');
     setDescription('');
+
+    // Automatically distribute the newly saved report to all registered WhatsApp recipients
+    fetch('/api/reports/dispatch-whatsapp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ticketCode: ticket,
+        report: submittedData,
+      }),
+    }).catch(() => {
+      // Offline / local fallback handled seamlessly
+    });
+
+    if (autoSendWhatsApp && selectedWaRecipient) {
+      const waMessage = buildReportWhatsAppMessage(
+        submittedData,
+        null,
+        activeRecipients
+      );
+      const waUrl = buildWhatsAppUrl(selectedWaRecipient.phoneNumber, waMessage);
+      triggerWhatsAppRedirect(waUrl);
+    }
   };
 
   const filteredReports = reports.filter((r) => {
@@ -234,33 +367,76 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
               </p>
 
               {submittedTicket && (
-                <div className="mt-5 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950">
+                <div className="mt-5 p-4 sm:p-5 rounded-2xl bg-emerald-50 border-2 border-emerald-300 text-emerald-950 space-y-3.5">
                   <div className="flex items-start gap-3">
                     <FileCheck2 className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
                     <div className="flex-1">
-                      <div className="text-sm font-bold text-emerald-900">
-                        Laporan Berhasil Diterima Sistem Satu Data Panaikang
+                      <div className="text-sm font-extrabold text-emerald-900">
+                        Laporan Berhasil Tersimpan & Terdistribusi ke Seluruh Penerima Terdaftar
                       </div>
-                      <p className="mt-1 text-xs text-emerald-800">
+                      <p className="mt-1 text-xs text-emerald-800 leading-relaxed">
                         Nomor Tiket Laporan Anda:{' '}
                         <span className="font-mono-num font-bold underline">{submittedTicket}</span>.
-                        Tim Kelurahan dan Koordinator RW telah menerima notifikasi lokasi.
+                        Laporan telah tersimpan di basis data Kelurahan Panaikang dan otomatis diteruskan ke seluruh ({activeRecipients.length}) nomor WhatsApp penerima resmi yang terdaftar di halaman Administrator untuk segera dikoordinasikan.
                       </p>
-                      <div className="mt-3 flex items-center gap-3">
+
+                      {lastSubmittedReport && (
+                        <div className="mt-3 p-3.5 rounded-xl bg-white border border-emerald-200 flex flex-wrap items-center justify-between gap-2.5">
+                          <div className="flex items-center gap-2 text-xs text-slate-700">
+                            <div className="w-7 h-7 rounded-lg bg-[#25D366]/15 text-[#128C7E] flex items-center justify-center shrink-0">
+                              <MessageCircle className="w-4 h-4" />
+                            </div>
+                            <span>
+                              Terkirim otomatis ke{' '}
+                              <strong>{activeRecipients.length} Nomor Penerima Terdaftar</strong>{' '}
+                              (Detail nomor & koordinasi dikelola di Halaman Admin)
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const msg = buildReportWhatsAppMessage(
+                                lastSubmittedReport,
+                                null,
+                                activeRecipients
+                              );
+                              navigator.clipboard?.writeText(msg);
+                              setCopiedWaText(true);
+                              window.setTimeout(() => setCopiedWaText(false), 2500);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer"
+                          >
+                            {copiedWaText ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Ringkasan Laporan Tersalin</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3.5 h-3.5" />
+                                <span>Salin Ringkasan Laporan</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="mt-3 flex flex-wrap items-center gap-2.5">
                         <button
                           type="button"
                           onClick={() => {
                             setSubmittedTicket(null);
                             setActiveTab('pantau');
                           }}
-                          className="px-3 py-1.5 rounded-lg bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-800 transition-colors cursor-pointer"
+                          className="px-3.5 py-1.5 rounded-lg bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-800 transition-colors cursor-pointer"
                         >
                           Lihat Status Laporan
                         </button>
                         <button
                           type="button"
                           onClick={() => onNavigate('peta')}
-                          className="px-3 py-1.5 rounded-lg bg-white border border-emerald-300 text-emerald-800 text-xs font-semibold hover:bg-emerald-100 transition-colors cursor-pointer"
+                          className="px-3.5 py-1.5 rounded-lg bg-white border border-emerald-300 text-emerald-800 text-xs font-semibold hover:bg-emerald-100 transition-colors cursor-pointer"
                         >
                           Buka di Peta Digital
                         </button>
@@ -419,9 +595,9 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      Lampiran Visual Kondisi
+                      Lampiran Visual Kondisi (Pilih / Unggah Foto)
                     </label>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       {[
                         { label: 'Drainase', url: IMG_DRAINASE },
                         { label: 'Sampah/TPS', url: IMG_BANK_SAMPAH },
@@ -431,7 +607,7 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
                           key={item.label}
                           type="button"
                           onClick={() => setSelectedPhoto(item.url)}
-                          className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-semibold border transition-colors whitespace-nowrap cursor-pointer ${
+                          className={`flex-1 py-2 px-2 rounded-xl text-xs font-semibold border transition-colors whitespace-nowrap cursor-pointer ${
                             selectedPhoto === item.url
                               ? 'bg-sky-50 text-[#0277BD] border-[#0277BD]'
                               : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
@@ -440,17 +616,55 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
                           {item.label}
                         </button>
                       ))}
+                      <label className="inline-flex items-center justify-center gap-1 py-2 px-2.5 rounded-xl text-xs font-bold border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 cursor-pointer whitespace-nowrap">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Foto</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleCitizenPhotoUpload}
+                          className="hidden"
+                        />
+                      </label>
                     </div>
                   </div>
                 </div>
 
-                <div className="pt-2">
+                {/* Distribusi Otomatis ke Seluruh Nomor WhatsApp Terdaftar (Tanpa Menampilkan Nomor/Nama/Jabatan di Halaman Warga) */}
+                <div className="p-4 rounded-2xl bg-[#25D366]/10 border border-[#128C7E]/30 space-y-2.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-start gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-[#128C7E] text-white flex items-center justify-center shrink-0 mt-0.5">
+                        <MessageCircle className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs sm:text-sm font-extrabold text-[#075E54]">
+                          Distribusi Otomatis ke Seluruh Penerima WhatsApp Terdaftar
+                        </div>
+                        <p className="text-[11px] text-slate-600 leading-relaxed mt-0.5">
+                          Saat laporan dikirim, sistem otomatis meneruskan laporan ke seluruh ({activeRecipients.length}) nomor WhatsApp penerima yang terdaftar di Menu Administrator. Demi privasi & keamanan, daftar nomor, nama, dan jabatan penerima hanya ditampilkan pada Halaman Admin untuk koordinasi petugas.
+                        </p>
+                      </div>
+                    </div>
+                    <label className="inline-flex items-center gap-2 text-xs font-bold text-[#075E54] bg-white px-3 py-1.5 rounded-xl border border-emerald-300 cursor-pointer self-start sm:self-auto shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={autoSendWhatsApp}
+                        onChange={(e) => setAutoSendWhatsApp(e.target.checked)}
+                        className="rounded text-[#128C7E] focus:ring-[#128C7E]"
+                      />
+                      <span>Teruskan Otomatis via WA</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex flex-col sm:flex-row sm:items-center gap-3">
                   <button
                     type="submit"
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[#0277BD] hover:bg-[#01579B] text-white text-sm font-bold shadow-sm transition-colors cursor-pointer"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[#128C7E] hover:bg-[#075E54] text-white text-sm font-bold shadow-sm transition-colors cursor-pointer"
                   >
                     <Send className="w-4 h-4" />
-                    <span>Kirim Laporan ke Kelurahan Panaikang</span>
+                    <span>Simpan & Kirim Laporan Lingkungan</span>
                   </button>
                 </div>
               </form>
@@ -509,6 +723,32 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Informasi Distribusi & Koordinasi Internal Penerima Laporan (Tanpa Menampilkan Nomor di Publik) */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-[#128C7E]" />
+                  <h3 className="text-sm font-bold text-[#0D3868]">
+                    Sistem Distribusi & Koordinasi WhatsApp Internal
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('admin')}
+                  className="text-[11px] font-semibold text-[#0277BD] hover:underline cursor-pointer"
+                >
+                  Halaman Admin →
+                </button>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Seluruh laporan warga secara otomatis diterima oleh{' '}
+                <strong>{activeRecipients.length} nomor WhatsApp penerima terdaftar</strong> di
+                sistem Kelurahan Panaikang. Daftar nomor telepon, nama, dan jabatan penerima hanya
+                ditampilkan pada <strong>Halaman Admin</strong> agar seluruh penerima laporan dapat
+                melihat dan langsung saling berkoordinasi.
+              </p>
             </div>
 
             {/* Recent Reports Quick Preview */}
@@ -690,17 +930,19 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
                     </div>
 
                     <div className="flex md:flex-col items-center md:items-end justify-between gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => onUpvoteReport(rep.id)}
-                        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-sky-50 hover:border-sky-300 text-xs font-semibold text-slate-800 transition-colors cursor-pointer"
-                      >
-                        <ThumbsUp className="w-3.5 h-3.5 text-[#0277BD]" />
-                        <span>Dukung Prioritas</span>
-                        <span className="font-mono-num font-bold text-[#0277BD]">
-                          {rep.upvotes}
-                        </span>
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => onUpvoteReport(rep.id)}
+                          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-sky-50 hover:border-sky-300 text-xs font-semibold text-slate-800 transition-colors cursor-pointer"
+                        >
+                          <ThumbsUp className="w-3.5 h-3.5 text-[#0277BD]" />
+                          <span>Dukung Prioritas</span>
+                          <span className="font-mono-num font-bold text-[#0277BD]">
+                            {rep.upvotes}
+                          </span>
+                        </button>
+                      </div>
 
                       <button
                         type="button"

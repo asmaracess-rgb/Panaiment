@@ -7,6 +7,7 @@ import {
   KelurahanProfile,
   KelurahanInfoItem,
   RwGroup,
+  WhatsAppRecipient,
 } from '../types';
 
 export const HERO_IMAGE_PATH = '/images/hero_nipah_mall_panaikang_1791355921119.jpg';
@@ -1230,3 +1231,37 @@ export const INITIAL_KELURAHAN_INFOS: KelurahanInfoItem[] = [
     ],
   },
 ];
+
+export const INITIAL_WHATSAPP_RECIPIENTS: WhatsAppRecipient[] = [
+  {
+    id: 'wa-1',
+    name: 'Muthmainnah, SE, MM',
+    role: 'Lurah Panaikang (Penerima Utama Laporan Warga)',
+    phoneNumber: '081144402026',
+    isPrimary: true,
+    isActive: true,
+    rwScope: 'Seluruh Wilayah',
+    notes: 'Nomor WhatsApp resmi Lurah Panaikang untuk pemantauan langsung laporan warga.',
+  },
+  {
+    id: 'wa-2',
+    name: 'Posko Satgas Kebersihan & Drainase Panaikang',
+    role: 'Admin / Koordinator Tindak Lanjut Lapangan',
+    phoneNumber: '081242108800',
+    isPrimary: false,
+    isActive: true,
+    rwScope: 'Seluruh Wilayah',
+    notes: 'Penerima disposisi cepat armada motor sampah Tangkasaki dan Satgas Drainase.',
+  },
+  {
+    id: 'wa-3',
+    name: 'Operator Satu Data Kelurahan Panaikang',
+    role: 'Admin Pelayanan & Verifikasi Laporan Warga',
+    phoneNumber: '085299412026',
+    isPrimary: false,
+    isActive: true,
+    rwScope: 'Seluruh Wilayah',
+    notes: 'Meja layanan pengaduan masyarakat Kantor Kelurahan Panaikang Jl. Sukaria No. 14.',
+  },
+];
+

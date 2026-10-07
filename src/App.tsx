@@ -15,6 +15,7 @@ import {
   KelurahanProfile,
   KelurahanInfoItem,
   RwGroup,
+  WhatsAppRecipient,
 } from './types';
 import {
   INITIAL_REPORTS,
@@ -24,6 +25,7 @@ import {
   INITIAL_KELURAHAN_PROFILE,
   INITIAL_KELURAHAN_INFOS,
   INITIAL_RW_GROUPS,
+  INITIAL_WHATSAPP_RECIPIENTS,
 } from './data/initialData';
 import {
   loadPersistedDatabase,
@@ -75,6 +77,9 @@ export default function App() {
   const [rwGroups, setRwGroups] = useState<RwGroup[]>(
     initialPersisted?.rwGroups ?? INITIAL_RW_GROUPS
   );
+  const [whatsappRecipients, setWhatsappRecipients] = useState<WhatsAppRecipient[]>(
+    initialPersisted?.whatsappRecipients ?? INITIAL_WHATSAPP_RECIPIENTS
+  );
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
   const stateRef = useRef({
@@ -85,6 +90,7 @@ export default function App() {
     wasteLogs,
     cleanupEvents,
     kelurahanInfos,
+    whatsappRecipients,
   });
 
   useEffect(() => {
@@ -96,6 +102,7 @@ export default function App() {
       wasteLogs,
       cleanupEvents,
       kelurahanInfos,
+      whatsappRecipients,
     };
   }, [
     kelurahanProfile,
@@ -105,6 +112,7 @@ export default function App() {
     wasteLogs,
     cleanupEvents,
     kelurahanInfos,
+    whatsappRecipients,
   ]);
 
   const commitPersistence = useCallback(
@@ -117,6 +125,7 @@ export default function App() {
         wasteLogs: partial.wasteLogs ?? stateRef.current.wasteLogs,
         cleanupEvents: partial.cleanupEvents ?? stateRef.current.cleanupEvents,
         kelurahanInfos: partial.kelurahanInfos ?? stateRef.current.kelurahanInfos,
+        whatsappRecipients: partial.whatsappRecipients ?? stateRef.current.whatsappRecipients,
         updatedAt: Date.now(),
       };
       stateRef.current = {
@@ -127,6 +136,7 @@ export default function App() {
         wasteLogs: nextSnapshot.wasteLogs,
         cleanupEvents: nextSnapshot.cleanupEvents,
         kelurahanInfos: nextSnapshot.kelurahanInfos,
+        whatsappRecipients: nextSnapshot.whatsappRecipients,
       };
       savePersistedDatabase(nextSnapshot);
       if (syncServer) {
@@ -180,6 +190,9 @@ export default function App() {
         const nextKelurahanInfos = Array.isArray(serverDb.kelurahanInfos)
           ? serverDb.kelurahanInfos
           : INITIAL_KELURAHAN_INFOS;
+        const nextWhatsappRecipients = Array.isArray(serverDb.whatsappRecipients)
+          ? serverDb.whatsappRecipients
+          : INITIAL_WHATSAPP_RECIPIENTS;
 
         setKelurahanProfile(nextProfile);
         setRwGroups(nextRwGroups);
@@ -188,6 +201,7 @@ export default function App() {
         setWasteLogs(nextWasteLogs);
         setCleanupEvents(nextCleanupEvents);
         setKelurahanInfos(nextKelurahanInfos);
+        setWhatsappRecipients(nextWhatsappRecipients);
 
         savePersistedDatabase({
           profile: nextProfile,
@@ -197,6 +211,7 @@ export default function App() {
           wasteLogs: nextWasteLogs,
           cleanupEvents: nextCleanupEvents,
           kelurahanInfos: nextKelurahanInfos,
+          whatsappRecipients: nextWhatsappRecipients,
           updatedAt: serverUpdatedAt || Date.now(),
         });
       })
@@ -916,6 +931,15 @@ export default function App() {
     return { ok: true };
   };
 
+  // 7. WhatsApp Recipients CRUD (Lurah / Administrator)
+  const handleSaveWhatsAppRecipients = async (
+    updatedRecipients: WhatsAppRecipient[]
+  ): Promise<{ ok: boolean; errors?: string[] }> => {
+    setWhatsappRecipients(updatedRecipients);
+    commitPersistence({ whatsappRecipients: updatedRecipients });
+    return { ok: true };
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
       {/* Top Bar Contract: Compact 3-Zone Single-Row Navigation */}
@@ -1082,6 +1106,8 @@ export default function App() {
           <UntukWargaView
             reports={reports}
             wasteUnits={wasteUnits}
+            rwGroups={rwGroups}
+            whatsappRecipients={whatsappRecipients}
             onAddReport={handleAddReport}
             onUpvoteReport={handleUpvoteReport}
             onNavigate={handleNavigate}
@@ -1139,8 +1165,10 @@ export default function App() {
             wasteLogs={wasteLogs}
             cleanupEvents={cleanupEvents}
             kelurahanInfos={kelurahanInfos}
+            whatsappRecipients={whatsappRecipients}
             onSaveProfile={handleSaveProfileApi}
             onSaveRwGroups={handleSaveRwGroups}
+            onSaveWhatsAppRecipients={handleSaveWhatsAppRecipients}
             onCreateReport={handleAdminCreateReport}
             onUpdateReport={handleAdminUpdateReport}
             onDeleteReport={handleAdminDeleteReport}
