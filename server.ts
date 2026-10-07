@@ -34,6 +34,7 @@ interface DatabaseSchema {
   cleanupEvents: CleanupEvent[];
   kelurahanInfos: KelurahanInfoItem[];
   lastModified: string;
+  updatedAt?: number;
 }
 
 const DATA_DIR = path.join(__dirname, 'data');
@@ -46,112 +47,23 @@ function loadDatabase(): DatabaseSchema {
     }
     if (fs.existsSync(DB_FILE)) {
       const raw = fs.readFileSync(DB_FILE, 'utf-8');
-      const parsed = JSON.parse(raw) as DatabaseSchema;
-      if (parsed && parsed.profile && Array.isArray(parsed.reports)) {
-        let changed = false;
-        if (!Array.isArray(parsed.rwGroups) || parsed.rwGroups.length === 0) {
-          parsed.rwGroups = INITIAL_RW_GROUPS;
-          changed = true;
-        }
-        // Ensure initial reports include follow-up verification & completion photo examples
-        parsed.reports = parsed.reports.map((rep) => {
-          const initRep = INITIAL_REPORTS.find((r) => r.id === rep.id);
-          if (initRep) {
-            return {
-              ...initRep,
-              ...rep,
-              verifiedBy: rep.verifiedBy ?? initRep.verifiedBy,
-              verifiedAt: rep.verifiedAt ?? initRep.verifiedAt,
-              completedAt: rep.completedAt ?? initRep.completedAt,
-              completionPhotoUrl: rep.completionPhotoUrl ?? initRep.completionPhotoUrl,
-              followUpPhotos:
-                Array.isArray(rep.followUpPhotos) && rep.followUpPhotos.length > 0
-                  ? rep.followUpPhotos
-                  : initRep.followUpPhotos,
-            };
-          }
-          return rep;
-        });
-
-        if (!Array.isArray(parsed.cleanupEvents) || parsed.cleanupEvents.length === 0) {
-          parsed.cleanupEvents = INITIAL_CLEANUP_EVENTS;
-          changed = true;
-        } else {
-          // Ensure scheduled cleanup events do not use photos, and seed completed initial events if missing
-          const existingIds = new Set(parsed.cleanupEvents.map((e) => e.id));
-          for (const initEv of INITIAL_CLEANUP_EVENTS) {
-            if (!existingIds.has(initEv.id)) {
-              parsed.cleanupEvents.push(initEv);
-              changed = true;
-            }
-          }
-          parsed.cleanupEvents = parsed.cleanupEvents.map((ev) => {
-            if (ev.status !== 'Tuntas') {
-              if (ev.imageUrl !== '' || (ev.documentationPhotos && ev.documentationPhotos.length > 0)) {
-                changed = true;
-              }
-              return {
-                ...ev,
-                imageUrl: '',
-                documentationPhotos: [],
-              };
-            }
-            const initEv = INITIAL_CLEANUP_EVENTS.find((i) => i.id === ev.id);
-            const fallbackImg = initEv?.imageUrl || '/images/ig_post_6_Dd-xlSLvXKn.jpg';
-            const docs =
-              Array.isArray(ev.documentationPhotos) && ev.documentationPhotos.length > 0
-                ? ev.documentationPhotos
-                : initEv?.documentationPhotos && initEv.documentationPhotos.length > 0
-                ? initEv.documentationPhotos
-                : [ev.imageUrl || fallbackImg];
-            return {
-              ...ev,
-              imageUrl: ev.imageUrl || docs[0],
-              documentationPhotos: docs,
-            };
-          });
-        }
-        if (!Array.isArray(parsed.wasteUnits) || parsed.wasteUnits.length === 0) {
-          parsed.wasteUnits = INITIAL_WASTE_UNITS;
-          changed = true;
-        }
-        if (!Array.isArray(parsed.kelurahanInfos) || parsed.kelurahanInfos.length === 0) {
-          parsed.kelurahanInfos = INITIAL_KELURAHAN_INFOS;
-          changed = true;
-        } else {
-          // Remove legacy synthetic info-1..info-6 items so only real @kelurahan.panaikang posts & custom admin posts remain
-          const legacyIds = new Set(['info-1', 'info-2', 'info-3', 'info-4', 'info-5', 'info-6']);
-          const filtered = parsed.kelurahanInfos.filter((item) => !legacyIds.has(item.id));
-          if (filtered.length !== parsed.kelurahanInfos.length) {
-            parsed.kelurahanInfos = filtered;
-            changed = true;
-          }
-
-          // Ensure all 12 real @kelurahan.panaikang posts are synced with their exact real images & captions
-          const customPosts = parsed.kelurahanInfos.filter(
-            (item) => !INITIAL_KELURAHAN_INFOS.some((init) => init.id === item.id)
-          );
-          const syncedOfficialPosts = INITIAL_KELURAHAN_INFOS.map((initItem) => {
-            const existing = parsed.kelurahanInfos.find((i) => i.id === initItem.id);
-            if (existing) {
-              return {
-                ...initItem,
-                ...existing,
-                imageUrl: initItem.imageUrl,
-                instagramHandle: '@kelurahan.panaikang',
-                instagramPostUrl: initItem.instagramPostUrl,
-                isInstagramSynced: true,
-              };
-            }
-            changed = true;
-            return initItem;
-          });
-          parsed.kelurahanInfos = [...customPosts, ...syncedOfficialPosts];
-        }
-        if (changed) {
-          saveDatabase(parsed);
-        }
-        return parsed;
+      const parsed = JSON.parse(raw) as Partial<DatabaseSchema>;
+      if (parsed && parsed.profile) {
+        return {
+          profile: parsed.profile,
+          rwGroups: Array.isArray(parsed.rwGroups) ? parsed.rwGroups : INITIAL_RW_GROUPS,
+          reports: Array.isArray(parsed.reports) ? parsed.reports : INITIAL_REPORTS,
+          wasteUnits: Array.isArray(parsed.wasteUnits) ? parsed.wasteUnits : INITIAL_WASTE_UNITS,
+          wasteLogs: Array.isArray(parsed.wasteLogs) ? parsed.wasteLogs : INITIAL_WASTE_LOGS,
+          cleanupEvents: Array.isArray(parsed.cleanupEvents)
+            ? parsed.cleanupEvents
+            : INITIAL_CLEANUP_EVENTS,
+          kelurahanInfos: Array.isArray(parsed.kelurahanInfos)
+            ? parsed.kelurahanInfos
+            : INITIAL_KELURAHAN_INFOS,
+          lastModified: parsed.lastModified || new Date().toISOString(),
+          updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : 0,
+        };
       }
     }
   } catch (err) {
@@ -167,17 +79,19 @@ function loadDatabase(): DatabaseSchema {
     cleanupEvents: INITIAL_CLEANUP_EVENTS,
     kelurahanInfos: INITIAL_KELURAHAN_INFOS,
     lastModified: new Date().toISOString(),
+    updatedAt: 0,
   };
-  saveDatabase(initialDb);
+  saveDatabase(initialDb, 0);
   return initialDb;
 }
 
-function saveDatabase(db: DatabaseSchema): void {
+function saveDatabase(db: DatabaseSchema, customUpdatedAt?: number): void {
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
     db.lastModified = new Date().toISOString();
+    db.updatedAt = typeof customUpdatedAt === 'number' ? customUpdatedAt : Date.now();
     fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf-8');
   } catch (err) {
     console.error('Failed to write DB file:', err);
@@ -287,9 +201,15 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json({ limit: '10mb' }));
+  app.use(express.json({ limit: '50mb' }));
 
   let db = loadDatabase();
+
+  // Keep in-memory db synchronized with disk before every API request
+  app.use('/api', (_req, _res, next) => {
+    db = loadDatabase();
+    next();
+  });
 
   // ================= API ROUTES =================
 
@@ -366,12 +286,125 @@ async function startServer() {
     res.json({ ok: true });
   });
 
-  // 1. Get Full Application Data
+  // 0b. Instagram Media Proxy for @kelurahan.panaikang (Local & Vercel parity)
+  const LOCAL_IG_FILE_MAP: Record<string, string> = {
+    profile: 'ig_profile_panaikang.jpg',
+    DdrMaapvrr4: 'ig_post_1_DdrMaapvrr4.jpg',
+    DbnJW3OvANh: 'ig_post_2_DbnJW3OvANh.jpg',
+    DcN5ah3vZdT: 'ig_post_3_DcN5ah3vZdT.jpg',
+    DeJpFcVJ6jq: 'ig_post_4_DeJpFcVJ6jq.jpg',
+    DeGDDkFPvJs: 'ig_post_5_DeGDDkFPvJs.jpg',
+    'Dd-xlSLvXKn': 'ig_post_6_Dd-xlSLvXKn.jpg',
+    Dd33fJSy13M: 'ig_post_7_Dd33fJSy13M.jpg',
+    Ddtg69NPsBB: 'ig_post_8_Ddtg69NPsBB.jpg',
+    Ddn9BnBvEId: 'ig_post_9_Ddn9BnBvEId.jpg',
+    DdfhgGQPaJX: 'ig_post_10_DdfhgGQPaJX.jpg',
+    'DdfU_r-PUM3': 'ig_post_11_DdfU_r-PUM3.jpg',
+    Dda51qXP4nb: 'ig_post_12_Dda51qXP4nb.jpg',
+  };
+
+  app.get('/api/ig-media', async (req, res) => {
+    try {
+      const rawCode = String(req.query.code || 'DdrMaapvrr4').trim();
+      const localFilename = LOCAL_IG_FILE_MAP[rawCode];
+      if (localFilename) {
+        const localFilePath = path.join(__dirname, 'public', 'images', localFilename);
+        if (fs.existsSync(localFilePath)) {
+          res.setHeader('Content-Type', 'image/jpeg');
+          res.setHeader('Cache-Control', 'public, max-age=86400');
+          res.sendFile(localFilePath);
+          return;
+        }
+      }
+
+      const isProfile = rawCode === 'profile' || rawCode.includes('ig_profile');
+      const shortcode = isProfile
+        ? 'DdrMaapvrr4'
+        : rawCode.replace(/[^A-Za-z0-9_-]/g, '') || 'DdrMaapvrr4';
+      const embedUrl = `https://www.instagram.com/p/${shortcode}/embed/`;
+      const embedResponse = await fetch(embedUrl, {
+        headers: {
+          'User-Agent': 'curl/8.5.0',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+      });
+      if (!embedResponse.ok) {
+        res.status(502).json({ ok: false, error: 'Gagal memuat embed Instagram.' });
+        return;
+      }
+      const html = await embedResponse.text();
+      let targetImageUrl: string | null = null;
+      if (isProfile) {
+        const avatarMatch =
+          html.match(/class="EmbedFrame[^"]*"[\s\S]*?<img[^>]+src="([^"]+)"/i) ||
+          html.match(
+            /<img[^>]+src="(https:\/\/[^"]*cdninstagram\.com[^"]+)"[^>]+alt="kelurahan\.panaikang"/i
+          );
+        if (avatarMatch && avatarMatch[1]) {
+          targetImageUrl = avatarMatch[1].replace(/&amp;/g, '&');
+        }
+      }
+      if (!targetImageUrl) {
+        const mediaMatch =
+          html.match(/class="EmbeddedMediaImage"[^>]*src="([^"]+)"/i) ||
+          html.match(/src="([^"]+)"[^>]*class="EmbeddedMediaImage"/i);
+        if (mediaMatch && mediaMatch[1]) {
+          targetImageUrl = mediaMatch[1].replace(/&amp;/g, '&');
+        }
+      }
+      if (!targetImageUrl) {
+        res.redirect(302, embedUrl);
+        return;
+      }
+      const imageResponse = await fetch(targetImageUrl, {
+        headers: { 'User-Agent': 'curl/8.5.0' },
+      });
+      if (!imageResponse.ok) {
+        res.redirect(302, embedUrl);
+        return;
+      }
+      const contentType = imageResponse.headers.get('content-type') || 'image/jpeg';
+      const arrayBuffer = await imageResponse.arrayBuffer();
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.status(200).send(Buffer.from(arrayBuffer));
+    } catch {
+      res.status(500).json({ ok: false, error: 'Gagal memproses media Instagram.' });
+    }
+  });
+
+  // 1. Get & Sync Full Application Data
   app.get('/api/data', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.json({
       ok: true,
       data: db,
     });
+  });
+
+  app.put('/api/data', (req, res) => {
+    const incoming = req.body as Partial<DatabaseSchema>;
+    if (!incoming || typeof incoming !== 'object') {
+      res.status(400).json({ ok: false, errors: ['Data sinkronisasi tidak valid.'] });
+      return;
+    }
+    if (incoming.profile) db.profile = incoming.profile;
+    if (Array.isArray(incoming.rwGroups)) {
+      db.rwGroups = incoming.rwGroups;
+      db.profile.totalRw = incoming.rwGroups.length;
+      db.profile.totalRt = incoming.rwGroups.reduce(
+        (acc, rw) => acc + (rw.rtList?.length || 0),
+        0
+      );
+    }
+    if (Array.isArray(incoming.reports)) db.reports = incoming.reports;
+    if (Array.isArray(incoming.wasteUnits)) db.wasteUnits = incoming.wasteUnits;
+    if (Array.isArray(incoming.wasteLogs)) db.wasteLogs = incoming.wasteLogs;
+    if (Array.isArray(incoming.cleanupEvents)) db.cleanupEvents = incoming.cleanupEvents;
+    if (Array.isArray(incoming.kelurahanInfos)) db.kelurahanInfos = incoming.kelurahanInfos;
+
+    saveDatabase(db, incoming.updatedAt);
+    res.json({ ok: true, data: db });
   });
 
   // 2. Update Kelurahan Profile (Edit, Validate & Save)
@@ -394,8 +427,12 @@ async function startServer() {
 
   // 2B. Data RT & RW CRUD
   app.put('/api/rw-groups', (req, res) => {
-    const incoming = req.body as RwGroup[];
-    if (!Array.isArray(incoming)) {
+    const incoming = Array.isArray(req.body)
+      ? (req.body as RwGroup[])
+      : Array.isArray(req.body?.rwGroups)
+      ? (req.body.rwGroups as RwGroup[])
+      : null;
+    if (!incoming) {
       res.status(400).json({ ok: false, errors: ['Format data RW/RT tidak valid.'] });
       return;
     }
@@ -657,6 +694,39 @@ async function startServer() {
     );
     saveDatabase(db);
     res.status(201).json({ ok: true, data: { log: newLog, wasteUnits: db.wasteUnits } });
+  });
+
+  app.put('/api/waste-logs/:id', (req, res) => {
+    const { id } = req.params;
+    const idx = db.wasteLogs.findIndex((l) => l.id === id);
+    if (idx === -1) {
+      res.status(404).json({ ok: false, errors: ['Log penimbangan tidak ditemukan.'] });
+      return;
+    }
+    const prevLog = db.wasteLogs[idx];
+    const org = Number(req.body.organikKg ?? prevLog.organikKg) || 0;
+    const anorg = Number(req.body.anorganikKg ?? prevLog.anorganikKg) || 0;
+    const resKg = Number(req.body.residuKg ?? prevLog.residuKg) || 0;
+    if (org < 0 || anorg < 0 || resKg < 0 || org + anorg + resKg <= 0) {
+      res.status(400).json({
+        ok: false,
+        errors: ['Total timbangan sampah harus lebih dari 0 kg dan tidak boleh bernilai negatif.'],
+      });
+      return;
+    }
+
+    const updatedLog: WasteLogEntry = {
+      ...prevLog,
+      ...req.body,
+      organikKg: org,
+      anorganikKg: anorg,
+      residuKg: resKg,
+      officerName: (req.body.officerName ?? prevLog.officerName ?? '').trim(),
+      notes: (req.body.notes ?? prevLog.notes ?? '').trim(),
+    };
+    db.wasteLogs[idx] = updatedLog;
+    saveDatabase(db);
+    res.json({ ok: true, data: updatedLog });
   });
 
   app.delete('/api/waste-logs/:id', (req, res) => {

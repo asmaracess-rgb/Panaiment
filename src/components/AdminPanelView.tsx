@@ -55,6 +55,7 @@ import {
   IG_POST_12,
 } from '../data/initialData';
 import { resolveImageUrl } from '../utils/resolveImageUrl';
+import { compressImageFile } from '../utils/compressImage';
 import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
 import { DashboardLurahView } from './DashboardLurahView';
 
@@ -91,6 +92,18 @@ interface AdminPanelViewProps {
     unit: Partial<WasteBankUnit>
   ) => Promise<{ ok: boolean; errors?: string[] }>;
   onDeleteWasteUnit: (id: string) => Promise<{ ok: boolean; errors?: string[] }>;
+  onAddWasteLog?: (
+    rw: string,
+    organikKg: number,
+    anorganikKg: number,
+    residuKg: number,
+    officerName: string,
+    notes: string
+  ) => void;
+  onUpdateWasteLog?: (
+    id: string,
+    updated: Partial<WasteLogEntry>
+  ) => Promise<{ ok: boolean; errors?: string[] }>;
   onDeleteWasteLog: (id: string) => Promise<{ ok: boolean; errors?: string[] }>;
   onCreateCleanup: (
     ev: Partial<CleanupEvent>
@@ -128,8 +141,8 @@ export type AdminTab =
   | 'sampah'
   | 'kerjabakti';
 
-const RW_LIST = ['RW 01', 'RW 02', 'RW 03', 'RW 04', 'RW 05', 'RW 06', 'RW 07', 'RW 08'];
-const RT_LIST = ['RT 01', 'RT 02', 'RT 03', 'RT 04', 'RT 05'];
+const DEFAULT_RW_LIST = ['RW 01', 'RW 02', 'RW 03', 'RW 04', 'RW 05', 'RW 06', 'RW 07', 'RW 08'];
+const DEFAULT_RT_LIST = ['RT 01', 'RT 02', 'RT 03', 'RT 04', 'RT 05'];
 const CATEGORIES: ReportCategory[] = [
   'Sampah Liar & TPS',
   'Drainase & Genangan',
@@ -153,6 +166,8 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   onCreateWasteUnit,
   onUpdateWasteUnit,
   onDeleteWasteUnit,
+  onAddWasteLog,
+  onUpdateWasteLog,
   onDeleteWasteLog,
   onCreateCleanup,
   onUpdateCleanup,
@@ -327,7 +342,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     followUpPhotos: [],
   });
 
-  // ================= 3. BANK SAMPAH UNIT CRUD STATE =================
+  // ================= 3. BANK SAMPAH UNIT & LOG CRUD STATE =================
   const [editingUnitId, setEditingUnitId] = useState<string | null>(null);
   const [showUnitForm, setShowUnitForm] = useState(false);
   const [confirmDeleteUnitId, setConfirmDeleteUnitId] = useState<string | null>(null);
@@ -342,6 +357,39 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     activeHouseholds: 120,
     pickupSchedule: 'Senin, Rabu, Jumat · 06:30 WITA',
   });
+
+  const [showLogForm, setShowLogForm] = useState(false);
+  const [editingLogId, setEditingLogId] = useState<string | null>(null);
+  const [confirmDeleteLogId, setConfirmDeleteLogId] = useState<string | null>(null);
+  const [logForm, setLogForm] = useState<{
+    rw: string;
+    unitName: string;
+    date: string;
+    organikKg: number;
+    anorganikKg: number;
+    residuKg: number;
+    officerName: string;
+    notes: string;
+  }>({
+    rw: 'RW 01',
+    unitName: 'BSU Sipakatau Panaikang',
+    date: '06 Okt 2026',
+    organikKg: 60,
+    anorganikKg: 45,
+    residuKg: 15,
+    officerName: 'Petugas BSU',
+    notes: 'Penimbangan harian sampah terpilah.',
+  });
+
+  const RW_LIST =
+    rwGroups.length > 0 ? rwGroups.map((g) => g.rwCode) : DEFAULT_RW_LIST;
+  const activeReportRwObj = rwGroups.find((g) => g.rwCode === reportForm.rw);
+  const RT_LIST =
+    activeReportRwObj &&
+    Array.isArray(activeReportRwObj.rtList) &&
+    activeReportRwObj.rtList.length > 0
+      ? activeReportRwObj.rtList.map((rt) => rt.rtCode)
+      : DEFAULT_RT_LIST;
 
   // ================= 4. KERJA BAKTI CRUD STATE =================
   const [editingCleanupId, setEditingCleanupId] = useState<string | null>(null);
@@ -403,20 +451,19 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     }
   };
 
-  const handleInfoImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInfoImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       setValidationErrors(['File yang dipilih harus berupa gambar (JPG, PNG, atau WEBP).']);
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setInfoForm((prev) => ({ ...prev, imageUrl: reader.result as string }));
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImageFile(file);
+      setInfoForm((prev) => ({ ...prev, imageUrl: compressed }));
+    } catch {
+      setValidationErrors(['Gagal memproses gambar yang dipilih.']);
+    }
   };
 
   const openAddInfoForm = () => {
@@ -720,28 +767,26 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   };
 
   // ---------- LAPORAN WARGA HANDLERS ----------
-  const handleReportFollowUpPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleReportFollowUpPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    Array.from(files).forEach((file) => {
-      if (!file.type.startsWith('image/')) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          const dataUrl = reader.result;
-          setReportForm((prev) => {
-            const existing = Array.isArray(prev.followUpPhotos) ? prev.followUpPhotos : [];
-            const nextPhotos = [dataUrl, ...existing.filter((p) => p !== dataUrl)];
-            return {
-              ...prev,
-              completionPhotoUrl: dataUrl,
-              followUpPhotos: nextPhotos,
-            };
-          });
-        }
-      };
-      reader.readAsDataURL(file);
-    });
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith('image/')) continue;
+      try {
+        const dataUrl = await compressImageFile(file);
+        setReportForm((prev) => {
+          const existing = Array.isArray(prev.followUpPhotos) ? prev.followUpPhotos : [];
+          const nextPhotos = [dataUrl, ...existing.filter((p) => p !== dataUrl)];
+          return {
+            ...prev,
+            completionPhotoUrl: dataUrl,
+            followUpPhotos: nextPhotos,
+          };
+        });
+      } catch {
+        // ignore invalid file
+      }
+    }
   };
 
   const handleRemoveReportFollowUpPhoto = (idx: number) => {
@@ -966,58 +1011,127 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     }
   };
 
+  const openAddLogForm = () => {
+    clearFeedback();
+    setEditingLogId(null);
+    const defaultRw = wasteUnits[0]?.rw || 'RW 01';
+    const defaultUnit = wasteUnits[0]?.unitName || `BSU ${defaultRw}`;
+    setLogForm({
+      rw: defaultRw,
+      unitName: defaultUnit,
+      date: '06 Okt 2026 · Baru Saja',
+      organikKg: 60,
+      anorganikKg: 45,
+      residuKg: 15,
+      officerName: adminSession?.fullName || `Petugas BSU ${defaultRw}`,
+      notes: `Penimbangan harian sampah terpilah ${defaultRw}.`,
+    });
+    setShowLogForm(true);
+  };
+
+  const openEditLogForm = (log: WasteLogEntry) => {
+    clearFeedback();
+    setEditingLogId(log.id);
+    setLogForm({
+      rw: log.rw,
+      unitName: log.unitName,
+      date: log.date,
+      organikKg: log.organikKg,
+      anorganikKg: log.anorganikKg,
+      residuKg: log.residuKg,
+      officerName: log.officerName,
+      notes: log.notes,
+    });
+    setShowLogForm(true);
+  };
+
+  const handleLogFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    clearFeedback();
+    if (logForm.organikKg + logForm.anorganikKg + logForm.residuKg <= 0) {
+      setValidationErrors(['Total timbangan sampah harus lebih dari 0 kg.']);
+      return;
+    }
+    if (editingLogId && onUpdateWasteLog) {
+      const res = await onUpdateWasteLog(editingLogId, logForm);
+      if (!res.ok) {
+        setValidationErrors(res.errors || ['Gagal memperbarui log penimbangan.']);
+        return;
+      }
+      setShowLogForm(false);
+      setEditingLogId(null);
+      setSuccessMessage('Log penimbangan harian berhasil diperbarui.');
+    } else if (onAddWasteLog) {
+      onAddWasteLog(
+        logForm.rw,
+        logForm.organikKg,
+        logForm.anorganikKg,
+        logForm.residuKg,
+        logForm.officerName,
+        logForm.notes
+      );
+      setShowLogForm(false);
+      setSuccessMessage('Log penimbangan harian baru berhasil ditambahkan.');
+    }
+  };
+
+  const handleExecuteDeleteLog = async (id: string) => {
+    clearFeedback();
+    const res = await onDeleteWasteLog(id);
+    setConfirmDeleteLogId(null);
+    if (res.ok) {
+      setSuccessMessage('Log penimbangan harian berhasil dihapus.');
+    }
+  };
+
   // ---------- KERJA BAKTI HANDLERS ----------
-  const handleCleanupMainImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCleanupMainImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       setValidationErrors(['File foto kerja bakti harus berupa gambar (JPG, PNG, atau WEBP).']);
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        const dataUrl = reader.result;
+    try {
+      const dataUrl = await compressImageFile(file);
+      setCleanupForm((prev) => {
+        const existingDocs = Array.isArray(prev.documentationPhotos)
+          ? prev.documentationPhotos
+          : [];
+        return {
+          ...prev,
+          imageUrl: dataUrl,
+          documentationPhotos: [dataUrl, ...existingDocs.filter((p) => p !== dataUrl)],
+        };
+      });
+    } catch {
+      setValidationErrors(['Gagal memproses foto kerja bakti.']);
+    }
+  };
+
+  const handleCleanupGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith('image/')) continue;
+      try {
+        const dataUrl = await compressImageFile(file);
         setCleanupForm((prev) => {
           const existingDocs = Array.isArray(prev.documentationPhotos)
             ? prev.documentationPhotos
+            : prev.imageUrl
+            ? [prev.imageUrl]
             : [];
           return {
             ...prev,
-            imageUrl: dataUrl,
-            documentationPhotos: [dataUrl, ...existingDocs.filter((p) => p !== dataUrl)],
+            imageUrl: prev.imageUrl || dataUrl,
+            documentationPhotos: [...existingDocs, dataUrl],
           };
         });
+      } catch {
+        // ignore invalid file
       }
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleCleanupGalleryUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    Array.from(files).forEach((file) => {
-      if (!file.type.startsWith('image/')) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          const dataUrl = reader.result;
-          setCleanupForm((prev) => {
-            const existingDocs = Array.isArray(prev.documentationPhotos)
-              ? prev.documentationPhotos
-              : prev.imageUrl
-              ? [prev.imageUrl]
-              : [];
-            return {
-              ...prev,
-              imageUrl: prev.imageUrl || dataUrl,
-              documentationPhotos: [...existingDocs, dataUrl],
-            };
-          });
-        }
-      };
-      reader.readAsDataURL(file);
-    });
+    }
   };
 
   const handleRemoveCleanupDocPhoto = (photoIndex: number) => {
@@ -1029,7 +1143,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       return {
         ...prev,
         documentationPhotos: nextDocs,
-        imageUrl: nextDocs[0] || prev.imageUrl || IMG_KERJA_BAKTI,
+        imageUrl: nextDocs[0] || '',
       };
     });
   };
@@ -3067,11 +3181,177 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             </div>
           </div>
 
-          {/* Log Penimbangan Management */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5">
-            <h3 className="text-sm font-bold text-slate-900 mb-3">
-              Riwayat Log Penimbangan Harian ({wasteLogs.length} Entri)
-            </h3>
+          {/* Log Penimbangan Management (Add, Edit, Delete) */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">
+                  Riwayat Log Penimbangan Harian ({wasteLogs.length} Entri)
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Kelola catatan penimbangan harian sampah Organik, Anorganik, dan Residu.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={openAddLogForm}
+                className="self-start sm:self-auto inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Tambah Log Penimbangan</span>
+              </button>
+            </div>
+
+            {showLogForm && (
+              <form
+                onSubmit={handleLogFormSubmit}
+                className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-[#0D3868]">
+                    {editingLogId
+                      ? 'Edit Log Penimbangan Harian'
+                      : 'Tambah Log Penimbangan Harian Baru'}
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowLogForm(false);
+                      setEditingLogId(null);
+                    }}
+                    className="text-slate-400 hover:text-slate-700 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Wilayah RW
+                    </label>
+                    <select
+                      value={logForm.rw}
+                      onChange={(e) => {
+                        const rwVal = e.target.value;
+                        const matchedUnit = wasteUnits.find((u) => u.rw === rwVal);
+                        setLogForm({
+                          ...logForm,
+                          rw: rwVal,
+                          unitName: matchedUnit ? matchedUnit.unitName : `BSU ${rwVal}`,
+                        });
+                      }}
+                      className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs bg-white"
+                    >
+                      {RW_LIST.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Nama Unit BSU
+                    </label>
+                    <input
+                      type="text"
+                      value={logForm.unitName}
+                      onChange={(e) => setLogForm({ ...logForm, unitName: e.target.value })}
+                      className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Petugas Penimbang
+                    </label>
+                    <input
+                      type="text"
+                      value={logForm.officerName}
+                      onChange={(e) => setLogForm({ ...logForm, officerName: e.target.value })}
+                      className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-emerald-800 mb-1">
+                      Organik (kg)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={logForm.organikKg}
+                      onChange={(e) =>
+                        setLogForm({ ...logForm, organikKg: Number(e.target.value) })
+                      }
+                      className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs bg-white font-mono-num"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-sky-800 mb-1">
+                      Anorganik (kg)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={logForm.anorganikKg}
+                      onChange={(e) =>
+                        setLogForm({ ...logForm, anorganikKg: Number(e.target.value) })
+                      }
+                      className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs bg-white font-mono-num"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-amber-800 mb-1">
+                      Residu (kg)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={logForm.residuKg}
+                      onChange={(e) =>
+                        setLogForm({ ...logForm, residuKg: Number(e.target.value) })
+                      }
+                      className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs bg-white font-mono-num"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Catatan Penimbangan
+                  </label>
+                  <input
+                    type="text"
+                    value={logForm.notes}
+                    onChange={(e) => setLogForm({ ...logForm, notes: e.target.value })}
+                    className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs bg-white"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowLogForm(false);
+                      setEditingLogId(null);
+                    }}
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-1.5 rounded-lg bg-[#1C8237] text-white text-xs font-bold cursor-pointer"
+                  >
+                    {editingLogId ? 'Simpan Perubahan Log' : 'Simpan Log Baru'}
+                  </button>
+                </div>
+              </form>
+            )}
+
             <div className="divide-y divide-slate-100 text-xs">
               {wasteLogs.map((log) => (
                 <div
@@ -3084,18 +3364,49 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     <span className="font-mono-num text-slate-500">{log.date}</span>
                     <div className="text-slate-600 mt-0.5">{log.notes}</div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <span className="font-mono-num font-semibold text-slate-700">
                       Org: {log.organikKg}kg · Anorg: {log.anorganikKg}kg · Res: {log.residuKg}kg
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => onDeleteWasteLog(log.id)}
-                      className="p-1.5 rounded-lg text-red-600 hover:bg-red-50 cursor-pointer"
-                      title="Hapus Log Penimbangan"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {confirmDeleteLogId === log.id ? (
+                      <div className="inline-flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleExecuteDeleteLog(log.id)}
+                          className="px-2 py-1 rounded bg-red-600 text-white font-bold cursor-pointer"
+                        >
+                          Ya, Hapus
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteLogId(null)}
+                          className="px-2 py-1 rounded bg-slate-200 text-slate-700 font-semibold cursor-pointer"
+                        >
+                          Batal
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => openEditLogForm(log)}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-semibold cursor-pointer"
+                          title="Edit Log Penimbangan"
+                        >
+                          <Edit3 className="w-3.5 h-3.5 text-[#1C8237]" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteLogId(log.id)}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-red-200 bg-red-50/60 hover:bg-red-100 text-red-700 font-semibold cursor-pointer"
+                          title="Hapus Log Penimbangan"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Hapus</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
