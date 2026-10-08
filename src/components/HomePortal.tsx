@@ -56,6 +56,40 @@ interface HomePortalProps {
   onQuickReportClick: () => void;
 }
 
+const INDONESIAN_MONTHS: Record<string, number> = {
+  januari: 0,
+  februari: 1,
+  maret: 2,
+  april: 3,
+  mei: 4,
+  juni: 5,
+  juli: 6,
+  agustus: 7,
+  september: 8,
+  oktober: 9,
+  november: 10,
+  desember: 11,
+};
+
+function parseIndonesianDateScore(dateStr?: string): number {
+  if (!dateStr) return 0;
+  const normalized = dateStr.trim().toLowerCase();
+  if (normalized === 'baru saja' || normalized === 'hari ini') {
+    return Date.now();
+  }
+  const match = normalized.match(/(\d{1,2})\s+([a-z]+)\s+(\d{4})/);
+  if (match) {
+    const day = parseInt(match[1], 10);
+    const month = INDONESIAN_MONTHS[match[2]];
+    const year = parseInt(match[3], 10);
+    if (!Number.isNaN(day) && month !== undefined && !Number.isNaN(year)) {
+      return new Date(year, month, day).getTime();
+    }
+  }
+  const parsed = Date.parse(dateStr);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
 export const HomePortal: React.FC<HomePortalProps> = ({
   onNavigate,
   reports,
@@ -73,12 +107,17 @@ export const HomePortal: React.FC<HomePortalProps> = ({
   const [localLikesOffset, setLocalLikesOffset] = useState<Record<string, number>>({});
   const [isSyncingIg, setIsSyncingIg] = useState(false);
   const [igSyncStatus, setIgSyncStatus] = useState<string>('Terhubung Otomatis · @kelurahan.panaikang');
-  const [igEmbedMode, setIgEmbedMode] = useState<boolean>(false);
+  const [igEmbedMode, setIgEmbedMode] = useState<boolean>(true);
   const [embedFallbackPosts, setEmbedFallbackPosts] = useState<Record<string, boolean>>({});
   const [modalShowEmbed, setModalShowEmbed] = useState<boolean>(false);
 
   // Display current kelurahanInfos (including edits, additions, or deletions)
   const activeInfos = Array.isArray(kelurahanInfos) ? kelurahanInfos : INITIAL_KELURAHAN_INFOS;
+
+  // Urutkan berdasarkan tanggal terbaru (Terbaru ke Terlama)
+  const sortedInfosByLatest = [...activeInfos].sort(
+    (a, b) => parseIndonesianDateScore(b.publishedAt) - parseIndonesianDateScore(a.publishedAt)
+  );
 
   const handleToggleLike = (e: React.MouseEvent, info: KelurahanInfoItem) => {
     e.stopPropagation();
@@ -107,11 +146,14 @@ export const HomePortal: React.FC<HomePortalProps> = ({
     }
   };
 
-  const filteredInfos = activeInfos.filter((item) => {
-    if (infoFilter === 'ig') return item.isInstagramSynced !== false;
-    if (infoFilter === 'pengumuman') return item.category === 'Pengumuman Kelurahan';
-    return true;
-  });
+  // Pada Embed IG, tampilkan hanya 3 postingan terakhir (Terbaru) dari @kelurahan.panaikang
+  const filteredInfos = sortedInfosByLatest
+    .filter((item) => {
+      if (infoFilter === 'ig') return item.isInstagramSynced !== false;
+      if (infoFilter === 'pengumuman') return item.category === 'Pengumuman Kelurahan';
+      return true;
+    })
+    .slice(0, 3);
 
   const completedReports = reports.filter((r) => r.status === 'Selesai').length;
   const activeReports = reports.filter((r) => r.status !== 'Selesai').length;
@@ -123,8 +165,17 @@ export const HomePortal: React.FC<HomePortalProps> = ({
 
   return (
     <div className="relative overflow-hidden bg-white">
+      {/* ================= WATERMARK LOGO KELURAHAN PANAIKANG PADA BACKGROUND HALAMAN UTAMA ================= */}
+      {/* Fixed Center Viewport Watermark so the Logo Kelurahan Panaikang is always visible on the main page background */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 z-[1] flex items-center justify-center overflow-hidden select-none"
+      >
+        <EmblemKelurahanPanaikang className="w-[320px] h-[330px] sm:w-[460px] sm:h-[475px] lg:w-[560px] lg:h-[580px] opacity-[0.075]" />
+      </div>
+
       {/* ================= HERO STREETSCAPE & EMBLEMS SECTION ================= */}
-      <section className="relative w-full overflow-hidden">
+      <section className="relative z-10 w-full overflow-hidden">
         {/* Background Streetscape Container Featuring Nipah Mall Makassar, Kampus UMI & Jl. Urip Sumoharjo */}
         <div className="relative h-[300px] sm:h-[340px] lg:h-[370px] w-full overflow-hidden bg-gradient-to-b from-sky-400 via-sky-200 to-white">
           {!heroImgError ? (
@@ -198,6 +249,14 @@ export const HomePortal: React.FC<HomePortalProps> = ({
 
       {/* ================= WELCOME & COMPACT 5 PORTAL MENU CARDS SECTION ================= */}
       <section className="relative z-10 mx-auto max-w-5xl px-4 sm:px-6 pt-2 pb-12">
+        {/* Section-Anchored Background Watermark behind Welcome & Main Menu Cards */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 -z-10 flex items-center justify-center select-none"
+        >
+          <EmblemKelurahanPanaikang className="w-[290px] h-[300px] sm:w-[390px] sm:h-[400px] opacity-[0.065]" />
+        </div>
+
         {/* Compact Welcome Heading Flanked by Two Green Leaves */}
         <div className="text-center max-w-xl mx-auto mb-4 sm:mb-5">
           <div className="inline-flex items-center justify-center gap-2 sm:gap-3">
@@ -405,7 +464,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
             <button
               type="button"
               onClick={() => onNavigate('lurah')}
-              className="text-left p-4 rounded-2xl bg-slate-50 hover:bg-slate-100/80 border border-slate-200/90 transition-colors cursor-pointer"
+              className="text-left p-4 rounded-2xl bg-slate-50/85 hover:bg-slate-100/90 border border-slate-200/90 transition-colors cursor-pointer"
             >
               <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
                 <span>Laporan Selesai</span>
@@ -425,7 +484,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
             <button
               type="button"
               onClick={() => onNavigate('peta')}
-              className="text-left p-4 rounded-2xl bg-slate-50 hover:bg-slate-100/80 border border-slate-200/90 transition-colors cursor-pointer"
+              className="text-left p-4 rounded-2xl bg-slate-50/85 hover:bg-slate-100/90 border border-slate-200/90 transition-colors cursor-pointer"
             >
               <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
                 <span>Titik Aktif Dipantau</span>
@@ -442,7 +501,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
             <button
               type="button"
               onClick={() => onNavigate('sampah')}
-              className="text-left p-4 rounded-2xl bg-slate-50 hover:bg-slate-100/80 border border-slate-200/90 transition-colors cursor-pointer"
+              className="text-left p-4 rounded-2xl bg-slate-50/85 hover:bg-slate-100/90 border border-slate-200/90 transition-colors cursor-pointer"
             >
               <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
                 <span>Sampah Terkelola BSU</span>
@@ -459,7 +518,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
             <button
               type="button"
               onClick={() => onNavigate('kerjabakti')}
-              className="text-left p-4 rounded-2xl bg-slate-50 hover:bg-slate-100/80 border border-slate-200/90 transition-colors cursor-pointer"
+              className="text-left p-4 rounded-2xl bg-slate-50/85 hover:bg-slate-100/90 border border-slate-200/90 transition-colors cursor-pointer"
             >
               <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
                 <span>Agenda Kerja Bakti</span>
@@ -653,7 +712,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Semua Feed ({activeInfos.length})
+                3 Postingan Terbaru
               </button>
               <button
                 type="button"
@@ -665,7 +724,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                 }`}
               >
                 <Instagram className="w-3.5 h-3.5" />
-                <span>Postingan @kelurahan.panaikang</span>
+                <span>Embed IG @kelurahan.panaikang</span>
               </button>
               <button
                 type="button"
@@ -730,14 +789,14 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                 </div>
 
                 <p className="mt-0.5 text-xs text-slate-600">
-                  Akun Resmi Pemerintah Kelurahan Panaikang · Kecamatan Panakkukang, Kota Makassar
+                  Akun Resmi Pemerintah Kelurahan Panaikang · Menampilkan 3 Postingan Terakhir (Terbaru)
                 </p>
 
                 <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-slate-500">
                   <span>
                     <strong className="font-mono-num text-slate-800">206</strong> kiriman (
-                    <strong className="font-mono-num text-slate-800">{activeInfos.length}</strong>{' '}
-                    tampil)
+                    <strong className="font-mono-num text-slate-800">{filteredInfos.length}</strong>{' '}
+                    postingan terbaru ditampilkan)
                   </span>
                   <span aria-hidden="true">·</span>
                   <span>
@@ -756,7 +815,10 @@ export const HomePortal: React.FC<HomePortalProps> = ({
             <div className="flex flex-wrap items-center gap-2.5 self-start md:self-center">
               <button
                 type="button"
-                onClick={() => setIgEmbedMode((prev) => !prev)}
+                onClick={() => {
+                  setEmbedFallbackPosts({});
+                  setIgEmbedMode((prev) => !prev);
+                }}
                 className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-bold transition-colors cursor-pointer ${
                   igEmbedMode
                     ? 'border-[#E1306C] bg-rose-50 text-[#E1306C]'
@@ -792,76 +854,6 @@ export const HomePortal: React.FC<HomePortalProps> = ({
             </div>
           </div>
 
-          {/* Galeri Grid Visual Feed Instagram @kelurahan.panaikang */}
-          <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
-            <div className="flex items-center justify-between mb-3.5">
-              <div className="flex items-center gap-2 text-xs sm:text-sm font-extrabold text-slate-900">
-                <Instagram className="w-4 h-4 text-[#E1306C]" />
-                <span>Feed Galeri Postingan Instagram @kelurahan.panaikang ({activeInfos.length} Postingan)</span>
-              </div>
-              <span className="text-[11px] font-medium text-slate-500">
-                Klik foto untuk melihat detail postingan
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-              {activeInfos.map((post) => {
-                const postLikes =
-                  (post.instagramLikes ?? 47) + (localLikesOffset[post.id] || 0);
-                const postComments = post.instagramCommentsCount ?? 7;
-                return (
-                  <button
-                    key={`grid-${post.id}`}
-                    type="button"
-                    onClick={() => {
-                      setModalShowEmbed(false);
-                      setSelectedInfo(post);
-                    }}
-                    className="group relative aspect-[4/5] w-full rounded-xl overflow-hidden bg-slate-900 border border-slate-200 cursor-pointer focus:outline-none"
-                  >
-                    <img
-                      src={resolveImageUrl(post.imageUrl, post.instagramPostUrl)}
-                      alt={post.title}
-                      referrerPolicy="no-referrer"
-                      onError={(e) => {
-                        const proxyUrl = getInstagramProxyUrl(
-                          post.imageUrl,
-                          post.instagramPostUrl
-                        );
-                        if (proxyUrl && e.currentTarget.dataset.proxyTried !== '1') {
-                          e.currentTarget.dataset.proxyTried = '1';
-                          e.currentTarget.src = proxyUrl;
-                          return;
-                        }
-                        e.currentTarget.onerror = null;
-                        e.currentTarget.src = resolveImageUrl(HERO_IMAGE_PATH);
-                      }}
-                      className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-150"
-                    />
-                    <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-slate-900/60 text-white flex items-center justify-center">
-                      <Instagram className="w-3.5 h-3.5" />
-                    </div>
-                    <div className="absolute inset-0 bg-slate-950/65 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex flex-col items-center justify-center p-2 text-white text-center">
-                      <div className="flex items-center gap-3 text-xs font-bold font-mono-num">
-                        <span className="inline-flex items-center gap-1">
-                          <Heart className="w-3.5 h-3.5 fill-white" />
-                          {postLikes}
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <MessageCircle className="w-3.5 h-3.5 fill-white" />
-                          {postComments}
-                        </span>
-                      </div>
-                      <span className="mt-1.5 text-[10px] font-medium line-clamp-3 text-slate-100">
-                        {post.content}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           {filteredInfos.length === 0 ? (
             <div className="p-8 rounded-2xl bg-slate-50 border border-slate-200 text-center text-sm text-slate-500">
               Belum ada publikasi informasi atau postingan Instagram pada kategori ini. Lurah atau
@@ -869,7 +861,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredInfos.map((info) => {
+              {filteredInfos.map((info, idx) => {
                 const isLiked = !!likedPosts[info.id];
                 const likeCount = (info.instagramLikes ?? 47) + (localLikesOffset[info.id] || 0);
                 const commentCount = info.instagramCommentsCount ?? 7;
@@ -883,7 +875,10 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                 const resolvedImg = resolveImageUrl(info.imageUrl, info.instagramPostUrl);
                 const embedUrl = getInstagramEmbedUrl(info.imageUrl, info.instagramPostUrl);
                 const showLiveEmbed =
-                  Boolean(embedUrl) && (igEmbedMode || Boolean(embedFallbackPosts[info.id]));
+                  Boolean(embedUrl) &&
+                  (embedFallbackPosts[info.id] !== undefined
+                    ? embedFallbackPosts[info.id]
+                    : igEmbedMode);
 
                 return (
                   <article
@@ -922,6 +917,9 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                             <div className="flex items-center gap-1 text-xs font-extrabold text-slate-900 truncate">
                               <span>{handle.replace(/^@/, '')}</span>
                               <CheckCircle2 className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                              <span className="ml-1 px-1.5 py-0.5 rounded bg-rose-50 text-[#E1306C] text-[10px] font-extrabold border border-rose-200/70 shrink-0">
+                                Terbaru #{idx + 1}
+                              </span>
                             </div>
                             <div className="text-[11px] text-slate-500 truncate">
                               Kelurahan Panaikang · {info.publishedAt}

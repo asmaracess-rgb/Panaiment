@@ -244,193 +244,295 @@ export const EmblemKotaMakassar: React.FC<{ className?: string }> = ({
 );
 
 /**
- * Lambang Kelurahan Panaikang
- * Replikasi vektor presisi tinggi sesuai gambar prototipe yang dilampirkan:
- * - Lingkaran merah marun gelap dengan bingkai kuning emas tebal dan garis tepi marun tua
- * - Bintang emas besar bersudut lima di bagian atas disertai sayap garis horison emas kiri-kanan
- * - Perspektif jalan raya coklat tua di tengah dengan garis putus-putus kuning di tengah dan bahu jalan kuning
+ * Lambang Resmi Kelurahan Panaikang
+ * Replikasi presisi tinggi sesuai logo resmi yang diunggah:
+ * - Kubah lingkaran merah marun (#7D1010) dengan cincin kuning emas (#E8A317) dan garis tepi coklat tua (#461708)
+ * - Bintang emas besar bersudut lima di bagian atas tengah
+ * - Perspektif jalan raya coklat tua meruncing ke tengah bawah bintang dengan bahu jalan emas dan 4 garis marka putus-putus emas
  * - Tangkai bulir padi kuning emas melengkung di sisi kiri
- * - Tangkai bunga kapas putih & daun hijau melengkung di sisi kanan
- * - Pita marun berbingkai emas di bagian bawah bertuliskan 2 baris "KELURAHAN" dan "PANAIKANG"
+ * - Tangkai kapas hijau dengan 3 kuntum bunga kapas krem-putih & 3 daun hijau di sisi kanan
+ * - Pita marun melengkung di bagian bawah bertuliskan 2 baris "KELURAHAN" dan "PANAIKANG" berwarna emas bertepi coklat tua
  */
 export const EmblemKelurahanPanaikang: React.FC<{ className?: string }> = ({
   className = 'w-28 h-32',
-}) => (
-  <svg
-    viewBox="0 0 180 200"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    className={className}
-    aria-label="Lambang Kelurahan Panaikang"
-  >
-    <defs>
-      {/* Arched text paths matching the convex upward curve of the KELURAHAN PANAIKANG banner */}
-      <path id="panaikangLine1" d="M 24,149 Q 90,135 156,149" />
-      <path id="panaikangLine2" d="M 20,169 Q 90,155 160,169" />
-      <radialGradient id="maroonField" cx="50%" cy="45%" r="55%">
-        <stop offset="0%" stopColor="#7F1D1D" />
-        <stop offset="100%" stopColor="#4C0D0D" />
-      </radialGradient>
-    </defs>
+}) => {
+  const uid = React.useId().replace(/:/g, '');
+  const kelurahanArcId = `kelurahanArc-${uid}`;
+  const panaikangArcId = `panaikangArc-${uid}`;
 
-    {/* ================= 1. CIRCULAR MEDALLION BASE ================= */}
-    {/* Outer Dark Maroon Rim */}
-    <circle cx="90" cy="84" r="68" fill="#4A0E0E" />
-    {/* Thick Golden-Yellow Ring */}
-    <circle
-      cx="90"
-      cy="84"
-      r="64"
-      fill="url(#maroonField)"
-      stroke="#EAB308"
-      strokeWidth="5.5"
-    />
-    {/* Inner Subtle Maroon Ring */}
-    <circle
-      cx="90"
-      cy="84"
-      r="60"
+  return (
+    <svg
+      viewBox="45 35 410 420"
       fill="none"
-      stroke="#4A0E0E"
-      strokeWidth="1.5"
-    />
-
-    {/* ================= 2. HORIZON GOLD WINGS & PERSPECTIVE ROAD ================= */}
-    {/* Gold Horizon Wings Left & Right of Road Top */}
-    <path
-      d="M54 57H79L75 63H52L54 57Z"
-      fill="#EAB308"
-      stroke="#4A0E0E"
-      strokeWidth="1.2"
-    />
-    <path
-      d="M101 57H126L128 63H105L101 57Z"
-      fill="#EAB308"
-      stroke="#4A0E0E"
-      strokeWidth="1.2"
-    />
-
-    {/* Center Perspective Highway / Road */}
-    <path
-      d="M80 57H100L132 132H48L80 57Z"
-      fill="#431407"
-      stroke="#FACC15"
-      strokeWidth="3"
-      strokeLinejoin="round"
-    />
-    {/* 3 Yellow Dashed Center Road Markings */}
-    <rect x="88.5" y="63" width="3" height="11" rx="1" fill="#FACC15" />
-    <rect x="88" y="81" width="4" height="15" rx="1" fill="#FACC15" />
-    <rect x="87.5" y="104" width="5" height="19" rx="1.2" fill="#FACC15" />
-
-    {/* ================= 3. TOP 5-POINTED GOLDEN STAR ================= */}
-    <polygon
-      points="90,23 96.5,37 112,38.5 100.5,48.5 104,63.5 90,55.5 76,63.5 79.5,48.5 68,38.5 83.5,37"
-      fill="#FACC15"
-      stroke="#4A0E0E"
-      strokeWidth="2"
-      strokeLinejoin="round"
-    />
-    {/* Subtle Star Inner Highlight */}
-    <polygon
-      points="90,26 95,38 108,39 98,47.5 101,60 90,53"
-      fill="#CA8A04"
-      opacity="0.35"
-    />
-
-    {/* ================= 4. LEFT SIDE: GOLDEN PADDY STALK (PADI) ================= */}
-    {/* Stem */}
-    <path
-      d="M54 126C36 102 36 68 52 44"
-      stroke="#FACC15"
-      strokeWidth="3"
-      strokeLinecap="round"
-    />
-    {/* Outer & Inner Grain Pairs along Left Curve */}
-    <ellipse cx="37" cy="98" rx="6.5" ry="3.2" transform="rotate(-40 37 98)" fill="#FACC15" stroke="#4A0E0E" strokeWidth="1" />
-    <ellipse cx="35" cy="86" rx="6.5" ry="3.2" transform="rotate(-32 35 86)" fill="#FACC15" stroke="#4A0E0E" strokeWidth="1" />
-    <ellipse cx="36" cy="74" rx="6.5" ry="3.2" transform="rotate(-24 36 74)" fill="#FACC15" stroke="#4A0E0E" strokeWidth="1" />
-    <ellipse cx="39" cy="62" rx="6.5" ry="3.2" transform="rotate(-18 39 62)" fill="#FACC15" stroke="#4A0E0E" strokeWidth="1" />
-    <ellipse cx="45" cy="51" rx="6" ry="3" transform="rotate(-12 45 51)" fill="#FACC15" stroke="#4A0E0E" strokeWidth="1" />
-
-    <ellipse cx="47" cy="103" rx="6" ry="3" transform="rotate(20 47 103)" fill="#EAB308" stroke="#4A0E0E" strokeWidth="1" />
-    <ellipse cx="45" cy="91" rx="6" ry="3" transform="rotate(25 45 91)" fill="#EAB308" stroke="#4A0E0E" strokeWidth="1" />
-    <ellipse cx="45" cy="79" rx="6" ry="3" transform="rotate(30 45 79)" fill="#EAB308" stroke="#4A0E0E" strokeWidth="1" />
-    <ellipse cx="48" cy="67" rx="5.5" ry="2.8" transform="rotate(35 48 67)" fill="#EAB308" stroke="#4A0E0E" strokeWidth="1" />
-
-    {/* ================= 5. RIGHT SIDE: COTTON BRANCH & GREEN LEAVES (KAPAS) ================= */}
-    {/* Stem */}
-    <path
-      d="M126 126C144 102 144 68 128 44"
-      stroke="#15803D"
-      strokeWidth="3.2"
-      strokeLinecap="round"
-    />
-    {/* Green Leaves */}
-    <ellipse cx="127" cy="53" rx="6.5" ry="3.5" transform="rotate(-25 127 53)" fill="#22C55E" stroke="#052E16" strokeWidth="1" />
-    <ellipse cx="131" cy="78" rx="7" ry="3.8" transform="rotate(-30 131 78)" fill="#16A34A" stroke="#052E16" strokeWidth="1" />
-    <ellipse cx="144" cy="92" rx="7" ry="3.8" transform="rotate(30 144 92)" fill="#22C55E" stroke="#052E16" strokeWidth="1" />
-    <ellipse cx="129" cy="102" rx="7.5" ry="4" transform="rotate(-25 129 102)" fill="#16A34A" stroke="#052E16" strokeWidth="1" />
-
-    {/* Fluffy White Cotton Blossom 1 (Upper Right) */}
-    <g>
-      <circle cx="138" cy="64" r="5" fill="#FFFFFF" stroke="#14532D" strokeWidth="1.2" />
-      <circle cx="144" cy="66" r="4.5" fill="#FFFFFF" stroke="#14532D" strokeWidth="1.2" />
-      <circle cx="140" cy="70" r="4.5" fill="#FFFFFF" stroke="#14532D" strokeWidth="1.2" />
-      <path d="M135 71L140 68L145 71" stroke="#15803D" strokeWidth="2" strokeLinecap="round" />
-    </g>
-
-    {/* Fluffy White Cotton Blossom 2 (Mid-Lower Right) */}
-    <g>
-      <circle cx="142" cy="79" r="5" fill="#FFFFFF" stroke="#14532D" strokeWidth="1.2" />
-      <circle cx="148" cy="82" r="4.5" fill="#FFFFFF" stroke="#14532D" strokeWidth="1.2" />
-      <circle cx="144" cy="86" r="4.5" fill="#FFFFFF" stroke="#14532D" strokeWidth="1.2" />
-      <path d="M139 87L144 84L149 87" stroke="#15803D" strokeWidth="2" strokeLinecap="round" />
-    </g>
-
-    {/* ================= 6. BOTTOM ARCHED BANNER: KELURAHAN PANAIKANG ================= */}
-    {/* Outer Dark Rim of Banner */}
-    <path
-      d="M15 133Q90 116 165 133L160 180Q90 164 20 180L15 133Z"
-      fill="#4A0E0E"
-      stroke="#3B0707"
-      strokeWidth="2"
-      strokeLinejoin="round"
-    />
-    {/* Maroon Banner Body with Golden-Yellow Border */}
-    <path
-      d="M18 135Q90 119 162 135L157 177Q90 162 23 177L18 135Z"
-      fill="#6D1414"
-      stroke="#EAB308"
-      strokeWidth="3.5"
-      strokeLinejoin="round"
-    />
-
-    {/* Line 1: KELURAHAN */}
-    <text
-      fill="#FACC15"
-      fontSize="14.5"
-      fontWeight="800"
-      letterSpacing="1.2"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-label="Lambang Kelurahan Panaikang"
     >
-      <textPath href="#panaikangLine1" startOffset="50%" textAnchor="middle">
-        KELURAHAN
-      </textPath>
-    </text>
+      <defs>
+        <path id={kelurahanArcId} d="M 106,368 Q 250,336 394,368" />
+        <path id={panaikangArcId} d="M 102,414 Q 250,382 398,414" />
+      </defs>
 
-    {/* Line 2: PANAIKANG */}
-    <text
-      fill="#FACC15"
-      fontSize="16"
-      fontWeight="900"
-      letterSpacing="1.4"
-    >
-      <textPath href="#panaikangLine2" startOffset="50%" textAnchor="middle">
-        PANAIKANG
-      </textPath>
-    </text>
-  </svg>
-);
+      {/* ================= 1. MAIN CIRCULAR MEDALLION DOME ================= */}
+      {/* Outer Dark Brown Border */}
+      <circle cx="250" cy="222" r="174" fill="#461708" />
+      {/* Golden-Amber Outer Ring */}
+      <circle cx="250" cy="222" r="165" fill="#E8A317" />
+      {/* Inner Dark Brown Ring */}
+      <circle cx="250" cy="222" r="153" fill="#461708" />
+      {/* Deep Crimson-Maroon Inner Field */}
+      <circle cx="250" cy="222" r="146" fill="#7D1010" />
+
+      {/* ================= 2. CENTER PERSPECTIVE HIGHWAY / ROAD ================= */}
+      {/* Outer Dark Brown Road Frame */}
+      <path
+        d="M 244 172 Q 250 166 256 172 L 392 326 L 108 326 Z"
+        fill="#461708"
+      />
+      {/* Golden-Amber Left & Right Perspective Road Shoulders */}
+      <path
+        d="M 246 176 Q 250 172 254 176 L 384 324 L 116 324 Z"
+        fill="#E8A317"
+      />
+      {/* Dark Chocolate Brown Road Asphalt Surface */}
+      <path
+        d="M 247 182 Q 250 179 253 182 L 362 326 L 138 326 Z"
+        fill="#481B09"
+        stroke="#461708"
+        strokeWidth="5"
+        strokeLinejoin="round"
+      />
+
+      {/* 4 Golden-Amber Center Dashed Lane Markings */}
+      <rect x="247" y="198" width="6" height="15" rx="3" fill="#E8A317" />
+      <rect x="246" y="223" width="8" height="20" rx="3.5" fill="#E8A317" />
+      <rect x="244.5" y="254" width="11" height="25" rx="4" fill="#E8A317" />
+      <rect x="243" y="291" width="14" height="30" rx="4.5" fill="#E8A317" />
+
+      {/* ================= 3. TOP 5-POINTED GOLDEN STAR ================= */}
+      <polygon
+        points="250,72 264,106 301,109 273,133 281,169 250,150 219,169 227,133 199,109 236,106"
+        fill="#E8A317"
+        stroke="#461708"
+        strokeWidth="7"
+        strokeLinejoin="round"
+      />
+
+      {/* ================= 4. LEFT SIDE: GOLDEN PADDY STALK (TANGKAI PADI) ================= */}
+      {/* Curved Stem */}
+      <path
+        d="M 159 306 C 122 258, 120 186, 152 132"
+        stroke="#461708"
+        strokeWidth="12"
+        strokeLinecap="round"
+      />
+      <path
+        d="M 159 306 C 122 258, 120 186, 152 132"
+        stroke="#E8A317"
+        strokeWidth="5.5"
+        strokeLinecap="round"
+      />
+
+      {/* Paddy Grains (Left Outer Side, Bottom to Top) */}
+      <path
+        d="M 134 268 C 110 262, 104 238, 114 222 C 128 232, 136 250, 134 268 Z"
+        fill="#E8A317"
+        stroke="#461708"
+        strokeWidth="5.5"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M 129 238 C 106 228, 104 204, 116 188 C 128 200, 133 218, 129 238 Z"
+        fill="#E8A317"
+        stroke="#461708"
+        strokeWidth="5.5"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M 130 206 C 110 194, 110 170, 124 156 C 134 168, 136 188, 130 206 Z"
+        fill="#E8A317"
+        stroke="#461708"
+        strokeWidth="5.5"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M 136 176 C 120 162, 122 140, 136 128 C 144 142, 144 160, 136 176 Z"
+        fill="#E8A317"
+        stroke="#461708"
+        strokeWidth="5.5"
+        strokeLinejoin="round"
+      />
+      {/* Top Tip Paddy Grain */}
+      <path
+        d="M 145 146 C 138 128, 148 108, 166 102 C 168 120, 158 138, 145 146 Z"
+        fill="#E8A317"
+        stroke="#461708"
+        strokeWidth="5.5"
+        strokeLinejoin="round"
+      />
+
+      {/* Paddy Grains (Right Inner Side, Bottom to Top) */}
+      <path
+        d="M 138 272 C 154 264, 166 248, 164 230 C 148 238, 138 254, 138 272 Z"
+        fill="#E8A317"
+        stroke="#461708"
+        strokeWidth="5.5"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M 133 242 C 150 234, 162 218, 162 200 C 146 208, 135 224, 133 242 Z"
+        fill="#E8A317"
+        stroke="#461708"
+        strokeWidth="5.5"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M 134 210 C 152 202, 164 186, 164 170 C 148 178, 136 194, 134 210 Z"
+        fill="#E8A317"
+        stroke="#461708"
+        strokeWidth="5.5"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M 140 180 C 156 172, 168 158, 168 142 C 152 150, 142 164, 140 180 Z"
+        fill="#E8A317"
+        stroke="#461708"
+        strokeWidth="5.5"
+        strokeLinejoin="round"
+      />
+
+      {/* ================= 5. RIGHT SIDE: COTTON BRANCH & LEAVES (KAPAS) ================= */}
+      {/* Top Cotton Blossom (3-lobed cream cloud) */}
+      <path
+        d="M 322 162 C 308 158, 306 138, 320 132 C 324 114, 348 112, 356 128 C 372 132, 372 154, 356 160 C 346 166, 332 166, 322 162 Z"
+        fill="#FAF0D7"
+        stroke="#461708"
+        strokeWidth="6"
+        strokeLinejoin="round"
+      />
+
+      {/* Middle-Left Cotton Blossom */}
+      <path
+        d="M 318 220 C 306 216, 306 198, 318 192 C 322 178, 342 178, 348 192 C 358 198, 356 216, 342 220 C 334 224, 324 224, 318 220 Z"
+        fill="#FAF0D7"
+        stroke="#461708"
+        strokeWidth="6"
+        strokeLinejoin="round"
+      />
+
+      {/* Middle-Right Cotton Blossom */}
+      <path
+        d="M 358 214 C 348 208, 350 190, 362 184 C 368 172, 386 174, 390 188 C 398 196, 394 214, 380 216 C 372 218, 364 218, 358 214 Z"
+        fill="#FAF0D7"
+        stroke="#461708"
+        strokeWidth="6"
+        strokeLinejoin="round"
+      />
+
+      {/* Green Leaves on Lower Cotton Stem */}
+      <path
+        d="M 350 264 C 332 256, 326 240, 334 230 C 346 236, 354 248, 350 264 Z"
+        fill="#5B8427"
+        stroke="#461708"
+        strokeWidth="5.5"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M 356 248 C 368 234, 382 228, 392 234 C 386 246, 372 252, 356 248 Z"
+        fill="#5B8427"
+        stroke="#461708"
+        strokeWidth="5.5"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M 350 280 C 364 264, 382 258, 394 264 C 386 278, 368 286, 350 280 Z"
+        fill="#5B8427"
+        stroke="#461708"
+        strokeWidth="5.5"
+        strokeLinejoin="round"
+      />
+
+      {/* Main Cotton Green Stem & Calyxes */}
+      <path
+        d="M 323 308 C 344 276, 356 226, 344 156"
+        stroke="#461708"
+        strokeWidth="11"
+        strokeLinecap="round"
+      />
+      <path
+        d="M 323 308 C 344 276, 356 226, 344 156"
+        stroke="#5B8427"
+        strokeWidth="5.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M 349 232 L 336 214"
+        stroke="#461708"
+        strokeWidth="9"
+        strokeLinecap="round"
+      />
+      <path
+        d="M 349 232 L 336 214"
+        stroke="#5B8427"
+        strokeWidth="4.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M 351 224 L 368 206"
+        stroke="#461708"
+        strokeWidth="9"
+        strokeLinecap="round"
+      />
+      <path
+        d="M 351 224 L 368 206"
+        stroke="#5B8427"
+        strokeWidth="4.5"
+        strokeLinecap="round"
+      />
+
+      {/* ================= 6. BOTTOM ARCHED BANNER: KELURAHAN PANAIKANG ================= */}
+      <path
+        d="M 94 342 C 90 318, 175 300, 250 300 C 325 300, 410 318, 406 342 L 412 394 C 414 420, 394 434, 368 431 C 310 423, 190 423, 132 431 C 106 434, 86 420, 88 394 Z"
+        fill="#7D1010"
+        stroke="#461708"
+        strokeWidth="8.5"
+        strokeLinejoin="round"
+      />
+
+      {/* Line 1: KELURAHAN */}
+      <text
+        fill="#E8A317"
+        stroke="#461708"
+        strokeWidth="9"
+        paintOrder="stroke fill"
+        strokeLinejoin="round"
+        fontSize="36"
+        fontWeight="900"
+        letterSpacing="2"
+      >
+        <textPath href={`#${kelurahanArcId}`} startOffset="50%" textAnchor="middle">
+          KELURAHAN
+        </textPath>
+      </text>
+
+      {/* Line 2: PANAIKANG */}
+      <text
+        fill="#E8A317"
+        stroke="#461708"
+        strokeWidth="9"
+        paintOrder="stroke fill"
+        strokeLinejoin="round"
+        fontSize="38"
+        fontWeight="900"
+        letterSpacing="2"
+      >
+        <textPath href={`#${panaikangArcId}`} startOffset="50%" textAnchor="middle">
+          PANAIKANG
+        </textPath>
+      </text>
+    </svg>
+  );
+};
 
 /**
  * Green Leaf SVG used above the "i" in PANAIKANG and flanking "Selamat Datang"

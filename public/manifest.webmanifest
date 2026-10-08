@@ -1,0 +1,17 @@
+{
+  "name": "Panaikang Smart Environment — Kelurahan Panaikang",
+  "short_name": "Panaikang Smart",
+  "description": "Satu Laporan, Satu Data, Satu Aksi untuk Panaikang. Aplikasi layanan pelaporan lingkungan warga, dashboard lurah, peta digital, monitoring sampah, dan kerja bakti Kelurahan Panaikang, Kota Makassar.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#7D1010",
+  "icons": [
+    {
+      "src": "/logo-kelurahan-panaikang.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

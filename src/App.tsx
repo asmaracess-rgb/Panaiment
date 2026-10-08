@@ -41,6 +41,7 @@ import { PetaDigitalView } from './components/PetaDigitalView';
 import { MonitoringSampahView } from './components/MonitoringSampahView';
 import { MonitoringKerjaBaktiView } from './components/MonitoringKerjaBaktiView';
 import { AdminPanelView, AdminTab } from './components/AdminPanelView';
+import { EmblemKelurahanPanaikang } from './components/Emblems';
 
 interface ToastNotification {
   id: string;
@@ -944,16 +945,17 @@ export default function App() {
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
       {/* Top Bar Contract: Compact 3-Zone Single-Row Navigation */}
       <header className="sticky top-0 z-40 flex items-center justify-between px-3 sm:px-6 py-2 bg-white/95 backdrop-blur-md border-b border-slate-200/90">
-        {/* Zone 1: Single text element wordmark */}
+        {/* Zone 1: Application Icon (Logo Kelurahan Panaikang) + Wordmark */}
         <a
           href="#beranda"
           onClick={(e) => {
             e.preventDefault();
             handleNavigate('beranda');
           }}
-          className="text-xs sm:text-sm font-extrabold tracking-tight text-[#0D3868] whitespace-nowrap shrink-0"
+          className="inline-flex items-center gap-2 text-xs sm:text-sm font-extrabold tracking-tight text-[#0D3868] whitespace-nowrap shrink-0"
         >
-          Panaikang Smart Environment
+          <EmblemKelurahanPanaikang className="w-7 h-7 sm:w-8 sm:h-8 shrink-0" />
+          <span>Panaikang Smart Environment</span>
         </a>
 
         {/* Zone 2: Compact text navigation links */}

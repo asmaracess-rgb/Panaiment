@@ -1,0 +1,275 @@
+<svg viewBox="0 0 500 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Arched paths for KELURAHAN and PANAIKANG matching the uploaded emblem -->
+    <path id="kelurahanArc" d="M 106,368 Q 250,336 394,368" />
+    <path id="panaikangArc" d="M 102,414 Q 250,382 398,414" />
+  </defs>
+
+  <!-- ================= 1. MAIN CIRCULAR MEDALLION DOME ================= -->
+  <!-- Outer Dark Brown Border -->
+  <circle cx="250" cy="222" r="174" fill="#461708" />
+  <!-- Golden-Amber Outer Ring -->
+  <circle cx="250" cy="222" r="165" fill="#E8A317" />
+  <!-- Inner Dark Brown Ring -->
+  <circle cx="250" cy="222" r="153" fill="#461708" />
+  <!-- Deep Crimson-Maroon Inner Field -->
+  <circle cx="250" cy="222" r="146" fill="#7D1010" />
+
+  <!-- ================= 2. CENTER PERSPECTIVE HIGHWAY / ROAD ================= -->
+  <!-- Outer Dark Brown Road Frame -->
+  <path
+    d="M 244 172 Q 250 166 256 172 L 392 326 L 108 326 Z"
+    fill="#461708"
+  />
+  <!-- Golden-Amber Left & Right Perspective Road Shoulders -->
+  <path
+    d="M 246 176 Q 250 172 254 176 L 384 324 L 116 324 Z"
+    fill="#E8A317"
+  />
+  <!-- Dark Chocolate Brown Road Asphalt Surface -->
+  <path
+    d="M 247 182 Q 250 179 253 182 L 362 326 L 138 326 Z"
+    fill="#481B09"
+    stroke="#461708"
+    strokeWidth="5"
+    strokeLinejoin="round"
+  />
+
+  <!-- 4 Golden-Amber Center Dashed Lane Markings -->
+  <rect x="247" y="198" width="6" height="15" rx="3" fill="#E8A317" />
+  <rect x="246" y="223" width="8" height="20" rx="3.5" fill="#E8A317" />
+  <rect x="244.5" y="254" width="11" height="25" rx="4" fill="#E8A317" />
+  <rect x="243" y="291" width="14" height="30" rx="4.5" fill="#E8A317" />
+
+  <!-- ================= 3. TOP 5-POINTED GOLDEN STAR ================= -->
+  <polygon
+    points="250,72 264,106 301,109 273,133 281,169 250,150 219,169 227,133 199,109 236,106"
+    fill="#E8A317"
+    stroke="#461708"
+    strokeWidth="7"
+    strokeLinejoin="round"
+  />
+
+  <!-- ================= 4. LEFT SIDE: GOLDEN PADDY STALK (TANGKAI PADI) ================= -->
+  <!-- Curved Stem -->
+  <path
+    d="M 159 306 C 122 258, 120 186, 152 132"
+    stroke="#461708"
+    strokeWidth="12"
+    strokeLinecap="round"
+  />
+  <path
+    d="M 159 306 C 122 258, 120 186, 152 132"
+    stroke="#E8A317"
+    strokeWidth="5.5"
+    strokeLinecap="round"
+  />
+
+  <!-- Paddy Grains (Left Outer Side, Bottom to Top) -->
+  <path
+    d="M 134 268 C 110 262, 104 238, 114 222 C 128 232, 136 250, 134 268 Z"
+    fill="#E8A317"
+    stroke="#461708"
+    strokeWidth="5.5"
+    strokeLinejoin="round"
+  />
+  <path
+    d="M 129 238 C 106 228, 104 204, 116 188 C 128 200, 133 218, 129 238 Z"
+    fill="#E8A317"
+    stroke="#461708"
+    strokeWidth="5.5"
+    strokeLinejoin="round"
+  />
+  <path
+    d="M 130 206 C 110 194, 110 170, 124 156 C 134 168, 136 188, 130 206 Z"
+    fill="#E8A317"
+    stroke="#461708"
+    strokeWidth="5.5"
+    strokeLinejoin="round"
+  />
+  <path
+    d="M 136 176 C 120 162, 122 140, 136 128 C 144 142, 144 160, 136 176 Z"
+    fill="#E8A317"
+    stroke="#461708"
+    strokeWidth="5.5"
+    strokeLinejoin="round"
+  />
+  <!-- Top Tip Paddy Grain -->
+  <path
+    d="M 145 146 C 138 128, 148 108, 166 102 C 168 120, 158 138, 145 146 Z"
+    fill="#E8A317"
+    stroke="#461708"
+    strokeWidth="5.5"
+    strokeLinejoin="round"
+  />
+
+  <!-- Paddy Grains (Right Inner Side, Bottom to Top) -->
+  <path
+    d="M 138 272 C 154 264, 166 248, 164 230 C 148 238, 138 254, 138 272 Z"
+    fill="#E8A317"
+    stroke="#461708"
+    strokeWidth="5.5"
+    strokeLinejoin="round"
+  />
+  <path
+    d="M 133 242 C 150 234, 162 218, 162 200 C 146 208, 135 224, 133 242 Z"
+    fill="#E8A317"
+    stroke="#461708"
+    strokeWidth="5.5"
+    strokeLinejoin="round"
+  />
+  <path
+    d="M 134 210 C 152 202, 164 186, 164 170 C 148 178, 136 194, 134 210 Z"
+    fill="#E8A317"
+    stroke="#461708"
+    strokeWidth="5.5"
+    strokeLinejoin="round"
+  />
+  <path
+    d="M 140 180 C 156 172, 168 158, 168 142 C 152 150, 142 164, 140 180 Z"
+    fill="#E8A317"
+    stroke="#461708"
+    strokeWidth="5.5"
+    strokeLinejoin="round"
+  />
+
+  <!-- ================= 5. RIGHT SIDE: COTTON BRANCH & LEAVES (KAPAS) ================= -->
+  <!-- Top Cotton Blossom (3-lobed cream cloud) -->
+  <g>
+    <path
+      d="M 322 162 C 308 158, 306 138, 320 132 C 324 114, 348 112, 356 128 C 372 132, 372 154, 356 160 C 346 166, 332 166, 322 162 Z"
+      fill="#FAF0D7"
+      stroke="#461708"
+      strokeWidth="6"
+      strokeLinejoin="round"
+    />
+  </g>
+
+  <!-- Middle-Left Cotton Blossom -->
+  <g>
+    <path
+      d="M 318 220 C 306 216, 306 198, 318 192 C 322 178, 342 178, 348 192 C 358 198, 356 216, 342 220 C 334 224, 324 224, 318 220 Z"
+      fill="#FAF0D7"
+      stroke="#461708"
+      strokeWidth="6"
+      strokeLinejoin="round"
+    />
+  </g>
+
+  <!-- Middle-Right Cotton Blossom -->
+  <g>
+    <path
+      d="M 358 214 C 348 208, 350 190, 362 184 C 368 172, 386 174, 390 188 C 398 196, 394 214, 380 216 C 372 218, 364 218, 358 214 Z"
+      fill="#FAF0D7"
+      stroke="#461708"
+      strokeWidth="6"
+      strokeLinejoin="round"
+    />
+  </g>
+
+  <!-- Green Leaves on Lower Cotton Stem -->
+  <path
+    d="M 350 264 C 332 256, 326 240, 334 230 C 346 236, 354 248, 350 264 Z"
+    fill="#5B8427"
+    stroke="#461708"
+    strokeWidth="5.5"
+    strokeLinejoin="round"
+  />
+  <path
+    d="M 356 248 C 368 234, 382 228, 392 234 C 386 246, 372 252, 356 248 Z"
+    fill="#5B8427"
+    stroke="#461708"
+    strokeWidth="5.5"
+    strokeLinejoin="round"
+  />
+  <path
+    d="M 350 280 C 364 264, 382 258, 394 264 C 386 278, 368 286, 350 280 Z"
+    fill="#5B8427"
+    stroke="#461708"
+    strokeWidth="5.5"
+    strokeLinejoin="round"
+  />
+
+  <!-- Main Cotton Green Stem & Calyxes -->
+  <path
+    d="M 323 308 C 344 276, 356 226, 344 156"
+    stroke="#461708"
+    strokeWidth="11"
+    strokeLinecap="round"
+  />
+  <path
+    d="M 323 308 C 344 276, 356 226, 344 156"
+    stroke="#5B8427"
+    strokeWidth="5.5"
+    strokeLinecap="round"
+  />
+  <!-- Branch to Left Blossom -->
+  <path
+    d="M 349 232 L 336 214"
+    stroke="#461708"
+    strokeWidth="9"
+    strokeLinecap="round"
+  />
+  <path
+    d="M 349 232 L 336 214"
+    stroke="#5B8427"
+    strokeWidth="4.5"
+    strokeLinecap="round"
+  />
+  <!-- Branch to Right Blossom -->
+  <path
+    d="M 351 224 L 368 206"
+    stroke="#461708"
+    strokeWidth="9"
+    strokeLinecap="round"
+  />
+  <path
+    d="M 351 224 L 368 206"
+    stroke="#5B8427"
+    strokeWidth="4.5"
+    strokeLinecap="round"
+  />
+
+  <!-- ================= 6. BOTTOM ARCHED BANNER: KELURAHAN PANAIKANG ================= -->
+  <path
+    d="M 94 342 C 90 318, 175 300, 250 300 C 325 300, 410 318, 406 342 L 412 394 C 414 420, 394 434, 368 431 C 310 423, 190 423, 132 431 C 106 434, 86 420, 88 394 Z"
+    fill="#7D1010"
+    stroke="#461708"
+    strokeWidth="8.5"
+    strokeLinejoin="round"
+  />
+
+  <!-- Line 1: KELURAHAN -->
+  <text
+    fill="#E8A317"
+    stroke="#461708"
+    strokeWidth="9"
+    paintOrder="stroke fill"
+    strokeLinejoin="round"
+    fontSize="36"
+    fontWeight="900"
+    fontFamily="'Plus Jakarta Sans', 'Arial Rounded MT Bold', sans-serif"
+    letterSpacing="2"
+  >
+    <textPath href="#kelurahanArc" startOffset="50%" textAnchor="middle">
+      KELURAHAN
+    </textPath>
+  </text>
+
+  <!-- Line 2: PANAIKANG -->
+  <text
+    fill="#E8A317"
+    stroke="#461708"
+    strokeWidth="9"
+    paintOrder="stroke fill"
+    strokeLinejoin="round"
+    fontSize="38"
+    fontWeight="900"
+    fontFamily="'Plus Jakarta Sans', 'Arial Rounded MT Bold', sans-serif"
+    letterSpacing="2"
+  >
+    <textPath href="#panaikangArc" startOffset="50%" textAnchor="middle">
+      PANAIKANG
+    </textPath>
+  </text>
+</svg>
