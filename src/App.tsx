@@ -1004,7 +1004,7 @@ export default function App() {
               activeView === 'warga' ? 'text-[#0277BD] font-bold underline' : ''
             }`}
           >
-            Untuk Warga
+            Menu Warga
           </a>
           <a
             href="#lurah"

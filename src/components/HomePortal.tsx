@@ -216,9 +216,9 @@ export const HomePortal: React.FC<HomePortalProps> = ({
           </p>
         </div>
 
-        {/* TOP ROW: 3 Compact Portal Menu Cards (Untuk Warga, Dashboard Lurah, Peta Digital) */}
+        {/* TOP ROW: 3 Compact Portal Menu Cards (Menu Warga, Dashboard Lurah, Peta Digital) */}
         <div className="max-w-2xl mx-auto grid grid-cols-3 gap-2.5 sm:gap-3.5">
-          {/* Card 1: Untuk Warga (Blue Gradient) */}
+          {/* Card 1: Menu Warga (Blue Gradient) */}
           <button
             type="button"
             onClick={() => onNavigate('warga')}
@@ -229,7 +229,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                 <IconUntukWarga className="w-8 h-7 sm:w-9 sm:h-8" />
               </div>
               <h3 className="text-xs sm:text-sm font-extrabold tracking-tight text-white leading-tight">
-                Untuk Warga
+                Menu Warga
               </h3>
               <p className="mt-1 text-[10px] sm:text-[11px] font-medium text-sky-50 leading-tight max-w-[165px] line-clamp-2">
                 Lapor, pantau, dan lihat informasi lingkungan sekitar Anda.

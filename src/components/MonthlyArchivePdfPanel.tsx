@@ -135,23 +135,23 @@ export const MonthlyArchivePdfPanel: React.FC<MonthlyArchivePdfPanelProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-2xl border-2 border-[#0D3868]/25 p-5 sm:p-6 space-y-5 shadow-xs">
+    <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-5">
       {/* Top Header & Primary Download Action */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div className="flex items-start gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-[#0D3868] text-white flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-[#0D3868] text-white flex items-center justify-center shrink-0">
             <Printer className="w-5 h-5 text-emerald-300" />
           </div>
           <div>
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-              <span className="font-bold text-[#1C8237]">DOKUMEN ARSIP FISIK LURAH</span>
+              <span className="font-bold text-[#1C8237]">03. DOKUMEN ARSIP FISIK LURAH</span>
               <span aria-hidden="true">·</span>
               <span>Format Resmi A4 Kop Surat Pemerintah Kota Makassar</span>
             </div>
-            <h2 className="text-base sm:text-lg font-extrabold text-[#0D3868] mt-0.5">
+            <h2 className="text-base sm:text-lg font-bold text-[#0D3868] mt-0.5">
               Unduh Laporan Bulanan Permasalahan Lingkungan (File PDF)
             </h2>
-            <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+            <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
               Cetak dan unduh dokumen rekapitulasi bulanan permasalahan lingkungan, rincian tindak
               lanjut laporan warga, capaian Bank Sampah Unit, serta lembar pengesahan tanda tangan
               Lurah Panaikang untuk keperluan arsip fisik kelurahan.

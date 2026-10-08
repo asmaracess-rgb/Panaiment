@@ -1531,146 +1531,253 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     );
   }
 
+  const totalRtInKelurahan = rwGroups.reduce((acc, r) => acc + (r.rtList?.length || 0), 0);
+
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8">
-      {/* Active Authenticated Officer Session Bar */}
-      <div className="mb-5 px-4 py-3 rounded-2xl bg-[#0D3868] text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
-            <ShieldCheck className="w-5 h-5 text-emerald-300" />
+      {/* Unified Admin Header & Structured Module Navigation Menu Card */}
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+        {/* Top Officer Session & Portal Return Strip */}
+        <div className="px-4 sm:px-6 py-3 bg-[#0D3868] text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-5 h-5 text-emerald-300" />
+            </div>
+            <div>
+              <div className="text-xs sm:text-sm font-bold text-white">
+                {adminSession.fullName}
+              </div>
+              <div className="text-[11px] text-sky-200">
+                {adminSession.role} · Login:{' '}
+                <span className="font-mono-num">{adminSession.loginAt}</span>
+              </div>
+            </div>
           </div>
+
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
+            <button
+              type="button"
+              onClick={() => onNavigate('beranda')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold border border-white/20 transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Kembali ke Portal Utama</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-red-600 text-white text-xs font-bold border border-white/20 transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Keluar (Logout)</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Title & Organized 7-Item Module Navigation Menu */}
+        <div className="p-5 sm:p-6">
           <div>
-            <div className="text-xs sm:text-sm font-bold text-white">
-              {adminSession.fullName}
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck className="w-6 h-6 text-[#1C8237] shrink-0" />
+              <h1 className="text-xl sm:text-2xl font-extrabold text-[#0D3868] tracking-tight">
+                Panel Administrator & Back-End Satu Data Panaikang
+              </h1>
             </div>
-            <div className="text-[11px] text-sky-200">
-              {adminSession.role} · Login: <span className="font-mono-num">{adminSession.loginAt}</span>
+            <p className="mt-1 text-xs sm:text-sm text-slate-600">
+              Kelola penambahan, pengeditan, validasi, penyimpanan, dan penghapusan data Profil
+              Kelurahan, Laporan Warga, Bank Sampah, Kerja Bakti, serta RT & RW secara terpusat.
+            </p>
+          </div>
+
+          {/* Structured Full-Width Navigation Menu Grid */}
+          <div className="mt-5 pt-4 border-t border-slate-200">
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2.5">
+              Menu Navigasi Modul Administrator & Dashboard Lurah
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+              <button
+                type="button"
+                onClick={() => handleTabSwitch('dashboard_lurah')}
+                className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                  activeTab === 'dashboard_lurah'
+                    ? 'bg-[#2E7D32] border-[#2E7D32] text-white shadow-xs'
+                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <BarChart3
+                    className={`w-4 h-4 shrink-0 ${
+                      activeTab === 'dashboard_lurah' ? 'text-emerald-200' : 'text-[#2E7D32]'
+                    }`}
+                  />
+                  <span className="text-xs font-bold truncate">Dashboard Lurah</span>
+                </div>
+                <span
+                  className={`mt-1 text-[10px] font-medium truncate ${
+                    activeTab === 'dashboard_lurah' ? 'text-emerald-100' : 'text-slate-500'
+                  }`}
+                >
+                  Disposisi & Arsip PDF
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTabSwitch('profil')}
+                className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                  activeTab === 'profil'
+                    ? 'bg-[#0D3868] border-[#0D3868] text-white shadow-xs'
+                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <Building2
+                    className={`w-4 h-4 shrink-0 ${
+                      activeTab === 'profil' ? 'text-sky-200' : 'text-[#0D3868]'
+                    }`}
+                  />
+                  <span className="text-xs font-bold truncate">Profil Kelurahan</span>
+                </div>
+                <span
+                  className={`mt-1 text-[10px] font-medium truncate ${
+                    activeTab === 'profil' ? 'text-sky-100' : 'text-slate-500'
+                  }`}
+                >
+                  Data Lurah & Visi Misi
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTabSwitch('info')}
+                className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                  activeTab === 'info'
+                    ? 'bg-[#1C8237] border-[#1C8237] text-white shadow-xs'
+                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <Newspaper
+                    className={`w-4 h-4 shrink-0 ${
+                      activeTab === 'info' ? 'text-emerald-200' : 'text-[#1C8237]'
+                    }`}
+                  />
+                  <span className="text-xs font-bold truncate">Informasi & IG</span>
+                </div>
+                <span
+                  className={`mt-1 text-[10px] font-medium truncate font-mono-num ${
+                    activeTab === 'info' ? 'text-emerald-100' : 'text-slate-500'
+                  }`}
+                >
+                  {kelurahanInfos.length} Postingan Aktif
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTabSwitch('laporan')}
+                className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                  activeTab === 'laporan'
+                    ? 'bg-[#0277BD] border-[#0277BD] text-white shadow-xs'
+                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <FileText
+                    className={`w-4 h-4 shrink-0 ${
+                      activeTab === 'laporan' ? 'text-sky-200' : 'text-[#0277BD]'
+                    }`}
+                  />
+                  <span className="text-xs font-bold truncate">Laporan Warga</span>
+                </div>
+                <span
+                  className={`mt-1 text-[10px] font-medium truncate font-mono-num ${
+                    activeTab === 'laporan' ? 'text-sky-100' : 'text-slate-500'
+                  }`}
+                >
+                  {reports.length} Laporan · {whatsappRecipients.length} WA
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTabSwitch('sampah')}
+                className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                  activeTab === 'sampah'
+                    ? 'bg-[#EF6C00] border-[#EF6C00] text-white shadow-xs'
+                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <Recycle
+                    className={`w-4 h-4 shrink-0 ${
+                      activeTab === 'sampah' ? 'text-amber-200' : 'text-[#EF6C00]'
+                    }`}
+                  />
+                  <span className="text-xs font-bold truncate">Bank Sampah</span>
+                </div>
+                <span
+                  className={`mt-1 text-[10px] font-medium truncate font-mono-num ${
+                    activeTab === 'sampah' ? 'text-amber-100' : 'text-slate-500'
+                  }`}
+                >
+                  {wasteUnits.length} Unit BSU RW
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTabSwitch('kerjabakti')}
+                className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                  activeTab === 'kerjabakti'
+                    ? 'bg-[#5E35B1] border-[#5E35B1] text-white shadow-xs'
+                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <Calendar
+                    className={`w-4 h-4 shrink-0 ${
+                      activeTab === 'kerjabakti' ? 'text-purple-200' : 'text-[#5E35B1]'
+                    }`}
+                  />
+                  <span className="text-xs font-bold truncate">Kerja Bakti</span>
+                </div>
+                <span
+                  className={`mt-1 text-[10px] font-medium truncate font-mono-num ${
+                    activeTab === 'kerjabakti' ? 'text-purple-100' : 'text-slate-500'
+                  }`}
+                >
+                  {cleanupEvents.length} Jadwal & Foto
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTabSwitch('rtrw')}
+                className={`col-span-2 sm:col-span-1 flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                  activeTab === 'rtrw'
+                    ? 'bg-[#0D3868] border-[#0D3868] text-white shadow-xs'
+                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <Users
+                    className={`w-4 h-4 shrink-0 ${
+                      activeTab === 'rtrw' ? 'text-emerald-300' : 'text-[#0D3868]'
+                    }`}
+                  />
+                  <span className="text-xs font-bold truncate">Data RT & RW</span>
+                </div>
+                <span
+                  className={`mt-1 text-[10px] font-medium truncate font-mono-num ${
+                    activeTab === 'rtrw' ? 'text-sky-100' : 'text-slate-500'
+                  }`}
+                >
+                  {rwGroups.length} RW / {totalRtInKelurahan} RT
+                </span>
+              </button>
             </div>
           </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="self-start sm:self-auto inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-red-600 text-white text-xs font-bold border border-white/20 transition-colors cursor-pointer whitespace-nowrap"
-        >
-          <LogOut className="w-3.5 h-3.5" />
-          <span>Keluar (Logout)</span>
-        </button>
-      </div>
-
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200">
-        <div>
-          <button
-            type="button"
-            onClick={() => onNavigate('beranda')}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0D3868] hover:text-[#0277BD] mb-2 cursor-pointer"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Kembali ke Portal Utama</span>
-          </button>
-          <div className="flex items-center gap-2.5">
-            <ShieldCheck className="w-7 h-7 text-[#1C8237]" />
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0D3868] tracking-tight">
-              Panel Administrator & Back-End Satu Data Panaikang
-            </h1>
-          </div>
-          <p className="mt-1 text-sm text-slate-600">
-            Kelola penambahan, pengeditan, validasi, penyimpanan, dan penghapusan data Profil
-            Kelurahan, Laporan Warga, Bank Sampah, serta Kerja Bakti secara terpusat.
-          </p>
-        </div>
-
-        {/* Navigation Tabs for Database Modules + Dashboard Lurah */}
-        <div className="flex flex-wrap items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200 self-start">
-          <button
-            type="button"
-            onClick={() => handleTabSwitch('dashboard_lurah')}
-            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer ${
-              activeTab === 'dashboard_lurah'
-                ? 'bg-[#2E7D32] text-white shadow-xs'
-                : 'text-slate-700 hover:text-slate-900'
-            }`}
-          >
-            <BarChart3 className="w-3.5 h-3.5" />
-            <span>Dashboard Lurah</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleTabSwitch('profil')}
-            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer ${
-              activeTab === 'profil'
-                ? 'bg-[#0D3868] text-white shadow-xs'
-                : 'text-slate-700 hover:text-slate-900'
-            }`}
-          >
-            <Building2 className="w-3.5 h-3.5" />
-            <span>Profil Kelurahan</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleTabSwitch('info')}
-            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer ${
-              activeTab === 'info'
-                ? 'bg-[#1C8237] text-white shadow-xs'
-                : 'text-slate-700 hover:text-slate-900'
-            }`}
-          >
-            <Newspaper className="w-3.5 h-3.5" />
-            <span>Informasi ({kelurahanInfos.length})</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleTabSwitch('laporan')}
-            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer ${
-              activeTab === 'laporan'
-                ? 'bg-[#0277BD] text-white shadow-xs'
-                : 'text-slate-700 hover:text-slate-900'
-            }`}
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span>Laporan ({reports.length})</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleTabSwitch('sampah')}
-            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer ${
-              activeTab === 'sampah'
-                ? 'bg-[#EF6C00] text-white shadow-xs'
-                : 'text-slate-700 hover:text-slate-900'
-            }`}
-          >
-            <Recycle className="w-3.5 h-3.5" />
-            <span>Bank Sampah ({wasteUnits.length})</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleTabSwitch('kerjabakti')}
-            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer ${
-              activeTab === 'kerjabakti'
-                ? 'bg-[#5E35B1] text-white shadow-xs'
-                : 'text-slate-700 hover:text-slate-900'
-            }`}
-          >
-            <Calendar className="w-3.5 h-3.5" />
-            <span>Kerja Bakti ({cleanupEvents.length})</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleTabSwitch('rtrw')}
-            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer ${
-              activeTab === 'rtrw'
-                ? 'bg-[#0D3868] text-white shadow-xs'
-                : 'text-slate-700 hover:text-slate-900'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            <span>
-              Data RT & RW ({rwGroups.length} RW /{' '}
-              {rwGroups.reduce((acc, r) => acc + (r.rtList?.length || 0), 0)} RT)
-            </span>
-          </button>
         </div>
       </div>
 
@@ -1716,53 +1823,15 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
       {/* ================= TAB 0: DASHBOARD LURAH (KHUSUS LURAH) ================= */}
       {activeTab === 'dashboard_lurah' && (
-        <div className="space-y-6">
-          {isLurahSession && (
-            <div className="mt-6 space-y-5">
-              <MonthlyArchivePdfPanel
-                profile={profile}
-                reports={reports}
-                wasteUnits={wasteUnits}
-                cleanupEvents={cleanupEvents}
-                rwGroups={rwGroups}
-                onPdfDownloaded={(res) =>
-                  setSuccessMessage(
-                    `Arsip Fisik Laporan Bulanan Permasalahan Lingkungan (${res.periodLabel}) berhasil diunduh sebagai file PDF: ${res.fileName}`
-                  )
-                }
-              />
-
-              <div className="bg-white rounded-2xl border-2 border-emerald-200 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-[#128C7E] text-white flex items-center justify-center shrink-0">
-                    <MessageCircle className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm sm:text-base font-extrabold text-[#0D3868]">
-                      Manajemen & Koordinasi Nomor WhatsApp Penerima Laporan ({whatsappRecipients.length} Nomor Terdaftar — Khusus Admin)
-                    </h3>
-                    <p className="text-xs text-slate-600 mt-0.5">
-                      Seluruh nomor aktif menerima laporan warga secara otomatis. Nama, jabatan, dan nomor telepon disembunyikan dari halaman warga dan hanya ditampilkan di Halaman Admin agar seluruh penerima laporan dapat melihat serta langsung saling berkoordinasi.
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleTabSwitch('laporan')}
-                  className="self-start sm:self-auto inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#128C7E] hover:bg-[#075E54] text-white text-xs font-bold cursor-pointer whitespace-nowrap"
-                >
-                  <Phone className="w-3.5 h-3.5" />
-                  <span>Lihat Nomor & Koordinasi WA</span>
-                </button>
-              </div>
-            </div>
-          )}
-
+        <div className="mt-6">
           {isLurahSession ? (
             <DashboardLurahView
               reports={reports}
               wasteUnits={wasteUnits}
               cleanupEvents={cleanupEvents}
+              profile={profile}
+              rwGroups={rwGroups}
+              whatsappRecipients={whatsappRecipients}
               onUpdateReportStatus={(id, newStatus, assignedTeam, responseNote) => {
                 if (onUpdateReportStatus) {
                   onUpdateReportStatus(id, newStatus, assignedTeam, responseNote);
@@ -1776,9 +1845,15 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               }}
               onNavigate={onNavigate}
               isEmbeddedInAdmin={true}
+              onOpenWhatsAppManager={() => handleTabSwitch('laporan')}
+              onPdfDownloaded={(res) =>
+                setSuccessMessage(
+                  `Arsip Fisik Laporan Bulanan Permasalahan Lingkungan (${res.periodLabel}) berhasil diunduh sebagai file PDF: ${res.fileName}`
+                )
+              }
             />
           ) : (
-            <div className="mt-6 bg-white rounded-2xl border-2 border-amber-200 p-8 text-center max-w-2xl mx-auto space-y-4">
+            <div className="bg-white rounded-2xl border-2 border-amber-200 p-8 text-center max-w-2xl mx-auto space-y-4">
               <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto">
                 <Lock className="w-6 h-6" />
               </div>

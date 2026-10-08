@@ -307,7 +307,7 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
             <span>Kembali ke Portal Utama</span>
           </button>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0D3868] tracking-tight">
-            Layanan Untuk Warga Panaikang
+            Menu Warga Kelurahan Panaikang
           </h1>
           <p className="mt-1 text-sm text-slate-600">
             Sampaikan laporan lingkungan sekitar Anda, pantau tindak lanjut petugas, dan lihat jadwal
