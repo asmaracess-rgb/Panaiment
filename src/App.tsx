@@ -1110,6 +1110,9 @@ export default function App() {
             wasteUnits={wasteUnits}
             rwGroups={rwGroups}
             whatsappRecipients={whatsappRecipients}
+            kelurahanProfile={kelurahanProfile}
+            kelurahanInfos={kelurahanInfos}
+            cleanupEvents={cleanupEvents}
             onAddReport={handleAddReport}
             onUpvoteReport={handleUpvoteReport}
             onNavigate={handleNavigate}
