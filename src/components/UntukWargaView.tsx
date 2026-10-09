@@ -130,43 +130,43 @@ const CATEGORY_OPTIONS: ReportCategory[] = [
 
 const LANDMARK_PRESETS: Record<string, { label: string; x: number; y: number; coords: string }> = {
   'RW 01': {
-    label: 'Jl. Racing Centre / Sisi Barat Nipah Mall',
+    label: 'JL. ASPOL TELLO BARU BLOK B3/1',
     x: 24,
     y: 47,
     coords: '-5.1388, 119.4408',
   },
   'RW 02': {
-    label: 'Koridor Jl. Urip Sumoharjo / Seberang Kampus UMI',
+    label: 'JL. BILAWAIYAH NO 22',
     x: 50,
     y: 45,
     coords: '-5.1379, 119.4470',
   },
   'RW 03': {
-    label: 'Jl. Urip Sumoharjo Lorong 2 / Sekitar UMI',
+    label: 'JL. H. KALLA II CAMPAGAYA NO 12',
     x: 57,
     y: 35,
     coords: '-5.1355, 119.4485',
   },
   'RW 04': {
-    label: 'Jl. Sukaria Raya & Lorong Warga',
+    label: 'JL. ANGKASA BELAKANG PALDAM NO 10',
     x: 37,
     y: 64,
     coords: '-5.1415, 119.4432',
   },
   'RW 05': {
-    label: 'Kompleks Kejaksaan / Jl. Abd. Dg. Sirua Utara',
+    label: 'JL. ANGKASA III NO 16',
     x: 65,
     y: 67,
     coords: '-5.1422, 119.4496',
   },
   'RW 06': {
-    label: 'Bantaran Kanal Panaikang / Akses Jl. Pampang',
+    label: 'JL. URIP SUMOHARJO NO 35 A KM 5',
     x: 73,
     y: 34,
     coords: '-5.1345, 119.4515',
   },
   'RW 07': {
-    label: 'Kawasan Lorong Celloe / Sekitar RW 07 Panaikang',
+    label: 'JL. KESADARAN IV NO 9',
     x: 62,
     y: 52,
     coords: '-5.1395, 119.4502',
@@ -386,17 +386,30 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
 
   const handleRwChange = (newRw: string) => {
     setRw(newRw);
-    if (LANDMARK_PRESETS[newRw]) {
+    const rwObj = rwGroups.find((g) => g.rwCode === newRw);
+    const firstRt = rwObj?.rtList?.[0];
+    if (firstRt) {
+      setRt(firstRt.rtCode);
+      setLocationName(firstRt.areaDescription || rwObj?.areaDescription || '');
+    } else if (rwObj?.areaDescription) {
+      setRt('RT 01');
+      setLocationName(rwObj.areaDescription);
+    } else if (LANDMARK_PRESETS[newRw]) {
+      setRt('RT 01');
       setLocationName(LANDMARK_PRESETS[newRw].label);
-    } else {
-      const rwObj = rwGroups.find((g) => g.rwCode === newRw);
-      if (rwObj?.areaDescription) {
-        setLocationName(rwObj.areaDescription);
-      }
     }
     const rwSpecificRecipient = activeRecipients.find((r) => r.rwScope === newRw);
     if (rwSpecificRecipient) {
       setSelectedWaRecipientId(rwSpecificRecipient.id);
+    }
+  };
+
+  const handleRtChange = (newRt: string) => {
+    setRt(newRt);
+    const rwObj = rwGroups.find((g) => g.rwCode === rw);
+    const rtObj = rwObj?.rtList?.find((item) => item.rtCode === newRt);
+    if (rtObj?.areaDescription) {
+      setLocationName(rtObj.areaDescription);
     }
   };
 
@@ -1257,7 +1270,7 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
                       </label>
                       <select
                         value={rt}
-                        onChange={(e) => setRt(e.target.value)}
+                        onChange={(e) => handleRtChange(e.target.value)}
                         className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm text-slate-900 bg-white focus:border-[#0277BD] focus:outline-none"
                       >
                         {RT_OPTIONS.map((item) => (

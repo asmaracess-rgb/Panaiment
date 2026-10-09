@@ -63,9 +63,19 @@ function loadDatabase(): DatabaseSchema {
       const raw = fs.readFileSync(DB_FILE, 'utf-8');
       const parsed = JSON.parse(raw) as Partial<DatabaseSchema>;
       if (parsed && parsed.profile) {
+        const hasOfficialRwData =
+          Array.isArray(parsed.rwGroups) &&
+          parsed.rwGroups.length === 7 &&
+          parsed.rwGroups[0]?.ketuaRwName === 'EDWIN BURHANUDDIN';
+        const resolvedRwGroups = hasOfficialRwData ? parsed.rwGroups! : INITIAL_RW_GROUPS;
+        const resolvedProfile: KelurahanProfile = {
+          ...parsed.profile,
+          totalRw: resolvedRwGroups.length,
+          totalRt: resolvedRwGroups.reduce((acc, rw) => acc + (rw.rtList?.length || 0), 0),
+        };
         return {
-          profile: parsed.profile,
-          rwGroups: Array.isArray(parsed.rwGroups) ? parsed.rwGroups : INITIAL_RW_GROUPS,
+          profile: resolvedProfile,
+          rwGroups: resolvedRwGroups,
           reports: Array.isArray(parsed.reports) ? parsed.reports : INITIAL_REPORTS,
           wasteUnits: Array.isArray(parsed.wasteUnits) ? parsed.wasteUnits : INITIAL_WASTE_UNITS,
           wasteLogs: Array.isArray(parsed.wasteLogs) ? parsed.wasteLogs : INITIAL_WASTE_LOGS,
@@ -472,10 +482,17 @@ async function startServer() {
       return;
     }
     if (incoming.profile) db.profile = incoming.profile;
-    if (Array.isArray(incoming.rwGroups)) {
+    if (Array.isArray(incoming.rwGroups) && incoming.rwGroups.length > 0) {
       db.rwGroups = incoming.rwGroups;
       db.profile.totalRw = incoming.rwGroups.length;
       db.profile.totalRt = incoming.rwGroups.reduce(
+        (acc, rw) => acc + (rw.rtList?.length || 0),
+        0
+      );
+    } else if (!Array.isArray(db.rwGroups) || db.rwGroups.length === 0) {
+      db.rwGroups = INITIAL_RW_GROUPS;
+      db.profile.totalRw = INITIAL_RW_GROUPS.length;
+      db.profile.totalRt = INITIAL_RW_GROUPS.reduce(
         (acc, rw) => acc + (rw.rtList?.length || 0),
         0
       );

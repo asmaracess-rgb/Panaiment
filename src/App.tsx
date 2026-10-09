@@ -201,6 +201,9 @@ export default function App() {
         const currentLocal = loadPersistedDatabase();
 
         if (currentLocal && currentLocal.updatedAt >= serverUpdatedAt) {
+          // Ensure React state has the resolved 7 RW and 62 RT from currentLocal
+          setKelurahanProfile(currentLocal.profile);
+          setRwGroups(currentLocal.rwGroups);
           // Local browser state is up-to-date or has more recent edits/deletions: ensure server is synced
           if (currentLocal.updatedAt > serverUpdatedAt) {
             fetch('/api/data', {
@@ -212,10 +215,17 @@ export default function App() {
           return;
         }
 
-        const nextProfile = serverDb.profile || INITIAL_KELURAHAN_PROFILE;
-        const nextRwGroups = Array.isArray(serverDb.rwGroups)
-          ? serverDb.rwGroups
-          : INITIAL_RW_GROUPS;
+        const hasOfficialServerRw =
+          Array.isArray(serverDb.rwGroups) &&
+          serverDb.rwGroups.length > 0 &&
+          serverDb.rwGroups[0]?.ketuaRwName === 'EDWIN BURHANUDDIN';
+        const nextRwGroups = hasOfficialServerRw ? serverDb.rwGroups! : INITIAL_RW_GROUPS;
+        const baseProfile = serverDb.profile || INITIAL_KELURAHAN_PROFILE;
+        const nextProfile: KelurahanProfile = {
+          ...baseProfile,
+          totalRw: nextRwGroups.length,
+          totalRt: nextRwGroups.reduce((acc, rw) => acc + (rw.rtList?.length || 0), 0),
+        };
         const nextReports = Array.isArray(serverDb.reports) ? serverDb.reports : INITIAL_REPORTS;
         const nextWasteUnits = Array.isArray(serverDb.wasteUnits)
           ? serverDb.wasteUnits

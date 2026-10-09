@@ -90,7 +90,7 @@ export const PetaDigitalView: React.FC<PetaDigitalViewProps> = ({
           </h1>
           <p className="mt-1 text-sm text-slate-600">
             Pemantauan spasial real-time titik laporan warga, lokasi Bank Sampah Unit (BSU), dan
-            titik kerja bakti RW 01 – RW 06.
+            titik kerja bakti RW 01 – RW 07.
           </p>
         </div>
 
@@ -294,8 +294,9 @@ export const PetaDigitalView: React.FC<PetaDigitalViewProps> = ({
                 <text x="375" y="215" fill="#64748B" fontSize="16" fontWeight="800" opacity="0.65">RW 02</text>
                 <text x="625" y="215" fill="#64748B" fontSize="16" fontWeight="800" opacity="0.65">RW 03</text>
                 <text x="165" y="455" fill="#64748B" fontSize="16" fontWeight="800" opacity="0.65">RW 04</text>
-                <text x="690" y="465" fill="#64748B" fontSize="16" fontWeight="800" opacity="0.65">RW 05</text>
+                <text x="550" y="465" fill="#64748B" fontSize="16" fontWeight="800" opacity="0.65">RW 05</text>
                 <text x="795" y="185" fill="#64748B" fontSize="16" fontWeight="800" opacity="0.65">RW 06</text>
+                <text x="775" y="465" fill="#64748B" fontSize="16" fontWeight="800" opacity="0.65">RW 07</text>
               </svg>
 
               {/* Interactive Overlay Markers: Citizen Reports */}

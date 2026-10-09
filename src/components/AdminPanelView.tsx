@@ -198,7 +198,19 @@ export type AdminTab =
   | 'log_aktivitas';
 
 const DEFAULT_RW_LIST = ['RW 01', 'RW 02', 'RW 03', 'RW 04', 'RW 05', 'RW 06', 'RW 07', 'RW 08'];
-const DEFAULT_RT_LIST = ['RT 01', 'RT 02', 'RT 03', 'RT 04', 'RT 05'];
+const DEFAULT_RT_LIST = [
+  'RT 01',
+  'RT 02',
+  'RT 03',
+  'RT 04',
+  'RT 05',
+  'RT 06',
+  'RT 07',
+  'RT 08',
+  'RT 09',
+  'RT 10',
+  'RT 11',
+];
 const CATEGORIES: ReportCategory[] = [
   'Sampah Liar & TPS',
   'Drainase & Genangan',

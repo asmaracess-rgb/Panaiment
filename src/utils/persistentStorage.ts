@@ -50,9 +50,23 @@ export function loadPersistedDatabase(): PersistedDatabase | null {
     if (!parsed || typeof parsed !== 'object' || !parsed.profile) {
       return null;
     }
+    const hasOfficialRwData =
+      Array.isArray(parsed.rwGroups) &&
+      parsed.rwGroups.length === 7 &&
+      parsed.rwGroups[0]?.ketuaRwName === 'EDWIN BURHANUDDIN';
+
+    const resolvedRwGroups = hasOfficialRwData ? parsed.rwGroups! : INITIAL_RW_GROUPS;
+    const resolvedProfile = parsed.profile
+      ? {
+          ...parsed.profile,
+          totalRw: resolvedRwGroups.length,
+          totalRt: resolvedRwGroups.reduce((acc, rw) => acc + (rw.rtList?.length || 0), 0),
+        }
+      : INITIAL_KELURAHAN_PROFILE;
+
     return {
-      profile: parsed.profile || INITIAL_KELURAHAN_PROFILE,
-      rwGroups: Array.isArray(parsed.rwGroups) ? parsed.rwGroups : INITIAL_RW_GROUPS,
+      profile: resolvedProfile,
+      rwGroups: resolvedRwGroups,
       reports: Array.isArray(parsed.reports) ? parsed.reports : INITIAL_REPORTS,
       wasteUnits: Array.isArray(parsed.wasteUnits) ? parsed.wasteUnits : INITIAL_WASTE_UNITS,
       wasteLogs: Array.isArray(parsed.wasteLogs) ? parsed.wasteLogs : INITIAL_WASTE_LOGS,
