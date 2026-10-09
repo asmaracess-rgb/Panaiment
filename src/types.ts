@@ -151,6 +151,7 @@ export interface KelurahanProfile {
   lurahRank: string;
   lurahPeriod: string;
   lurahMessage: string;
+  lurahPhotoUrl?: string;
   sekretarisName: string;
   kasiKebersihanName: string;
   kasiPemerintahanName: string;

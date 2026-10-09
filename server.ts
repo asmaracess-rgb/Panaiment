@@ -339,6 +339,36 @@ async function startServer() {
     res.json({ ok: true });
   });
 
+  app.post('/api/lurah-photo', (req, res) => {
+    try {
+      const { imageDataUrl } = req.body as { imageDataUrl?: string };
+      if (!imageDataUrl || typeof imageDataUrl !== 'string' || !imageDataUrl.startsWith('data:image/')) {
+        res.status(400).json({ ok: false, error: 'Format gambar tidak valid.' });
+        return;
+      }
+      const base64Match = imageDataUrl.match(/^data:image\/[a-zA-Z0-9+.-]+;base64,(.+)$/);
+      if (!base64Match || !base64Match[1]) {
+        res.status(400).json({ ok: false, error: 'Data base64 gambar tidak ditemukan.' });
+        return;
+      }
+      const buffer = Buffer.from(base64Match[1], 'base64');
+      const publicImgPath = path.join(__dirname, 'public', 'images', 'lurah_muthmainnah_cutout.png');
+      const srcAssetPath = path.join(__dirname, 'src', 'assets', 'images', 'lurah_muthmainnah_cutout.png');
+      fs.mkdirSync(path.dirname(publicImgPath), { recursive: true });
+      fs.mkdirSync(path.dirname(srcAssetPath), { recursive: true });
+      fs.writeFileSync(publicImgPath, buffer);
+      fs.writeFileSync(srcAssetPath, buffer);
+
+      const versionedUrl = `/images/lurah_muthmainnah_cutout.png?v=${Date.now()}`;
+      db.profile.lurahPhotoUrl = versionedUrl;
+      saveDatabase(db);
+      res.json({ ok: true, photoUrl: versionedUrl });
+    } catch (err) {
+      console.error('Failed to save Lurah photo:', err);
+      res.status(500).json({ ok: false, error: 'Gagal menyimpan foto Lurah.' });
+    }
+  });
+
   // 0b. Instagram Media Proxy for @kelurahan.panaikang (Local & Vercel parity)
   const LOCAL_IG_FILE_MAP: Record<string, string> = {
     profile: 'ig_profile_panaikang.jpg',

@@ -1282,57 +1282,54 @@ export const HomePortal: React.FC<HomePortalProps> = ({
       )}
 
       {/* ================= SIGNATURE WAVE FOOTER MATCHING PROTOTYPE ================= */}
-      <footer className="relative w-full pt-12 sm:pt-16 overflow-hidden select-none">
+      <footer className="relative w-full pt-28 sm:pt-36 lg:pt-44 overflow-hidden select-none">
         {/* Decorative Botanical Green Plant Sprouting on Left Side (matches prototype) */}
-        <div className="pointer-events-none absolute left-4 sm:left-12 bottom-20 sm:bottom-24 z-20">
+        <div className="pointer-events-none absolute left-4 sm:left-16 lg:left-24 bottom-24 sm:bottom-28 z-10">
           <svg
-            viewBox="0 0 180 150"
+            viewBox="0 0 220 200"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
-            className="w-28 h-24 sm:w-40 sm:h-36"
+            className="w-36 sm:w-48 lg:w-56 h-auto drop-shadow-sm"
           >
-            {/* Left Leaf */}
+            {/* Back Leaf Right */}
             <path
-              d="M75 135C45 120 15 95 10 55C45 55 75 85 78 135"
-              fill="url(#plantLeaf1)"
+              d="M110 185C115 135 155 85 205 65C195 120 160 165 110 185Z"
+              fill="#689F38"
+              opacity="0.85"
             />
             <path
-              d="M76 133C55 105 35 80 15 60"
-              stroke="#DCFCE7"
-              strokeWidth="2"
+              d="M110 185C135 145 165 105 205 65"
+              stroke="#DCEDC8"
+              strokeWidth="2.5"
               strokeLinecap="round"
             />
-            {/* Center Tall Leaf */}
+            {/* Main Center Tall Leaf */}
             <path
-              d="M82 140C75 95 95 45 135 20C140 65 115 110 82 140Z"
-              fill="url(#plantLeaf2)"
+              d="M105 190C85 130 95 55 135 12C160 65 150 135 105 190Z"
+              fill="#43A047"
             />
             <path
-              d="M82 138C95 100 112 62 130 26"
-              stroke="#DCFCE7"
-              strokeWidth="2.2"
+              d="M105 190C108 130 118 70 135 12"
+              stroke="#E8F5E9"
+              strokeWidth="3"
               strokeLinecap="round"
             />
-            {/* Right Lower Leaf */}
+            {/* Left Arching Leaf */}
             <path
-              d="M86 142C110 115 142 100 172 105C152 135 120 145 86 142Z"
-              fill="url(#plantLeaf3)"
+              d="M102 190C60 155 25 105 15 48C68 68 98 120 102 190Z"
+              fill="#2E7D32"
             />
-            <defs>
-              <linearGradient id="plantLeaf1" x1="10" y1="55" x2="78" y2="135" gradientUnits="userSpaceOnUse">
-                <stop stopColor="#4ADE80" />
-                <stop offset="1" stopColor="#15803D" />
-              </linearGradient>
-              <linearGradient id="plantLeaf2" x1="135" y1="20" x2="82" y2="140" gradientUnits="userSpaceOnUse">
-                <stop stopColor="#86EFAC" />
-                <stop offset="0.5" stopColor="#22C55E" />
-                <stop offset="1" stopColor="#166534" />
-              </linearGradient>
-              <linearGradient id="plantLeaf3" x1="172" y1="105" x2="86" y2="142" gradientUnits="userSpaceOnUse">
-                <stop stopColor="#4ADE80" />
-                <stop offset="1" stopColor="#14532D" />
-              </linearGradient>
-            </defs>
+            <path
+              d="M102 190C75 140 48 95 15 48"
+              stroke="#A5D6A7"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            />
+            {/* Small Lower Sprout Leaf */}
+            <path
+              d="M108 192C130 175 168 158 198 162C172 188 138 196 108 192Z"
+              fill="#8BC34A"
+            />
           </svg>
         </div>
 
