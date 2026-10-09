@@ -430,14 +430,14 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     if (res.ok && prev) {
       const statusChanged = rep.status && rep.status !== prev.status;
       const letterIssued =
-        rep.officialLetterNumber && rep.officialLetterNumber !== prev.officialLetterNumber;
+        rep.letterRegisterNumber && rep.letterRegisterNumber !== prev.letterRegisterNumber;
       recordAudit({
         actionType: statusChanged || letterIssued ? 'VERIFY_STATUS' : 'UPDATE',
         module: prev.serviceCategoryId ? 'PENGURUSAN_WARGA' : 'LAPORAN_WARGA',
         targetId: prev.ticketCode,
         targetLabel: `Tiket #${prev.ticketCode} · ${prev.serviceSubItemLabel || prev.title}`,
         summary: letterIssued
-          ? `Memverifikasi pengajuan & menerbitkan Nomor Surat Resmi (${rep.officialLetterNumber})`
+          ? `Memverifikasi pengajuan & menerbitkan Nomor Surat Resmi (${rep.letterRegisterNumber})`
           : statusChanged
           ? `Mengubah status penanganan menjadi "${rep.status}"`
           : `Memperbarui data tindak lanjut berkas/laporan #${prev.ticketCode}`,
@@ -445,10 +445,10 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           rep.responseNote || prev.responseNote || '-'
         }`,
         beforeValue: `Status: ${prev.status}${
-          prev.officialLetterNumber ? ` · No. Surat: ${prev.officialLetterNumber}` : ''
+          prev.letterRegisterNumber ? ` · No. Surat: ${prev.letterRegisterNumber}` : ''
         }`,
         afterValue: `Status: ${rep.status || prev.status}${
-          rep.officialLetterNumber ? ` · No. Surat: ${rep.officialLetterNumber}` : ''
+          rep.letterRegisterNumber ? ` · No. Surat: ${rep.letterRegisterNumber}` : ''
         }`,
         severity: 'info',
       });

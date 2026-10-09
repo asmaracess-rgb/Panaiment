@@ -17,6 +17,7 @@ import {
   RwGroup,
   WhatsAppRecipient,
   AdminUserAccount,
+  AdminActivityLog,
 } from './types';
 import {
   INITIAL_REPORTS,
@@ -28,6 +29,7 @@ import {
   INITIAL_RW_GROUPS,
   INITIAL_WHATSAPP_RECIPIENTS,
   INITIAL_ADMIN_USERS,
+  INITIAL_ACTIVITY_LOGS,
 } from './data/initialData';
 import {
   SERVICE_CATEGORY_GROUPS,
@@ -97,6 +99,11 @@ export default function App() {
       ? initialPersisted.adminUsers
       : INITIAL_ADMIN_USERS
   );
+  const [activityLogs, setActivityLogs] = useState<AdminActivityLog[]>(
+    initialPersisted?.activityLogs && initialPersisted.activityLogs.length > 0
+      ? initialPersisted.activityLogs
+      : INITIAL_ACTIVITY_LOGS
+  );
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
   const stateRef = useRef({
@@ -110,6 +117,7 @@ export default function App() {
     whatsappRecipients,
     serviceCatalog,
     adminUsers,
+    activityLogs,
   });
 
   useEffect(() => {
@@ -124,6 +132,7 @@ export default function App() {
       whatsappRecipients,
       serviceCatalog,
       adminUsers,
+      activityLogs,
     };
   }, [
     kelurahanProfile,
@@ -136,6 +145,7 @@ export default function App() {
     whatsappRecipients,
     serviceCatalog,
     adminUsers,
+    activityLogs,
   ]);
 
   const commitPersistence = useCallback(
@@ -151,6 +161,7 @@ export default function App() {
         whatsappRecipients: partial.whatsappRecipients ?? stateRef.current.whatsappRecipients,
         serviceCatalog: partial.serviceCatalog ?? stateRef.current.serviceCatalog,
         adminUsers: partial.adminUsers ?? stateRef.current.adminUsers,
+        activityLogs: partial.activityLogs ?? stateRef.current.activityLogs,
         updatedAt: Date.now(),
       };
       stateRef.current = {
@@ -164,6 +175,7 @@ export default function App() {
         whatsappRecipients: nextSnapshot.whatsappRecipients,
         serviceCatalog: nextSnapshot.serviceCatalog ?? SERVICE_CATEGORY_GROUPS,
         adminUsers: nextSnapshot.adminUsers ?? INITIAL_ADMIN_USERS,
+        activityLogs: nextSnapshot.activityLogs ?? INITIAL_ACTIVITY_LOGS,
       };
       savePersistedDatabase(nextSnapshot);
       if (syncServer) {
@@ -228,6 +240,10 @@ export default function App() {
           Array.isArray(serverDb.adminUsers) && serverDb.adminUsers.length > 0
             ? serverDb.adminUsers
             : INITIAL_ADMIN_USERS;
+        const nextActivityLogs =
+          Array.isArray(serverDb.activityLogs) && serverDb.activityLogs.length > 0
+            ? serverDb.activityLogs
+            : INITIAL_ACTIVITY_LOGS;
 
         setKelurahanProfile(nextProfile);
         setRwGroups(nextRwGroups);
@@ -239,6 +255,7 @@ export default function App() {
         setWhatsappRecipients(nextWhatsappRecipients);
         setServiceCatalog(nextServiceCatalog);
         setAdminUsers(nextAdminUsers);
+        setActivityLogs(nextActivityLogs);
 
         savePersistedDatabase({
           profile: nextProfile,
@@ -251,6 +268,7 @@ export default function App() {
           whatsappRecipients: nextWhatsappRecipients,
           serviceCatalog: nextServiceCatalog,
           adminUsers: nextAdminUsers,
+          activityLogs: nextActivityLogs,
           updatedAt: serverUpdatedAt || Date.now(),
         });
       })
@@ -1026,6 +1044,50 @@ export default function App() {
     return { ok: true };
   };
 
+  // 10. Log Aktivitas Admin (Audit Trail Lurah)
+  const handleRecordActivityLog = useCallback(
+    (entry: Omit<AdminActivityLog, 'id' | 'timestamp' | 'createdAtMs'>) => {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const dateStr = now.toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+      const newLog: AdminActivityLog = {
+        ...entry,
+        id: `log-act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        timestamp: `${dateStr} · ${timeStr} WITA`,
+        createdAtMs: now.getTime(),
+      };
+      const nextLogs = [newLog, ...stateRef.current.activityLogs].slice(0, 500);
+      setActivityLogs(nextLogs);
+      commitPersistence({ activityLogs: nextLogs });
+      fetch('/api/activity-logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newLog),
+      }).catch(() => {});
+    },
+    [commitPersistence]
+  );
+
+  const handleResetActivityLogs = async (): Promise<{ ok: boolean; errors?: string[] }> => {
+    setActivityLogs(INITIAL_ACTIVITY_LOGS);
+    commitPersistence({ activityLogs: INITIAL_ACTIVITY_LOGS });
+    try {
+      await fetch('/api/activity-logs/reset', {
+        method: 'POST',
+      });
+    } catch {
+      // Fallback already persisted
+    }
+    return { ok: true };
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
       {/* Top Bar Contract: Compact 3-Zone Single-Row Navigation */}
@@ -1259,11 +1321,14 @@ export default function App() {
             whatsappRecipients={whatsappRecipients}
             serviceCatalog={serviceCatalog}
             adminUsers={adminUsers}
+            activityLogs={activityLogs}
             onSaveProfile={handleSaveProfileApi}
             onSaveRwGroups={handleSaveRwGroups}
             onSaveWhatsAppRecipients={handleSaveWhatsAppRecipients}
             onSaveServiceCatalog={handleSaveServiceCatalog}
             onSaveAdminUsers={handleSaveAdminUsers}
+            onRecordActivityLog={handleRecordActivityLog}
+            onResetActivityLogs={handleResetActivityLogs}
             onCreateReport={handleAdminCreateReport}
             onUpdateReport={handleAdminUpdateReport}
             onDeleteReport={handleAdminDeleteReport}
