@@ -18,6 +18,7 @@ import {
   INITIAL_KELURAHAN_INFOS,
   INITIAL_WHATSAPP_RECIPIENTS,
 } from '../data/initialData';
+import { SERVICE_CATEGORY_GROUPS, ServiceCategoryGroup } from '../data/wargaServiceCatalog';
 
 export interface PersistedDatabase {
   profile: KelurahanProfile;
@@ -28,6 +29,7 @@ export interface PersistedDatabase {
   cleanupEvents: CleanupEvent[];
   kelurahanInfos: KelurahanInfoItem[];
   whatsappRecipients: WhatsAppRecipient[];
+  serviceCatalog?: ServiceCategoryGroup[];
   updatedAt: number;
 }
 
@@ -57,6 +59,10 @@ export function loadPersistedDatabase(): PersistedDatabase | null {
       whatsappRecipients: Array.isArray(parsed.whatsappRecipients)
         ? parsed.whatsappRecipients
         : INITIAL_WHATSAPP_RECIPIENTS,
+      serviceCatalog:
+        Array.isArray(parsed.serviceCatalog) && parsed.serviceCatalog.length > 0
+          ? parsed.serviceCatalog
+          : SERVICE_CATEGORY_GROUPS,
       updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : Date.now(),
     };
   } catch {

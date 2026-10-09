@@ -71,6 +71,11 @@ import {
 import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
 import { DashboardLurahView } from './DashboardLurahView';
 import { MonthlyArchivePdfPanel } from './MonthlyArchivePdfPanel';
+import { AdminPengurusanWargaPanel } from './AdminPengurusanWargaPanel';
+import {
+  SERVICE_CATEGORY_GROUPS,
+  ServiceCategoryGroup,
+} from '../data/wargaServiceCatalog';
 
 interface AdminSession {
   token: string;
@@ -90,10 +95,14 @@ interface AdminPanelViewProps {
   cleanupEvents: CleanupEvent[];
   kelurahanInfos: KelurahanInfoItem[];
   whatsappRecipients?: WhatsAppRecipient[];
+  serviceCatalog?: ServiceCategoryGroup[];
   onSaveProfile: (updated: KelurahanProfile) => Promise<{ ok: boolean; errors?: string[] }>;
   onSaveRwGroups: (updated: RwGroup[]) => Promise<{ ok: boolean; errors?: string[] }>;
   onSaveWhatsAppRecipients?: (
     updated: WhatsAppRecipient[]
+  ) => Promise<{ ok: boolean; errors?: string[] }>;
+  onSaveServiceCatalog?: (
+    updated: ServiceCategoryGroup[]
   ) => Promise<{ ok: boolean; errors?: string[] }>;
   onCreateReport: (rep: Partial<CitizenReport>) => Promise<{ ok: boolean; errors?: string[] }>;
   onUpdateReport: (
@@ -151,6 +160,7 @@ interface AdminPanelViewProps {
 
 export type AdminTab =
   | 'dashboard_lurah'
+  | 'pengurusan_warga'
   | 'profil'
   | 'rtrw'
   | 'info'
@@ -176,9 +186,11 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   cleanupEvents = [],
   kelurahanInfos = [],
   whatsappRecipients = INITIAL_WHATSAPP_RECIPIENTS,
+  serviceCatalog = SERVICE_CATEGORY_GROUPS,
   onSaveProfile,
   onSaveRwGroups,
   onSaveWhatsAppRecipients,
+  onSaveServiceCatalog,
   onCreateReport,
   onUpdateReport,
   onDeleteReport,
@@ -1594,7 +1606,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2.5">
               Menu Navigasi Modul Administrator & Dashboard Lurah
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
               <button
                 type="button"
                 onClick={() => handleTabSwitch('dashboard_lurah')}
@@ -1618,6 +1630,32 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                   }`}
                 >
                   Disposisi & Arsip PDF
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTabSwitch('pengurusan_warga')}
+                className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                  activeTab === 'pengurusan_warga'
+                    ? 'bg-[#0D3868] border-[#0D3868] text-white shadow-xs'
+                    : 'bg-sky-50/70 border-sky-200 text-[#0D3868] hover:bg-sky-100/70 hover:border-sky-300'
+                }`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <FileText
+                    className={`w-4 h-4 shrink-0 ${
+                      activeTab === 'pengurusan_warga' ? 'text-amber-300' : 'text-[#0277BD]'
+                    }`}
+                  />
+                  <span className="text-xs font-bold truncate">Pengurusan Warga</span>
+                </div>
+                <span
+                  className={`mt-1 text-[10px] font-medium truncate font-mono-num ${
+                    activeTab === 'pengurusan_warga' ? 'text-sky-100' : 'text-[#0277BD]'
+                  }`}
+                >
+                  7 Bidang · {serviceCatalog.reduce((acc, g) => acc + g.items.length, 0)} Sub-Menu
                 </span>
               </button>
 
@@ -1818,6 +1856,29 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           >
             Tutup
           </button>
+        </div>
+      )}
+
+      {/* ================= TAB 0B: BACK-END PENGURUSAN WARGA (7 BIDANG & 44 SUB-MENU) ================= */}
+      {activeTab === 'pengurusan_warga' && (
+        <div className="mt-6">
+          <AdminPengurusanWargaPanel
+            reports={reports}
+            profile={profile}
+            rwGroups={rwGroups}
+            whatsappRecipients={whatsappRecipients}
+            serviceCatalog={serviceCatalog}
+            adminOfficerName={
+              adminSession?.fullName || 'Administrator / Operator Kelurahan Panaikang'
+            }
+            onCreateReport={onCreateReport}
+            onUpdateReport={onUpdateReport}
+            onDeleteReport={onDeleteReport}
+            onSaveServiceCatalog={
+              onSaveServiceCatalog ||
+              (async () => ({ ok: true }))
+            }
+          />
         </div>
       )}
 
@@ -2615,6 +2676,30 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       {/* ================= TAB 3: KELOLA LAPORAN WARGA (CRUD) ================= */}
       {activeTab === 'laporan' && (
         <div className="mt-6 space-y-6">
+          {/* Pintasan ke Back-End 7 Bidang & 44 Sub-Menu Pengurusan Warga */}
+          <div className="bg-gradient-to-r from-[#0D3868] to-[#0277BD] rounded-2xl p-4 sm:p-5 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="text-[11px] font-extrabold uppercase tracking-wider text-amber-300">
+                🏛️ Modul Back-End Pelayanan Terpadu
+              </div>
+              <div className="text-sm sm:text-base font-extrabold">
+                Ingin Mengelola 7 Bidang & 44 Sub-Menu Pengurusan Surat / Layanan Warga?
+              </div>
+              <p className="text-xs text-sky-100 mt-0.5">
+                Buka tab khusus <strong>Pengurusan Warga</strong> untuk memfilter per bidang
+                (Adminduk, Surat Keterangan, UMKM, Bansos, Kemasyarakatan, Lingkungan, Pengaduan),
+                menerbitkan Nomor Surat Resmi, mencetak PDF Surat, serta mengatur SOP 44 Sub-Menu.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleTabSwitch('pengurusan_warga')}
+              className="self-start sm:self-center px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-extrabold whitespace-nowrap cursor-pointer shrink-0"
+            >
+              Buka Back-End Pengurusan Warga →
+            </button>
+          </div>
+
           {/* ARSIP FISIK LAPORAN BULANAN PERMASALAHAN LINGKUNGAN (PDF) */}
           <MonthlyArchivePdfPanel
             profile={profile}

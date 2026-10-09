@@ -23,6 +23,10 @@ import {
   RwGroup,
   WhatsAppRecipient,
 } from './src/types.ts';
+import {
+  SERVICE_CATEGORY_GROUPS,
+  ServiceCategoryGroup,
+} from './src/data/wargaServiceCatalog.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,6 +40,7 @@ interface DatabaseSchema {
   cleanupEvents: CleanupEvent[];
   kelurahanInfos: KelurahanInfoItem[];
   whatsappRecipients: WhatsAppRecipient[];
+  serviceCatalog: ServiceCategoryGroup[];
   lastModified: string;
   updatedAt?: number;
 }
@@ -67,6 +72,10 @@ function loadDatabase(): DatabaseSchema {
           whatsappRecipients: Array.isArray(parsed.whatsappRecipients)
             ? parsed.whatsappRecipients
             : INITIAL_WHATSAPP_RECIPIENTS,
+          serviceCatalog:
+            Array.isArray(parsed.serviceCatalog) && parsed.serviceCatalog.length > 0
+              ? parsed.serviceCatalog
+              : SERVICE_CATEGORY_GROUPS,
           lastModified: parsed.lastModified || new Date().toISOString(),
           updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : 0,
         };
@@ -85,6 +94,7 @@ function loadDatabase(): DatabaseSchema {
     cleanupEvents: INITIAL_CLEANUP_EVENTS,
     kelurahanInfos: INITIAL_KELURAHAN_INFOS,
     whatsappRecipients: INITIAL_WHATSAPP_RECIPIENTS,
+    serviceCatalog: SERVICE_CATEGORY_GROUPS,
     lastModified: new Date().toISOString(),
     updatedAt: 0,
   };
@@ -411,9 +421,41 @@ async function startServer() {
     if (Array.isArray(incoming.kelurahanInfos)) db.kelurahanInfos = incoming.kelurahanInfos;
     if (Array.isArray(incoming.whatsappRecipients))
       db.whatsappRecipients = incoming.whatsappRecipients;
+    if (Array.isArray(incoming.serviceCatalog) && incoming.serviceCatalog.length > 0)
+      db.serviceCatalog = incoming.serviceCatalog;
 
     saveDatabase(db, incoming.updatedAt);
     res.json({ ok: true, data: db });
+  });
+
+  // 1A. Back-End Katalog & Pengurusan Layanan Warga (7 Kategori & 44 Sub-Menu)
+  app.get('/api/warga-services/catalog', (_req, res) => {
+    res.json({
+      ok: true,
+      data: db.serviceCatalog || SERVICE_CATEGORY_GROUPS,
+    });
+  });
+
+  app.put('/api/warga-services/catalog', (req, res) => {
+    const incoming = Array.isArray(req.body)
+      ? (req.body as ServiceCategoryGroup[])
+      : Array.isArray(req.body?.serviceCatalog)
+      ? (req.body.serviceCatalog as ServiceCategoryGroup[])
+      : null;
+    if (!incoming || incoming.length === 0) {
+      res.status(400).json({ ok: false, errors: ['Format katalog layanan warga tidak valid.'] });
+      return;
+    }
+    db.serviceCatalog = incoming;
+    saveDatabase(db);
+    res.json({ ok: true, data: db.serviceCatalog });
+  });
+
+  app.get('/api/warga-services/submissions', (_req, res) => {
+    res.json({
+      ok: true,
+      data: db.reports,
+    });
   });
 
   // 1B. WhatsApp Recipients CRUD (Managed by Lurah / Administrator)
@@ -571,6 +613,17 @@ async function startServer() {
       completedAt: incoming.completedAt,
       completionPhotoUrl: incoming.completionPhotoUrl,
       followUpPhotos: Array.isArray(incoming.followUpPhotos) ? incoming.followUpPhotos : [],
+      serviceCategoryId: incoming.serviceCategoryId,
+      serviceCategoryTitle: incoming.serviceCategoryTitle,
+      serviceSubItemId: incoming.serviceSubItemId,
+      serviceSubItemLabel: incoming.serviceSubItemLabel,
+      documentCode: incoming.documentCode,
+      officialHeaderTitle: incoming.officialHeaderTitle,
+      processingUnit: incoming.processingUnit,
+      applicantNik: incoming.applicantNik,
+      specificFieldsData: incoming.specificFieldsData,
+      letterRegisterNumber: incoming.letterRegisterNumber,
+      signedByOfficer: incoming.signedByOfficer,
     };
 
     db.reports = [newReport, ...db.reports];

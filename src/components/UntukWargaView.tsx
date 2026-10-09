@@ -93,6 +93,7 @@ interface UntukWargaViewProps {
   kelurahanProfile?: KelurahanProfile;
   kelurahanInfos?: KelurahanInfoItem[];
   cleanupEvents?: CleanupEvent[];
+  serviceCatalog?: ServiceCategoryGroup[];
   onAddReport: (
     newReport: Omit<
       CitizenReport,
@@ -204,10 +205,16 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
   kelurahanProfile = INITIAL_KELURAHAN_PROFILE,
   kelurahanInfos = INITIAL_KELURAHAN_INFOS,
   cleanupEvents = [],
+  serviceCatalog = SERVICE_CATEGORY_GROUPS,
   onAddReport,
   onUpvoteReport,
   onNavigate,
 }) => {
+  const catalogGroups =
+    Array.isArray(serviceCatalog) && serviceCatalog.length > 0
+      ? serviceCatalog
+      : SERVICE_CATEGORY_GROUPS;
+
   // Multi-page navigation state: starts on 'menu_hub' so sub-menus open on a NEW page!
   const [activePage, setActivePage] = useState<WargaPageMode>('menu_hub');
   const [activeMainMenu, setActiveMainMenu] = useState<MainWargaMenuId>('buat_surat');
@@ -249,7 +256,7 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
 
   // Selected Category & SubItem Objects
   const currentCategoryObj =
-    SERVICE_CATEGORY_GROUPS.find((c) => c.id === selectedCategoryId) || SERVICE_CATEGORY_GROUPS[0];
+    catalogGroups.find((c) => c.id === selectedCategoryId) || catalogGroups[0];
   const currentSubItemObj =
     currentCategoryObj.items.find((i) => i.id === selectedSubItemId) ||
     currentCategoryObj.items[0];
@@ -316,7 +323,7 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
     } else if (menu.id === 'hubungi_kelurahan') {
       setActivePage('hubungi_page');
     } else if (menu.defaultCategory) {
-      const targetGroup = SERVICE_CATEGORY_GROUPS.find((g) => g.id === menu.defaultCategory);
+      const targetGroup = catalogGroups.find((g) => g.id === menu.defaultCategory);
       if (targetGroup && targetGroup.items.length > 0) {
         setSelectedCategoryId(targetGroup.id);
         setSelectedSubItemId(targetGroup.items[0].id);
@@ -343,7 +350,7 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
 
   // Open a specific Sub-Menu directly on its own NEW page
   const handleOpenSubMenuPage = (catId: DetailedCategoryId, subItem: ServiceSubItem) => {
-    const catGroup = SERVICE_CATEGORY_GROUPS.find((c) => c.id === catId);
+    const catGroup = catalogGroups.find((c) => c.id === catId);
     setSelectedCategoryId(catId);
     setSelectedSubItemId(subItem.id);
     setUrgency(subItem.defaultUrgency);
@@ -448,6 +455,15 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
       mapY: preset.y + Math.floor(Math.random() * 6 - 3),
       coordinatesLabel: preset.coords,
       imageUrl: selectedPhoto,
+      serviceCategoryId: currentCategoryObj.id,
+      serviceCategoryTitle: currentCategoryObj.title,
+      serviceSubItemId: currentSubItemObj.id,
+      serviceSubItemLabel: currentSubItemObj.label,
+      documentCode: currentSubItemObj.documentCode,
+      officialHeaderTitle: currentSubItemObj.officialHeaderTitle,
+      processingUnit: currentSubItemObj.processingUnit,
+      applicantNik: applicantNik.trim() || undefined,
+      specificFieldsData: { ...specificFieldValues },
     };
     const ticket = onAddReport(cleanPayload);
     const submittedData = {
@@ -496,7 +512,7 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
   });
 
   // Filter categories and sub-items on the Menu Hub when searching
-  const filteredCategoryGroups = SERVICE_CATEGORY_GROUPS.map((group) => {
+  const filteredCategoryGroups = catalogGroups.map((group) => {
     if (!hubSearchQuery.trim()) return group;
     const q = hubSearchQuery.toLowerCase();
     const groupMatches =

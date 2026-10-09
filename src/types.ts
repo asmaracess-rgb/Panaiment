@@ -48,6 +48,18 @@ export interface CitizenReport {
   completedAt?: string;
   completionPhotoUrl?: string;
   followUpPhotos?: string[];
+  // Back-End Pengurusan Warga (7 Kategori & 44 Sub-Menu)
+  serviceCategoryId?: string;
+  serviceCategoryTitle?: string;
+  serviceSubItemId?: string;
+  serviceSubItemLabel?: string;
+  documentCode?: string;
+  officialHeaderTitle?: string;
+  processingUnit?: string;
+  applicantNik?: string;
+  specificFieldsData?: Record<string, string>;
+  letterRegisterNumber?: string;
+  signedByOfficer?: string;
 }
 
 export interface RtItem {

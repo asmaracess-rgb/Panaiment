@@ -28,6 +28,10 @@ import {
   INITIAL_WHATSAPP_RECIPIENTS,
 } from './data/initialData';
 import {
+  SERVICE_CATEGORY_GROUPS,
+  ServiceCategoryGroup,
+} from './data/wargaServiceCatalog';
+import {
   loadPersistedDatabase,
   savePersistedDatabase,
   PersistedDatabase,
@@ -81,6 +85,11 @@ export default function App() {
   const [whatsappRecipients, setWhatsappRecipients] = useState<WhatsAppRecipient[]>(
     initialPersisted?.whatsappRecipients ?? INITIAL_WHATSAPP_RECIPIENTS
   );
+  const [serviceCatalog, setServiceCatalog] = useState<ServiceCategoryGroup[]>(
+    initialPersisted?.serviceCatalog && initialPersisted.serviceCatalog.length > 0
+      ? initialPersisted.serviceCatalog
+      : SERVICE_CATEGORY_GROUPS
+  );
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
   const stateRef = useRef({
@@ -92,6 +101,7 @@ export default function App() {
     cleanupEvents,
     kelurahanInfos,
     whatsappRecipients,
+    serviceCatalog,
   });
 
   useEffect(() => {
@@ -104,6 +114,7 @@ export default function App() {
       cleanupEvents,
       kelurahanInfos,
       whatsappRecipients,
+      serviceCatalog,
     };
   }, [
     kelurahanProfile,
@@ -114,6 +125,7 @@ export default function App() {
     cleanupEvents,
     kelurahanInfos,
     whatsappRecipients,
+    serviceCatalog,
   ]);
 
   const commitPersistence = useCallback(
@@ -127,6 +139,7 @@ export default function App() {
         cleanupEvents: partial.cleanupEvents ?? stateRef.current.cleanupEvents,
         kelurahanInfos: partial.kelurahanInfos ?? stateRef.current.kelurahanInfos,
         whatsappRecipients: partial.whatsappRecipients ?? stateRef.current.whatsappRecipients,
+        serviceCatalog: partial.serviceCatalog ?? stateRef.current.serviceCatalog,
         updatedAt: Date.now(),
       };
       stateRef.current = {
@@ -138,6 +151,7 @@ export default function App() {
         cleanupEvents: nextSnapshot.cleanupEvents,
         kelurahanInfos: nextSnapshot.kelurahanInfos,
         whatsappRecipients: nextSnapshot.whatsappRecipients,
+        serviceCatalog: nextSnapshot.serviceCatalog ?? SERVICE_CATEGORY_GROUPS,
       };
       savePersistedDatabase(nextSnapshot);
       if (syncServer) {
@@ -194,6 +208,10 @@ export default function App() {
         const nextWhatsappRecipients = Array.isArray(serverDb.whatsappRecipients)
           ? serverDb.whatsappRecipients
           : INITIAL_WHATSAPP_RECIPIENTS;
+        const nextServiceCatalog =
+          Array.isArray(serverDb.serviceCatalog) && serverDb.serviceCatalog.length > 0
+            ? serverDb.serviceCatalog
+            : SERVICE_CATEGORY_GROUPS;
 
         setKelurahanProfile(nextProfile);
         setRwGroups(nextRwGroups);
@@ -203,6 +221,7 @@ export default function App() {
         setCleanupEvents(nextCleanupEvents);
         setKelurahanInfos(nextKelurahanInfos);
         setWhatsappRecipients(nextWhatsappRecipients);
+        setServiceCatalog(nextServiceCatalog);
 
         savePersistedDatabase({
           profile: nextProfile,
@@ -213,6 +232,7 @@ export default function App() {
           cleanupEvents: nextCleanupEvents,
           kelurahanInfos: nextKelurahanInfos,
           whatsappRecipients: nextWhatsappRecipients,
+          serviceCatalog: nextServiceCatalog,
           updatedAt: serverUpdatedAt || Date.now(),
         });
       })
@@ -405,6 +425,17 @@ export default function App() {
       completedAt: rep.completedAt,
       completionPhotoUrl: rep.completionPhotoUrl,
       followUpPhotos: Array.isArray(rep.followUpPhotos) ? rep.followUpPhotos : [],
+      serviceCategoryId: rep.serviceCategoryId,
+      serviceCategoryTitle: rep.serviceCategoryTitle,
+      serviceSubItemId: rep.serviceSubItemId,
+      serviceSubItemLabel: rep.serviceSubItemLabel,
+      documentCode: rep.documentCode,
+      officialHeaderTitle: rep.officialHeaderTitle,
+      processingUnit: rep.processingUnit,
+      applicantNik: rep.applicantNik,
+      specificFieldsData: rep.specificFieldsData,
+      letterRegisterNumber: rep.letterRegisterNumber,
+      signedByOfficer: rep.signedByOfficer,
     };
 
     const nextReports = [newReport, ...stateRef.current.reports];
@@ -941,6 +972,24 @@ export default function App() {
     return { ok: true };
   };
 
+  // 8. Katalog Menu Pengurusan Warga CRUD (Back-End 7 Bidang & 44 Sub-Menu)
+  const handleSaveServiceCatalog = async (
+    updatedCatalog: ServiceCategoryGroup[]
+  ): Promise<{ ok: boolean; errors?: string[] }> => {
+    setServiceCatalog(updatedCatalog);
+    commitPersistence({ serviceCatalog: updatedCatalog });
+    try {
+      await fetch('/api/warga-services/catalog', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ serviceCatalog: updatedCatalog }),
+      });
+    } catch {
+      // Fallback already persisted via localStorage & /api/data
+    }
+    return { ok: true };
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
       {/* Top Bar Contract: Compact 3-Zone Single-Row Navigation */}
@@ -1113,6 +1162,7 @@ export default function App() {
             kelurahanProfile={kelurahanProfile}
             kelurahanInfos={kelurahanInfos}
             cleanupEvents={cleanupEvents}
+            serviceCatalog={serviceCatalog}
             onAddReport={handleAddReport}
             onUpvoteReport={handleUpvoteReport}
             onNavigate={handleNavigate}
@@ -1171,9 +1221,11 @@ export default function App() {
             cleanupEvents={cleanupEvents}
             kelurahanInfos={kelurahanInfos}
             whatsappRecipients={whatsappRecipients}
+            serviceCatalog={serviceCatalog}
             onSaveProfile={handleSaveProfileApi}
             onSaveRwGroups={handleSaveRwGroups}
             onSaveWhatsAppRecipients={handleSaveWhatsAppRecipients}
+            onSaveServiceCatalog={handleSaveServiceCatalog}
             onCreateReport={handleAdminCreateReport}
             onUpdateReport={handleAdminUpdateReport}
             onDeleteReport={handleAdminDeleteReport}
