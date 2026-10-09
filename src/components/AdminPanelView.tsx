@@ -32,6 +32,7 @@ import {
   Phone,
   ExternalLink,
   Sliders,
+  History,
 } from 'lucide-react';
 import {
   AppView,
@@ -49,6 +50,9 @@ import {
   AdminUserAccount,
   AdminActionPermissions,
   AdminRoleLevel,
+  AdminActivityLog,
+  AdminActivityActionType,
+  AdminActivityModule,
 } from '../types';
 import {
   HERO_IMAGE_PATH,
@@ -63,6 +67,7 @@ import {
   IG_POST_12,
   INITIAL_WHATSAPP_RECIPIENTS,
   INITIAL_ADMIN_USERS,
+  INITIAL_ACTIVITY_LOGS,
 } from '../data/initialData';
 import { resolveImageUrl } from '../utils/resolveImageUrl';
 import { compressImageFile } from '../utils/compressImage';
@@ -78,6 +83,7 @@ import { DashboardLurahView } from './DashboardLurahView';
 import { MonthlyArchivePdfPanel } from './MonthlyArchivePdfPanel';
 import { AdminPengurusanWargaPanel } from './AdminPengurusanWargaPanel';
 import { AdminParameterUserPanel } from './AdminParameterUserPanel';
+import { AdminActivityLogPanel } from './AdminActivityLogPanel';
 import {
   SERVICE_CATEGORY_GROUPS,
   ServiceCategoryGroup,
@@ -109,6 +115,11 @@ interface AdminPanelViewProps {
   whatsappRecipients?: WhatsAppRecipient[];
   serviceCatalog?: ServiceCategoryGroup[];
   adminUsers?: AdminUserAccount[];
+  activityLogs?: AdminActivityLog[];
+  onRecordActivityLog?: (
+    entry: Omit<AdminActivityLog, 'id' | 'timestamp' | 'createdAtMs'>
+  ) => void;
+  onResetActivityLogs?: () => void;
   onSaveProfile: (updated: KelurahanProfile) => Promise<{ ok: boolean; errors?: string[] }>;
   onSaveRwGroups: (updated: RwGroup[]) => Promise<{ ok: boolean; errors?: string[] }>;
   onSaveWhatsAppRecipients?: (
@@ -183,7 +194,8 @@ export type AdminTab =
   | 'laporan'
   | 'sampah'
   | 'kerjabakti'
-  | 'parameter_user';
+  | 'parameter_user'
+  | 'log_aktivitas';
 
 const DEFAULT_RW_LIST = ['RW 01', 'RW 02', 'RW 03', 'RW 04', 'RW 05', 'RW 06', 'RW 07', 'RW 08'];
 const DEFAULT_RT_LIST = ['RT 01', 'RT 02', 'RT 03', 'RT 04', 'RT 05'];
@@ -205,6 +217,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   whatsappRecipients = INITIAL_WHATSAPP_RECIPIENTS,
   serviceCatalog = SERVICE_CATEGORY_GROUPS,
   adminUsers = INITIAL_ADMIN_USERS,
+  activityLogs = INITIAL_ACTIVITY_LOGS,
+  onRecordActivityLog,
+  onResetActivityLogs,
   onSaveProfile,
   onSaveRwGroups,
   onSaveWhatsAppRecipients,
@@ -289,6 +304,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         'kerjabakti',
         'rtrw',
         'parameter_user',
+        'log_aktivitas',
       ];
     }
     if (
@@ -346,6 +362,191 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     if (isLurahSession) return true;
     return effectiveAllowedTabs.includes(tabId);
   };
+
+  // Helper to record audit trail entry with current active admin identity
+  const recordAudit = (params: {
+    actionType: AdminActivityActionType;
+    module: AdminActivityModule;
+    targetId?: string;
+    targetLabel: string;
+    summary: string;
+    details?: string;
+    beforeValue?: string;
+    afterValue?: string;
+    severity?: 'info' | 'warning' | 'critical';
+    overrideActor?: {
+      username: string;
+      fullName: string;
+      jabatan: string;
+      nip?: string;
+      roleLevel?: AdminRoleLevel;
+    };
+  }) => {
+    if (!onRecordActivityLog) return;
+    const actorUsername =
+      params.overrideActor?.username ||
+      currentAdminAccount?.username ||
+      adminSession?.username ||
+      'lurah';
+    const actorName =
+      params.overrideActor?.fullName ||
+      currentAdminAccount?.fullName ||
+      adminSession?.fullName ||
+      'Muthmainnah, SE, MM';
+    const actorJabatan =
+      params.overrideActor?.jabatan ||
+      currentAdminAccount?.jabatan ||
+      adminSession?.role ||
+      'Administrator Kelurahan Panaikang';
+    const actorNip =
+      params.overrideActor?.nip || currentAdminAccount?.nip || adminSession?.nip || '-';
+    const actorRoleLevel: AdminRoleLevel =
+      params.overrideActor?.roleLevel ||
+      currentAdminAccount?.roleLevel ||
+      adminSession?.roleLevel ||
+      (isLurahSession ? 'master_admin' : 'admin_bidang');
+
+    onRecordActivityLog({
+      actorUsername,
+      actorName,
+      actorJabatan,
+      actorNip,
+      actorRoleLevel,
+      actionType: params.actionType,
+      module: params.module,
+      targetId: params.targetId,
+      targetLabel: params.targetLabel,
+      summary: params.summary,
+      details: params.details,
+      beforeValue: params.beforeValue,
+      afterValue: params.afterValue,
+      severity: params.severity || 'info',
+    });
+  };
+
+  const auditedOnUpdateReport = async (id: string, rep: Partial<CitizenReport>) => {
+    const prev = reports.find((r) => r.id === id);
+    const res = await onUpdateReport(id, rep);
+    if (res.ok && prev) {
+      const statusChanged = rep.status && rep.status !== prev.status;
+      const letterIssued =
+        rep.officialLetterNumber && rep.officialLetterNumber !== prev.officialLetterNumber;
+      recordAudit({
+        actionType: statusChanged || letterIssued ? 'VERIFY_STATUS' : 'UPDATE',
+        module: prev.serviceCategoryId ? 'PENGURUSAN_WARGA' : 'LAPORAN_WARGA',
+        targetId: prev.ticketCode,
+        targetLabel: `Tiket #${prev.ticketCode} · ${prev.serviceSubItemLabel || prev.title}`,
+        summary: letterIssued
+          ? `Memverifikasi pengajuan & menerbitkan Nomor Surat Resmi (${rep.officialLetterNumber})`
+          : statusChanged
+          ? `Mengubah status penanganan menjadi "${rep.status}"`
+          : `Memperbarui data tindak lanjut berkas/laporan #${prev.ticketCode}`,
+        details: `Pemohon/Pelapor: ${prev.reporterName} (${prev.rw}/${prev.rt}). Catatan: ${
+          rep.responseNote || prev.responseNote || '-'
+        }`,
+        beforeValue: `Status: ${prev.status}${
+          prev.officialLetterNumber ? ` · No. Surat: ${prev.officialLetterNumber}` : ''
+        }`,
+        afterValue: `Status: ${rep.status || prev.status}${
+          rep.officialLetterNumber ? ` · No. Surat: ${rep.officialLetterNumber}` : ''
+        }`,
+        severity: 'info',
+      });
+    }
+    return res;
+  };
+
+  const auditedOnCreateReport = async (rep: Partial<CitizenReport>) => {
+    const res = await onCreateReport(rep);
+    if (res.ok) {
+      recordAudit({
+        actionType: 'CREATE',
+        module: rep.serviceCategoryId ? 'PENGURUSAN_WARGA' : 'LAPORAN_WARGA',
+        targetLabel: `${rep.serviceSubItemLabel || rep.title || 'Berkas Baru'} (${
+          rep.reporterName || 'Warga'
+        })`,
+        summary: `Menambahkan registrasi pengajuan/laporan warga baru melalui Panel Admin`,
+        details: `Wilayah: ${rep.rw || '-'} / ${rep.rt || '-'} · Kategori: ${
+          rep.serviceCategoryTitle || rep.category || '-'
+        }`,
+        afterValue: `Status Awal: ${rep.status || 'Menunggu Verifikasi'}`,
+        severity: 'info',
+      });
+    }
+    return res;
+  };
+
+  const auditedOnDeleteReport = async (id: string) => {
+    const prev = reports.find((r) => r.id === id);
+    const res = await onDeleteReport(id);
+    if (res.ok && prev) {
+      recordAudit({
+        actionType: 'DELETE',
+        module: prev.serviceCategoryId ? 'PENGURUSAN_WARGA' : 'LAPORAN_WARGA',
+        targetId: prev.ticketCode,
+        targetLabel: `Tiket #${prev.ticketCode} · ${prev.title}`,
+        summary: `Menghapus data pengajuan/laporan warga #${prev.ticketCode}`,
+        details: `Pemohon/Pelapor: ${prev.reporterName} (${prev.rw}/${prev.rt})`,
+        beforeValue: `Status Terakhir: ${prev.status}`,
+        afterValue: 'Data Dihapus Permanen',
+        severity: 'critical',
+      });
+    }
+    return res;
+  };
+
+  const auditedOnSaveServiceCatalog = async (updatedCatalog: ServiceCategoryGroup[]) => {
+    if (!onSaveServiceCatalog) return { ok: true };
+    const totalSubMenus = updatedCatalog.reduce((acc, g) => acc + g.items.length, 0);
+    const res = await onSaveServiceCatalog(updatedCatalog);
+    if (res.ok) {
+      recordAudit({
+        actionType: 'UPDATE',
+        module: 'KATALOG_SOP',
+        targetLabel: `Katalog Layanan Warga (${updatedCatalog.length} Bidang · ${totalSubMenus} Sub-Menu)`,
+        summary: `Memperbarui konfigurasi SOP, persyaratan berkas, atau sub-menu layanan warga`,
+        details: `Perubahan katalog langsung tersinkronisasi ke halaman Menu Warga.`,
+        afterValue: `${updatedCatalog.length} Kategori · ${totalSubMenus} Sub-Menu Aktif`,
+        severity: 'warning',
+      });
+    }
+    return res;
+  };
+
+  const auditedOnSaveAdminUsers = async (updatedUsers: AdminUserAccount[]) => {
+    if (!onSaveAdminUsers) return { ok: true };
+    const prevCount = adminUsers.length;
+    const nextCount = updatedUsers.length;
+    const res = await onSaveAdminUsers(updatedUsers);
+    if (res.ok) {
+      const actionType: AdminActivityActionType =
+        nextCount > prevCount
+          ? 'CREATE'
+          : nextCount < prevCount
+          ? 'DELETE'
+          : 'ACCESS_CHANGE';
+      recordAudit({
+        actionType,
+        module: 'PARAMETER_USER',
+        targetLabel: `Database Akun & Hak Akses Admin (${nextCount} Akun Terdaftar)`,
+        summary:
+          nextCount > prevCount
+            ? 'Menambahkan akun user admin baru pada Parameter User'
+            : nextCount < prevCount
+            ? 'Menghapus akun user admin dari daftar Parameter User'
+            : 'Memperbarui profil akun atau batasan hak akses modul user admin',
+        details: `Total akun aktif: ${
+          updatedUsers.filter((u) => u.isActive).length
+        } dari ${nextCount} akun terdaftar.`,
+        beforeValue: `${prevCount} Akun Admin`,
+        afterValue: `${nextCount} Akun Admin (${
+          updatedUsers.filter((u) => u.isActive).length
+        } Aktif)`,
+        severity: nextCount < prevCount ? 'critical' : 'warning',
+      });
+    }
+    return res;
+  };
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [successMessage, setSuccessMessage] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -388,6 +589,22 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       setAdminSession(sessionData);
       sessionStorage.setItem('pnk_admin_session', JSON.stringify(sessionData));
       setLoginPassword('');
+      recordAudit({
+        actionType: 'LOGIN',
+        module: 'AUTENTIKASI',
+        targetId: sessionData.userId,
+        targetLabel: `Sesi Portal Admin · ${sessionData.fullName} (@${sessionData.username})`,
+        summary: `Login berhasil ke Panel Admin Kelurahan Panaikang`,
+        details: `Peran: ${sessionData.role}`,
+        severity: 'info',
+        overrideActor: {
+          username: sessionData.username,
+          fullName: sessionData.fullName,
+          jabatan: sessionData.role,
+          nip: sessionData.nip,
+          roleLevel: sessionData.roleLevel,
+        },
+      });
       if (
         Array.isArray(sessionData.allowedAdminTabs) &&
         sessionData.allowedAdminTabs.length > 0 &&
@@ -721,6 +938,17 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     if (!res.ok) {
       setValidationErrors(res.errors || ['Validasi informasi kelurahan gagal.']);
     } else {
+      recordAudit({
+        actionType: editingInfoId ? 'UPDATE' : 'CREATE',
+        module: 'INFORMASI_KELURAHAN',
+        targetId: editingInfoId || undefined,
+        targetLabel: `Informasi: ${payload.title || 'Berita Kelurahan'}`,
+        summary: editingInfoId
+          ? `Memperbarui artikel informasi kelurahan "${payload.title}"`
+          : `Menerbitkan artikel informasi kelurahan baru "${payload.title}"`,
+        details: `Kategori: ${payload.category || 'Pengumuman Kelurahan'}`,
+        severity: 'info',
+      });
       setShowInfoForm(false);
       setEditingInfoId(null);
       setSuccessMessage(
@@ -733,9 +961,18 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
   const handleExecuteDeleteInfo = async (id: string) => {
     clearFeedback();
+    const target = kelurahanInfos.find((i) => i.id === id);
     const res = await onDeleteInfo(id);
     setConfirmDeleteInfoId(null);
     if (res.ok) {
+      recordAudit({
+        actionType: 'DELETE',
+        module: 'INFORMASI_KELURAHAN',
+        targetId: id,
+        targetLabel: `Informasi: ${target?.title || id}`,
+        summary: `Menghapus artikel informasi kelurahan "${target?.title || id}"`,
+        severity: 'critical',
+      });
       setSuccessMessage('Informasi kelurahan berhasil dihapus dari Halaman Utama.');
     }
   };
@@ -760,6 +997,15 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     if (!res.ok) {
       setValidationErrors(res.errors || ['Gagal memvalidasi data profil kelurahan.']);
     } else {
+      recordAudit({
+        actionType: 'UPDATE',
+        module: 'PROFIL_KELURAHAN',
+        targetLabel: `Profil Resmi Kelurahan Panaikang (${profileDraft.lurahName})`,
+        summary: `Memperbarui data Profil Kelurahan, Pejabat Struktural, Visi & Misi`,
+        beforeValue: `Lurah: ${profile.lurahName} · Populasi: ${profile.totalPopulation}`,
+        afterValue: `Lurah: ${profileDraft.lurahName} · Populasi: ${profileDraft.totalPopulation}`,
+        severity: 'info',
+      });
       setSuccessMessage(
         'Data Profil Kelurahan Panaikang (Lurah, Alamat Kantor, Visi & Misi) telah tervalidasi dan disimpan ke server.'
       );
@@ -840,6 +1086,16 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     if (!res.ok) {
       setValidationErrors(res.errors || ['Gagal menyimpan perubahan data RW.']);
     } else {
+      recordAudit({
+        actionType: editingRwId ? 'UPDATE' : 'CREATE',
+        module: 'STRUKTUR_RTRW',
+        targetLabel: `${rwForm.rwCode} (${rwForm.ketuaRwName})`,
+        summary: editingRwId
+          ? `Memperbarui data pengurus Rukun Warga ${rwForm.rwCode}`
+          : `Menambahkan wilayah Rukun Warga baru ${rwForm.rwCode}`,
+        afterValue: `Ketua RW: ${rwForm.ketuaRwName} · Area: ${rwForm.areaDescription || '-'}`,
+        severity: 'info',
+      });
       setShowRwForm(false);
       setEditingRwId(null);
       setSuccessMessage(
@@ -1137,7 +1393,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     }) + ' WITA';
 
     if (action === 'verifikasi') {
-      const res = await onUpdateReport(rep.id, {
+      const res = await auditedOnUpdateReport(rep.id, {
         status: 'Sedang Ditangani',
         verifiedBy: officerLabel,
         verifiedAt: nowTime,
@@ -1250,8 +1506,8 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       followUpPhotos: followUps,
     };
     const res = editingReportId
-      ? await onUpdateReport(editingReportId, payload)
-      : await onCreateReport(payload);
+      ? await auditedOnUpdateReport(editingReportId, payload)
+      : await auditedOnCreateReport(payload);
     setIsSubmitting(false);
 
     if (!res.ok) {
@@ -1269,7 +1525,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
   const handleExecuteDeleteReport = async (id: string) => {
     clearFeedback();
-    const res = await onDeleteReport(id);
+    const res = await auditedOnDeleteReport(id);
     setConfirmDeleteReportId(null);
     if (res.ok) {
       setSuccessMessage('Data laporan warga berhasil dihapus dari basis data.');
@@ -2019,7 +2275,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               <button
                 type="button"
                 onClick={() => handleTabSwitch('parameter_user')}
-                className={`col-span-2 sm:col-span-1 flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                   activeTab === 'parameter_user'
                     ? 'bg-[#0D3868] border-[#0D3868] text-white shadow-xs'
                     : !isTabAllowed('parameter_user')
@@ -2046,6 +2302,39 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                   }`}
                 >
                   {adminUsers.length} Akun & Hak Akses
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTabSwitch('log_aktivitas')}
+                className={`col-span-2 sm:col-span-1 flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                  activeTab === 'log_aktivitas'
+                    ? 'bg-[#0D3868] border-[#0D3868] text-white shadow-xs'
+                    : !isTabAllowed('log_aktivitas')
+                    ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-75'
+                    : 'bg-sky-50/80 border-sky-300 text-[#0D3868] hover:bg-sky-100/70'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <History
+                      className={`w-4 h-4 shrink-0 ${
+                        activeTab === 'log_aktivitas' ? 'text-amber-300' : 'text-[#0277BD]'
+                      }`}
+                    />
+                    <span className="text-xs font-bold truncate">Log Aktivitas</span>
+                  </div>
+                  {!isTabAllowed('log_aktivitas') && (
+                    <Lock className="w-3 h-3 text-slate-400 shrink-0" />
+                  )}
+                </div>
+                <span
+                  className={`mt-1 text-[10px] font-medium truncate font-mono-num ${
+                    activeTab === 'log_aktivitas' ? 'text-sky-200' : 'text-[#0277BD]'
+                  }`}
+                >
+                  {activityLogs.length} Audit Trail
                 </span>
               </button>
             </div>
@@ -2101,9 +2390,51 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             serviceCatalog={serviceCatalog}
             currentUsername={adminSession?.username || ''}
             isMasterLurah={isLurahSession}
-            onSaveAdminUsers={
-              onSaveAdminUsers || (async () => ({ ok: true }))
+            onSaveAdminUsers={auditedOnSaveAdminUsers}
+          />
+        </div>
+      )}
+
+      {/* ================= TAB LOG AKTIVITAS & AUDIT TRAIL (PENGAWASAN LURAH) ================= */}
+      {activeTab === 'log_aktivitas' && isTabAllowed('log_aktivitas') && (
+        <div className="mt-6">
+          <AdminActivityLogPanel
+            activityLogs={activityLogs}
+            adminUsers={adminUsers}
+            currentUser={
+              currentAdminAccount || {
+                id: adminSession?.userId || 'usr-master-lurah',
+                username: adminSession?.username || 'lurah',
+                password: '',
+                fullName: adminSession?.fullName || 'Muthmainnah, SE, MM',
+                nip: adminSession?.nip || '19880412 201010 1 002',
+                jabatan: adminSession?.role || 'Lurah Panaikang',
+                unitBidang: 'Pimpinan Kelurahan Panaikang',
+                phone: '',
+                roleLevel: isLurahSession ? 'master_admin' : 'admin_bidang',
+                isMasterLurah: isLurahSession,
+                isActive: true,
+                allowedAdminTabs: effectiveAllowedTabs,
+                allowedServiceCategories: [],
+                actionPermissions: effectiveActionPermissions,
+                createdAt: '',
+                updatedAt: '',
+              }
             }
+            onAddManualLog={(entry) => {
+              recordAudit({
+                actionType: entry.actionType,
+                module: entry.module,
+                targetLabel: entry.targetLabel,
+                summary: entry.summary,
+                details: entry.details,
+                beforeValue: entry.beforeValue,
+                afterValue: entry.afterValue,
+                severity: entry.severity,
+              });
+              setSuccessMessage('Catatan audit trail baru berhasil ditambahkan ke Log Aktivitas.');
+            }}
+            onClearLogs={onResetActivityLogs}
           />
         </div>
       )}
@@ -2154,13 +2485,10 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             }
             allowedServiceCategories={effectiveAllowedCategories}
             actionPermissions={effectiveActionPermissions}
-            onCreateReport={onCreateReport}
-            onUpdateReport={onUpdateReport}
-            onDeleteReport={onDeleteReport}
-            onSaveServiceCatalog={
-              onSaveServiceCatalog ||
-              (async () => ({ ok: true }))
-            }
+            onCreateReport={auditedOnCreateReport}
+            onUpdateReport={auditedOnUpdateReport}
+            onDeleteReport={auditedOnDeleteReport}
+            onSaveServiceCatalog={auditedOnSaveServiceCatalog}
           />
         </div>
       )}

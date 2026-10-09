@@ -103,6 +103,12 @@ export const ADMIN_MODULE_OPTIONS: {
     description: 'Manajemen akun admin & konfigurasi batasan akses (Khusus Lurah)',
     badgeColor: 'bg-rose-50 text-rose-800 border-rose-200',
   },
+  {
+    id: 'log_aktivitas',
+    label: 'Log Aktivitas (Audit Trail)',
+    description: 'Rekam jejak riwayat perubahan data oleh user admin untuk pengawasan Lurah',
+    badgeColor: 'bg-amber-50 text-amber-900 border-amber-200',
+  },
 ];
 
 export const ACTION_PERMISSION_OPTIONS: {

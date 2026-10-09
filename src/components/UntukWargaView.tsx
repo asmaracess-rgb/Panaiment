@@ -529,11 +529,11 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8 space-y-6">
       {/* =====================================================================================
-          HALAMAN 1: MENU WARGA HUB (TAMPILAN UTAMA GRID CARD RAPI TANPA ISI MENU DI BAWAH)
+          HALAMAN 1: MENU WARGA HUB (TAMPILAN SEDERHANA — KATEGORI HANYA TAMPIL SAAT MENU DIKLIK)
       ===================================================================================== */}
       {activePage === 'menu_hub' && (
-        <div className="space-y-7">
-          {/* Top Banner Header Menu Warga */}
+        <div className="space-y-6">
+          {/* Top Banner & Menu Utama Pelayanan Digital Kelurahan */}
           <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
             <div className="bg-gradient-to-r from-[#0D3868] via-[#134B8A] to-[#0277BD] px-5 sm:px-8 py-6 text-white flex flex-col lg:flex-row lg:items-center justify-between gap-5">
               <div className="space-y-1.5">
@@ -552,9 +552,8 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
                   Menu Warga Kelurahan Panaikang
                 </h1>
                 <p className="text-xs sm:text-sm text-sky-100 max-w-3xl leading-relaxed">
-                  Pilih salah satu menu utama atau sub-menu layanan di bawah ini. Setiap layanan
-                  yang Anda pilih akan langsung terbuka pada <strong>halaman baru tersendiri</strong>{' '}
-                  agar pengisian surat dan pengaduan lebih fokus, rapi, dan nyaman.
+                  Pilih salah satu menu layanan di bawah ini. Kategori beserta daftar sub-menu
+                  layanan hanya akan tampil setelah Anda memilih salah satu menu.
                 </p>
               </div>
 
@@ -584,167 +583,56 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
               </div>
             </div>
 
-            {/* 10 Menu Utama 🏛️ PELAYANAN DIGITAL KELURAHAN */}
-            <div className="p-5 sm:p-7 bg-slate-50/80 border-b border-slate-200/80">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+            {/* Menu Utama 🏛️ PELAYANAN DIGITAL KELURAHAN (Tampilan Sederhana & Rapi) */}
+            <div className="p-5 sm:p-8 bg-slate-50/60">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-5">
                 <div className="flex items-center gap-2">
                   <Building2 className="w-4 h-4 text-[#0D3868]" />
                   <h2 className="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-[#0D3868]">
-                    🏛️ Pelayanan Digital Kelurahan (10 Menu Utama)
+                    🏛️ Pilih Menu Pelayanan Digital Kelurahan
                   </h2>
                 </div>
                 <span className="text-xs text-slate-500">
-                  Klik kartu menu untuk membuka halaman layanan terkait
+                  Klik salah satu menu untuk menampilkan kategori & sub-menu layanan
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
                 {MAIN_WARGA_MENUS.map((menu) => (
                   <button
                     key={menu.id}
                     type="button"
                     onClick={() => handleOpenMainMenuPage(menu)}
-                    className="group text-left p-4 rounded-2xl bg-white border border-slate-200/90 hover:border-[#0277BD] hover:shadow-md transition-all cursor-pointer flex flex-col justify-between"
+                    className="group text-left p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-[#0277BD] hover:shadow-md transition-all cursor-pointer flex flex-col justify-between"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <span className="w-10 h-10 rounded-xl bg-slate-100 group-hover:bg-sky-50 flex items-center justify-center text-xl select-none transition-colors">
+                      <span className="w-11 h-11 rounded-xl bg-slate-100 group-hover:bg-sky-50 flex items-center justify-center text-2xl select-none transition-colors">
                         {menu.emoji}
                       </span>
                       <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-[#0277BD] group-hover:translate-x-0.5 transition-all shrink-0 mt-1" />
                     </div>
-                    <div className="mt-3">
-                      <div className="text-xs sm:text-sm font-extrabold text-[#0D3868] group-hover:text-[#0277BD] leading-snug transition-colors">
+                    <div className="mt-3.5">
+                      <div className="text-sm font-extrabold text-[#0D3868] group-hover:text-[#0277BD] leading-snug transition-colors">
                         {menu.label}
                       </div>
-                      <div className="mt-1 text-[11px] text-slate-500 leading-tight line-clamp-2">
+                      <div className="mt-1 text-xs text-slate-500 leading-relaxed line-clamp-2">
                         {menu.shortDesc}
                       </div>
-                      <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] font-bold text-[#0277BD] flex items-center justify-between">
+                      <div className="mt-3 pt-2.5 border-t border-slate-100 text-[11px] font-bold text-[#0277BD] flex items-center justify-between">
                         <span>{menu.badgeText}</span>
-                        <span>Buka →</span>
+                        <span>Pilih Menu →</span>
                       </div>
                     </div>
                   </button>
                 ))}
               </div>
             </div>
-
-            {/* Search Filter Bar for 7 Categories & 44 Sub-Menus */}
-            <div className="px-5 sm:px-7 py-4 bg-white flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div>
-                <h2 className="text-base sm:text-lg font-extrabold text-[#0D3868]">
-                  Katalog Grid 7 Kategori Layanan & 44 Sub-Menu Warga
-                </h2>
-                <p className="text-xs text-slate-600">
-                  Klik langsung salah satu sub-menu di dalam kartu kategori untuk membuka halaman
-                  formulir layanan tersebut.
-                </p>
-              </div>
-              <div className="relative w-full md:w-80">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={hubSearchQuery}
-                  onChange={(e) => setHubSearchQuery(e.target.value)}
-                  placeholder="Cari layanan (mis. SKTM, KTP, UMKM, Banjir)..."
-                  className="w-full pl-9 pr-8 py-2 text-xs sm:text-sm rounded-xl border border-slate-300 focus:border-[#0277BD] focus:outline-none"
-                />
-                {hubSearchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setHubSearchQuery('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* GRID CARD 7 KATEGORI LAYANAN BESERTA IKON & DAFTAR SUB-MENU */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-            {filteredCategoryGroups.map((group) => (
-              <div
-                key={group.id}
-                className="bg-white rounded-2xl border border-slate-200/90 shadow-xs hover:shadow-md transition-all flex flex-col justify-between overflow-hidden"
-              >
-                <div>
-                  {/* Card Header with Representative Category Icon */}
-                  <div className={`p-5 border-b ${group.accentBorder} ${group.accentBg}`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-11 h-11 rounded-xl ${group.iconBg} flex items-center justify-center shrink-0 shadow-xs`}
-                        >
-                          {renderCategoryIcon(group.iconName, 'w-5 h-5')}
-                        </div>
-                        <div>
-                          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                            Kategori {group.number} · {group.items.length} Sub-Menu
-                          </div>
-                          <h3 className="text-base sm:text-lg font-extrabold text-[#0D3868] leading-snug">
-                            {group.title}
-                          </h3>
-                        </div>
-                      </div>
-                    </div>
-                    <p className="mt-2.5 text-xs text-slate-600 leading-relaxed">
-                      {group.subtitle}
-                    </p>
-                  </div>
-
-                  {/* Interactive Sub-Menu List inside the Grid Card */}
-                  <div className="p-4 sm:p-5">
-                    <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 mb-2.5">
-                      Pilih Sub-Menu Layanan (Buka Halaman Baru):
-                    </div>
-                    <ul className="space-y-1.5">
-                      {group.items.map((item, idx) => (
-                        <li key={item.id}>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenSubMenuPage(group.id, item)}
-                            className="w-full text-left px-3 py-2 rounded-xl border border-slate-200/80 bg-slate-50/60 hover:bg-[#0D3868] hover:text-white hover:border-[#0D3868] text-slate-800 transition-all cursor-pointer flex items-center justify-between gap-2.5 group"
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <span className="w-5 h-5 rounded-md bg-white group-hover:bg-white/20 text-[#0D3868] group-hover:text-white border border-slate-200/80 group-hover:border-transparent text-[11px] font-mono-num font-bold flex items-center justify-center shrink-0">
-                                {idx + 1}
-                              </span>
-                              <span className="text-xs font-bold leading-snug truncate">
-                                {item.label}
-                              </span>
-                            </div>
-                            <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 group-hover:text-amber-300 group-hover:translate-x-0.5 transition-transform" />
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-
-                {/* Card Footer: Open Full Category Page */}
-                <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-                  <span className="text-[11px] text-slate-500 font-medium">
-                    Gratis · Terhubung WA Petugas
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenCategoryPage(group)}
-                    className="inline-flex items-center gap-1 text-xs font-extrabold text-[#0277BD] hover:text-[#0D3868] cursor-pointer"
-                  >
-                    <FolderOpen className="w-3.5 h-3.5" />
-                    <span>Buka Halaman Kategori →</span>
-                  </button>
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       )}
 
       {/* =====================================================================================
-          HALAMAN 2: HALAMAN BARU KATEGORI LAYANAN (DAFTAR KARTU SUB-MENU DALAM 1 KATEGORI)
+          HALAMAN 2: HALAMAN KATEGORI LAYANAN (TAMPIL HANYA APABILA SALAH SATU MENU DIKLIK)
       ===================================================================================== */}
       {activePage === 'category_page' && (
         <div className="space-y-6">
@@ -763,7 +651,7 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
                 <span>Menu Warga</span>
                 <span aria-hidden="true">/</span>
                 <span className="font-bold text-[#0D3868]">
-                  {currentCategoryObj.number}. {currentCategoryObj.title}
+                  Kategori {currentCategoryObj.number}: {currentCategoryObj.title}
                 </span>
               </div>
             </div>
@@ -779,6 +667,35 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
               <Search className="w-3.5 h-3.5" />
               <span>Cek Status Pengajuan</span>
             </button>
+          </div>
+
+          {/* Quick Switcher Antar 7 Kategori Layanan */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-4">
+            <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 mb-2.5">
+              Pilih Kategori Layanan Warga:
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {catalogGroups.map((cat) => {
+                const isSelected = cat.id === currentCategoryObj.id;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => handleOpenCategoryPage(cat)}
+                    className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                      isSelected
+                        ? 'bg-[#0D3868] text-white border-[#0D3868] shadow-xs'
+                        : 'bg-slate-50 hover:bg-sky-50 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    {renderCategoryIcon(cat.iconName, 'w-3.5 h-3.5')}
+                    <span>
+                      {cat.number}. {cat.title}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Category Hero Header */}

@@ -8,6 +8,7 @@ import {
   KelurahanInfoItem,
   WhatsAppRecipient,
   AdminUserAccount,
+  AdminActivityLog,
 } from '../types';
 import {
   INITIAL_KELURAHAN_PROFILE,
@@ -19,6 +20,7 @@ import {
   INITIAL_KELURAHAN_INFOS,
   INITIAL_WHATSAPP_RECIPIENTS,
   INITIAL_ADMIN_USERS,
+  INITIAL_ACTIVITY_LOGS,
 } from '../data/initialData';
 import { SERVICE_CATEGORY_GROUPS, ServiceCategoryGroup } from '../data/wargaServiceCatalog';
 
@@ -33,6 +35,7 @@ export interface PersistedDatabase {
   whatsappRecipients: WhatsAppRecipient[];
   serviceCatalog?: ServiceCategoryGroup[];
   adminUsers?: AdminUserAccount[];
+  activityLogs?: AdminActivityLog[];
   updatedAt: number;
 }
 
@@ -70,6 +73,10 @@ export function loadPersistedDatabase(): PersistedDatabase | null {
         Array.isArray(parsed.adminUsers) && parsed.adminUsers.length > 0
           ? parsed.adminUsers
           : INITIAL_ADMIN_USERS,
+      activityLogs:
+        Array.isArray(parsed.activityLogs) && parsed.activityLogs.length > 0
+          ? parsed.activityLogs
+          : INITIAL_ACTIVITY_LOGS,
       updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : Date.now(),
     };
   } catch {

@@ -13,6 +13,7 @@ import {
   INITIAL_RW_GROUPS,
   INITIAL_WHATSAPP_RECIPIENTS,
   INITIAL_ADMIN_USERS,
+  INITIAL_ACTIVITY_LOGS,
 } from './src/data/initialData.ts';
 import {
   KelurahanProfile,
@@ -24,6 +25,7 @@ import {
   RwGroup,
   WhatsAppRecipient,
   AdminUserAccount,
+  AdminActivityLog,
 } from './src/types.ts';
 import {
   SERVICE_CATEGORY_GROUPS,
@@ -44,6 +46,7 @@ interface DatabaseSchema {
   whatsappRecipients: WhatsAppRecipient[];
   serviceCatalog: ServiceCategoryGroup[];
   adminUsers: AdminUserAccount[];
+  activityLogs: AdminActivityLog[];
   lastModified: string;
   updatedAt?: number;
 }
@@ -83,6 +86,10 @@ function loadDatabase(): DatabaseSchema {
             Array.isArray(parsed.adminUsers) && parsed.adminUsers.length > 0
               ? parsed.adminUsers
               : INITIAL_ADMIN_USERS,
+          activityLogs:
+            Array.isArray(parsed.activityLogs) && parsed.activityLogs.length > 0
+              ? parsed.activityLogs
+              : INITIAL_ACTIVITY_LOGS,
           lastModified: parsed.lastModified || new Date().toISOString(),
           updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : 0,
         };
@@ -103,6 +110,7 @@ function loadDatabase(): DatabaseSchema {
     whatsappRecipients: INITIAL_WHATSAPP_RECIPIENTS,
     serviceCatalog: SERVICE_CATEGORY_GROUPS,
     adminUsers: INITIAL_ADMIN_USERS,
+    activityLogs: INITIAL_ACTIVITY_LOGS,
     lastModified: new Date().toISOString(),
     updatedAt: 0,
   };
@@ -453,9 +461,76 @@ async function startServer() {
       db.serviceCatalog = incoming.serviceCatalog;
     if (Array.isArray(incoming.adminUsers) && incoming.adminUsers.length > 0)
       db.adminUsers = incoming.adminUsers;
+    if (Array.isArray(incoming.activityLogs))
+      db.activityLogs = incoming.activityLogs;
 
     saveDatabase(db, incoming.updatedAt);
     res.json({ ok: true, data: db });
+  });
+
+  // 1AB. Log Aktivitas / Audit Trail Admin Endpoints
+  app.get('/api/activity-logs', (_req, res) => {
+    res.json({
+      ok: true,
+      data: db.activityLogs || INITIAL_ACTIVITY_LOGS,
+    });
+  });
+
+  app.post('/api/activity-logs', (req, res) => {
+    const incoming = req.body as Partial<AdminActivityLog>;
+    if (!incoming.summary || !incoming.targetLabel) {
+      res.status(400).json({ ok: false, errors: ['Ringkasan dan target log wajib diisi.'] });
+      return;
+    }
+    const created: AdminActivityLog = {
+      id: incoming.id || `LOG-2026-${String(Date.now()).slice(-6)}`,
+      timestamp:
+        incoming.timestamp ||
+        new Date().toLocaleDateString('id-ID', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        }) +
+          ' · ' +
+          new Date().toLocaleTimeString('id-ID', {
+            hour: '2-digit',
+            minute: '2-digit',
+          }) +
+          ' WITA',
+      createdAtMs: incoming.createdAtMs || Date.now(),
+      actorUsername: incoming.actorUsername || 'lurah',
+      actorName: incoming.actorName || 'Muthmainnah, SE, MM',
+      actorJabatan: incoming.actorJabatan || 'Lurah Panaikang',
+      actorNip: incoming.actorNip || '-',
+      actorRoleLevel: incoming.actorRoleLevel || 'master_admin',
+      actionType: incoming.actionType || 'UPDATE',
+      module: incoming.module || 'PENGURUSAN_WARGA',
+      targetId: incoming.targetId,
+      targetLabel: incoming.targetLabel,
+      summary: incoming.summary,
+      details: incoming.details,
+      beforeValue: incoming.beforeValue,
+      afterValue: incoming.afterValue,
+      severity: incoming.severity || 'info',
+    };
+    db.activityLogs = [created, ...(db.activityLogs || [])].slice(0, 500);
+    saveDatabase(db);
+    res.status(201).json({ ok: true, data: created, allLogs: db.activityLogs });
+  });
+
+  app.put('/api/activity-logs', (req, res) => {
+    const incoming = Array.isArray(req.body)
+      ? (req.body as AdminActivityLog[])
+      : Array.isArray(req.body?.activityLogs)
+      ? (req.body.activityLogs as AdminActivityLog[])
+      : null;
+    if (!incoming) {
+      res.status(400).json({ ok: false, errors: ['Format daftar log aktivitas tidak valid.'] });
+      return;
+    }
+    db.activityLogs = incoming.slice(0, 500);
+    saveDatabase(db);
+    res.json({ ok: true, data: db.activityLogs });
   });
 
   // 1AA. Parameter User & Batasan Akses Admin CRUD (Managed by Master Admin / Lurah)

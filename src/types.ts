@@ -212,9 +212,52 @@ export type AdminTabId =
   | 'sampah'
   | 'kerjabakti'
   | 'rtrw'
-  | 'parameter_user';
+  | 'parameter_user'
+  | 'log_aktivitas';
 
 export type AdminRoleLevel = 'master_admin' | 'admin_bidang' | 'operator' | 'viewer';
+
+export type AdminActivityActionType =
+  | 'LOGIN'
+  | 'LOGOUT'
+  | 'CREATE'
+  | 'UPDATE'
+  | 'DELETE'
+  | 'VERIFY_STATUS'
+  | 'ACCESS_CHANGE'
+  | 'EXPORT';
+
+export type AdminActivityModule =
+  | 'AUTENTIKASI'
+  | 'PENGURUSAN_WARGA'
+  | 'PROFIL_KELURAHAN'
+  | 'STRUKTUR_RTRW'
+  | 'INFORMASI_KELURAHAN'
+  | 'LAPORAN_WARGA'
+  | 'BANK_SAMPAH'
+  | 'KERJA_BAKTI'
+  | 'PARAMETER_USER'
+  | 'KATALOG_SOP';
+
+export interface AdminActivityLog {
+  id: string;
+  timestamp: string;
+  createdAtMs: number;
+  actorUsername: string;
+  actorName: string;
+  actorJabatan: string;
+  actorNip?: string;
+  actorRoleLevel: AdminRoleLevel;
+  actionType: AdminActivityActionType;
+  module: AdminActivityModule;
+  targetId?: string;
+  targetLabel: string;
+  summary: string;
+  details?: string;
+  beforeValue?: string;
+  afterValue?: string;
+  severity: 'info' | 'warning' | 'critical';
+}
 
 export interface AdminActionPermissions {
   canCreate: boolean;
