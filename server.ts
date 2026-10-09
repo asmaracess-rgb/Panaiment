@@ -12,6 +12,7 @@ import {
   INITIAL_KELURAHAN_INFOS,
   INITIAL_RW_GROUPS,
   INITIAL_WHATSAPP_RECIPIENTS,
+  INITIAL_ADMIN_USERS,
 } from './src/data/initialData.ts';
 import {
   KelurahanProfile,
@@ -22,6 +23,7 @@ import {
   KelurahanInfoItem,
   RwGroup,
   WhatsAppRecipient,
+  AdminUserAccount,
 } from './src/types.ts';
 import {
   SERVICE_CATEGORY_GROUPS,
@@ -41,6 +43,7 @@ interface DatabaseSchema {
   kelurahanInfos: KelurahanInfoItem[];
   whatsappRecipients: WhatsAppRecipient[];
   serviceCatalog: ServiceCategoryGroup[];
+  adminUsers: AdminUserAccount[];
   lastModified: string;
   updatedAt?: number;
 }
@@ -76,6 +79,10 @@ function loadDatabase(): DatabaseSchema {
             Array.isArray(parsed.serviceCatalog) && parsed.serviceCatalog.length > 0
               ? parsed.serviceCatalog
               : SERVICE_CATEGORY_GROUPS,
+          adminUsers:
+            Array.isArray(parsed.adminUsers) && parsed.adminUsers.length > 0
+              ? parsed.adminUsers
+              : INITIAL_ADMIN_USERS,
           lastModified: parsed.lastModified || new Date().toISOString(),
           updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : 0,
         };
@@ -95,6 +102,7 @@ function loadDatabase(): DatabaseSchema {
     kelurahanInfos: INITIAL_KELURAHAN_INFOS,
     whatsappRecipients: INITIAL_WHATSAPP_RECIPIENTS,
     serviceCatalog: SERVICE_CATEGORY_GROUPS,
+    adminUsers: INITIAL_ADMIN_USERS,
     lastModified: new Date().toISOString(),
     updatedAt: 0,
   };
@@ -230,10 +238,11 @@ async function startServer() {
 
   // ================= API ROUTES =================
 
-  // 0. Administrator Authentication (Login & Logout)
+  // 0. Administrator Authentication (Login & Logout with Dynamic Parameter User & RBAC)
   app.post('/api/auth/login', (req, res) => {
     const { username, password } = req.body as { username?: string; password?: string };
     const cleanUser = (username || '').trim().toLowerCase();
+    const cleanNip = cleanUser.replace(/\s+/g, '');
     const cleanPass = (password || '').trim();
 
     if (!cleanUser || !cleanPass) {
@@ -244,50 +253,69 @@ async function startServer() {
       return;
     }
 
-    const validPasswords = ['panaikang2026', 'admin123', 'makassar2026'];
+    const users =
+      Array.isArray(db.adminUsers) && db.adminUsers.length > 0
+        ? db.adminUsers
+        : INITIAL_ADMIN_USERS;
 
-    if (
-      (cleanUser === 'admin' ||
-        cleanUser === 'lurah' ||
-        cleanUser === 'lurah.panaikang' ||
-        cleanUser === '198804122010101002') &&
-      validPasswords.includes(cleanPass)
-    ) {
+    const matchedUser = users.find((u) => {
+      const uName = (u.username || '').trim().toLowerCase();
+      const uNip = (u.nip || '').replace(/\s+/g, '').toLowerCase();
+      const isMasterAlias =
+        Boolean(u.isMasterLurah || u.roleLevel === 'master_admin') &&
+        ['admin', 'lurah', 'lurah.panaikang'].includes(cleanUser);
+      return uName === cleanUser || (uNip && uNip === cleanNip) || isMasterAlias;
+    });
+
+    if (matchedUser) {
+      const legacyFallbackPasswords = ['panaikang2026', 'admin123', 'makassar2026'];
+      const passwordMatches =
+        matchedUser.password === cleanPass ||
+        (matchedUser.password === 'panaikang2026' && legacyFallbackPasswords.includes(cleanPass));
+
+      if (!passwordMatches) {
+        res.status(401).json({
+          ok: false,
+          error: 'Kata sandi yang dimasukkan tidak sesuai untuk akun tersebut.',
+        });
+        return;
+      }
+
+      if (!matchedUser.isActive) {
+        res.status(403).json({
+          ok: false,
+          error:
+            'Akun user ini sedang dinonaktifkan oleh Master Admin (Lurah). Silakan hubungi Lurah Panaikang.',
+        });
+        return;
+      }
+
+      const loginTimeStr =
+        new Date().toLocaleTimeString('id-ID', {
+          hour: '2-digit',
+          minute: '2-digit',
+        }) + ' WITA';
+
+      matchedUser.lastLoginAt = `Hari ini · ${loginTimeStr}`;
+      saveDatabase(db);
+
       res.json({
         ok: true,
         session: {
-          token: `pnk-adm-${Date.now()}`,
-          username: 'admin',
-          fullName: db.profile.lurahName,
-          nip: db.profile.lurahNip,
-          role: 'Administrator Utama · Lurah Panaikang',
-          loginAt: new Date().toLocaleTimeString('id-ID', {
-            hour: '2-digit',
-            minute: '2-digit',
-          }) + ' WITA',
-        },
-      });
-      return;
-    }
-
-    if (
-      (cleanUser === 'operator' ||
-        cleanUser === 'sekretaris' ||
-        cleanUser === 'staf.panaikang') &&
-      validPasswords.includes(cleanPass)
-    ) {
-      res.json({
-        ok: true,
-        session: {
-          token: `pnk-opr-${Date.now()}`,
-          username: 'operator',
-          fullName: db.profile.sekretarisName,
-          nip: '19850819 200901 2 004',
-          role: 'Operator Satu Data · Sekretaris Kelurahan',
-          loginAt: new Date().toLocaleTimeString('id-ID', {
-            hour: '2-digit',
-            minute: '2-digit',
-          }) + ' WITA',
+          token: `pnk-usr-${matchedUser.id}-${Date.now()}`,
+          userId: matchedUser.id,
+          username: matchedUser.username,
+          fullName: matchedUser.fullName,
+          nip: matchedUser.nip,
+          role: `${matchedUser.jabatan} · ${matchedUser.unitBidang}`,
+          roleLevel: matchedUser.roleLevel,
+          isMasterLurah: Boolean(
+            matchedUser.isMasterLurah || matchedUser.roleLevel === 'master_admin'
+          ),
+          allowedAdminTabs: matchedUser.allowedAdminTabs,
+          allowedServiceCategories: matchedUser.allowedServiceCategories,
+          actionPermissions: matchedUser.actionPermissions,
+          loginAt: loginTimeStr,
         },
       });
       return;
@@ -295,7 +323,7 @@ async function startServer() {
 
     res.status(401).json({
       ok: false,
-      error: 'Username/NIP atau kata sandi yang dimasukkan tidak sesuai. Silakan coba kembali.',
+      error: 'Username/NIP atau kata sandi yang dimasukkan tidak terdaftar. Silakan coba kembali.',
     });
   });
 
@@ -423,9 +451,145 @@ async function startServer() {
       db.whatsappRecipients = incoming.whatsappRecipients;
     if (Array.isArray(incoming.serviceCatalog) && incoming.serviceCatalog.length > 0)
       db.serviceCatalog = incoming.serviceCatalog;
+    if (Array.isArray(incoming.adminUsers) && incoming.adminUsers.length > 0)
+      db.adminUsers = incoming.adminUsers;
 
     saveDatabase(db, incoming.updatedAt);
     res.json({ ok: true, data: db });
+  });
+
+  // 1AA. Parameter User & Batasan Akses Admin CRUD (Managed by Master Admin / Lurah)
+  app.get('/api/admin-users', (_req, res) => {
+    res.json({
+      ok: true,
+      data: db.adminUsers || INITIAL_ADMIN_USERS,
+    });
+  });
+
+  app.put('/api/admin-users', (req, res) => {
+    const incoming = Array.isArray(req.body)
+      ? (req.body as AdminUserAccount[])
+      : Array.isArray(req.body?.adminUsers)
+      ? (req.body.adminUsers as AdminUserAccount[])
+      : null;
+    if (!incoming || incoming.length === 0) {
+      res.status(400).json({ ok: false, errors: ['Format daftar akun user admin tidak valid.'] });
+      return;
+    }
+    db.adminUsers = incoming;
+    saveDatabase(db);
+    res.json({ ok: true, data: db.adminUsers });
+  });
+
+  app.post('/api/admin-users', (req, res) => {
+    const incoming = req.body as Partial<AdminUserAccount>;
+    if (!incoming.username || !incoming.fullName || !incoming.password) {
+      res.status(400).json({
+        ok: false,
+        errors: ['Username, Nama Lengkap, dan Kata Sandi wajib diisi.'],
+      });
+      return;
+    }
+    const cleanUsername = incoming.username.trim().toLowerCase();
+    if (db.adminUsers.some((u) => u.username.toLowerCase() === cleanUsername)) {
+      res.status(400).json({
+        ok: false,
+        errors: [`Username "${cleanUsername}" sudah digunakan oleh akun lain.`],
+      });
+      return;
+    }
+    const created: AdminUserAccount = {
+      id: incoming.id || `usr-${Date.now()}`,
+      username: cleanUsername,
+      password: incoming.password.trim(),
+      fullName: incoming.fullName.trim(),
+      nip: incoming.nip?.trim() || '-',
+      jabatan: incoming.jabatan?.trim() || 'Staf / Operator Kelurahan',
+      unitBidang: incoming.unitBidang?.trim() || 'Pelayanan Terpadu Kelurahan Panaikang',
+      phone: incoming.phone?.trim() || '',
+      roleLevel: incoming.roleLevel || 'operator',
+      isMasterLurah: Boolean(incoming.isMasterLurah || incoming.roleLevel === 'master_admin'),
+      isActive: incoming.isActive ?? true,
+      allowedAdminTabs: Array.isArray(incoming.allowedAdminTabs)
+        ? incoming.allowedAdminTabs
+        : ['pengurusan_warga', 'laporan'],
+      allowedServiceCategories: Array.isArray(incoming.allowedServiceCategories)
+        ? incoming.allowedServiceCategories
+        : ['adminduk', 'surat_keterangan'],
+      actionPermissions: incoming.actionPermissions || {
+        canCreate: true,
+        canEdit: true,
+        canDelete: false,
+        canVerifyAndIssueLetter: false,
+        canConfigureCatalog: false,
+        canManageWhatsApp: false,
+        canExportPrintPdf: true,
+      },
+      createdAt: incoming.createdAt || '08 Okt 2026',
+      updatedAt: '08 Okt 2026',
+      notes: incoming.notes?.trim() || '',
+    };
+    db.adminUsers = [...db.adminUsers, created];
+    saveDatabase(db);
+    res.status(201).json({ ok: true, data: created });
+  });
+
+  app.put('/api/admin-users/:id', (req, res) => {
+    const { id } = req.params;
+    const idx = db.adminUsers.findIndex((u) => u.id === id);
+    if (idx === -1) {
+      res.status(404).json({ ok: false, errors: ['Akun user admin tidak ditemukan.'] });
+      return;
+    }
+    const existing = db.adminUsers[idx];
+    const incoming = req.body as Partial<AdminUserAccount>;
+    const nextUsername = incoming.username
+      ? incoming.username.trim().toLowerCase()
+      : existing.username;
+    if (
+      db.adminUsers.some(
+        (u) => u.id !== id && u.username.toLowerCase() === nextUsername
+      )
+    ) {
+      res.status(400).json({
+        ok: false,
+        errors: [`Username "${nextUsername}" sudah digunakan oleh akun lain.`],
+      });
+      return;
+    }
+    const merged: AdminUserAccount = {
+      ...existing,
+      ...incoming,
+      id: existing.id,
+      username: nextUsername,
+      password:
+        incoming.password && incoming.password.trim().length > 0
+          ? incoming.password.trim()
+          : existing.password,
+      updatedAt: '08 Okt 2026 · Diperbarui',
+    };
+    db.adminUsers[idx] = merged;
+    saveDatabase(db);
+    res.json({ ok: true, data: merged });
+  });
+
+  app.delete('/api/admin-users/:id', (req, res) => {
+    const { id } = req.params;
+    const target = db.adminUsers.find((u) => u.id === id);
+    if (!target) {
+      res.status(404).json({ ok: false, errors: ['Akun user admin tidak ditemukan.'] });
+      return;
+    }
+    if (target.isMasterLurah && db.adminUsers.filter((u) => u.isMasterLurah).length <= 1) {
+      res.status(400).json({
+        ok: false,
+        errors: ['Akun Master Admin (Lurah) utama tidak dapat dihapus.'],
+      });
+      return;
+    }
+    db.adminUsers = db.adminUsers.filter((u) => u.id !== id);
+    saveDatabase(db);
+    res.json({ ok: true, deletedId: id });
   });
 
   // 1A. Back-End Katalog & Pengurusan Layanan Warga (7 Kategori & 44 Sub-Menu)

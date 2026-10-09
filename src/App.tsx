@@ -16,6 +16,7 @@ import {
   KelurahanInfoItem,
   RwGroup,
   WhatsAppRecipient,
+  AdminUserAccount,
 } from './types';
 import {
   INITIAL_REPORTS,
@@ -26,6 +27,7 @@ import {
   INITIAL_KELURAHAN_INFOS,
   INITIAL_RW_GROUPS,
   INITIAL_WHATSAPP_RECIPIENTS,
+  INITIAL_ADMIN_USERS,
 } from './data/initialData';
 import {
   SERVICE_CATEGORY_GROUPS,
@@ -90,6 +92,11 @@ export default function App() {
       ? initialPersisted.serviceCatalog
       : SERVICE_CATEGORY_GROUPS
   );
+  const [adminUsers, setAdminUsers] = useState<AdminUserAccount[]>(
+    initialPersisted?.adminUsers && initialPersisted.adminUsers.length > 0
+      ? initialPersisted.adminUsers
+      : INITIAL_ADMIN_USERS
+  );
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
   const stateRef = useRef({
@@ -102,6 +109,7 @@ export default function App() {
     kelurahanInfos,
     whatsappRecipients,
     serviceCatalog,
+    adminUsers,
   });
 
   useEffect(() => {
@@ -115,6 +123,7 @@ export default function App() {
       kelurahanInfos,
       whatsappRecipients,
       serviceCatalog,
+      adminUsers,
     };
   }, [
     kelurahanProfile,
@@ -126,6 +135,7 @@ export default function App() {
     kelurahanInfos,
     whatsappRecipients,
     serviceCatalog,
+    adminUsers,
   ]);
 
   const commitPersistence = useCallback(
@@ -140,6 +150,7 @@ export default function App() {
         kelurahanInfos: partial.kelurahanInfos ?? stateRef.current.kelurahanInfos,
         whatsappRecipients: partial.whatsappRecipients ?? stateRef.current.whatsappRecipients,
         serviceCatalog: partial.serviceCatalog ?? stateRef.current.serviceCatalog,
+        adminUsers: partial.adminUsers ?? stateRef.current.adminUsers,
         updatedAt: Date.now(),
       };
       stateRef.current = {
@@ -152,6 +163,7 @@ export default function App() {
         kelurahanInfos: nextSnapshot.kelurahanInfos,
         whatsappRecipients: nextSnapshot.whatsappRecipients,
         serviceCatalog: nextSnapshot.serviceCatalog ?? SERVICE_CATEGORY_GROUPS,
+        adminUsers: nextSnapshot.adminUsers ?? INITIAL_ADMIN_USERS,
       };
       savePersistedDatabase(nextSnapshot);
       if (syncServer) {
@@ -212,6 +224,10 @@ export default function App() {
           Array.isArray(serverDb.serviceCatalog) && serverDb.serviceCatalog.length > 0
             ? serverDb.serviceCatalog
             : SERVICE_CATEGORY_GROUPS;
+        const nextAdminUsers =
+          Array.isArray(serverDb.adminUsers) && serverDb.adminUsers.length > 0
+            ? serverDb.adminUsers
+            : INITIAL_ADMIN_USERS;
 
         setKelurahanProfile(nextProfile);
         setRwGroups(nextRwGroups);
@@ -222,6 +238,7 @@ export default function App() {
         setKelurahanInfos(nextKelurahanInfos);
         setWhatsappRecipients(nextWhatsappRecipients);
         setServiceCatalog(nextServiceCatalog);
+        setAdminUsers(nextAdminUsers);
 
         savePersistedDatabase({
           profile: nextProfile,
@@ -233,6 +250,7 @@ export default function App() {
           kelurahanInfos: nextKelurahanInfos,
           whatsappRecipients: nextWhatsappRecipients,
           serviceCatalog: nextServiceCatalog,
+          adminUsers: nextAdminUsers,
           updatedAt: serverUpdatedAt || Date.now(),
         });
       })
@@ -990,6 +1008,24 @@ export default function App() {
     return { ok: true };
   };
 
+  // 9. Parameter User & Batasan Akses Admin CRUD (Master Admin / Lurah)
+  const handleSaveAdminUsers = async (
+    updatedUsers: AdminUserAccount[]
+  ): Promise<{ ok: boolean; errors?: string[] }> => {
+    setAdminUsers(updatedUsers);
+    commitPersistence({ adminUsers: updatedUsers });
+    try {
+      await fetch('/api/admin-users', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminUsers: updatedUsers }),
+      });
+    } catch {
+      // Fallback already persisted via localStorage & /api/data
+    }
+    return { ok: true };
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
       {/* Top Bar Contract: Compact 3-Zone Single-Row Navigation */}
@@ -1222,10 +1258,12 @@ export default function App() {
             kelurahanInfos={kelurahanInfos}
             whatsappRecipients={whatsappRecipients}
             serviceCatalog={serviceCatalog}
+            adminUsers={adminUsers}
             onSaveProfile={handleSaveProfileApi}
             onSaveRwGroups={handleSaveRwGroups}
             onSaveWhatsAppRecipients={handleSaveWhatsAppRecipients}
             onSaveServiceCatalog={handleSaveServiceCatalog}
+            onSaveAdminUsers={handleSaveAdminUsers}
             onCreateReport={handleAdminCreateReport}
             onUpdateReport={handleAdminUpdateReport}
             onDeleteReport={handleAdminDeleteReport}

@@ -203,3 +203,48 @@ export interface WhatsAppRecipient {
   notes?: string;
 }
 
+export type AdminTabId =
+  | 'dashboard_lurah'
+  | 'pengurusan_warga'
+  | 'profil'
+  | 'info'
+  | 'laporan'
+  | 'sampah'
+  | 'kerjabakti'
+  | 'rtrw'
+  | 'parameter_user';
+
+export type AdminRoleLevel = 'master_admin' | 'admin_bidang' | 'operator' | 'viewer';
+
+export interface AdminActionPermissions {
+  canCreate: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  canVerifyAndIssueLetter: boolean;
+  canConfigureCatalog: boolean;
+  canManageWhatsApp: boolean;
+  canExportPrintPdf: boolean;
+}
+
+export interface AdminUserAccount {
+  id: string;
+  username: string;
+  password: string;
+  fullName: string;
+  nip: string;
+  jabatan: string;
+  unitBidang: string;
+  phone: string;
+  roleLevel: AdminRoleLevel;
+  isMasterLurah?: boolean;
+  isActive: boolean;
+  allowedAdminTabs: AdminTabId[];
+  allowedServiceCategories: string[];
+  actionPermissions: AdminActionPermissions;
+  createdAt: string;
+  updatedAt: string;
+  lastLoginAt?: string;
+  notes?: string;
+}
+
+

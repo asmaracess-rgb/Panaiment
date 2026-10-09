@@ -33,6 +33,7 @@ import {
   KelurahanProfile,
   RwGroup,
   WhatsAppRecipient,
+  AdminActionPermissions,
 } from '../types';
 import {
   SERVICE_CATEGORY_GROUPS,
@@ -52,6 +53,8 @@ interface AdminPengurusanWargaPanelProps {
   whatsappRecipients: WhatsAppRecipient[];
   serviceCatalog: ServiceCategoryGroup[];
   adminOfficerName: string;
+  allowedServiceCategories?: string[];
+  actionPermissions?: AdminActionPermissions;
   onCreateReport: (rep: Partial<CitizenReport>) => Promise<{ ok: boolean; errors?: string[] }>;
   onUpdateReport: (
     id: string,
@@ -166,15 +169,35 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
   rwGroups,
   serviceCatalog = SERVICE_CATEGORY_GROUPS,
   adminOfficerName,
+  allowedServiceCategories,
+  actionPermissions,
   onCreateReport,
   onUpdateReport,
   onDeleteReport,
   onSaveServiceCatalog,
 }) => {
-  const catalog =
+  const fullCatalog =
     Array.isArray(serviceCatalog) && serviceCatalog.length > 0
       ? serviceCatalog
       : SERVICE_CATEGORY_GROUPS;
+
+  const catalog = useMemo(() => {
+    if (Array.isArray(allowedServiceCategories) && allowedServiceCategories.length > 0) {
+      const filtered = fullCatalog.filter((c) => allowedServiceCategories.includes(c.id));
+      return filtered.length > 0 ? filtered : fullCatalog;
+    }
+    return fullCatalog;
+  }, [fullCatalog, allowedServiceCategories]);
+
+  const effectivePerms: AdminActionPermissions = actionPermissions || {
+    canCreate: true,
+    canEdit: true,
+    canDelete: true,
+    canVerifyAndIssueLetter: true,
+    canConfigureCatalog: true,
+    canManageWhatsApp: true,
+    canExportPrintPdf: true,
+  };
 
   const [subMode, setSubMode] = useState<'submissions' | 'catalog_config'>('submissions');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<'ALL' | DetailedCategoryId>(
@@ -277,8 +300,13 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
   }, [enrichedReports, catalog]);
 
   // Filtered submissions
+  const allowedCategoryIdSet = useMemo(() => new Set(catalog.map((c) => c.id)), [catalog]);
+
   const filteredSubmissions = useMemo(() => {
     return enrichedReports.filter((item) => {
+      if (!allowedCategoryIdSet.has(item.categoryId)) {
+        return false;
+      }
       if (selectedCategoryFilter !== 'ALL' && item.categoryId !== selectedCategoryFilter) {
         return false;
       }
@@ -768,18 +796,20 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
               <span>Data Pengajuan & Surat ({reports.length})</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => setSubMode('catalog_config')}
-              className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-extrabold border transition-all cursor-pointer ${
-                subMode === 'catalog_config'
-                  ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-xs'
-                  : 'bg-white/10 hover:bg-white/20 text-white border-white/25'
-              }`}
-            >
-              <Settings className="w-4 h-4" />
-              <span>Pengaturan Katalog & SOP ({totalSubMenusCount} Sub-Menu)</span>
-            </button>
+            {effectivePerms.canConfigureCatalog && (
+              <button
+                type="button"
+                onClick={() => setSubMode('catalog_config')}
+                className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-extrabold border transition-all cursor-pointer ${
+                  subMode === 'catalog_config'
+                    ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-xs'
+                    : 'bg-white/10 hover:bg-white/20 text-white border-white/25'
+                }`}
+              >
+                <Settings className="w-4 h-4" />
+                <span>Pengaturan Katalog & SOP ({totalSubMenusCount} Sub-Menu)</span>
+              </button>
+            )}
           </div>
         </div>
 

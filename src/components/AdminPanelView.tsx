@@ -31,6 +31,7 @@ import {
   MessageCircle,
   Phone,
   ExternalLink,
+  Sliders,
 } from 'lucide-react';
 import {
   AppView,
@@ -45,6 +46,9 @@ import {
   RwGroup,
   RtItem,
   WhatsAppRecipient,
+  AdminUserAccount,
+  AdminActionPermissions,
+  AdminRoleLevel,
 } from '../types';
 import {
   HERO_IMAGE_PATH,
@@ -58,6 +62,7 @@ import {
   IG_POST_10,
   IG_POST_12,
   INITIAL_WHATSAPP_RECIPIENTS,
+  INITIAL_ADMIN_USERS,
 } from '../data/initialData';
 import { resolveImageUrl } from '../utils/resolveImageUrl';
 import { compressImageFile } from '../utils/compressImage';
@@ -72,6 +77,7 @@ import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
 import { DashboardLurahView } from './DashboardLurahView';
 import { MonthlyArchivePdfPanel } from './MonthlyArchivePdfPanel';
 import { AdminPengurusanWargaPanel } from './AdminPengurusanWargaPanel';
+import { AdminParameterUserPanel } from './AdminParameterUserPanel';
 import {
   SERVICE_CATEGORY_GROUPS,
   ServiceCategoryGroup,
@@ -79,10 +85,16 @@ import {
 
 interface AdminSession {
   token: string;
+  userId?: string;
   username: string;
   fullName: string;
   nip: string;
   role: string;
+  roleLevel?: AdminRoleLevel;
+  isMasterLurah?: boolean;
+  allowedAdminTabs?: AdminTab[];
+  allowedServiceCategories?: string[];
+  actionPermissions?: AdminActionPermissions;
   loginAt: string;
 }
 
@@ -96,6 +108,7 @@ interface AdminPanelViewProps {
   kelurahanInfos: KelurahanInfoItem[];
   whatsappRecipients?: WhatsAppRecipient[];
   serviceCatalog?: ServiceCategoryGroup[];
+  adminUsers?: AdminUserAccount[];
   onSaveProfile: (updated: KelurahanProfile) => Promise<{ ok: boolean; errors?: string[] }>;
   onSaveRwGroups: (updated: RwGroup[]) => Promise<{ ok: boolean; errors?: string[] }>;
   onSaveWhatsAppRecipients?: (
@@ -103,6 +116,9 @@ interface AdminPanelViewProps {
   ) => Promise<{ ok: boolean; errors?: string[] }>;
   onSaveServiceCatalog?: (
     updated: ServiceCategoryGroup[]
+  ) => Promise<{ ok: boolean; errors?: string[] }>;
+  onSaveAdminUsers?: (
+    updated: AdminUserAccount[]
   ) => Promise<{ ok: boolean; errors?: string[] }>;
   onCreateReport: (rep: Partial<CitizenReport>) => Promise<{ ok: boolean; errors?: string[] }>;
   onUpdateReport: (
@@ -166,7 +182,8 @@ export type AdminTab =
   | 'info'
   | 'laporan'
   | 'sampah'
-  | 'kerjabakti';
+  | 'kerjabakti'
+  | 'parameter_user';
 
 const DEFAULT_RW_LIST = ['RW 01', 'RW 02', 'RW 03', 'RW 04', 'RW 05', 'RW 06', 'RW 07', 'RW 08'];
 const DEFAULT_RT_LIST = ['RT 01', 'RT 02', 'RT 03', 'RT 04', 'RT 05'];
@@ -187,10 +204,12 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   kelurahanInfos = [],
   whatsappRecipients = INITIAL_WHATSAPP_RECIPIENTS,
   serviceCatalog = SERVICE_CATEGORY_GROUPS,
+  adminUsers = INITIAL_ADMIN_USERS,
   onSaveProfile,
   onSaveRwGroups,
   onSaveWhatsAppRecipients,
   onSaveServiceCatalog,
+  onSaveAdminUsers,
   onCreateReport,
   onUpdateReport,
   onDeleteReport,
@@ -233,12 +252,100 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     }
   }, [initialTab]);
 
+  const currentAdminAccount = React.useMemo(() => {
+    if (!adminSession) return null;
+    const cleanU = adminSession.username.toLowerCase();
+    return (
+      adminUsers.find(
+        (u) =>
+          u.id === adminSession.userId ||
+          u.username.toLowerCase() === cleanU ||
+          (Boolean(u.isMasterLurah || u.roleLevel === 'master_admin') &&
+            ['admin', 'lurah', 'lurah.panaikang'].includes(cleanU))
+      ) || null
+    );
+  }, [adminSession, adminUsers]);
+
   const isLurahSession = Boolean(
     adminSession &&
-      (adminSession.role.toLowerCase().includes('lurah') ||
+      (currentAdminAccount?.isMasterLurah ||
+        currentAdminAccount?.roleLevel === 'master_admin' ||
+        adminSession.isMasterLurah ||
+        adminSession.roleLevel === 'master_admin' ||
+        adminSession.role.toLowerCase().includes('lurah') ||
         adminSession.username.toLowerCase() === 'admin' ||
         adminSession.username.toLowerCase() === 'lurah')
   );
+
+  const effectiveAllowedTabs: AdminTab[] = React.useMemo(() => {
+    if (isLurahSession) {
+      return [
+        'dashboard_lurah',
+        'pengurusan_warga',
+        'profil',
+        'info',
+        'laporan',
+        'sampah',
+        'kerjabakti',
+        'rtrw',
+        'parameter_user',
+      ];
+    }
+    if (
+      currentAdminAccount &&
+      Array.isArray(currentAdminAccount.allowedAdminTabs) &&
+      currentAdminAccount.allowedAdminTabs.length > 0
+    ) {
+      return currentAdminAccount.allowedAdminTabs as AdminTab[];
+    }
+    if (
+      adminSession &&
+      Array.isArray(adminSession.allowedAdminTabs) &&
+      adminSession.allowedAdminTabs.length > 0
+    ) {
+      return adminSession.allowedAdminTabs;
+    }
+    return ['pengurusan_warga', 'profil', 'info', 'laporan', 'sampah', 'kerjabakti', 'rtrw'];
+  }, [isLurahSession, currentAdminAccount, adminSession]);
+
+  const effectiveAllowedCategories: string[] | undefined = React.useMemo(() => {
+    if (isLurahSession) return undefined;
+    return (
+      currentAdminAccount?.allowedServiceCategories ||
+      adminSession?.allowedServiceCategories
+    );
+  }, [isLurahSession, currentAdminAccount, adminSession]);
+
+  const effectiveActionPermissions: AdminActionPermissions = React.useMemo(() => {
+    if (isLurahSession) {
+      return {
+        canCreate: true,
+        canEdit: true,
+        canDelete: true,
+        canVerifyAndIssueLetter: true,
+        canConfigureCatalog: true,
+        canManageWhatsApp: true,
+        canExportPrintPdf: true,
+      };
+    }
+    return (
+      currentAdminAccount?.actionPermissions ||
+      adminSession?.actionPermissions || {
+        canCreate: true,
+        canEdit: true,
+        canDelete: false,
+        canVerifyAndIssueLetter: true,
+        canConfigureCatalog: false,
+        canManageWhatsApp: false,
+        canExportPrintPdf: true,
+      }
+    );
+  }, [isLurahSession, currentAdminAccount, adminSession]);
+
+  const isTabAllowed = (tabId: AdminTab) => {
+    if (isLurahSession) return true;
+    return effectiveAllowedTabs.includes(tabId);
+  };
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [successMessage, setSuccessMessage] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -281,29 +388,67 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       setAdminSession(sessionData);
       sessionStorage.setItem('pnk_admin_session', JSON.stringify(sessionData));
       setLoginPassword('');
+      if (
+        Array.isArray(sessionData.allowedAdminTabs) &&
+        sessionData.allowedAdminTabs.length > 0 &&
+        !sessionData.allowedAdminTabs.includes(activeTab)
+      ) {
+        setActiveTab(sessionData.allowedAdminTabs[0]);
+      }
     } catch {
       setIsLoggingIn(false);
-      // Fallback local verification if server request fails
-      if (
-        ['admin', 'lurah', 'operator', 'sekretaris'].includes(cleanUser.toLowerCase()) &&
-        ['panaikang2026', 'admin123'].includes(cleanPass)
-      ) {
+      // Fallback local verification against adminUsers if server request fails
+      const lowerU = cleanUser.toLowerCase();
+      const cleanNip = lowerU.replace(/\s+/g, '');
+      const matchedLocalUser = adminUsers.find((u) => {
+        const uName = u.username.toLowerCase();
+        const uNip = (u.nip || '').replace(/\s+/g, '').toLowerCase();
+        const isMasterAlias =
+          Boolean(u.isMasterLurah || u.roleLevel === 'master_admin') &&
+          ['admin', 'lurah', 'lurah.panaikang'].includes(lowerU);
+        return uName === lowerU || (uNip && uNip === cleanNip) || isMasterAlias;
+      });
+
+      if (matchedLocalUser) {
+        const passOk =
+          matchedLocalUser.password === cleanPass ||
+          (matchedLocalUser.password === 'panaikang2026' &&
+            ['panaikang2026', 'admin123'].includes(cleanPass));
+        if (!passOk) {
+          setLoginError('Kata sandi yang dimasukkan tidak sesuai untuk akun tersebut.');
+          return;
+        }
+        if (!matchedLocalUser.isActive) {
+          setLoginError(
+            'Akun user ini sedang dinonaktifkan oleh Master Admin (Lurah). Silakan hubungi Lurah Panaikang.'
+          );
+          return;
+        }
         const fallbackSession: AdminSession = {
           token: `pnk-local-${Date.now()}`,
-          username: cleanUser.toLowerCase(),
-          fullName:
-            cleanUser.toLowerCase() === 'operator'
-              ? profile.sekretarisName
-              : profile.lurahName,
-          nip: profile.lurahNip,
-          role:
-            cleanUser.toLowerCase() === 'operator'
-              ? 'Operator Satu Data · Sekretaris Kelurahan'
-              : 'Administrator Utama · Lurah Panaikang',
+          userId: matchedLocalUser.id,
+          username: matchedLocalUser.username,
+          fullName: matchedLocalUser.fullName,
+          nip: matchedLocalUser.nip,
+          role: `${matchedLocalUser.jabatan} · ${matchedLocalUser.unitBidang}`,
+          roleLevel: matchedLocalUser.roleLevel,
+          isMasterLurah: Boolean(
+            matchedLocalUser.isMasterLurah || matchedLocalUser.roleLevel === 'master_admin'
+          ),
+          allowedAdminTabs: matchedLocalUser.allowedAdminTabs as AdminTab[],
+          allowedServiceCategories: matchedLocalUser.allowedServiceCategories,
+          actionPermissions: matchedLocalUser.actionPermissions,
           loginAt: 'Baru Saja',
         };
         setAdminSession(fallbackSession);
         sessionStorage.setItem('pnk_admin_session', JSON.stringify(fallbackSession));
+        if (
+          Array.isArray(matchedLocalUser.allowedAdminTabs) &&
+          matchedLocalUser.allowedAdminTabs.length > 0 &&
+          !matchedLocalUser.allowedAdminTabs.includes(activeTab)
+        ) {
+          setActiveTab(matchedLocalUser.allowedAdminTabs[0] as AdminTab);
+        }
       } else {
         setLoginError(
           'Username/NIP atau kata sandi yang dimasukkan tidak sesuai. Silakan coba kembali.'
@@ -1606,23 +1751,30 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2.5">
               Menu Navigasi Modul Administrator & Dashboard Lurah
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-2">
               <button
                 type="button"
                 onClick={() => handleTabSwitch('dashboard_lurah')}
                 className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                   activeTab === 'dashboard_lurah'
                     ? 'bg-[#2E7D32] border-[#2E7D32] text-white shadow-xs'
+                    : !isTabAllowed('dashboard_lurah')
+                    ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-75'
                     : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
                 }`}
               >
-                <div className="flex items-center gap-1.5">
-                  <BarChart3
-                    className={`w-4 h-4 shrink-0 ${
-                      activeTab === 'dashboard_lurah' ? 'text-emerald-200' : 'text-[#2E7D32]'
-                    }`}
-                  />
-                  <span className="text-xs font-bold truncate">Dashboard Lurah</span>
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <BarChart3
+                      className={`w-4 h-4 shrink-0 ${
+                        activeTab === 'dashboard_lurah' ? 'text-emerald-200' : 'text-[#2E7D32]'
+                      }`}
+                    />
+                    <span className="text-xs font-bold truncate">Dashboard Lurah</span>
+                  </div>
+                  {!isTabAllowed('dashboard_lurah') && (
+                    <Lock className="w-3 h-3 text-slate-400 shrink-0" />
+                  )}
                 </div>
                 <span
                   className={`mt-1 text-[10px] font-medium truncate ${
@@ -1639,16 +1791,23 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                   activeTab === 'pengurusan_warga'
                     ? 'bg-[#0D3868] border-[#0D3868] text-white shadow-xs'
+                    : !isTabAllowed('pengurusan_warga')
+                    ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-75'
                     : 'bg-sky-50/70 border-sky-200 text-[#0D3868] hover:bg-sky-100/70 hover:border-sky-300'
                 }`}
               >
-                <div className="flex items-center gap-1.5">
-                  <FileText
-                    className={`w-4 h-4 shrink-0 ${
-                      activeTab === 'pengurusan_warga' ? 'text-amber-300' : 'text-[#0277BD]'
-                    }`}
-                  />
-                  <span className="text-xs font-bold truncate">Pengurusan Warga</span>
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <FileText
+                      className={`w-4 h-4 shrink-0 ${
+                        activeTab === 'pengurusan_warga' ? 'text-amber-300' : 'text-[#0277BD]'
+                      }`}
+                    />
+                    <span className="text-xs font-bold truncate">Pengurusan Warga</span>
+                  </div>
+                  {!isTabAllowed('pengurusan_warga') && (
+                    <Lock className="w-3 h-3 text-slate-400 shrink-0" />
+                  )}
                 </div>
                 <span
                   className={`mt-1 text-[10px] font-medium truncate font-mono-num ${
@@ -1665,16 +1824,23 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                   activeTab === 'profil'
                     ? 'bg-[#0D3868] border-[#0D3868] text-white shadow-xs'
+                    : !isTabAllowed('profil')
+                    ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-75'
                     : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
                 }`}
               >
-                <div className="flex items-center gap-1.5">
-                  <Building2
-                    className={`w-4 h-4 shrink-0 ${
-                      activeTab === 'profil' ? 'text-sky-200' : 'text-[#0D3868]'
-                    }`}
-                  />
-                  <span className="text-xs font-bold truncate">Profil Kelurahan</span>
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Building2
+                      className={`w-4 h-4 shrink-0 ${
+                        activeTab === 'profil' ? 'text-sky-200' : 'text-[#0D3868]'
+                      }`}
+                    />
+                    <span className="text-xs font-bold truncate">Profil Kelurahan</span>
+                  </div>
+                  {!isTabAllowed('profil') && (
+                    <Lock className="w-3 h-3 text-slate-400 shrink-0" />
+                  )}
                 </div>
                 <span
                   className={`mt-1 text-[10px] font-medium truncate ${
@@ -1691,16 +1857,23 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                   activeTab === 'info'
                     ? 'bg-[#1C8237] border-[#1C8237] text-white shadow-xs'
+                    : !isTabAllowed('info')
+                    ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-75'
                     : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
                 }`}
               >
-                <div className="flex items-center gap-1.5">
-                  <Newspaper
-                    className={`w-4 h-4 shrink-0 ${
-                      activeTab === 'info' ? 'text-emerald-200' : 'text-[#1C8237]'
-                    }`}
-                  />
-                  <span className="text-xs font-bold truncate">Informasi & IG</span>
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Newspaper
+                      className={`w-4 h-4 shrink-0 ${
+                        activeTab === 'info' ? 'text-emerald-200' : 'text-[#1C8237]'
+                      }`}
+                    />
+                    <span className="text-xs font-bold truncate">Informasi & IG</span>
+                  </div>
+                  {!isTabAllowed('info') && (
+                    <Lock className="w-3 h-3 text-slate-400 shrink-0" />
+                  )}
                 </div>
                 <span
                   className={`mt-1 text-[10px] font-medium truncate font-mono-num ${
@@ -1717,16 +1890,23 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                   activeTab === 'laporan'
                     ? 'bg-[#0277BD] border-[#0277BD] text-white shadow-xs'
+                    : !isTabAllowed('laporan')
+                    ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-75'
                     : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
                 }`}
               >
-                <div className="flex items-center gap-1.5">
-                  <FileText
-                    className={`w-4 h-4 shrink-0 ${
-                      activeTab === 'laporan' ? 'text-sky-200' : 'text-[#0277BD]'
-                    }`}
-                  />
-                  <span className="text-xs font-bold truncate">Laporan Warga</span>
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <FileText
+                      className={`w-4 h-4 shrink-0 ${
+                        activeTab === 'laporan' ? 'text-sky-200' : 'text-[#0277BD]'
+                      }`}
+                    />
+                    <span className="text-xs font-bold truncate">Laporan Warga</span>
+                  </div>
+                  {!isTabAllowed('laporan') && (
+                    <Lock className="w-3 h-3 text-slate-400 shrink-0" />
+                  )}
                 </div>
                 <span
                   className={`mt-1 text-[10px] font-medium truncate font-mono-num ${
@@ -1743,16 +1923,23 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                   activeTab === 'sampah'
                     ? 'bg-[#EF6C00] border-[#EF6C00] text-white shadow-xs'
+                    : !isTabAllowed('sampah')
+                    ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-75'
                     : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
                 }`}
               >
-                <div className="flex items-center gap-1.5">
-                  <Recycle
-                    className={`w-4 h-4 shrink-0 ${
-                      activeTab === 'sampah' ? 'text-amber-200' : 'text-[#EF6C00]'
-                    }`}
-                  />
-                  <span className="text-xs font-bold truncate">Bank Sampah</span>
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Recycle
+                      className={`w-4 h-4 shrink-0 ${
+                        activeTab === 'sampah' ? 'text-amber-200' : 'text-[#EF6C00]'
+                      }`}
+                    />
+                    <span className="text-xs font-bold truncate">Bank Sampah</span>
+                  </div>
+                  {!isTabAllowed('sampah') && (
+                    <Lock className="w-3 h-3 text-slate-400 shrink-0" />
+                  )}
                 </div>
                 <span
                   className={`mt-1 text-[10px] font-medium truncate font-mono-num ${
@@ -1769,16 +1956,23 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                   activeTab === 'kerjabakti'
                     ? 'bg-[#5E35B1] border-[#5E35B1] text-white shadow-xs'
+                    : !isTabAllowed('kerjabakti')
+                    ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-75'
                     : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
                 }`}
               >
-                <div className="flex items-center gap-1.5">
-                  <Calendar
-                    className={`w-4 h-4 shrink-0 ${
-                      activeTab === 'kerjabakti' ? 'text-purple-200' : 'text-[#5E35B1]'
-                    }`}
-                  />
-                  <span className="text-xs font-bold truncate">Kerja Bakti</span>
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Calendar
+                      className={`w-4 h-4 shrink-0 ${
+                        activeTab === 'kerjabakti' ? 'text-purple-200' : 'text-[#5E35B1]'
+                      }`}
+                    />
+                    <span className="text-xs font-bold truncate">Kerja Bakti</span>
+                  </div>
+                  {!isTabAllowed('kerjabakti') && (
+                    <Lock className="w-3 h-3 text-slate-400 shrink-0" />
+                  )}
                 </div>
                 <span
                   className={`mt-1 text-[10px] font-medium truncate font-mono-num ${
@@ -1792,19 +1986,26 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               <button
                 type="button"
                 onClick={() => handleTabSwitch('rtrw')}
-                className={`col-span-2 sm:col-span-1 flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                   activeTab === 'rtrw'
                     ? 'bg-[#0D3868] border-[#0D3868] text-white shadow-xs'
+                    : !isTabAllowed('rtrw')
+                    ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-75'
                     : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
                 }`}
               >
-                <div className="flex items-center gap-1.5">
-                  <Users
-                    className={`w-4 h-4 shrink-0 ${
-                      activeTab === 'rtrw' ? 'text-emerald-300' : 'text-[#0D3868]'
-                    }`}
-                  />
-                  <span className="text-xs font-bold truncate">Data RT & RW</span>
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Users
+                      className={`w-4 h-4 shrink-0 ${
+                        activeTab === 'rtrw' ? 'text-emerald-300' : 'text-[#0D3868]'
+                      }`}
+                    />
+                    <span className="text-xs font-bold truncate">Data RT & RW</span>
+                  </div>
+                  {!isTabAllowed('rtrw') && (
+                    <Lock className="w-3 h-3 text-slate-400 shrink-0" />
+                  )}
                 </div>
                 <span
                   className={`mt-1 text-[10px] font-medium truncate font-mono-num ${
@@ -1812,6 +2013,39 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                   }`}
                 >
                   {rwGroups.length} RW / {totalRtInKelurahan} RT
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTabSwitch('parameter_user')}
+                className={`col-span-2 sm:col-span-1 flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                  activeTab === 'parameter_user'
+                    ? 'bg-[#0D3868] border-[#0D3868] text-white shadow-xs'
+                    : !isTabAllowed('parameter_user')
+                    ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-75'
+                    : 'bg-amber-50/80 border-amber-300 text-[#0D3868] hover:bg-amber-100/70'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Sliders
+                      className={`w-4 h-4 shrink-0 ${
+                        activeTab === 'parameter_user' ? 'text-amber-300' : 'text-amber-700'
+                      }`}
+                    />
+                    <span className="text-xs font-bold truncate">Parameter User</span>
+                  </div>
+                  {!isTabAllowed('parameter_user') && (
+                    <Lock className="w-3 h-3 text-slate-400 shrink-0" />
+                  )}
+                </div>
+                <span
+                  className={`mt-1 text-[10px] font-medium truncate font-mono-num ${
+                    activeTab === 'parameter_user' ? 'text-amber-200' : 'text-amber-800'
+                  }`}
+                >
+                  {adminUsers.length} Akun & Hak Akses
                 </span>
               </button>
             </div>
@@ -1859,8 +2093,55 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         </div>
       )}
 
+      {/* ================= TAB PARAMETER USER & HAK AKSES (KHUSUS MASTER ADMIN / LURAH) ================= */}
+      {activeTab === 'parameter_user' && (
+        <div className="mt-6">
+          <AdminParameterUserPanel
+            adminUsers={adminUsers}
+            serviceCatalog={serviceCatalog}
+            currentUsername={adminSession?.username || ''}
+            isMasterLurah={isLurahSession}
+            onSaveAdminUsers={
+              onSaveAdminUsers || (async () => ({ ok: true }))
+            }
+          />
+        </div>
+      )}
+
+      {/* ================= PROTEKSI BATASAN AKSES MODUL OLEH SUPER ADMIN (LURAH) ================= */}
+      {activeTab !== 'parameter_user' &&
+        activeTab !== 'dashboard_lurah' &&
+        !isTabAllowed(activeTab) && (
+          <div className="mt-6 bg-white rounded-2xl border border-amber-200 p-6 sm:p-8 text-center shadow-xs">
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto mb-3">
+              <Lock className="w-6 h-6" />
+            </div>
+            <h2 className="text-lg font-extrabold text-[#0D3868]">
+              Akses Modul Ini Dibatasi oleh Master Admin (Lurah)
+            </h2>
+            <p className="mt-1.5 text-xs sm:text-sm text-slate-600 max-w-xl mx-auto">
+              Akun Anda (<strong>{adminSession.fullName}</strong> — @{adminSession.username}) tidak
+              memiliki izin untuk mengakses modul ini berdasarkan pengaturan{' '}
+              <strong>Parameter User & Batasan Hak Akses</strong> yang ditetapkan oleh Lurah
+              Panaikang.
+            </p>
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+              {effectiveAllowedTabs.map((allowedTab) => (
+                <button
+                  key={allowedTab}
+                  type="button"
+                  onClick={() => handleTabSwitch(allowedTab)}
+                  className="px-3.5 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold cursor-pointer"
+                >
+                  Buka Modul: {allowedTab.replace('_', ' ').toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
       {/* ================= TAB 0B: BACK-END PENGURUSAN WARGA (7 BIDANG & 44 SUB-MENU) ================= */}
-      {activeTab === 'pengurusan_warga' && (
+      {activeTab === 'pengurusan_warga' && isTabAllowed('pengurusan_warga') && (
         <div className="mt-6">
           <AdminPengurusanWargaPanel
             reports={reports}
@@ -1871,6 +2152,8 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             adminOfficerName={
               adminSession?.fullName || 'Administrator / Operator Kelurahan Panaikang'
             }
+            allowedServiceCategories={effectiveAllowedCategories}
+            actionPermissions={effectiveActionPermissions}
             onCreateReport={onCreateReport}
             onUpdateReport={onUpdateReport}
             onDeleteReport={onDeleteReport}
@@ -1940,7 +2223,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       )}
 
       {/* ================= TAB 1: KELOLA PROFIL KELURAHAN ================= */}
-      {activeTab === 'profil' && (
+      {activeTab === 'profil' && isTabAllowed('profil') && (
         <form
           onSubmit={handleProfileSubmit}
           className="mt-6 bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 space-y-6"
@@ -2306,7 +2589,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       )}
 
       {/* ================= TAB 2: KELOLA INFORMASI SEPUTAR KELURAHAN PANAIKANG (CRUD) ================= */}
-      {activeTab === 'info' && (
+      {activeTab === 'info' && isTabAllowed('info') && (
         <div className="mt-6 space-y-6">
           <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div>
@@ -2674,7 +2957,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       )}
 
       {/* ================= TAB 3: KELOLA LAPORAN WARGA (CRUD) ================= */}
-      {activeTab === 'laporan' && (
+      {activeTab === 'laporan' && isTabAllowed('laporan') && (
         <div className="mt-6 space-y-6">
           {/* Pintasan ke Back-End 7 Bidang & 44 Sub-Menu Pengurusan Warga */}
           <div className="bg-gradient-to-r from-[#0D3868] to-[#0277BD] rounded-2xl p-4 sm:p-5 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -3614,7 +3897,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       )}
 
       {/* ================= TAB 3: KELOLA BANK SAMPAH UNIT & LOG (CRUD) ================= */}
-      {activeTab === 'sampah' && (
+      {activeTab === 'sampah' && isTabAllowed('sampah') && (
         <div className="mt-6 space-y-6">
           <div className="bg-white rounded-2xl border border-slate-200 p-5 flex items-center justify-between">
             <div>
@@ -4126,7 +4409,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       )}
 
       {/* ================= TAB 4: KELOLA JADWAL & UPLOAD FOTO KERJA BAKTI (CRUD) ================= */}
-      {activeTab === 'kerjabakti' && (
+      {activeTab === 'kerjabakti' && isTabAllowed('kerjabakti') && (
         <div className="mt-6 space-y-6">
           <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
@@ -4740,7 +5023,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       )}
 
       {/* ================= TAB 6: KELOLA DATA RT & RW (CRUD PER RW & RT) ================= */}
-      {activeTab === 'rtrw' && (
+      {activeTab === 'rtrw' && isTabAllowed('rtrw') && (
         <div className="mt-6 space-y-6">
           <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
