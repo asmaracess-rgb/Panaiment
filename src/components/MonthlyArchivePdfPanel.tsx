@@ -23,6 +23,8 @@ import {
   generateMonthlyEnvironmentalPdf,
   GeneratedPdfResult,
 } from '../utils/monthlyReportPdfGenerator';
+import { getKopSuratSizeSpec, ReportHeaderSizePreset } from '../utils/officialKopSurat';
+import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
 
 interface MonthlyArchivePdfPanelProps {
   profile: KelurahanProfile;
@@ -365,18 +367,38 @@ export const MonthlyArchivePdfPanel: React.FC<MonthlyArchivePdfPanelProps> = ({
       {/* Expandable Live Document Preview */}
       {showDocPreview && (
         <div className="rounded-2xl border-2 border-slate-300 bg-white p-5 sm:p-7 space-y-5">
-          {/* Simulated Official Kop Surat Preview */}
-          <div className="text-center border-b-2 border-[#0D3868] pb-4">
-            <div className="text-xs font-bold text-[#0D3868] tracking-wider">
-              PEMERINTAH KOTA MAKASSAR · KECAMATAN PANAKKUKANG
-            </div>
-            <div className="text-base sm:text-lg font-extrabold text-[#0D3868]">
-              PEMERINTAH KELURAHAN PANAIKANG
-            </div>
-            <div className="text-[11px] text-slate-500 mt-0.5">
-              Alamat: {profile.officeAddress} · Telp: {profile.phoneContact} · Email: {profile.emailContact}
-            </div>
-          </div>
+          {/* Official Kop Surat Preview with Makassar (Top-Left) & Panaikang (Top-Right) Logos */}
+          {(() => {
+            const preset: ReportHeaderSizePreset =
+              rwFilter !== 'Semua'
+                ? 'spacious'
+                : includeWasteBankSummary && includeCleanupSummary && includeRwBreakdown
+                ? 'compact'
+                : 'standard';
+            const kopSpec = getKopSuratSizeSpec(preset);
+            return (
+              <div className="flex items-center justify-between gap-3 sm:gap-5 border-b-2 border-[#0D3868] pb-4">
+                <div className="shrink-0 flex items-center justify-center">
+                  <EmblemKotaMakassar className={`${kopSpec.previewLogoClass} shrink-0`} />
+                </div>
+                <div className="text-center flex-1 min-w-0">
+                  <div className="text-xs font-bold text-[#0D3868] tracking-wider uppercase">
+                    PEMERINTAH KOTA MAKASSAR · KECAMATAN PANAKKUKANG
+                  </div>
+                  <div className="text-base sm:text-xl font-extrabold text-[#0D3868] uppercase mt-0.5">
+                    PEMERINTAH KELURAHAN PANAIKANG
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                    Alamat: {profile.officeAddress} · Telp: {profile.phoneContact} · Email:{' '}
+                    {profile.emailContact}
+                  </div>
+                </div>
+                <div className="shrink-0 flex items-center justify-center">
+                  <EmblemKelurahanPanaikang className={`${kopSpec.previewLogoClass} shrink-0`} />
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="text-center space-y-1">
             <div className="text-xs sm:text-sm font-extrabold text-[#0D3868] uppercase">

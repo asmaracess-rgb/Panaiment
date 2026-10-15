@@ -15,6 +15,8 @@ import {
   RefreshCw,
   Users,
   Camera,
+  Sprout,
+  Leaf,
 } from 'lucide-react';
 import {
   AppView,
@@ -23,11 +25,13 @@ import {
   CleanupEvent,
   KelurahanInfoItem,
   RwGroup,
+  UrbanFarmingSpot,
 } from '../types';
 import {
   HERO_IMAGE_PATH,
   IG_PROFILE_PANAIKANG,
   INITIAL_KELURAHAN_INFOS,
+  INITIAL_URBAN_FARMING_SPOTS,
 } from '../data/initialData';
 import {
   resolveImageUrl,
@@ -43,6 +47,7 @@ import {
   IconPetaDigital,
   IconMonitoringSampah,
   IconMonitoringKerjaBakti,
+  IconUrbanFarming,
 } from './Emblems';
 
 interface HomePortalProps {
@@ -52,6 +57,7 @@ interface HomePortalProps {
   cleanupEvents: CleanupEvent[];
   kelurahanInfos: KelurahanInfoItem[];
   rwGroups?: RwGroup[];
+  urbanFarmingSpots?: UrbanFarmingSpot[];
   onSyncInstagram: () => Promise<{ ok: boolean; syncedAt?: string }>;
   onQuickReportClick: () => void;
 }
@@ -97,6 +103,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
   cleanupEvents,
   kelurahanInfos,
   rwGroups = [],
+  urbanFarmingSpots = [],
   onSyncInstagram,
   onQuickReportClick,
 }) => {
@@ -104,6 +111,11 @@ export const HomePortal: React.FC<HomePortalProps> = ({
   const [selectedInfo, setSelectedInfo] = useState<KelurahanInfoItem | null>(null);
   const [infoFilter, setInfoFilter] = useState<'semua' | 'ig' | 'pengumuman'>('semua');
   const [likedPosts, setLikedPosts] = useState<Record<string, boolean>>({});
+
+  const urbanFarmingSpotsList =
+    Array.isArray(urbanFarmingSpots) && urbanFarmingSpots.length > 0
+      ? urbanFarmingSpots
+      : INITIAL_URBAN_FARMING_SPOTS;
   const [localLikesOffset, setLocalLikesOffset] = useState<Record<string, number>>({});
   const [isSyncingIg, setIsSyncingIg] = useState(false);
   const [igSyncStatus, setIgSyncStatus] = useState<string>('Terhubung Otomatis · @kelurahan.panaikang');
@@ -276,7 +288,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
         </div>
 
         {/* TOP ROW: 3 Compact Portal Menu Cards (Menu Warga, Dashboard Lurah, Peta Digital) */}
-        <div className="max-w-2xl mx-auto grid grid-cols-3 gap-2.5 sm:gap-3.5">
+        <div className="max-w-4xl mx-auto grid grid-cols-3 gap-2.5 sm:gap-3.5">
           {/* Card 1: Menu Warga (Blue Gradient) */}
           <button
             type="button"
@@ -347,8 +359,8 @@ export const HomePortal: React.FC<HomePortalProps> = ({
           </button>
         </div>
 
-        {/* BOTTOM ROW: 3 Compact Portal Menu Cards (Data RT & RW, Monitoring Sampah, Monitoring Kerja Bakti) */}
-        <div className="mt-2.5 sm:mt-3.5 max-w-2xl mx-auto grid grid-cols-3 gap-2.5 sm:gap-3.5">
+        {/* BOTTOM ROW: 4 Compact Portal Menu Cards (Data RT & RW, Monitoring Sampah, Monitoring Kerja Bakti, Urban Farming) */}
+        <div className="mt-2.5 sm:mt-3.5 max-w-4xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3.5">
           {/* Card 4: Data RT dan RW (Navy/Indigo Gradient) */}
           <button
             type="button"
@@ -417,6 +429,29 @@ export const HomePortal: React.FC<HomePortalProps> = ({
               <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
             </div>
           </button>
+
+          {/* Card 7: Urban Farming (Emerald/Lime Gradient) */}
+          <button
+            type="button"
+            onClick={() => onNavigate('urbanfarming')}
+            className="group relative flex flex-col items-center justify-between text-center rounded-2xl p-2.5 sm:p-3.5 bg-gradient-to-b from-[#10B981] via-[#059669] to-[#047857] text-white shadow-[0_6px_16px_-4px_rgba(5,150,105,0.4)] border border-emerald-200/40 hover:-translate-y-0.5 transition-transform duration-150 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+          >
+            <div className="flex flex-col items-center">
+              <div className="mb-1.5 p-1.5 rounded-xl bg-white/10 group-hover:scale-105 transition-transform duration-150">
+                <IconUrbanFarming className="w-8 h-7 sm:w-9 sm:h-8" />
+              </div>
+              <h3 className="text-xs sm:text-sm font-extrabold tracking-tight text-white leading-tight">
+                Urban Farming
+              </h3>
+              <p className="mt-1 text-[10px] sm:text-[11px] font-medium text-emerald-50 leading-tight max-w-[175px] line-clamp-2">
+                Lorong wisata hijau, hidroponik, akuaponik, & bibit gratis.
+              </p>
+            </div>
+
+            <div className="mt-2 flex items-center justify-center w-6 h-6 rounded-full bg-white text-[#059669] shadow-xs group-hover:translate-x-0.5 transition-transform duration-150">
+              <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
+            </div>
+          </button>
         </div>
 
         {/* ================= LIVE RINGKASAN SATU DATA PANAIKANG ================= */}
@@ -441,6 +476,14 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                 <span>
                   Data RT & RW ({rwGroups.length || 6} RW / {totalRtCount || 30} RT)
                 </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigate('urbanfarming')}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 text-[#047857] text-xs font-bold transition-colors whitespace-nowrap cursor-pointer"
+              >
+                <LeafAccent className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span>Urban Farming ({urbanFarmingSpotsList.length} Kebun RW)</span>
               </button>
               <button
                 type="button"
@@ -680,6 +723,122 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                 })}
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* ================= SENTRA URBAN FARMING & LORONG WISATA HIJAU PANAIKANG ================= */}
+        <div className="mt-10 pt-8 border-t border-slate-200/80">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-5">
+            <div>
+              <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#059669]">
+                <Sprout className="w-4 h-4" />
+                <span>PROGRAM KETAHANAN PANGAN & LORONG WISATA PANAIKANG</span>
+              </div>
+              <h3 className="mt-1 text-lg sm:text-xl font-extrabold text-[#0D3868] tracking-tight">
+                Sentra Urban Farming & Kebun Lorong Hijau
+              </h3>
+              <p className="mt-0.5 text-xs text-slate-600 max-w-2xl">
+                Pemberdayaan pekarangan dan lorong sempit untuk budidaya hidroponik, akuaponik, tanaman sayuran organik, dan apotek hidup (TOGA) di 7 RW Kelurahan Panaikang.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onNavigate('urbanfarming')}
+              className="self-start sm:self-auto inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#059669] hover:bg-[#047857] text-white text-xs font-bold transition-colors cursor-pointer whitespace-nowrap shadow-xs"
+            >
+              <Leaf className="w-3.5 h-3.5" />
+              <span>Buka Menu Urban Farming Lengkap</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {urbanFarmingSpotsList.slice(0, 3).map((spot) => (
+              <div
+                key={spot.id}
+                onClick={() => onNavigate('urbanfarming')}
+                className="group rounded-2xl border border-slate-200 overflow-hidden bg-white hover:border-emerald-400 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between"
+              >
+                <div>
+                  <div className="relative h-40 w-full bg-slate-900 overflow-hidden">
+                    <img
+                      src={resolveImageUrl(spot.photoUrl)}
+                      alt={spot.name}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-200"
+                    />
+                    <div className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-md bg-white/95 backdrop-blur-xs text-[11px] font-extrabold text-[#059669] shadow-xs">
+                      {spot.rw} · {spot.rt}
+                    </div>
+                    <div className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md bg-[#047857]/90 text-white text-[10px] font-bold">
+                      {spot.status}
+                    </div>
+                  </div>
+                  <div className="p-4">
+                    <div className="text-[11px] font-semibold text-[#059669]">
+                      {spot.farmingType}
+                    </div>
+                    <h4 className="mt-1 text-sm font-bold text-[#0D3868] line-clamp-1 group-hover:text-emerald-700 transition-colors">
+                      {spot.name}
+                    </h4>
+                    <p className="mt-1 text-xs text-slate-500 line-clamp-2">
+                      {spot.description}
+                    </p>
+
+                    <div className="mt-3 flex flex-wrap gap-1">
+                      {spot.commodities.slice(0, 3).map((comm, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 text-[10px] font-semibold"
+                        >
+                          {comm}
+                        </span>
+                      ))}
+                      {spot.commodities.length > 3 && (
+                        <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-semibold">
+                          +{spot.commodities.length - 3} lagi
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1 text-slate-600 text-[11px]">
+                    <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Panen: <strong className="text-slate-800">{spot.nextHarvestDate}</strong></span>
+                  </div>
+                  <span className="font-mono-num font-bold text-emerald-700 text-xs">
+                    ~{spot.harvestEstimatedKg} Kg
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Banner Ajakan Permohonan Bibit Gratis */}
+          <div className="mt-4 rounded-2xl bg-gradient-to-r from-emerald-800 via-emerald-700 to-teal-800 text-white p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-white/10 shrink-0 mt-0.5">
+                <Sprout className="w-6 h-6 text-emerald-300" />
+              </div>
+              <div>
+                <h4 className="text-sm sm:text-base font-extrabold text-white">
+                  Ingin Memulai Urban Farming di Rumah atau Lorong Anda?
+                </h4>
+                <p className="mt-0.5 text-xs text-emerald-100 leading-relaxed max-w-xl">
+                  Kelurahan Panaikang menyediakan benih sayuran gratis (Pakcoy, Selada, Cabai Katokkon, Kangkung), media tanam daur ulang, dan pendampingan kader tani untuk warga.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => onNavigate('urbanfarming')}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-white text-[#047857] hover:bg-emerald-50 text-xs font-extrabold transition-colors cursor-pointer shrink-0 shadow-xs"
+            >
+              <span>Ajukan Permohonan Bibit Gratis</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
 

@@ -8,6 +8,11 @@ import {
   RwGroup,
   WasteBankUnit,
 } from '../types';
+import {
+  drawContinuationPdfHeader,
+  drawOfficialPdfKopSurat,
+  ReportHeaderSizePreset,
+} from './officialKopSurat';
 
 export interface MonthlyReportPdfOptions {
   periodKey: string; // 'Okt' | 'Sep' | ... | 'ALL_2026'
@@ -127,63 +132,15 @@ export function generateMonthlyEnvironmentalPdf(
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const marginX = 14;
-  let cursorY = 14;
+  const headerPreset: ReportHeaderSizePreset =
+    rwFilter !== 'Semua'
+      ? 'spacious'
+      : includeWasteBankSummary && includeCleanupSummary && includeRwBreakdown
+      ? 'compact'
+      : 'standard';
 
-  // ================= 1. KOP SURAT RESMI PEMERINTAH KOTA MAKASSAR =================
-  // Left decorative shield emblem box
-  doc.setFillColor(13, 56, 104); // #0D3868
-  doc.roundedRect(marginX, cursorY, 16, 19, 2, 2, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.text('KOTA', marginX + 8, cursorY + 7, { align: 'center' });
-  doc.text('MAKASSAR', marginX + 8, cursorY + 11, { align: 'center' });
-  doc.setFontSize(6);
-  doc.text('PANAIKANG', marginX + 8, cursorY + 15.5, { align: 'center' });
-
-  // Right decorative eco emblem box
-  doc.setFillColor(28, 130, 55); // #1C8237
-  doc.roundedRect(pageWidth - marginX - 16, cursorY, 16, 19, 2, 2, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
-  doc.text('ARSIP', pageWidth - marginX - 8, cursorY + 7, { align: 'center' });
-  doc.text('FISIK', pageWidth - marginX - 8, cursorY + 11, { align: 'center' });
-  doc.setFontSize(6);
-  doc.text('RESMI', pageWidth - marginX - 8, cursorY + 15.5, { align: 'center' });
-
-  // Center Official Header Text
-  doc.setTextColor(13, 56, 104);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.text('PEMERINTAH KOTA MAKASSAR', pageWidth / 2, cursorY + 4.5, { align: 'center' });
-  doc.setFontSize(12);
-  doc.text('KECAMATAN PANAKKUKANG', pageWidth / 2, cursorY + 9.8, { align: 'center' });
-  doc.setFontSize(14);
-  doc.text('PEMERINTAH KELURAHAN PANAIKANG', pageWidth / 2, cursorY + 15.5, {
-    align: 'center',
-  });
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(71, 85, 105);
-  doc.text(
-    `Alamat: ${profile.officeAddress} | Telp: ${profile.phoneContact} | Email: ${profile.emailContact}`,
-    pageWidth / 2,
-    cursorY + 20.5,
-    { align: 'center' }
-  );
-
-  cursorY += 23.5;
-
-  // Double horizontal rule for official Indonesian government document
-  doc.setDrawColor(13, 56, 104);
-  doc.setLineWidth(0.75);
-  doc.line(marginX, cursorY, pageWidth - marginX, cursorY);
-  doc.setLineWidth(0.25);
-  doc.line(marginX, cursorY + 1.2, pageWidth - marginX, cursorY + 1.2);
-
-  cursorY += 6.5;
+  // ================= 1. KOP SURAT RESMI PEMERINTAH KOTA MAKASSAR & KELURAHAN PANAIKANG =================
+  let cursorY = drawOfficialPdfKopSurat(doc, profile, marginX, headerPreset);
 
   // ================= 2. JUDUL DOKUMEN & IDENTITAS ARSIP FISIK =================
   doc.setTextColor(13, 56, 104);
@@ -428,7 +385,7 @@ export function generateMonthlyEnvironmentalPdf(
   if (includeRwBreakdown && rwGroups.length > 0) {
     if (cursorY > pageHeight - 55) {
       doc.addPage();
-      cursorY = 16;
+      cursorY = 26;
     }
 
     doc.setFont('helvetica', 'bold');
@@ -504,7 +461,7 @@ export function generateMonthlyEnvironmentalPdf(
   // ================= 6. DAFTAR RINCIAN LAPORAN PERMASALAHAN LINGKUNGAN WARGA =================
   if (cursorY > pageHeight - 55) {
     doc.addPage();
-    cursorY = 16;
+    cursorY = 26;
   }
 
   doc.setFont('helvetica', 'bold');
@@ -557,7 +514,7 @@ export function generateMonthlyEnvironmentalPdf(
 
   autoTable(doc, {
     startY: cursorY,
-    margin: { left: marginX, right: marginX },
+    margin: { top: 26, left: marginX, right: marginX },
     head: [
       [
         'No',
@@ -600,7 +557,7 @@ export function generateMonthlyEnvironmentalPdf(
   if (includeWasteBankSummary && wasteUnits.length > 0) {
     if (cursorY > pageHeight - 55) {
       doc.addPage();
-      cursorY = 16;
+      cursorY = 26;
     }
 
     doc.setFont('helvetica', 'bold');
@@ -658,7 +615,7 @@ export function generateMonthlyEnvironmentalPdf(
   if (includeCleanupSummary && cleanupEvents.length > 0) {
     if (cursorY > pageHeight - 55) {
       doc.addPage();
-      cursorY = 16;
+      cursorY = 26;
     }
 
     doc.setFont('helvetica', 'bold');
@@ -714,7 +671,7 @@ export function generateMonthlyEnvironmentalPdf(
   // ================= 8. CATATAN EVALUASI & LEMBAR PENGESAHAN ARSIP FISIK =================
   if (cursorY > pageHeight - 72) {
     doc.addPage();
-    cursorY = 18;
+    cursorY = 26;
   }
 
   // Catatan Evaluasi Lurah Box
@@ -803,10 +760,18 @@ export function generateMonthlyEnvironmentalPdf(
     align: 'center',
   });
 
-  // ================= 9. FOOTER ON ALL PAGES =================
+  // ================= 9. CONTINUATION HEADERS & FOOTER ON ALL PAGES =================
   const totalPages = doc.getNumberOfPages();
   for (let p = 1; p <= totalPages; p++) {
     doc.setPage(p);
+    if (p > 1) {
+      drawContinuationPdfHeader(
+        doc,
+        `LAPORAN BULANAN LINGKUNGAN (${periodLabel})`,
+        archiveNumber,
+        marginX
+      );
+    }
     doc.setDrawColor(203, 213, 225);
     doc.setLineWidth(0.25);
     doc.line(marginX, pageHeight - 11, pageWidth - marginX, pageHeight - 11);

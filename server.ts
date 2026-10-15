@@ -26,7 +26,13 @@ import {
   WhatsAppRecipient,
   AdminUserAccount,
   AdminActivityLog,
+  UrbanFarmingSpot,
+  SeedRequestItem,
 } from './src/types.ts';
+import {
+  INITIAL_URBAN_FARMING_SPOTS,
+  INITIAL_SEED_REQUESTS,
+} from './src/data/initialData.ts';
 import {
   SERVICE_CATEGORY_GROUPS,
   ServiceCategoryGroup,
@@ -47,6 +53,8 @@ interface DatabaseSchema {
   serviceCatalog: ServiceCategoryGroup[];
   adminUsers: AdminUserAccount[];
   activityLogs: AdminActivityLog[];
+  urbanFarmingSpots: UrbanFarmingSpot[];
+  seedRequests: SeedRequestItem[];
   lastModified: string;
   updatedAt?: number;
 }
@@ -100,6 +108,14 @@ function loadDatabase(): DatabaseSchema {
             Array.isArray(parsed.activityLogs) && parsed.activityLogs.length > 0
               ? parsed.activityLogs
               : INITIAL_ACTIVITY_LOGS,
+          urbanFarmingSpots:
+            Array.isArray(parsed.urbanFarmingSpots) && parsed.urbanFarmingSpots.length > 0
+              ? parsed.urbanFarmingSpots
+              : INITIAL_URBAN_FARMING_SPOTS,
+          seedRequests:
+            Array.isArray(parsed.seedRequests) && parsed.seedRequests.length > 0
+              ? parsed.seedRequests
+              : INITIAL_SEED_REQUESTS,
           lastModified: parsed.lastModified || new Date().toISOString(),
           updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : 0,
         };
@@ -121,6 +137,8 @@ function loadDatabase(): DatabaseSchema {
     serviceCatalog: SERVICE_CATEGORY_GROUPS,
     adminUsers: INITIAL_ADMIN_USERS,
     activityLogs: INITIAL_ACTIVITY_LOGS,
+    urbanFarmingSpots: INITIAL_URBAN_FARMING_SPOTS,
+    seedRequests: INITIAL_SEED_REQUESTS,
     lastModified: new Date().toISOString(),
     updatedAt: 0,
   };
@@ -510,6 +528,10 @@ async function startServer() {
       db.adminUsers = incoming.adminUsers;
     if (Array.isArray(incoming.activityLogs))
       db.activityLogs = incoming.activityLogs;
+    if (Array.isArray(incoming.urbanFarmingSpots) && incoming.urbanFarmingSpots.length > 0)
+      db.urbanFarmingSpots = incoming.urbanFarmingSpots;
+    if (Array.isArray(incoming.seedRequests))
+      db.seedRequests = incoming.seedRequests;
 
     saveDatabase(db, incoming.updatedAt);
     res.json({ ok: true, data: db });
@@ -1307,6 +1329,69 @@ async function startServer() {
     db.kelurahanInfos = db.kelurahanInfos.filter((item) => item.id !== id);
     saveDatabase(db);
     res.json({ ok: true, deletedId: id });
+  });
+
+  // 6. Urban Farming & Seed Requests
+  app.get('/api/urban-farming', (_req, res) => {
+    res.json({ ok: true, data: db.urbanFarmingSpots || INITIAL_URBAN_FARMING_SPOTS });
+  });
+
+  app.post('/api/urban-farming', (req, res) => {
+    const incoming = req.body as Partial<UrbanFarmingSpot>;
+    if (!incoming.name || !incoming.rw) {
+      res.status(400).json({ ok: false, errors: ['Nama kebun dan wilayah RW wajib diisi.'] });
+      return;
+    }
+    const created: UrbanFarmingSpot = {
+      id: incoming.id || `uf-${Date.now()}`,
+      name: incoming.name.trim(),
+      rw: incoming.rw.trim(),
+      rt: incoming.rt?.trim() || 'RT 01',
+      locationAddress: incoming.locationAddress?.trim() || 'Kelurahan Panaikang',
+      groupName: incoming.groupName?.trim() || `Kelompok Tani ${incoming.rw}`,
+      coordinatorName: incoming.coordinatorName?.trim() || 'Koordinator Warga',
+      coordinatorPhone: incoming.coordinatorPhone?.trim() || '0812-xxxx-xxxx',
+      farmingType: incoming.farmingType || 'Hidroponik / NFT',
+      commodities: Array.isArray(incoming.commodities) ? incoming.commodities : ['Pakcoy', 'Selada'],
+      activeMembers: Number(incoming.activeMembers) || 12,
+      monthlyProductionKg: Number(incoming.monthlyProductionKg) || 40,
+      nextHarvestDate: incoming.nextHarvestDate?.trim() || 'Akhir Bulan Ini',
+      harvestEstimatedKg: Number(incoming.harvestEstimatedKg) || 20,
+      status: incoming.status || 'Aktif Produktif',
+      description: incoming.description?.trim() || 'Kebun lorong produktif binaan warga.',
+      photoUrl: incoming.photoUrl?.trim() || '/images/ig_post_5_DeGDDkFPvJs.jpg',
+    };
+    db.urbanFarmingSpots = [created, ...(db.urbanFarmingSpots || [])];
+    saveDatabase(db);
+    res.status(201).json({ ok: true, data: created });
+  });
+
+  app.get('/api/seed-requests', (_req, res) => {
+    res.json({ ok: true, data: db.seedRequests || INITIAL_SEED_REQUESTS });
+  });
+
+  app.post('/api/seed-requests', (req, res) => {
+    const incoming = req.body as Partial<SeedRequestItem>;
+    if (!incoming.applicantName || !incoming.applicantPhone) {
+      res.status(400).json({ ok: false, errors: ['Nama pemohon dan kontak telepon/WA wajib diisi.'] });
+      return;
+    }
+    const created: SeedRequestItem = {
+      id: incoming.id || `REQ-SEED-${Date.now()}`,
+      applicantName: incoming.applicantName.trim(),
+      applicantPhone: incoming.applicantPhone.trim(),
+      rw: incoming.rw?.trim() || 'RW 01',
+      rt: incoming.rt?.trim() || 'RT 01',
+      address: incoming.address?.trim() || '',
+      requestedSeeds: Array.isArray(incoming.requestedSeeds) ? incoming.requestedSeeds : ['Benih Sayuran Daun'],
+      plantingMethod: incoming.plantingMethod?.trim() || 'Polybag Pekarangan',
+      needsTraining: Boolean(incoming.needsTraining),
+      status: 'Menunggu Pengambilan',
+      createdAt: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) + ' · Baru Saja',
+    };
+    db.seedRequests = [created, ...(db.seedRequests || [])];
+    saveDatabase(db);
+    res.status(201).json({ ok: true, data: created });
   });
 
   // Vite middleware for development or static serving for production

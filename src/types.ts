@@ -7,6 +7,7 @@ export type AppView =
   | 'peta'
   | 'sampah'
   | 'kerjabakti'
+  | 'urbanfarming'
   | 'admin';
 
 export type ReportStatus = 'Menunggu Verifikasi' | 'Sedang Ditangani' | 'Selesai';
@@ -289,6 +290,46 @@ export interface AdminUserAccount {
   updatedAt: string;
   lastLoginAt?: string;
   notes?: string;
+}
+
+export type FarmType =
+  | 'Hidroponik / NFT'
+  | 'Akuaponik / Budikdamber'
+  | 'Pekarangan & Polybag Organik'
+  | 'Rumah Jamur & TOGA';
+
+export interface UrbanFarmingSpot {
+  id: string;
+  name: string;
+  rw: string;
+  rt: string;
+  locationAddress: string;
+  groupName: string;
+  coordinatorName: string;
+  coordinatorPhone: string;
+  farmingType: FarmType;
+  commodities: string[];
+  activeMembers: number;
+  monthlyProductionKg: number;
+  nextHarvestDate: string;
+  harvestEstimatedKg: number;
+  status: 'Aktif Produktif' | 'Masa Tanam' | 'Siap Panen';
+  description: string;
+  photoUrl: string;
+}
+
+export interface SeedRequestItem {
+  id: string;
+  applicantName: string;
+  applicantPhone: string;
+  rw: string;
+  rt: string;
+  address: string;
+  requestedSeeds: string[];
+  plantingMethod: string;
+  needsTraining: boolean;
+  status: 'Menunggu Pengambilan' | 'Disetujui' | 'Telah Didistribusikan';
+  createdAt: string;
 }
 
 

@@ -27,6 +27,8 @@ import {
   AdminActivityModule,
   AdminUserAccount,
 } from '../types';
+import { INITIAL_KELURAHAN_PROFILE } from '../data/initialData';
+import { buildOfficialKopSuratHtml } from '../utils/officialKopSurat';
 
 interface AdminActivityLogPanelProps {
   activityLogs: AdminActivityLog[];
@@ -253,6 +255,101 @@ export const AdminActivityLogPanel: React.FC<AdminActivityLogPanelProps> = ({
     setShowAddNoteModal(false);
   };
 
+  const handlePrintAuditReport = () => {
+    const kopHtml = buildOfficialKopSuratHtml(
+      INITIAL_KELURAHAN_PROFILE,
+      filteredLogs.length > 15 ? 'compact' : 'standard'
+    );
+    const nowStr = new Date().toLocaleDateString('id-ID', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
+
+    const rowsHtml = filteredLogs
+      .map(
+        (log, i) => `
+      <tr>
+        <td style="text-align:center">${i + 1}</td>
+        <td><strong>${log.id}</strong><br/><span style="color:#64748b">${log.timestamp}</span></td>
+        <td><strong>${log.actorName}</strong><br/><span style="color:#64748b">${log.actorJabatan || 'Staf / Operator'}</span></td>
+        <td>${MODULE_LABELS[log.module] || log.module}</td>
+        <td><strong>${log.summary}</strong><br/><span style="color:#475569">${log.targetLabel}</span></td>
+      </tr>`
+      )
+      .join('');
+
+    const htmlDoc = `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Laporan Audit Trail Admin Kelurahan Panaikang</title>
+  <style>
+    @page { size: A4 portrait; margin: 14mm; }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, Helvetica, sans-serif; color: #1e293b; margin: 0; font-size: 10.5px; line-height: 1.4; }
+    .doc-title { text-align: center; font-size: 13px; font-weight: 800; color: #0d3868; text-decoration: underline; text-transform: uppercase; }
+    .doc-meta { text-align: center; font-size: 10px; color: #475569; margin-top: 3px; margin-bottom: 12px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
+    th { background: #0d3868; color: #fff; border: 1px solid #0d3868; padding: 6px; font-size: 10px; text-align: left; }
+    td { border: 1px solid #cbd5e1; padding: 5px 6px; font-size: 9.5px; vertical-align: top; }
+    .sign-row { display: flex; justify-content: flex-end; margin-top: 18px; page-break-inside: avoid; }
+    .sign-box { text-align: center; width: 220px; }
+  </style>
+</head>
+<body>
+  ${kopHtml}
+  <div class="doc-title">LAPORAN AUDIT TRAIL & RIWAYAT AKTIVITAS ADMIN</div>
+  <div class="doc-meta">Total Log Tercetak: <strong>${filteredLogs.length} Aktivitas</strong> &nbsp;|&nbsp; Tanggal Cetak: ${nowStr}</div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:32px">No</th>
+        <th style="width:110px">ID & Waktu</th>
+        <th style="width:130px">Pejabat / Operator</th>
+        <th style="width:115px">Modul</th>
+        <th>Ringkasan Aktivitas & Objek Data</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rowsHtml}
+    </tbody>
+  </table>
+  <div class="sign-row">
+    <div class="sign-box">
+      <div>Makassar, ${nowStr}</div>
+      <div style="font-weight:700;margin-top:2px;">LURAH PANAIKANG</div>
+      <div style="height:52px;"></div>
+      <div style="font-weight:800;text-decoration:underline;color:#0d3868;">${INITIAL_KELURAHAN_PROFILE.lurahName}</div>
+      <div style="font-size:9.5px;color:#475569;">NIP. ${INITIAL_KELURAHAN_PROFILE.lurahNip}</div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    const existing = document.getElementById('audit-print-iframe') as HTMLIFrameElement | null;
+    if (existing) existing.remove();
+    const iframe = document.createElement('iframe');
+    iframe.id = 'audit-print-iframe';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentWindow?.document;
+    if (doc) {
+      doc.open();
+      doc.write(htmlDoc);
+      doc.close();
+      window.setTimeout(() => {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      }, 250);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Top Executive Banner */}
@@ -292,7 +389,7 @@ export const AdminActivityLogPanel: React.FC<AdminActivityLogPanelProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => window.print()}
+              onClick={handlePrintAuditReport}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-extrabold border border-white/25 transition-colors cursor-pointer"
             >
               <Printer className="w-4 h-4" />

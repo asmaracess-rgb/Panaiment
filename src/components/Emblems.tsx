@@ -707,3 +707,41 @@ export const IconMonitoringKerjaBakti: React.FC<{ className?: string }> = ({
     <path d="M37 40L38 43L41 44L38 45L37 48L36 45L33 44L36 43L37 40Z" fill="white" />
   </svg>
 );
+
+/**
+ * Card 7 Icon: Urban Farming (Planter box, hydroponic growing sprouts, and sun rays)
+ */
+export const IconUrbanFarming: React.FC<{ className?: string }> = ({ className = 'w-14 h-14' }) => (
+  <svg viewBox="0 0 64 56" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    {/* Planter pot / Hydroponic box */}
+    <path
+      d="M14 34L18 50H46L50 34H14Z"
+      fill="white"
+      fillOpacity="0.92"
+      stroke="white"
+      strokeWidth="1.5"
+    />
+    <rect x="12" y="30" width="40" height="5" rx="2" fill="white" />
+    <line x1="24" y1="38" x2="24" y2="46" stroke="#059669" strokeWidth="2.2" strokeLinecap="round" />
+    <line x1="32" y1="38" x2="32" y2="46" stroke="#059669" strokeWidth="2.2" strokeLinecap="round" />
+    <line x1="40" y1="38" x2="40" y2="46" stroke="#059669" strokeWidth="2.2" strokeLinecap="round" />
+    {/* Central Stem */}
+    <path d="M32 30V13" stroke="white" strokeWidth="3" strokeLinecap="round" />
+    {/* Left Sprout Leaf */}
+    <path
+      d="M32 23C23 23 15 17 18 9C26 9 32 15 32 23Z"
+      fill="white"
+    />
+    {/* Right Sprout Leaf */}
+    <path
+      d="M32 18C41 18 49 12 46 4C38 4 32 10 32 18Z"
+      fill="white"
+    />
+    {/* Top Small Leaf */}
+    <ellipse cx="32" cy="8" rx="4" ry="6.5" fill="white" />
+    {/* Sun Rays / Sparkle */}
+    <circle cx="51" cy="20" r="2.5" fill="white" opacity="0.9" />
+    <circle cx="13" cy="18" r="2.2" fill="white" opacity="0.8" />
+  </svg>
+);
+

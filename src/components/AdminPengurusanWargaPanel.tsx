@@ -45,6 +45,8 @@ import {
 import { IMG_DRAINASE, IMG_BANK_SAMPAH, IMG_KERJA_BAKTI, IG_POST_6 } from '../data/initialData';
 import { compressImageFile } from '../utils/compressImage';
 import { buildWhatsAppUrl } from '../utils/whatsappHelper';
+import { buildOfficialKopSuratHtml } from '../utils/officialKopSurat';
+import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
 
 interface AdminPengurusanWargaPanelProps {
   reports: CitizenReport[];
@@ -1954,6 +1956,148 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
                 printPreviewReport.signedByOfficer ||
                 `${profile.lurahName} (Lurah Panaikang)`;
 
+              const handlePrintOfficialDocument = () => {
+                const kopHtml = buildOfficialKopSuratHtml(profile, 'spacious');
+                const specRows = printPreviewReport.specificFieldsData
+                  ? Object.entries(printPreviewReport.specificFieldsData)
+                      .filter(([, v]) => Boolean(v))
+                      .map(
+                        ([k, v]) => `
+                        <tr>
+                          <td class="lbl">${k}</td>
+                          <td>: <strong>${v}</strong></td>
+                        </tr>`
+                      )
+                      .join('')
+                  : '';
+
+                const htmlDoc = `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>${info.officialHeaderTitle} - ${printPreviewReport.ticketCode}</title>
+  <style>
+    @page { size: A4 portrait; margin: 15mm; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      color: #0f172a;
+      margin: 0;
+      padding: 0;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .doc-title {
+      text-align: center;
+      font-size: 14px;
+      font-weight: 800;
+      color: #0d3868;
+      text-decoration: underline;
+      text-transform: uppercase;
+      margin-top: 6px;
+    }
+    .doc-num {
+      text-align: center;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #334155;
+      margin-top: 3px;
+      margin-bottom: 16px;
+    }
+    .intro {
+      font-size: 12px;
+      margin-bottom: 12px;
+      text-align: justify;
+    }
+    table.detail-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 18px;
+    }
+    table.detail-table td {
+      padding: 5px 6px;
+      vertical-align: top;
+      font-size: 11.5px;
+    }
+    table.detail-table td.lbl {
+      width: 34%;
+      color: #334155;
+      font-weight: 600;
+    }
+    .sign-wrap {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-top: 28px;
+      padding-top: 14px;
+      border-top: 1px solid #cbd5e1;
+      page-break-inside: avoid;
+    }
+    .sign-box {
+      text-align: center;
+      min-width: 220px;
+    }
+    .sign-space { height: 58px; }
+  </style>
+</head>
+<body>
+  ${kopHtml}
+  <div class="doc-title">${info.officialHeaderTitle}</div>
+  <div class="doc-num">Nomor: ${regNumber}</div>
+  <p class="intro">
+    Yang bertanda tangan di bawah ini, Pemerintah Kelurahan Panaikang Kecamatan Panakkukang Kota Makassar, menerangkan dan mencatat pengajuan layanan warga sebagai berikut:
+  </p>
+  <table class="detail-table">
+    <tbody>
+      <tr><td class="lbl">Nomor Tiket Sistem</td><td>: <strong>${printPreviewReport.ticketCode}</strong></td></tr>
+      <tr><td class="lbl">Nama Lengkap Warga</td><td>: <strong>${printPreviewReport.reporterName}</strong></td></tr>
+      <tr><td class="lbl">NIK / Nomor KK</td><td>: ${printPreviewReport.applicantNik || '-'}</td></tr>
+      <tr><td class="lbl">Alamat / Wilayah RT-RW</td><td>: ${printPreviewReport.locationName} (${printPreviewReport.rt} / ${printPreviewReport.rw})</td></tr>
+      <tr><td class="lbl">Bidang & Jenis Layanan</td><td>: <strong>${info.categoryTitle} — ${info.subItemLabel}</strong></td></tr>
+      ${specRows}
+      <tr><td class="lbl">Keterangan / Keperluan</td><td>: ${printPreviewReport.description}</td></tr>
+      <tr><td class="lbl">Catatan Verifikasi Petugas</td><td>: <strong>${printPreviewReport.responseNote}</strong></td></tr>
+    </tbody>
+  </table>
+  <div class="sign-wrap">
+    <div style="font-size:11px;color:#475569;">
+      <div>Unit Pelaksana: <strong>${info.processingUnit}</strong></div>
+      <div>Status Layanan: <strong>${printPreviewReport.status}</strong></div>
+    </div>
+    <div class="sign-box">
+      <div>Makassar, ${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
+      <div style="font-weight:700;margin-top:2px;">Pejabat Penandatangan,</div>
+      <div class="sign-space"></div>
+      <div style="font-weight:800;text-decoration:underline;color:#0d3868;">${signer}</div>
+      <div style="font-size:10.5px;color:#475569;">NIP. ${profile.lurahNip}</div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+                const existingFrame = document.getElementById('citizen-letter-print-iframe') as HTMLIFrameElement | null;
+                if (existingFrame) existingFrame.remove();
+                const iframe = document.createElement('iframe');
+                iframe.id = 'citizen-letter-print-iframe';
+                iframe.style.position = 'fixed';
+                iframe.style.right = '0';
+                iframe.style.bottom = '0';
+                iframe.style.width = '0';
+                iframe.style.height = '0';
+                iframe.style.border = '0';
+                document.body.appendChild(iframe);
+                const doc = iframe.contentWindow?.document;
+                if (doc) {
+                  doc.open();
+                  doc.write(htmlDoc);
+                  doc.close();
+                  window.setTimeout(() => {
+                    iframe.contentWindow?.focus();
+                    iframe.contentWindow?.print();
+                  }, 250);
+                }
+              };
+
               return (
                 <>
                   <div className="flex items-center justify-between pb-3 border-b border-slate-200">
@@ -1968,7 +2112,7 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => window.print()}
+                        onClick={handlePrintOfficialDocument}
                         className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0D3868] hover:bg-[#0277BD] text-white text-xs font-extrabold cursor-pointer"
                       >
                         <Printer className="w-4 h-4" />
@@ -1985,17 +2129,21 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
                   </div>
 
                   <div className="p-6 rounded-xl border-2 border-slate-800 bg-white text-slate-900 space-y-4">
-                    <div className="text-center border-b-2 border-slate-900 pb-3">
-                      <div className="text-xs font-bold uppercase tracking-widest">
-                        PEMERINTAH KOTA MAKASSAR · KECAMATAN PANAKKUKANG
+                    <div className="flex items-center justify-between gap-3 border-b-2 border-slate-900 pb-3">
+                      <EmblemKotaMakassar className="w-14 h-16 sm:w-16 sm:h-[74px] shrink-0" />
+                      <div className="text-center flex-1 min-w-0">
+                        <div className="text-xs font-bold uppercase tracking-widest text-[#0D3868]">
+                          PEMERINTAH KOTA MAKASSAR · KECAMATAN PANAKKUKANG
+                        </div>
+                        <div className="text-lg font-extrabold uppercase tracking-wide text-[#0D3868]">
+                          KELURAHAN PANAIKANG
+                        </div>
+                        <div className="text-[11px] text-slate-600">
+                          {profile.officeAddress} · Telp: {profile.phoneContact} · Kode Pos{' '}
+                          {profile.postalCode}
+                        </div>
                       </div>
-                      <div className="text-lg font-extrabold uppercase tracking-wide">
-                        KELURAHAN PANAIKANG
-                      </div>
-                      <div className="text-[11px] text-slate-600">
-                        {profile.officeAddress} · Telp: {profile.phoneContact} · Kode Pos{' '}
-                        {profile.postalCode}
-                      </div>
+                      <EmblemKelurahanPanaikang className="w-14 h-16 sm:w-16 sm:h-[74px] shrink-0" />
                     </div>
 
                     <div className="text-center">

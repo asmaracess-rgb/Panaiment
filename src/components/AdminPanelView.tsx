@@ -33,6 +33,8 @@ import {
   ExternalLink,
   Sliders,
   History,
+  Printer,
+  FileDown,
 } from 'lucide-react';
 import {
   AppView,
@@ -84,6 +86,10 @@ import { MonthlyArchivePdfPanel } from './MonthlyArchivePdfPanel';
 import { AdminPengurusanWargaPanel } from './AdminPengurusanWargaPanel';
 import { AdminParameterUserPanel } from './AdminParameterUserPanel';
 import { AdminActivityLogPanel } from './AdminActivityLogPanel';
+import {
+  AdminRtRwReportPanel,
+  ExternalPrintSelection,
+} from './AdminRtRwReportPanel';
 import {
   SERVICE_CATEGORY_GROUPS,
   ServiceCategoryGroup,
@@ -374,6 +380,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     if (isLurahSession) return true;
     return effectiveAllowedTabs.includes(tabId);
   };
+
+  const [rtrwPrintSelection, setRtrwPrintSelection] =
+    useState<ExternalPrintSelection | null>(null);
 
   // Helper to record audit trail entry with current active admin identity
   const recordAudit = (params: {
@@ -5371,7 +5380,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 Manajemen Data Rukun Warga (RW) & Rukun Tetangga (RT) Kelurahan Panaikang
               </h2>
               <p className="text-xs text-slate-500">
-                Setiap RT dibagi berdasarkan RW masing-masing. Seluruh data RW dan RT dapat ditambah, diubah, diedit, dan dihapus oleh Administrator.
+                Setiap RT dibagi berdasarkan RW masing-masing. Seluruh data RW dan RT dapat dicetak per RW maupun per RT, ditambah, diubah, dan dihapus oleh Administrator.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2.5">
@@ -5392,6 +5401,31 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               </button>
             </div>
           </div>
+
+          {/* Menu Cetak Laporan Data RT/RW (Per RW, Per RT, & Rekapitulasi Seluruh RW/RT) */}
+          <AdminRtRwReportPanel
+            profile={profile}
+            rwGroups={rwGroups}
+            reports={reports}
+            externalSelection={rtrwPrintSelection}
+            onReportPrintedOrExported={(result, actionMode) => {
+              recordAudit({
+                actionType: 'EXPORT',
+                module: 'STRUKTUR_RTRW',
+                targetLabel: result.titleLabel,
+                summary: `${
+                  actionMode === 'PRINT' ? 'Mencetak laporan' : 'Mengunduh dokumen PDF'
+                } ${result.titleLabel}`,
+                afterValue: `${result.scopeLabel} · ${result.totalRtCount} RT · ${result.totalKkCount} KK`,
+                severity: 'info',
+              });
+              setSuccessMessage(
+                `${
+                  actionMode === 'PRINT' ? 'Lembar cetak' : 'Dokumen PDF'
+                } "${result.titleLabel}" berhasil diproses.`
+              );
+            }}
+          />
 
           {/* Form Tambah / Edit RW */}
           {showRwForm && (
@@ -5523,6 +5557,38 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRtrwPrintSelection({
+                          scope: 'per_rw',
+                          rwCode: rw.rwCode,
+                          autoAction: 'print',
+                          timestamp: Date.now(),
+                        });
+                      }}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-extrabold cursor-pointer"
+                      title={`Cetak Laporan Resmi ${rw.rwCode}`}
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Cetak {rw.rwCode}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRtrwPrintSelection({
+                          scope: 'per_rw',
+                          rwCode: rw.rwCode,
+                          autoAction: 'pdf',
+                          timestamp: Date.now(),
+                        });
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-500/30 hover:bg-sky-500/45 border border-sky-300/40 text-white text-xs font-bold cursor-pointer"
+                      title={`Unduh PDF Laporan ${rw.rwCode}`}
+                    >
+                      <FileDown className="w-3.5 h-3.5" />
+                      <span>PDF {rw.rwCode}</span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => openAddRtForm(rw)}
@@ -5714,7 +5780,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                         <th className="py-3 px-4">Kontak</th>
                         <th className="py-3 px-4">Cakupan Lorong / Wilayah</th>
                         <th className="py-3 px-4 text-right">Jumlah KK</th>
-                        <th className="py-3 px-4 text-right">Aksi Admin (Edit / Hapus)</th>
+                        <th className="py-3 px-4 text-right">Aksi Admin (Cetak / Edit / Hapus)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 text-xs">
@@ -5760,6 +5826,40 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                                 </div>
                               ) : (
                                 <div className="inline-flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setRtrwPrintSelection({
+                                        scope: 'per_rt',
+                                        rwCode: rw.rwCode,
+                                        rtCode: rt.rtCode,
+                                        autoAction: 'print',
+                                        timestamp: Date.now(),
+                                      });
+                                    }}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-sky-200 bg-sky-50 hover:bg-sky-100 text-[#0D3868] font-bold cursor-pointer"
+                                    title={`Cetak Laporan ${rt.rtCode} / ${rw.rwCode}`}
+                                  >
+                                    <Printer className="w-3.5 h-3.5 text-[#0277BD]" />
+                                    <span>Cetak RT</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setRtrwPrintSelection({
+                                        scope: 'per_rt',
+                                        rwCode: rw.rwCode,
+                                        rtCode: rt.rtCode,
+                                        autoAction: 'pdf',
+                                        timestamp: Date.now(),
+                                      });
+                                    }}
+                                    className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-[#1C8237] font-bold cursor-pointer"
+                                    title={`Unduh PDF Laporan ${rt.rtCode} / ${rw.rwCode}`}
+                                  >
+                                    <FileDown className="w-3.5 h-3.5" />
+                                    <span>PDF</span>
+                                  </button>
                                   <button
                                     type="button"
                                     onClick={() => openEditRtForm(rw, rt)}

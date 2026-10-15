@@ -9,6 +9,8 @@ import {
   WhatsAppRecipient,
   AdminUserAccount,
   AdminActivityLog,
+  UrbanFarmingSpot,
+  SeedRequestItem,
 } from '../types';
 import {
   INITIAL_KELURAHAN_PROFILE,
@@ -21,6 +23,8 @@ import {
   INITIAL_WHATSAPP_RECIPIENTS,
   INITIAL_ADMIN_USERS,
   INITIAL_ACTIVITY_LOGS,
+  INITIAL_URBAN_FARMING_SPOTS,
+  INITIAL_SEED_REQUESTS,
 } from '../data/initialData';
 import { SERVICE_CATEGORY_GROUPS, ServiceCategoryGroup } from '../data/wargaServiceCatalog';
 
@@ -36,6 +40,8 @@ export interface PersistedDatabase {
   serviceCatalog?: ServiceCategoryGroup[];
   adminUsers?: AdminUserAccount[];
   activityLogs?: AdminActivityLog[];
+  urbanFarmingSpots?: UrbanFarmingSpot[];
+  seedRequests?: SeedRequestItem[];
   updatedAt: number;
 }
 
@@ -91,6 +97,14 @@ export function loadPersistedDatabase(): PersistedDatabase | null {
         Array.isArray(parsed.activityLogs) && parsed.activityLogs.length > 0
           ? parsed.activityLogs
           : INITIAL_ACTIVITY_LOGS,
+      urbanFarmingSpots:
+        Array.isArray(parsed.urbanFarmingSpots) && parsed.urbanFarmingSpots.length > 0
+          ? parsed.urbanFarmingSpots
+          : INITIAL_URBAN_FARMING_SPOTS,
+      seedRequests:
+        Array.isArray(parsed.seedRequests) && parsed.seedRequests.length > 0
+          ? parsed.seedRequests
+          : INITIAL_SEED_REQUESTS,
       updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : Date.now(),
     };
   } catch {

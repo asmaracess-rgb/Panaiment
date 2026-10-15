@@ -18,6 +18,8 @@ import {
   WhatsAppRecipient,
   AdminUserAccount,
   AdminActivityLog,
+  UrbanFarmingSpot,
+  SeedRequestItem,
 } from './types';
 import {
   INITIAL_REPORTS,
@@ -30,6 +32,8 @@ import {
   INITIAL_WHATSAPP_RECIPIENTS,
   INITIAL_ADMIN_USERS,
   INITIAL_ACTIVITY_LOGS,
+  INITIAL_URBAN_FARMING_SPOTS,
+  INITIAL_SEED_REQUESTS,
 } from './data/initialData';
 import {
   SERVICE_CATEGORY_GROUPS,
@@ -48,6 +52,7 @@ import { DashboardLurahView } from './components/DashboardLurahView';
 import { PetaDigitalView } from './components/PetaDigitalView';
 import { MonitoringSampahView } from './components/MonitoringSampahView';
 import { MonitoringKerjaBaktiView } from './components/MonitoringKerjaBaktiView';
+import { UrbanFarmingView } from './components/UrbanFarmingView';
 import { AdminPanelView, AdminTab } from './components/AdminPanelView';
 import { EmblemKelurahanPanaikang } from './components/Emblems';
 
@@ -104,6 +109,16 @@ export default function App() {
       ? initialPersisted.activityLogs
       : INITIAL_ACTIVITY_LOGS
   );
+  const [urbanFarmingSpots, setUrbanFarmingSpots] = useState<UrbanFarmingSpot[]>(
+    initialPersisted?.urbanFarmingSpots && initialPersisted.urbanFarmingSpots.length > 0
+      ? initialPersisted.urbanFarmingSpots
+      : INITIAL_URBAN_FARMING_SPOTS
+  );
+  const [seedRequests, setSeedRequests] = useState<SeedRequestItem[]>(
+    initialPersisted?.seedRequests && initialPersisted.seedRequests.length > 0
+      ? initialPersisted.seedRequests
+      : INITIAL_SEED_REQUESTS
+  );
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
   const stateRef = useRef({
@@ -118,6 +133,8 @@ export default function App() {
     serviceCatalog,
     adminUsers,
     activityLogs,
+    urbanFarmingSpots,
+    seedRequests,
   });
 
   useEffect(() => {
@@ -133,6 +150,8 @@ export default function App() {
       serviceCatalog,
       adminUsers,
       activityLogs,
+      urbanFarmingSpots,
+      seedRequests,
     };
   }, [
     kelurahanProfile,
@@ -146,6 +165,8 @@ export default function App() {
     serviceCatalog,
     adminUsers,
     activityLogs,
+    urbanFarmingSpots,
+    seedRequests,
   ]);
 
   const commitPersistence = useCallback(
@@ -162,6 +183,8 @@ export default function App() {
         serviceCatalog: partial.serviceCatalog ?? stateRef.current.serviceCatalog,
         adminUsers: partial.adminUsers ?? stateRef.current.adminUsers,
         activityLogs: partial.activityLogs ?? stateRef.current.activityLogs,
+        urbanFarmingSpots: partial.urbanFarmingSpots ?? stateRef.current.urbanFarmingSpots,
+        seedRequests: partial.seedRequests ?? stateRef.current.seedRequests,
         updatedAt: Date.now(),
       };
       stateRef.current = {
@@ -176,6 +199,8 @@ export default function App() {
         serviceCatalog: nextSnapshot.serviceCatalog ?? SERVICE_CATEGORY_GROUPS,
         adminUsers: nextSnapshot.adminUsers ?? INITIAL_ADMIN_USERS,
         activityLogs: nextSnapshot.activityLogs ?? INITIAL_ACTIVITY_LOGS,
+        urbanFarmingSpots: nextSnapshot.urbanFarmingSpots ?? INITIAL_URBAN_FARMING_SPOTS,
+        seedRequests: nextSnapshot.seedRequests ?? INITIAL_SEED_REQUESTS,
       };
       savePersistedDatabase(nextSnapshot);
       if (syncServer) {
@@ -187,6 +212,24 @@ export default function App() {
       }
     },
     []
+  );
+
+  const handleAddUrbanFarmingSpot = useCallback(
+    (newSpot: UrbanFarmingSpot) => {
+      const updated = [newSpot, ...stateRef.current.urbanFarmingSpots];
+      setUrbanFarmingSpots(updated);
+      commitPersistence({ urbanFarmingSpots: updated });
+    },
+    [commitPersistence]
+  );
+
+  const handleAddSeedRequest = useCallback(
+    (newReq: SeedRequestItem) => {
+      const updated = [newReq, ...stateRef.current.seedRequests];
+      setSeedRequests(updated);
+      commitPersistence({ seedRequests: updated });
+    },
+    [commitPersistence]
   );
 
   // Load and synchronize persistent state between browser localStorage and Express backend on mount
@@ -254,6 +297,14 @@ export default function App() {
           Array.isArray(serverDb.activityLogs) && serverDb.activityLogs.length > 0
             ? serverDb.activityLogs
             : INITIAL_ACTIVITY_LOGS;
+        const nextUrbanFarmingSpots =
+          Array.isArray(serverDb.urbanFarmingSpots) && serverDb.urbanFarmingSpots.length > 0
+            ? serverDb.urbanFarmingSpots
+            : INITIAL_URBAN_FARMING_SPOTS;
+        const nextSeedRequests =
+          Array.isArray(serverDb.seedRequests) && serverDb.seedRequests.length > 0
+            ? serverDb.seedRequests
+            : INITIAL_SEED_REQUESTS;
 
         setKelurahanProfile(nextProfile);
         setRwGroups(nextRwGroups);
@@ -266,6 +317,8 @@ export default function App() {
         setServiceCatalog(nextServiceCatalog);
         setAdminUsers(nextAdminUsers);
         setActivityLogs(nextActivityLogs);
+        setUrbanFarmingSpots(nextUrbanFarmingSpots);
+        setSeedRequests(nextSeedRequests);
 
         savePersistedDatabase({
           profile: nextProfile,
@@ -279,6 +332,8 @@ export default function App() {
           serviceCatalog: nextServiceCatalog,
           adminUsers: nextAdminUsers,
           activityLogs: nextActivityLogs,
+          urbanFarmingSpots: nextUrbanFarmingSpots,
+          seedRequests: nextSeedRequests,
           updatedAt: serverUpdatedAt || Date.now(),
         });
       })
@@ -1213,6 +1268,18 @@ export default function App() {
           >
             Kerja Bakti
           </a>
+          <a
+            href="#urbanfarming"
+            onClick={(e) => {
+              e.preventDefault();
+              handleNavigate('urbanfarming');
+            }}
+            className={`hidden xl:inline-block whitespace-nowrap transition-colors hover:text-[#059669] hover:underline underline-offset-4 ${
+              activeView === 'urbanfarming' ? 'text-[#059669] font-bold underline' : ''
+            }`}
+          >
+            Urban Farming
+          </a>
         </nav>
 
         {/* Zone 3: Compact Primary Actions */}
@@ -1244,6 +1311,7 @@ export default function App() {
             cleanupEvents={cleanupEvents}
             kelurahanInfos={kelurahanInfos}
             rwGroups={rwGroups}
+            urbanFarmingSpots={urbanFarmingSpots}
             onSyncInstagram={handleSyncInstagram}
             onQuickReportClick={() => handleNavigate('warga')}
           />
@@ -1316,6 +1384,18 @@ export default function App() {
             onJoinCleanup={handleJoinCleanup}
             onAddCleanupEvent={handleAddCleanupEvent}
             onNavigate={handleNavigate}
+          />
+        )}
+
+        {activeView === 'urbanfarming' && (
+          <UrbanFarmingView
+            onNavigate={handleNavigate}
+            profile={kelurahanProfile}
+            rwGroups={rwGroups}
+            spots={urbanFarmingSpots}
+            onAddSpot={handleAddUrbanFarmingSpot}
+            seedRequests={seedRequests}
+            onAddSeedRequest={handleAddSeedRequest}
           />
         )}
 
