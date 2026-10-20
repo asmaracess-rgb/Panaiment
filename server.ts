@@ -28,10 +28,24 @@ import {
   AdminActivityLog,
   UrbanFarmingSpot,
   SeedRequestItem,
+  UrbanFarmingLocation,
+  FarmerGroup,
+  CropItem,
+  PlantCareLog,
+  HarvestRecord,
+  FarmingInventoryItem,
+  SupplyRequestItem,
 } from './src/types.ts';
 import {
   INITIAL_URBAN_FARMING_SPOTS,
   INITIAL_SEED_REQUESTS,
+  INITIAL_URBAN_FARMING_LOCATIONS,
+  INITIAL_FARMER_GROUPS,
+  INITIAL_CROPS,
+  INITIAL_PLANT_CARE_LOGS,
+  INITIAL_HARVEST_RECORDS,
+  INITIAL_FARMING_INVENTORIES,
+  INITIAL_SUPPLY_REQUESTS,
 } from './src/data/initialData.ts';
 import {
   SERVICE_CATEGORY_GROUPS,
@@ -55,6 +69,13 @@ interface DatabaseSchema {
   activityLogs: AdminActivityLog[];
   urbanFarmingSpots: UrbanFarmingSpot[];
   seedRequests: SeedRequestItem[];
+  urbanFarmingLocations: UrbanFarmingLocation[];
+  farmerGroups: FarmerGroup[];
+  crops: CropItem[];
+  plantCareLogs: PlantCareLog[];
+  harvestRecords: HarvestRecord[];
+  farmingInventories: FarmingInventoryItem[];
+  supplyRequests: SupplyRequestItem[];
   lastModified: string;
   updatedAt?: number;
 }
@@ -116,6 +137,34 @@ function loadDatabase(): DatabaseSchema {
             Array.isArray(parsed.seedRequests) && parsed.seedRequests.length > 0
               ? parsed.seedRequests
               : INITIAL_SEED_REQUESTS,
+          urbanFarmingLocations:
+            Array.isArray(parsed.urbanFarmingLocations) && parsed.urbanFarmingLocations.length > 0
+              ? parsed.urbanFarmingLocations
+              : INITIAL_URBAN_FARMING_LOCATIONS,
+          farmerGroups:
+            Array.isArray(parsed.farmerGroups) && parsed.farmerGroups.length > 0
+              ? parsed.farmerGroups
+              : INITIAL_FARMER_GROUPS,
+          crops:
+            Array.isArray(parsed.crops) && parsed.crops.length > 0
+              ? parsed.crops
+              : INITIAL_CROPS,
+          plantCareLogs:
+            Array.isArray(parsed.plantCareLogs) && parsed.plantCareLogs.length > 0
+              ? parsed.plantCareLogs
+              : INITIAL_PLANT_CARE_LOGS,
+          harvestRecords:
+            Array.isArray(parsed.harvestRecords) && parsed.harvestRecords.length > 0
+              ? parsed.harvestRecords
+              : INITIAL_HARVEST_RECORDS,
+          farmingInventories:
+            Array.isArray(parsed.farmingInventories) && parsed.farmingInventories.length > 0
+              ? parsed.farmingInventories
+              : INITIAL_FARMING_INVENTORIES,
+          supplyRequests:
+            Array.isArray(parsed.supplyRequests) && parsed.supplyRequests.length > 0
+              ? parsed.supplyRequests
+              : INITIAL_SUPPLY_REQUESTS,
           lastModified: parsed.lastModified || new Date().toISOString(),
           updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : 0,
         };
@@ -139,6 +188,13 @@ function loadDatabase(): DatabaseSchema {
     activityLogs: INITIAL_ACTIVITY_LOGS,
     urbanFarmingSpots: INITIAL_URBAN_FARMING_SPOTS,
     seedRequests: INITIAL_SEED_REQUESTS,
+    urbanFarmingLocations: INITIAL_URBAN_FARMING_LOCATIONS,
+    farmerGroups: INITIAL_FARMER_GROUPS,
+    crops: INITIAL_CROPS,
+    plantCareLogs: INITIAL_PLANT_CARE_LOGS,
+    harvestRecords: INITIAL_HARVEST_RECORDS,
+    farmingInventories: INITIAL_FARMING_INVENTORIES,
+    supplyRequests: INITIAL_SUPPLY_REQUESTS,
     lastModified: new Date().toISOString(),
     updatedAt: 0,
   };
@@ -532,6 +588,20 @@ async function startServer() {
       db.urbanFarmingSpots = incoming.urbanFarmingSpots;
     if (Array.isArray(incoming.seedRequests))
       db.seedRequests = incoming.seedRequests;
+    if (Array.isArray(incoming.urbanFarmingLocations))
+      db.urbanFarmingLocations = incoming.urbanFarmingLocations;
+    if (Array.isArray(incoming.farmerGroups))
+      db.farmerGroups = incoming.farmerGroups;
+    if (Array.isArray(incoming.crops))
+      db.crops = incoming.crops;
+    if (Array.isArray(incoming.plantCareLogs))
+      db.plantCareLogs = incoming.plantCareLogs;
+    if (Array.isArray(incoming.harvestRecords))
+      db.harvestRecords = incoming.harvestRecords;
+    if (Array.isArray(incoming.farmingInventories))
+      db.farmingInventories = incoming.farmingInventories;
+    if (Array.isArray(incoming.supplyRequests))
+      db.supplyRequests = incoming.supplyRequests;
 
     saveDatabase(db, incoming.updatedAt);
     res.json({ ok: true, data: db });
@@ -1392,6 +1462,265 @@ async function startServer() {
     db.seedRequests = [created, ...(db.seedRequests || [])];
     saveDatabase(db);
     res.status(201).json({ ok: true, data: created });
+  });
+
+  // 6B. Full Urban Farming CRUD Endpoints
+  // Locations
+  app.get('/api/urban-farming/locations', (_req, res) => {
+    res.json({ ok: true, data: db.urbanFarmingLocations || INITIAL_URBAN_FARMING_LOCATIONS });
+  });
+  app.post('/api/urban-farming/locations', (req, res) => {
+    const item = req.body as UrbanFarmingLocation;
+    if (!item.name || !item.rw) {
+      res.status(400).json({ ok: false, errors: ['Nama lokasi dan wilayah RW wajib diisi.'] });
+      return;
+    }
+    const newLoc: UrbanFarmingLocation = {
+      ...item,
+      id: item.id || `LOK-${Date.now()}`,
+      recordedDate: item.recordedDate || new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+    };
+    db.urbanFarmingLocations = [newLoc, ...(db.urbanFarmingLocations || [])];
+    saveDatabase(db);
+    res.status(201).json({ ok: true, data: newLoc });
+  });
+  app.put('/api/urban-farming/locations/:id', (req, res) => {
+    const { id } = req.params;
+    const idx = (db.urbanFarmingLocations || []).findIndex((l) => l.id === id);
+    if (idx === -1) {
+      res.status(404).json({ ok: false, errors: ['Lokasi tidak ditemukan.'] });
+      return;
+    }
+    db.urbanFarmingLocations[idx] = { ...db.urbanFarmingLocations[idx], ...req.body };
+    saveDatabase(db);
+    res.json({ ok: true, data: db.urbanFarmingLocations[idx] });
+  });
+  app.delete('/api/urban-farming/locations/:id', (req, res) => {
+    const { id } = req.params;
+    db.urbanFarmingLocations = (db.urbanFarmingLocations || []).filter((l) => l.id !== id);
+    saveDatabase(db);
+    res.json({ ok: true, deletedId: id });
+  });
+
+  // Groups
+  app.get('/api/urban-farming/groups', (_req, res) => {
+    res.json({ ok: true, data: db.farmerGroups || INITIAL_FARMER_GROUPS });
+  });
+  app.post('/api/urban-farming/groups', (req, res) => {
+    const item = req.body as FarmerGroup;
+    if (!item.name || !item.leaderName) {
+      res.status(400).json({ ok: false, errors: ['Nama kelompok dan nama ketua wajib diisi.'] });
+      return;
+    }
+    const newGrp: FarmerGroup = {
+      ...item,
+      id: item.id || `KT-${Date.now()}`,
+    };
+    db.farmerGroups = [newGrp, ...(db.farmerGroups || [])];
+    saveDatabase(db);
+    res.status(201).json({ ok: true, data: newGrp });
+  });
+  app.put('/api/urban-farming/groups/:id', (req, res) => {
+    const { id } = req.params;
+    const idx = (db.farmerGroups || []).findIndex((g) => g.id === id);
+    if (idx === -1) {
+      res.status(404).json({ ok: false, errors: ['Kelompok tani tidak ditemukan.'] });
+      return;
+    }
+    db.farmerGroups[idx] = { ...db.farmerGroups[idx], ...req.body };
+    saveDatabase(db);
+    res.json({ ok: true, data: db.farmerGroups[idx] });
+  });
+  app.delete('/api/urban-farming/groups/:id', (req, res) => {
+    const { id } = req.params;
+    db.farmerGroups = (db.farmerGroups || []).filter((g) => g.id !== id);
+    saveDatabase(db);
+    res.json({ ok: true, deletedId: id });
+  });
+
+  // Crops
+  app.get('/api/urban-farming/crops', (_req, res) => {
+    res.json({ ok: true, data: db.crops || INITIAL_CROPS });
+  });
+  app.post('/api/urban-farming/crops', (req, res) => {
+    const item = req.body as CropItem;
+    if (!item.name || !item.locationId) {
+      res.status(400).json({ ok: false, errors: ['Nama tanaman dan lokasi wajib dipilih.'] });
+      return;
+    }
+    const newCrop: CropItem = {
+      ...item,
+      id: item.id || `TNM-${Date.now()}`,
+    };
+    db.crops = [newCrop, ...(db.crops || [])];
+    saveDatabase(db);
+    res.status(201).json({ ok: true, data: newCrop });
+  });
+  app.put('/api/urban-farming/crops/:id', (req, res) => {
+    const { id } = req.params;
+    const idx = (db.crops || []).findIndex((c) => c.id === id);
+    if (idx === -1) {
+      res.status(404).json({ ok: false, errors: ['Data tanaman tidak ditemukan.'] });
+      return;
+    }
+    db.crops[idx] = { ...db.crops[idx], ...req.body };
+    saveDatabase(db);
+    res.json({ ok: true, data: db.crops[idx] });
+  });
+  app.delete('/api/urban-farming/crops/:id', (req, res) => {
+    const { id } = req.params;
+    db.crops = (db.crops || []).filter((c) => c.id !== id);
+    saveDatabase(db);
+    res.json({ ok: true, deletedId: id });
+  });
+
+  // Care Logs
+  app.get('/api/urban-farming/care-logs', (_req, res) => {
+    res.json({ ok: true, data: db.plantCareLogs || INITIAL_PLANT_CARE_LOGS });
+  });
+  app.post('/api/urban-farming/care-logs', (req, res) => {
+    const item = req.body as PlantCareLog;
+    if (!item.activityType || !item.locationId) {
+      res.status(400).json({ ok: false, errors: ['Jenis kegiatan dan lokasi wajib dipilih.'] });
+      return;
+    }
+    const newLog: PlantCareLog = {
+      ...item,
+      id: item.id || `CR-${Date.now()}`,
+      dateTime: item.dateTime || new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) + ' · Baru Saja',
+    };
+    db.plantCareLogs = [newLog, ...(db.plantCareLogs || [])];
+    saveDatabase(db);
+    res.status(201).json({ ok: true, data: newLog });
+  });
+  app.put('/api/urban-farming/care-logs/:id', (req, res) => {
+    const { id } = req.params;
+    const idx = (db.plantCareLogs || []).findIndex((c) => c.id === id);
+    if (idx === -1) {
+      res.status(404).json({ ok: false, errors: ['Log kegiatan tidak ditemukan.'] });
+      return;
+    }
+    db.plantCareLogs[idx] = { ...db.plantCareLogs[idx], ...req.body };
+    saveDatabase(db);
+    res.json({ ok: true, data: db.plantCareLogs[idx] });
+  });
+  app.delete('/api/urban-farming/care-logs/:id', (req, res) => {
+    const { id } = req.params;
+    db.plantCareLogs = (db.plantCareLogs || []).filter((c) => c.id !== id);
+    saveDatabase(db);
+    res.json({ ok: true, deletedId: id });
+  });
+
+  // Harvests
+  app.get('/api/urban-farming/harvests', (_req, res) => {
+    res.json({ ok: true, data: db.harvestRecords || INITIAL_HARVEST_RECORDS });
+  });
+  app.post('/api/urban-farming/harvests', (req, res) => {
+    const item = req.body as HarvestRecord;
+    if (!item.yieldAmount || !item.unit) {
+      res.status(400).json({ ok: false, errors: ['Jumlah hasil panen dan satuan wajib diisi.'] });
+      return;
+    }
+    const newHarvest: HarvestRecord = {
+      ...item,
+      id: item.id || `HV-${Date.now()}`,
+      harvestDate: item.harvestDate || new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+    };
+    db.harvestRecords = [newHarvest, ...(db.harvestRecords || [])];
+    saveDatabase(db);
+    res.status(201).json({ ok: true, data: newHarvest });
+  });
+  app.put('/api/urban-farming/harvests/:id', (req, res) => {
+    const { id } = req.params;
+    const idx = (db.harvestRecords || []).findIndex((h) => h.id === id);
+    if (idx === -1) {
+      res.status(404).json({ ok: false, errors: ['Data panen tidak ditemukan.'] });
+      return;
+    }
+    db.harvestRecords[idx] = { ...db.harvestRecords[idx], ...req.body };
+    saveDatabase(db);
+    res.json({ ok: true, data: db.harvestRecords[idx] });
+  });
+  app.delete('/api/urban-farming/harvests/:id', (req, res) => {
+    const { id } = req.params;
+    db.harvestRecords = (db.harvestRecords || []).filter((h) => h.id !== id);
+    saveDatabase(db);
+    res.json({ ok: true, deletedId: id });
+  });
+
+  // Inventories
+  app.get('/api/urban-farming/inventories', (_req, res) => {
+    res.json({ ok: true, data: db.farmingInventories || INITIAL_FARMING_INVENTORIES });
+  });
+  app.post('/api/urban-farming/inventories', (req, res) => {
+    const item = req.body as FarmingInventoryItem;
+    if (!item.itemName || !item.category) {
+      res.status(400).json({ ok: false, errors: ['Nama barang dan kategori wajib diisi.'] });
+      return;
+    }
+    const newInv: FarmingInventoryItem = {
+      ...item,
+      id: item.id || `INV-${Date.now()}`,
+      recordedDate: item.recordedDate || new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+    };
+    db.farmingInventories = [newInv, ...(db.farmingInventories || [])];
+    saveDatabase(db);
+    res.status(201).json({ ok: true, data: newInv });
+  });
+  app.put('/api/urban-farming/inventories/:id', (req, res) => {
+    const { id } = req.params;
+    const idx = (db.farmingInventories || []).findIndex((i) => i.id === id);
+    if (idx === -1) {
+      res.status(404).json({ ok: false, errors: ['Barang inventaris tidak ditemukan.'] });
+      return;
+    }
+    db.farmingInventories[idx] = { ...db.farmingInventories[idx], ...req.body };
+    saveDatabase(db);
+    res.json({ ok: true, data: db.farmingInventories[idx] });
+  });
+  app.delete('/api/urban-farming/inventories/:id', (req, res) => {
+    const { id } = req.params;
+    db.farmingInventories = (db.farmingInventories || []).filter((i) => i.id !== id);
+    saveDatabase(db);
+    res.json({ ok: true, deletedId: id });
+  });
+
+  // Supply Requests
+  app.get('/api/urban-farming/supply-requests', (_req, res) => {
+    res.json({ ok: true, data: db.supplyRequests || INITIAL_SUPPLY_REQUESTS });
+  });
+  app.post('/api/urban-farming/supply-requests', (req, res) => {
+    const item = req.body as SupplyRequestItem;
+    if (!item.itemNeeded || !item.requesterName) {
+      res.status(400).json({ ok: false, errors: ['Nama pemohon dan kebutuhan wajib diisi.'] });
+      return;
+    }
+    const newReq: SupplyRequestItem = {
+      ...item,
+      id: item.id || `AJU-${Date.now()}`,
+      requestDate: item.requestDate || new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+      status: item.status || 'Diajukan',
+    };
+    db.supplyRequests = [newReq, ...(db.supplyRequests || [])];
+    saveDatabase(db);
+    res.status(201).json({ ok: true, data: newReq });
+  });
+  app.put('/api/urban-farming/supply-requests/:id', (req, res) => {
+    const { id } = req.params;
+    const idx = (db.supplyRequests || []).findIndex((s) => s.id === id);
+    if (idx === -1) {
+      res.status(404).json({ ok: false, errors: ['Pengajuan kebutuhan tidak ditemukan.'] });
+      return;
+    }
+    db.supplyRequests[idx] = { ...db.supplyRequests[idx], ...req.body };
+    saveDatabase(db);
+    res.json({ ok: true, data: db.supplyRequests[idx] });
+  });
+  app.delete('/api/urban-farming/supply-requests/:id', (req, res) => {
+    const { id } = req.params;
+    db.supplyRequests = (db.supplyRequests || []).filter((s) => s.id !== id);
+    saveDatabase(db);
+    res.json({ ok: true, deletedId: id });
   });
 
   // Vite middleware for development or static serving for production

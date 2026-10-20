@@ -1442,6 +1442,15 @@ export default function App() {
         )}
       </main>
 
+      {/* Global Footer (Visible on inner views, HomePortal includes its own footer) */}
+      {activeView !== 'beranda' && (
+        <footer className="mt-auto border-t border-slate-200 bg-white py-3.5 px-4 text-center">
+          <p className="text-[11px] sm:text-xs text-slate-500 font-medium tracking-wide">
+            Develope by @asmaracess
+          </p>
+        </footer>
+      )}
+
       {/* Instant Toast Notification Stack */}
       {toasts.length > 0 && (
         <div

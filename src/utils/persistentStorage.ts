@@ -11,6 +11,13 @@ import {
   AdminActivityLog,
   UrbanFarmingSpot,
   SeedRequestItem,
+  UrbanFarmingLocation,
+  FarmerGroup,
+  CropItem,
+  PlantCareLog,
+  HarvestRecord,
+  FarmingInventoryItem,
+  SupplyRequestItem,
 } from '../types';
 import {
   INITIAL_KELURAHAN_PROFILE,
@@ -25,6 +32,13 @@ import {
   INITIAL_ACTIVITY_LOGS,
   INITIAL_URBAN_FARMING_SPOTS,
   INITIAL_SEED_REQUESTS,
+  INITIAL_URBAN_FARMING_LOCATIONS,
+  INITIAL_FARMER_GROUPS,
+  INITIAL_CROPS,
+  INITIAL_PLANT_CARE_LOGS,
+  INITIAL_HARVEST_RECORDS,
+  INITIAL_FARMING_INVENTORIES,
+  INITIAL_SUPPLY_REQUESTS,
 } from '../data/initialData';
 import { SERVICE_CATEGORY_GROUPS, ServiceCategoryGroup } from '../data/wargaServiceCatalog';
 
@@ -42,6 +56,13 @@ export interface PersistedDatabase {
   activityLogs?: AdminActivityLog[];
   urbanFarmingSpots?: UrbanFarmingSpot[];
   seedRequests?: SeedRequestItem[];
+  urbanFarmingLocations?: UrbanFarmingLocation[];
+  farmerGroups?: FarmerGroup[];
+  crops?: CropItem[];
+  plantCareLogs?: PlantCareLog[];
+  harvestRecords?: HarvestRecord[];
+  farmingInventories?: FarmingInventoryItem[];
+  supplyRequests?: SupplyRequestItem[];
   updatedAt: number;
 }
 
@@ -105,6 +126,34 @@ export function loadPersistedDatabase(): PersistedDatabase | null {
         Array.isArray(parsed.seedRequests) && parsed.seedRequests.length > 0
           ? parsed.seedRequests
           : INITIAL_SEED_REQUESTS,
+      urbanFarmingLocations:
+        Array.isArray(parsed.urbanFarmingLocations) && parsed.urbanFarmingLocations.length > 0
+          ? parsed.urbanFarmingLocations
+          : INITIAL_URBAN_FARMING_LOCATIONS,
+      farmerGroups:
+        Array.isArray(parsed.farmerGroups) && parsed.farmerGroups.length > 0
+          ? parsed.farmerGroups
+          : INITIAL_FARMER_GROUPS,
+      crops:
+        Array.isArray(parsed.crops) && parsed.crops.length > 0
+          ? parsed.crops
+          : INITIAL_CROPS,
+      plantCareLogs:
+        Array.isArray(parsed.plantCareLogs) && parsed.plantCareLogs.length > 0
+          ? parsed.plantCareLogs
+          : INITIAL_PLANT_CARE_LOGS,
+      harvestRecords:
+        Array.isArray(parsed.harvestRecords) && parsed.harvestRecords.length > 0
+          ? parsed.harvestRecords
+          : INITIAL_HARVEST_RECORDS,
+      farmingInventories:
+        Array.isArray(parsed.farmingInventories) && parsed.farmingInventories.length > 0
+          ? parsed.farmingInventories
+          : INITIAL_FARMING_INVENTORIES,
+      supplyRequests:
+        Array.isArray(parsed.supplyRequests) && parsed.supplyRequests.length > 0
+          ? parsed.supplyRequests
+          : INITIAL_SUPPLY_REQUESTS,
       updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : Date.now(),
     };
   } catch {

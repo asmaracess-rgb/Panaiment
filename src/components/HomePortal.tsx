@@ -1560,6 +1560,14 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                 </svg>
               </div>
             </div>
+
+            {/* Bottom Credit Line */}
+            <div className="mx-auto max-w-5xl mt-6 pt-4 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-sky-200/70">
+              <div>© {new Date().getFullYear()} Kelurahan Panaikang · Kota Makassar</div>
+              <div className="font-medium tracking-wide text-sky-100">
+                Develope by @asmaracess
+              </div>
+            </div>
           </div>
         </div>
       </footer>

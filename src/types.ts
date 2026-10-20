@@ -332,4 +332,185 @@ export interface SeedRequestItem {
   createdAt: string;
 }
 
+// ==================== FULL URBAN FARMING KELURAHAN PANAIKANG SPEC TYPES ====================
+
+export type LandType =
+  | 'Pekarangan rumah'
+  | 'Kebun kelompok'
+  | 'Lahan kosong'
+  | 'Lahan fasilitas umum'
+  | 'Lahan lainnya';
+
+export type LandManagementStatus = 'Aktif' | 'Tidak aktif' | 'Dalam pengembangan';
+
+export interface UrbanFarmingLocation {
+  id: string;
+  name: string;
+  address: string;
+  rw: string;
+  rt: string;
+  picName: string;
+  picPhone: string;
+  landAreaSqm: number;
+  landType: LandType;
+  latitude: number | null;
+  longitude: number | null;
+  managementStatus: LandManagementStatus;
+  description: string;
+  photoUrl: string;
+  recordedDate: string;
+  isPotentialLand?: boolean;
+}
+
+export type FarmerGroupStatus = 'Aktif' | 'Tidak aktif' | 'Pemula';
+
+export interface FarmerGroup {
+  id: string;
+  name: string;
+  leaderName: string;
+  memberCount: number;
+  membersList: string[];
+  address: string;
+  phone: string;
+  managedLocationIds: string[];
+  activityType: string;
+  formationDate: string;
+  status: FarmerGroupStatus;
+  documentation: string;
+}
+
+export type CropCategory =
+  | 'Sayuran daun'
+  | 'Sayuran buah'
+  | 'Tanaman obat'
+  | 'Tanaman buah'
+  | 'Tanaman pangan'
+  | 'Tanaman lainnya';
+
+export type GrowthStatus =
+  | 'Persiapan lahan'
+  | 'Baru ditanam'
+  | 'Masa pertumbuhan'
+  | 'Masa berbunga'
+  | 'Masa berbuah'
+  | 'Siap panen'
+  | 'Sudah dipanen'
+  | 'Gagal panen';
+
+export type CropCondition = 'Sangat Baik' | 'Baik' | 'Perlu Perhatian' | 'Terserang Hama';
+
+export interface CropItem {
+  id: string;
+  name: string;
+  category: CropCategory;
+  locationId: string;
+  groupId: string;
+  seedlingCount: number;
+  plantingDate: string;
+  estimatedHarvestDate: string;
+  condition: CropCondition;
+  growthStatus: GrowthStatus;
+  notes: string;
+  photoUrl: string;
+}
+
+export type CareActivityType =
+  | 'Penyiraman'
+  | 'Pemupukan'
+  | 'Penyiangan'
+  | 'Pengendalian hama'
+  | 'Pemangkasan'
+  | 'Penggantian tanaman'
+  | 'Pemeriksaan kondisi tanaman'
+  | 'Kegiatan lainnya';
+
+export interface PlantCareLog {
+  id: string;
+  dateTime: string;
+  locationId: string;
+  cropId: string;
+  activityType: CareActivityType;
+  officerName: string;
+  conditionBefore: string;
+  conditionAfter: string;
+  notes: string;
+  photoUrl: string;
+  nextScheduleDate: string;
+  reminderStatus: 'Selesai' | 'Perlu Dilakukan' | 'Mendatang';
+}
+
+export type HarvestUnit = 'Kilogram' | 'Gram' | 'Buah' | 'Ikat' | 'Satuan lainnya';
+
+export type HarvestQuality = 'Grade A (Super)' | 'Grade B (Baik)' | 'Grade C (Standar)';
+
+export type HarvestUtilization =
+  | 'Konsumsi kelompok'
+  | 'Dibagikan kepada warga'
+  | 'Dijual'
+  | 'Bantuan sosial'
+  | 'Pemanfaatan lainnya';
+
+export interface HarvestRecord {
+  id: string;
+  harvestDate: string;
+  locationId: string;
+  cropId: string;
+  groupId: string;
+  yieldAmount: number;
+  unit: HarvestUnit;
+  quality: HarvestQuality;
+  utilization: HarvestUtilization;
+  recordedBy: string;
+  notes: string;
+  photoUrl: string;
+}
+
+export type InventoryCategory =
+  | 'Bibit'
+  | 'Pupuk'
+  | 'Media tanam'
+  | 'Pot dan polybag'
+  | 'Peralatan berkebun'
+  | 'Instalasi hidroponik'
+  | 'Peralatan penyiraman'
+  | 'Sarana lainnya';
+
+export type InventoryCondition = 'Baik / Siap Pakai' | 'Perlu Perbaikan' | 'Habis / Perlu Pengadaan';
+
+export interface FarmingInventoryItem {
+  id: string;
+  itemName: string;
+  category: InventoryCategory;
+  quantity: number;
+  unit: string;
+  condition: InventoryCondition;
+  storageLocation: string;
+  recordedDate: string;
+  source: string;
+  notes: string;
+}
+
+export type SupplyRequestStatus =
+  | 'Diajukan'
+  | 'Dalam verifikasi'
+  | 'Disetujui'
+  | 'Ditolak'
+  | 'Dalam penyaluran'
+  | 'Selesai disalurkan';
+
+export interface SupplyRequestItem {
+  id: string;
+  requesterGroupId: string;
+  requesterName: string;
+  requesterPhone: string;
+  locationId: string;
+  itemNeeded: string;
+  quantityNeeded: string;
+  reason: string;
+  requestDate: string;
+  status: SupplyRequestStatus;
+  verificationNotes?: string;
+}
+
+
 
