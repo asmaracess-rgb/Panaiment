@@ -11,6 +11,7 @@ import {
   ReportStatus,
   WasteBankUnit,
   WasteLogEntry,
+  TebaSpot,
   CleanupEvent,
   KelurahanProfile,
   KelurahanInfoItem,
@@ -25,6 +26,7 @@ import {
   INITIAL_REPORTS,
   INITIAL_WASTE_UNITS,
   INITIAL_WASTE_LOGS,
+  INITIAL_TEBA_SPOTS,
   INITIAL_CLEANUP_EVENTS,
   INITIAL_KELURAHAN_PROFILE,
   INITIAL_KELURAHAN_INFOS,
@@ -119,6 +121,11 @@ export default function App() {
       ? initialPersisted.seedRequests
       : INITIAL_SEED_REQUESTS
   );
+  const [tebaSpots, setTebaSpots] = useState<TebaSpot[]>(
+    initialPersisted?.tebaSpots && initialPersisted.tebaSpots.length > 0
+      ? initialPersisted.tebaSpots
+      : INITIAL_TEBA_SPOTS
+  );
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
   const stateRef = useRef({
@@ -127,6 +134,7 @@ export default function App() {
     reports,
     wasteUnits,
     wasteLogs,
+    tebaSpots,
     cleanupEvents,
     kelurahanInfos,
     whatsappRecipients,
@@ -144,6 +152,7 @@ export default function App() {
       reports,
       wasteUnits,
       wasteLogs,
+      tebaSpots,
       cleanupEvents,
       kelurahanInfos,
       whatsappRecipients,
@@ -159,6 +168,7 @@ export default function App() {
     reports,
     wasteUnits,
     wasteLogs,
+    tebaSpots,
     cleanupEvents,
     kelurahanInfos,
     whatsappRecipients,
@@ -177,6 +187,7 @@ export default function App() {
         reports: partial.reports ?? stateRef.current.reports,
         wasteUnits: partial.wasteUnits ?? stateRef.current.wasteUnits,
         wasteLogs: partial.wasteLogs ?? stateRef.current.wasteLogs,
+        tebaSpots: partial.tebaSpots ?? stateRef.current.tebaSpots,
         cleanupEvents: partial.cleanupEvents ?? stateRef.current.cleanupEvents,
         kelurahanInfos: partial.kelurahanInfos ?? stateRef.current.kelurahanInfos,
         whatsappRecipients: partial.whatsappRecipients ?? stateRef.current.whatsappRecipients,
@@ -193,6 +204,7 @@ export default function App() {
         reports: nextSnapshot.reports,
         wasteUnits: nextSnapshot.wasteUnits,
         wasteLogs: nextSnapshot.wasteLogs,
+        tebaSpots: nextSnapshot.tebaSpots ?? INITIAL_TEBA_SPOTS,
         cleanupEvents: nextSnapshot.cleanupEvents,
         kelurahanInfos: nextSnapshot.kelurahanInfos,
         whatsappRecipients: nextSnapshot.whatsappRecipients,
@@ -794,6 +806,107 @@ export default function App() {
     return { ok: true };
   };
 
+  // 3B. Teba Spots CRUD
+  const handleAdminCreateTebaSpot = async (
+    spot: Partial<TebaSpot>
+  ): Promise<{ ok: boolean; errors?: string[] }> => {
+    try {
+      const res = await fetch('/api/teba-spots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(spot),
+      });
+      const json = await res.json();
+      if (json.ok && json.data) {
+        const next = [json.data, ...stateRef.current.tebaSpots.filter((s) => s.id !== json.data.id)];
+        setTebaSpots(next);
+        commitPersistence({ tebaSpots: next }, false);
+        return { ok: true };
+      }
+      return { ok: false, errors: json.errors || ['Gagal menambahkan titik Teba.'] };
+    } catch {
+      const newSpot: TebaSpot = {
+        id: `teba-${Date.now()}`,
+        name: spot.name || 'Titik Teba Komunal',
+        code:
+          spot.code ||
+          `TEBA-${(spot.rw || 'RW 01').replace(/\s+/g, '')}-${Date.now().toString().slice(-3)}`,
+        rw: spot.rw || 'RW 01',
+        rt: spot.rt || 'RT 01',
+        address: spot.address || 'Kelurahan Panaikang',
+        locationTag: spot.locationTag || 'Patokan Titik Teba',
+        mapUrl: spot.mapUrl || '',
+        imageUrl: spot.imageUrl || '',
+        documentationPhotos: spot.documentationPhotos || [spot.imageUrl || ''],
+        capacityKg: Number(spot.capacityKg) || 300,
+        currentLoadKg: Number(spot.currentLoadKg) || 0,
+        wasteTypeProcessed: spot.wasteTypeProcessed || 'Sisa sayur dapur & dedaunan',
+        coordinatorName: spot.coordinatorName || 'Kader Lingkungan',
+        coordinatorPhone: spot.coordinatorPhone || '',
+        status: spot.status || 'Aktif Beroperasi',
+        description:
+          spot.description || 'Fasilitas teba komunal biopori resapan organik mandiri.',
+        lastHarvestDate: spot.lastHarvestDate || 'Belum ada panen',
+        createdAt: new Date().toLocaleDateString('id-ID'),
+      };
+      const next = [newSpot, ...stateRef.current.tebaSpots];
+      setTebaSpots(next);
+      commitPersistence({ tebaSpots: next }, true);
+      return { ok: true };
+    }
+  };
+
+  const handleAdminUpdateTebaSpot = async (
+    id: string,
+    spot: Partial<TebaSpot>
+  ): Promise<{ ok: boolean; errors?: string[] }> => {
+    try {
+      const res = await fetch(`/api/teba-spots/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(spot),
+      });
+      const json = await res.json();
+      if (json.ok && json.data) {
+        const next = stateRef.current.tebaSpots.map((s) => (s.id === id ? { ...s, ...json.data } : s));
+        setTebaSpots(next);
+        commitPersistence({ tebaSpots: next }, false);
+        return { ok: true };
+      }
+      return { ok: false, errors: json.errors || ['Gagal memperbarui data titik Teba.'] };
+    } catch {
+      const next = stateRef.current.tebaSpots.map((s) =>
+        s.id === id ? { ...s, ...spot, updatedAt: new Date().toLocaleDateString('id-ID') } : s
+      );
+      setTebaSpots(next);
+      commitPersistence({ tebaSpots: next }, true);
+      return { ok: true };
+    }
+  };
+
+  const handleAdminDeleteTebaSpot = async (
+    id: string
+  ): Promise<{ ok: boolean; errors?: string[] }> => {
+    try {
+      const res = await fetch(`/api/teba-spots/${id}`, {
+        method: 'DELETE',
+      });
+      const json = await res.json();
+      if (json.ok) {
+        const next = stateRef.current.tebaSpots.filter((s) => s.id !== id);
+        setTebaSpots(next);
+        commitPersistence({ tebaSpots: next }, false);
+        return { ok: true };
+      }
+      return { ok: false, errors: json.errors || ['Gagal menghapus data titik Teba.'] };
+    } catch {
+      const next = stateRef.current.tebaSpots.filter((s) => s.id !== id);
+      setTebaSpots(next);
+      commitPersistence({ tebaSpots: next }, true);
+      return { ok: true };
+    }
+  };
+
   // 4. Cleanup Events (Kerja Bakti) CRUD
   const handleJoinCleanup = (eventId: string, participantCount: number) => {
     const target = stateRef.current.cleanupEvents.find((e) => e.id === eventId);
@@ -1381,7 +1494,7 @@ export default function App() {
               activeView === 'sampah' ? 'text-[#EF6C00] font-bold underline' : ''
             }`}
           >
-            Bank Sampah
+            Bank Sampah (BSU) & Teba
           </a>
           <a
             href="#kerjabakti"
@@ -1500,6 +1613,7 @@ export default function App() {
           <MonitoringSampahView
             wasteUnits={wasteUnits}
             wasteLogs={wasteLogs}
+            tebaSpots={tebaSpots}
             onAddWasteLog={handleAddWasteLog}
             onNavigate={handleNavigate}
           />
@@ -1573,6 +1687,10 @@ export default function App() {
             onAddSeedRequest={handleAdminAddSeedRequest}
             onUpdateSeedRequest={handleAdminUpdateSeedRequest}
             onDeleteSeedRequest={handleAdminDeleteSeedRequest}
+            tebaSpots={tebaSpots}
+            onCreateTebaSpot={handleAdminCreateTebaSpot}
+            onUpdateTebaSpot={handleAdminUpdateTebaSpot}
+            onDeleteTebaSpot={handleAdminDeleteTebaSpot}
           />
         )}
       </main>

@@ -111,6 +111,37 @@ export interface WasteLogEntry {
   notes: string;
 }
 
+export type TebaStatus =
+  | 'Aktif Beroperasi'
+  | 'Penuh / Masa Pengomposan'
+  | 'Perawatan & Pembersihan'
+  | 'Rencana Pembangunan';
+
+export interface TebaSpot {
+  id: string;
+  name: string;
+  code: string;
+  rw: string;
+  rt: string;
+  address: string;
+  locationTag: string;
+  mapUrl?: string;
+  latitude?: number;
+  longitude?: number;
+  imageUrl: string;
+  documentationPhotos?: string[];
+  capacityKg: number;
+  currentLoadKg: number;
+  wasteTypeProcessed: string;
+  coordinatorName: string;
+  coordinatorPhone: string;
+  status: TebaStatus;
+  description: string;
+  lastHarvestDate?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
 export interface CleanupEvent {
   id: string;
   title: string;

@@ -20,6 +20,7 @@ import {
   CitizenReport,
   WasteBankUnit,
   WasteLogEntry,
+  TebaSpot,
   CleanupEvent,
   KelurahanInfoItem,
   RwGroup,
@@ -37,6 +38,7 @@ import {
   SupplyRequestItem,
 } from './src/types.ts';
 import {
+  INITIAL_TEBA_SPOTS,
   INITIAL_URBAN_FARMING_SPOTS,
   INITIAL_SEED_REQUESTS,
   INITIAL_URBAN_FARMING_LOCATIONS,
@@ -61,6 +63,7 @@ interface DatabaseSchema {
   reports: CitizenReport[];
   wasteUnits: WasteBankUnit[];
   wasteLogs: WasteLogEntry[];
+  tebaSpots: TebaSpot[];
   cleanupEvents: CleanupEvent[];
   kelurahanInfos: KelurahanInfoItem[];
   whatsappRecipients: WhatsAppRecipient[];
@@ -108,6 +111,10 @@ function loadDatabase(): DatabaseSchema {
           reports: Array.isArray(parsed.reports) ? parsed.reports : INITIAL_REPORTS,
           wasteUnits: Array.isArray(parsed.wasteUnits) ? parsed.wasteUnits : INITIAL_WASTE_UNITS,
           wasteLogs: Array.isArray(parsed.wasteLogs) ? parsed.wasteLogs : INITIAL_WASTE_LOGS,
+          tebaSpots:
+            Array.isArray(parsed.tebaSpots) && parsed.tebaSpots.length > 0
+              ? parsed.tebaSpots
+              : INITIAL_TEBA_SPOTS,
           cleanupEvents: Array.isArray(parsed.cleanupEvents)
             ? parsed.cleanupEvents
             : INITIAL_CLEANUP_EVENTS,
@@ -180,6 +187,7 @@ function loadDatabase(): DatabaseSchema {
     reports: INITIAL_REPORTS,
     wasteUnits: INITIAL_WASTE_UNITS,
     wasteLogs: INITIAL_WASTE_LOGS,
+    tebaSpots: INITIAL_TEBA_SPOTS,
     cleanupEvents: INITIAL_CLEANUP_EVENTS,
     kelurahanInfos: INITIAL_KELURAHAN_INFOS,
     whatsappRecipients: INITIAL_WHATSAPP_RECIPIENTS,
@@ -279,6 +287,26 @@ function validateWasteUnit(body: Partial<WasteBankUnit>): string[] {
     body.residuKg < 0
   ) {
     errors.push('Volume sampah (Organik, Anorganik, Residu) harus berupa angka >= 0.');
+  }
+  return errors;
+}
+
+function validateTebaSpot(body: Partial<TebaSpot>): string[] {
+  const errors: string[] = [];
+  if (!body.name || body.name.trim().length < 3) {
+    errors.push('Nama Titik Teba wajib diisi (minimal 3 karakter).');
+  }
+  if (!body.rw || !body.rw.trim()) {
+    errors.push('Wilayah RW wajib dipilih.');
+  }
+  if (!body.address || body.address.trim().length < 5) {
+    errors.push('Alamat lokasi titik Teba wajib diisi (minimal 5 karakter).');
+  }
+  if (!body.locationTag || !body.locationTag.trim()) {
+    errors.push('Tag atau patokan lokasi wajib diisi.');
+  }
+  if (!body.imageUrl || !body.imageUrl.trim()) {
+    errors.push('Foto lokasi titik Teba wajib diunggah.');
   }
   return errors;
 }
@@ -574,6 +602,7 @@ async function startServer() {
     if (Array.isArray(incoming.reports)) db.reports = incoming.reports;
     if (Array.isArray(incoming.wasteUnits)) db.wasteUnits = incoming.wasteUnits;
     if (Array.isArray(incoming.wasteLogs)) db.wasteLogs = incoming.wasteLogs;
+    if (Array.isArray(incoming.tebaSpots)) db.tebaSpots = incoming.tebaSpots;
     if (Array.isArray(incoming.cleanupEvents)) db.cleanupEvents = incoming.cleanupEvents;
     if (Array.isArray(incoming.kelurahanInfos)) db.kelurahanInfos = incoming.kelurahanInfos;
     if (Array.isArray(incoming.whatsappRecipients))
@@ -1206,6 +1235,112 @@ async function startServer() {
     db.wasteLogs = db.wasteLogs.filter((l) => l.id !== id);
     saveDatabase(db);
     res.json({ ok: true, deletedId: id });
+  });
+
+  // 5B. Teba Spots CRUD (Monitoring & Kelola Titik Teba)
+  app.get('/api/teba-spots', (_req, res) => {
+    res.json({ ok: true, data: db.tebaSpots || [] });
+  });
+
+  app.post('/api/teba-spots', (req, res) => {
+    const incoming = req.body as Partial<TebaSpot>;
+    const errors = validateTebaSpot(incoming);
+    if (errors.length > 0) {
+      res.status(400).json({ ok: false, errors });
+      return;
+    }
+
+    const rwClean = incoming.rw?.trim() || 'RW 01';
+    const rtClean = incoming.rt?.trim() || 'RT 01';
+    const nowIso = new Date().toLocaleDateString('id-ID', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
+
+    const newSpot: TebaSpot = {
+      id: `teba-${Date.now()}`,
+      name: incoming.name!.trim(),
+      code: incoming.code?.trim() || `TEBA-${rwClean.replace(/\s+/g, '')}-${Date.now().toString().slice(-3)}`,
+      rw: rwClean,
+      rt: rtClean,
+      address: incoming.address!.trim(),
+      locationTag: incoming.locationTag!.trim(),
+      mapUrl: incoming.mapUrl?.trim() || '',
+      latitude: typeof incoming.latitude === 'number' ? incoming.latitude : -5.1385,
+      longitude: typeof incoming.longitude === 'number' ? incoming.longitude : 119.4475,
+      imageUrl: incoming.imageUrl!.trim(),
+      documentationPhotos:
+        Array.isArray(incoming.documentationPhotos) && incoming.documentationPhotos.length > 0
+          ? incoming.documentationPhotos
+          : [incoming.imageUrl!.trim()],
+      capacityKg: Number(incoming.capacityKg) || 300,
+      currentLoadKg: Number(incoming.currentLoadKg) || 0,
+      wasteTypeProcessed:
+        incoming.wasteTypeProcessed?.trim() || 'Limbah organik basah, sisa sayur/buah & dedaunan',
+      coordinatorName: incoming.coordinatorName?.trim() || 'Koordinator Lingkungan RW Setempat',
+      coordinatorPhone: incoming.coordinatorPhone?.trim() || '',
+      status: incoming.status || 'Aktif Beroperasi',
+      description: incoming.description?.trim() || 'Fasilitas teba komunal biopori resapan organik mandiri.',
+      lastHarvestDate: incoming.lastHarvestDate?.trim() || 'Belum ada panen',
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+
+    if (!Array.isArray(db.tebaSpots)) {
+      db.tebaSpots = [];
+    }
+    db.tebaSpots = [newSpot, ...db.tebaSpots];
+    saveDatabase(db);
+    res.status(201).json({ ok: true, data: newSpot, tebaSpots: db.tebaSpots });
+  });
+
+  app.put('/api/teba-spots/:id', (req, res) => {
+    const { id } = req.params;
+    if (!Array.isArray(db.tebaSpots)) db.tebaSpots = [];
+    const idx = db.tebaSpots.findIndex((t) => t.id === id);
+    if (idx === -1) {
+      res.status(404).json({ ok: false, errors: ['Titik Teba tidak ditemukan.'] });
+      return;
+    }
+
+    const prevSpot = db.tebaSpots[idx];
+    const incoming = req.body as Partial<TebaSpot>;
+    const merged: TebaSpot = {
+      ...prevSpot,
+      ...incoming,
+      name: (incoming.name ?? prevSpot.name).trim(),
+      rw: (incoming.rw ?? prevSpot.rw).trim(),
+      rt: (incoming.rt ?? prevSpot.rt).trim(),
+      address: (incoming.address ?? prevSpot.address).trim(),
+      locationTag: (incoming.locationTag ?? prevSpot.locationTag).trim(),
+      imageUrl: (incoming.imageUrl ?? prevSpot.imageUrl).trim(),
+      capacityKg: Number(incoming.capacityKg ?? prevSpot.capacityKg) || 300,
+      currentLoadKg: Number(incoming.currentLoadKg ?? prevSpot.currentLoadKg) || 0,
+      updatedAt: new Date().toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      }),
+    };
+
+    const errors = validateTebaSpot(merged);
+    if (errors.length > 0) {
+      res.status(400).json({ ok: false, errors });
+      return;
+    }
+
+    db.tebaSpots[idx] = merged;
+    saveDatabase(db);
+    res.json({ ok: true, data: merged, tebaSpots: db.tebaSpots });
+  });
+
+  app.delete('/api/teba-spots/:id', (req, res) => {
+    const { id } = req.params;
+    if (!Array.isArray(db.tebaSpots)) db.tebaSpots = [];
+    db.tebaSpots = db.tebaSpots.filter((t) => t.id !== id);
+    saveDatabase(db);
+    res.json({ ok: true, deletedId: id, tebaSpots: db.tebaSpots });
   });
 
   // 6. Cleanup Events (Kerja Bakti) CRUD

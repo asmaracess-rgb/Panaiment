@@ -4,6 +4,7 @@ import {
   CitizenReport,
   WasteBankUnit,
   WasteLogEntry,
+  TebaSpot,
   CleanupEvent,
   KelurahanInfoItem,
   WhatsAppRecipient,
@@ -25,6 +26,7 @@ import {
   INITIAL_REPORTS,
   INITIAL_WASTE_UNITS,
   INITIAL_WASTE_LOGS,
+  INITIAL_TEBA_SPOTS,
   INITIAL_CLEANUP_EVENTS,
   INITIAL_KELURAHAN_INFOS,
   INITIAL_WHATSAPP_RECIPIENTS,
@@ -48,6 +50,7 @@ export interface PersistedDatabase {
   reports: CitizenReport[];
   wasteUnits: WasteBankUnit[];
   wasteLogs: WasteLogEntry[];
+  tebaSpots?: TebaSpot[];
   cleanupEvents: CleanupEvent[];
   kelurahanInfos: KelurahanInfoItem[];
   whatsappRecipients: WhatsAppRecipient[];
@@ -97,6 +100,10 @@ export function loadPersistedDatabase(): PersistedDatabase | null {
       reports: Array.isArray(parsed.reports) ? parsed.reports : INITIAL_REPORTS,
       wasteUnits: Array.isArray(parsed.wasteUnits) ? parsed.wasteUnits : INITIAL_WASTE_UNITS,
       wasteLogs: Array.isArray(parsed.wasteLogs) ? parsed.wasteLogs : INITIAL_WASTE_LOGS,
+      tebaSpots:
+        Array.isArray(parsed.tebaSpots) && parsed.tebaSpots.length > 0
+          ? parsed.tebaSpots
+          : INITIAL_TEBA_SPOTS,
       cleanupEvents: Array.isArray(parsed.cleanupEvents)
         ? parsed.cleanupEvents
         : INITIAL_CLEANUP_EVENTS,

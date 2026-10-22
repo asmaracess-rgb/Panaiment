@@ -45,6 +45,7 @@ import {
   ReportStatus,
   WasteBankUnit,
   WasteLogEntry,
+  TebaSpot,
   CleanupEvent,
   KelurahanInfoItem,
   RwGroup,
@@ -73,6 +74,7 @@ import {
   INITIAL_WHATSAPP_RECIPIENTS,
   INITIAL_ADMIN_USERS,
   INITIAL_ACTIVITY_LOGS,
+  INITIAL_TEBA_SPOTS,
   INITIAL_URBAN_FARMING_SPOTS,
   INITIAL_SEED_REQUESTS,
 } from '../data/initialData';
@@ -96,6 +98,7 @@ import {
   ExternalPrintSelection,
 } from './AdminRtRwReportPanel';
 import { AdminUrbanFarmingPanel } from './AdminUrbanFarmingPanel';
+import { AdminTebaPanel } from './AdminTebaPanel';
 import {
   SERVICE_CATEGORY_GROUPS,
   ServiceCategoryGroup,
@@ -213,6 +216,15 @@ interface AdminPanelViewProps {
     req: Partial<SeedRequestItem>
   ) => Promise<{ ok: boolean; errors?: string[] }>;
   onDeleteSeedRequest?: (id: string) => Promise<{ ok: boolean; errors?: string[] }>;
+  tebaSpots?: TebaSpot[];
+  onCreateTebaSpot?: (
+    spot: Partial<TebaSpot>
+  ) => Promise<{ ok: boolean; errors?: string[] }>;
+  onUpdateTebaSpot?: (
+    id: string,
+    spot: Partial<TebaSpot>
+  ) => Promise<{ ok: boolean; errors?: string[] }>;
+  onDeleteTebaSpot?: (id: string) => Promise<{ ok: boolean; errors?: string[] }>;
 }
 
 export type AdminTab =
@@ -295,6 +307,10 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   onAddSeedRequest,
   onUpdateSeedRequest,
   onDeleteSeedRequest,
+  tebaSpots = INITIAL_TEBA_SPOTS,
+  onCreateTebaSpot,
+  onUpdateTebaSpot,
+  onDeleteTebaSpot,
 }) => {
   // ================= AUTHENTICATION STATE =================
   const [adminSession, setAdminSession] = useState<AdminSession | null>(() => {
@@ -724,6 +740,62 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         summary: `Menghapus data permohonan bibit #${id}`,
         details: `Pemohon: ${prev?.applicantName} (${prev?.rw})`,
         severity: 'warning',
+      });
+    }
+    return res;
+  };
+
+  const [sampahSubTab, setSampahSubTab] = useState<'bsu' | 'teba'>('bsu');
+
+  const auditedOnCreateTebaSpot = async (spot: Partial<TebaSpot>) => {
+    if (!onCreateTebaSpot) return { ok: true };
+    const res = await onCreateTebaSpot(spot);
+    if (res.ok) {
+      recordAudit({
+        actionType: 'CREATE',
+        module: 'BANK_SAMPAH',
+        targetLabel: `Titik Teba: ${spot.name || 'Baru'} (${spot.rw || '-'})`,
+        summary: `Menambahkan titik Teba komunal baru "${spot.name}" di ${spot.rw}`,
+        details: `Alamat: ${spot.address}. Tag: ${spot.locationTag}. Kapasitas: ${spot.capacityKg} kg`,
+        severity: 'info',
+      });
+    }
+    return res;
+  };
+
+  const auditedOnUpdateTebaSpot = async (id: string, spot: Partial<TebaSpot>) => {
+    if (!onUpdateTebaSpot) return { ok: true };
+    const prev = tebaSpots.find((t) => t.id === id);
+    const res = await onUpdateTebaSpot(id, spot);
+    if (res.ok) {
+      recordAudit({
+        actionType: 'UPDATE',
+        module: 'BANK_SAMPAH',
+        targetId: id,
+        targetLabel: `Titik Teba: ${spot.name || prev?.name || id}`,
+        summary: `Memperbarui data titik Teba komunal "${spot.name || prev?.name || id}"`,
+        details: `Status: ${spot.status || prev?.status}. Tag: ${spot.locationTag || prev?.locationTag}`,
+        beforeValue: `Beban: ${prev?.currentLoadKg || 0} kg · Status: ${prev?.status || '-'}`,
+        afterValue: `Beban: ${spot.currentLoadKg ?? prev?.currentLoadKg} kg · Status: ${spot.status || prev?.status}`,
+        severity: 'warning',
+      });
+    }
+    return res;
+  };
+
+  const auditedOnDeleteTebaSpot = async (id: string) => {
+    if (!onDeleteTebaSpot) return { ok: true };
+    const prev = tebaSpots.find((t) => t.id === id);
+    const res = await onDeleteTebaSpot(id);
+    if (res.ok) {
+      recordAudit({
+        actionType: 'DELETE',
+        module: 'BANK_SAMPAH',
+        targetId: id,
+        targetLabel: `Titik Teba: ${prev?.name || id}`,
+        summary: `Menghapus data titik Teba komunal "${prev?.name || id}"`,
+        details: `Alamat sebelumnya di ${prev?.address || '-'} (${prev?.rw || '-'})`,
+        severity: 'critical',
       });
     }
     return res;
@@ -2372,7 +2444,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                         activeTab === 'sampah' ? 'text-amber-200' : 'text-[#EF6C00]'
                       }`}
                     />
-                    <span className="text-xs font-bold truncate">Bank Sampah</span>
+                    <span className="text-xs font-bold truncate">Bank Sampah & Teba</span>
                   </div>
                   {!isTabAllowed('sampah') && (
                     <Lock className="w-3 h-3 text-slate-400 shrink-0" />
@@ -2383,7 +2455,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     activeTab === 'sampah' ? 'text-amber-100' : 'text-slate-500'
                   }`}
                 >
-                  {wasteUnits.length} Unit BSU RW
+                  {wasteUnits.length} BSU · {tebaSpots.length} Teba
                 </span>
               </button>
 
@@ -4438,10 +4510,66 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         </div>
       )}
 
-      {/* ================= TAB 3: KELOLA BANK SAMPAH UNIT & LOG (CRUD) ================= */}
+      {/* ================= TAB 3: KELOLA BANK SAMPAH UNIT & TEBA (CRUD) ================= */}
       {activeTab === 'sampah' && isTabAllowed('sampah') && (
         <div className="mt-6 space-y-6">
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 flex items-center justify-between">
+          {/* Sub Tab Switcher: BSU vs Teba */}
+          <div className="flex flex-wrap items-center gap-2 p-1.5 rounded-2xl bg-slate-100 border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setSampahSubTab('bsu')}
+              className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                sampahSubTab === 'bsu'
+                  ? 'bg-[#EF6C00] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              }`}
+            >
+              <Recycle className="w-4 h-4 shrink-0" />
+              <span>Bank Sampah Unit (BSU)</span>
+              <span
+                className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono-num ${
+                  sampahSubTab === 'bsu'
+                    ? 'bg-amber-800/40 text-white'
+                    : 'bg-slate-200 text-slate-700'
+                }`}
+              >
+                {wasteUnits.length} Unit
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSampahSubTab('teba')}
+              className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                sampahSubTab === 'teba'
+                  ? 'bg-[#1C8237] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              }`}
+            >
+              <Sprout className="w-4 h-4 shrink-0" />
+              <span>Monitoring Teba</span>
+              <span
+                className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono-num ${
+                  sampahSubTab === 'teba'
+                    ? 'bg-emerald-800/40 text-white'
+                    : 'bg-slate-200 text-slate-700'
+                }`}
+              >
+                {tebaSpots.length} Titik
+              </span>
+            </button>
+          </div>
+
+          {sampahSubTab === 'teba' ? (
+            <AdminTebaPanel
+              tebaSpots={tebaSpots}
+              onCreateTebaSpot={auditedOnCreateTebaSpot}
+              onUpdateTebaSpot={auditedOnUpdateTebaSpot}
+              onDeleteTebaSpot={auditedOnDeleteTebaSpot}
+            />
+          ) : (
+            <div className="space-y-6">
+              <div className="bg-white rounded-2xl border border-slate-200 p-5 flex items-center justify-between">
             <div>
               <h2 className="text-base font-bold text-[#0D3868]">
                 Manajemen Data Bank Sampah Unit (BSU) RW & Timbulan Sampah
@@ -4949,6 +5077,8 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           </div>
         </div>
       )}
+    </div>
+  )}
 
       {/* ================= TAB 4: KELOLA JADWAL & UPLOAD FOTO KERJA BAKTI (CRUD) ================= */}
       {activeTab === 'kerjabakti' && isTabAllowed('kerjabakti') && (
