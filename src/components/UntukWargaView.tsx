@@ -35,6 +35,8 @@ import {
   Printer,
   ClipboardCheck,
   FolderOpen,
+  Smartphone,
+  Globe,
 } from 'lucide-react';
 import {
   CitizenReport,
@@ -571,6 +573,16 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
               </div>
 
               <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                <a
+                  href="https://lontaraplus.makassarkota.go.id"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black shadow-xs transition-colors cursor-pointer"
+                  title="Laporan Keluhan dan pelayanan tingkat lanjut silahkan gunakan aplikasi Lontara+"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Aplikasi Lontara+ ↗</span>
+                </a>
                 <button
                   type="button"
                   onClick={() => {
@@ -611,33 +623,131 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-                {MAIN_WARGA_MENUS.map((menu) => (
-                  <button
-                    key={menu.id}
-                    type="button"
-                    onClick={() => handleOpenMainMenuPage(menu)}
-                    className="group text-left p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-[#0277BD] hover:shadow-md transition-all cursor-pointer flex flex-col justify-between"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="w-11 h-11 rounded-xl bg-slate-100 group-hover:bg-sky-50 flex items-center justify-center text-2xl select-none transition-colors">
-                        {menu.emoji}
-                      </span>
-                      <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-[#0277BD] group-hover:translate-x-0.5 transition-all shrink-0 mt-1" />
+                {MAIN_WARGA_MENUS.map((menu) => {
+                  const isLontara = menu.id === 'lontara_plus';
+                  return isLontara ? (
+                    <a
+                      key={menu.id}
+                      href="https://lontaraplus.makassarkota.go.id"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group text-left p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-[#073763] to-[#0D3868] text-white border-2 border-amber-400 hover:border-amber-300 hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden"
+                    >
+                      <div className="absolute top-0 right-0 transform translate-x-3 -translate-y-3 w-16 h-16 bg-amber-400/10 rounded-full blur-xs pointer-events-none" />
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="w-11 h-11 rounded-xl bg-amber-400/20 border border-amber-400/40 text-amber-300 flex items-center justify-center text-2xl select-none transition-colors">
+                          {menu.emoji}
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 shrink-0">
+                          Super App <ExternalLink className="w-3 h-3" />
+                        </span>
+                      </div>
+                      <div className="mt-3.5">
+                        <div className="text-sm font-extrabold text-amber-300 group-hover:text-amber-200 leading-snug transition-colors flex items-center gap-1.5">
+                          <span>{menu.label}</span>
+                        </div>
+                        <div className="mt-1 text-xs text-sky-100 leading-relaxed font-medium">
+                          {menu.shortDesc}
+                        </div>
+                        <div className="mt-3 pt-2.5 border-t border-white/15 text-[11px] font-bold text-amber-300 flex items-center justify-between">
+                          <span>{menu.badgeText}</span>
+                          <span className="group-hover:translate-x-0.5 transition-transform">Buka Aplikasi ↗</span>
+                        </div>
+                      </div>
+                    </a>
+                  ) : (
+                    <button
+                      key={menu.id}
+                      type="button"
+                      onClick={() => handleOpenMainMenuPage(menu)}
+                      className="group text-left p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-[#0277BD] hover:shadow-md transition-all cursor-pointer flex flex-col justify-between"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="w-11 h-11 rounded-xl bg-slate-100 group-hover:bg-sky-50 flex items-center justify-center text-2xl select-none transition-colors">
+                          {menu.emoji}
+                        </span>
+                        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-[#0277BD] group-hover:translate-x-0.5 transition-all shrink-0 mt-1" />
+                      </div>
+                      <div className="mt-3.5">
+                        <div className="text-sm font-extrabold text-[#0D3868] group-hover:text-[#0277BD] leading-snug transition-colors">
+                          {menu.label}
+                        </div>
+                        <div className="mt-1 text-xs text-slate-500 leading-relaxed line-clamp-2">
+                          {menu.shortDesc}
+                        </div>
+                        <div className="mt-3 pt-2.5 border-t border-slate-100 text-[11px] font-bold text-[#0277BD] flex items-center justify-between">
+                          <span>{menu.badgeText}</span>
+                          <span>Pilih Menu →</span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* ================= BANNER FITUR RESMI APLIKASI LONTARA+ MAKASSAR ================= */}
+              <div className="mt-6 rounded-3xl border-2 border-[#0D3868]/20 bg-gradient-to-r from-[#073763] via-[#0D3868] to-[#012A4A] p-5 sm:p-7 text-white shadow-md relative overflow-hidden">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                  <div className="flex items-start gap-4 sm:gap-5">
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 text-slate-950 font-black text-2xl sm:text-3xl flex items-center justify-center shrink-0 shadow-xl ring-4 ring-white/10">
+                      L+
                     </div>
-                    <div className="mt-3.5">
-                      <div className="text-sm font-extrabold text-[#0D3868] group-hover:text-[#0277BD] leading-snug transition-colors">
-                        {menu.label}
+                    <div className="space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-slate-950 text-[10px] sm:text-[11px] font-black uppercase tracking-wider">
+                          🏛️ Super App Pemkot Makassar
+                        </span>
+                        <span className="text-xs text-sky-200 font-medium">
+                          Layanan Online Terintegrasi Warga Makassar
+                        </span>
                       </div>
-                      <div className="mt-1 text-xs text-slate-500 leading-relaxed line-clamp-2">
-                        {menu.shortDesc}
+                      <h3 className="text-lg sm:text-xl font-extrabold text-white">
+                        Aplikasi Lontara+ (Lontara Plus)
+                      </h3>
+                      <div className="p-3 rounded-xl bg-amber-400/15 border border-amber-300/30 text-amber-200 text-xs sm:text-sm font-bold leading-relaxed">
+                        📢 "Laporan Keluhan dan pelayanan tingkat lanjut silahkan gunakan aplikasi Lontara+"
                       </div>
-                      <div className="mt-3 pt-2.5 border-t border-slate-100 text-[11px] font-bold text-[#0277BD] flex items-center justify-between">
-                        <span>{menu.badgeText}</span>
-                        <span>Pilih Menu →</span>
-                      </div>
+                      <p className="text-xs text-sky-100/90 max-w-2xl leading-relaxed pt-1">
+                        Aplikasi resmi terpusat Pemerintah Kota Makassar untuk seluruh layanan publik:
+                        pengaduan warga, keluhan lingkungan, perizinan, administrasi tingkat lanjut,
+                        hingga koordinasi langsung dengan OPD terkait se-Kota Makassar.
+                      </p>
                     </div>
-                  </button>
-                ))}
+                  </div>
+
+                  <div className="flex flex-wrap sm:flex-nowrap lg:flex-col xl:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
+                    <a
+                      href="https://lontaraplus.makassarkota.go.id"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs sm:text-sm font-extrabold shadow-md transition-all cursor-pointer hover:shadow-lg active:scale-95 text-center"
+                    >
+                      <Globe className="w-4 h-4" />
+                      <span>Buka Aplikasi Lontara+</span>
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                    <a
+                      href="https://lontaraplus.go.id"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center gap-1.5 px-3.5 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/25 transition-colors text-center"
+                      title="Domain alternatif lontaraplus.go.id"
+                    >
+                      <span>Web Lontara+ (go.id)</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                    <a
+                      href="https://play.google.com/store/apps/details?id=id.go.makassarkota.lontaraplus"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center gap-1.5 px-3.5 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/25 transition-colors text-center"
+                    >
+                      <Smartphone className="w-3.5 h-3.5" />
+                      <span>Play Store</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -735,6 +845,34 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
             </div>
             <div className="text-xs font-bold text-[#0D3868] bg-white px-4 py-2.5 rounded-xl border border-slate-200 self-start md:self-center shrink-0">
               Total {currentCategoryObj.items.length} Sub-Menu Tersedia
+            </div>
+          </div>
+
+          {/* Callout Link Aplikasi Lontara+ Kota Makassar */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-amber-950">
+            <div className="flex items-start sm:items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 font-black text-sm flex items-center justify-center shrink-0 shadow-xs">
+                L+
+              </div>
+              <div className="space-y-0.5">
+                <div className="text-xs sm:text-sm font-extrabold text-amber-950">
+                  Laporan Keluhan dan pelayanan tingkat lanjut silahkan gunakan aplikasi Lontara+
+                </div>
+                <div className="text-xs text-amber-900/80">
+                  Super App Pemkot Makassar terhubung langsung ke seluruh OPD, dinas teknis, dan layanan kedaruratan se-Kota Makassar.
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <a
+                href="https://lontaraplus.makassarkota.go.id"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition-colors shadow-xs"
+              >
+                <span>Buka Lontara+</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
             </div>
           </div>
 
@@ -1114,6 +1252,32 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
                     Bidang: <strong>{currentCategoryObj.title}</strong> · Kode Layanan:{' '}
                     <span className="font-mono-num">{currentSubItemObj.documentCode}</span>
                   </p>
+                </div>
+
+                {/* Notice Link Lontara+ */}
+                <div className="mt-4 p-3.5 rounded-xl bg-amber-50 border border-amber-300/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div className="flex items-start sm:items-center gap-2.5 text-amber-950">
+                    <span className="w-6 h-6 rounded-md bg-amber-400 text-slate-950 font-black text-[11px] flex items-center justify-center shrink-0">
+                      L+
+                    </span>
+                    <div>
+                      <span className="font-bold text-amber-950 block">
+                        Laporan Keluhan dan pelayanan tingkat lanjut silahkan gunakan aplikasi Lontara+
+                      </span>
+                      <span className="text-amber-800 text-[11px] block mt-0.5">
+                        Aplikasi resmi Pemkot Makassar untuk penanganan keluhan warga langsung oleh dinas terkait.
+                      </span>
+                    </div>
+                  </div>
+                  <a
+                    href="https://lontaraplus.makassarkota.go.id"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition-colors shrink-0 shadow-xs"
+                  >
+                    <span>Buka Lontara+</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
                 </div>
 
                 {submittedTicket && (
@@ -2116,6 +2280,33 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
                   Seluruh pengajuan surat dan laporan warga yang dikirim melalui Menu Warga akan
                   diteruskan secara otomatis ke seluruh nomor WhatsApp perangkat kelurahan yang
                   terdaftar di halaman Administrator agar segera ditindaklanjuti.
+                </p>
+              </div>
+
+              {/* Lontara+ Channel */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-400/40 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-xs sm:text-sm font-extrabold text-amber-950">
+                    <span className="w-6 h-6 rounded-md bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center shrink-0">
+                      L+
+                    </span>
+                    <span>Aplikasi Lontara+ Kota Makassar</span>
+                  </div>
+                  <a
+                    href="https://lontaraplus.makassarkota.go.id"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-colors shrink-0"
+                  >
+                    <span>Buka Lontara+</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+                <p className="text-xs text-amber-950/90 font-medium leading-relaxed">
+                  "Laporan Keluhan dan pelayanan tingkat lanjut silahkan gunakan aplikasi Lontara+"
+                </p>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Super App Pemerintah Kota Makassar untuk seluruh pengaduan warga, kedaruratan, dan integrasi OPD se-Makassar.
                 </p>
               </div>
             </div>

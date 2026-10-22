@@ -56,6 +56,7 @@ const MODULE_LABELS: Record<AdminActivityModule, string> = {
   LAPORAN_WARGA: 'Laporan & Pengaduan Warga',
   BANK_SAMPAH: 'Bank Sampah Unit (BSU)',
   KERJA_BAKTI: 'Jadwal Kerja Bakti',
+  URBAN_FARMING: 'Urban Farming & Ketahanan Pangan',
   PARAMETER_USER: 'Parameter User & Hak Akses',
   KATALOG_SOP: 'Katalog SOP 44 Sub-Menu',
 };

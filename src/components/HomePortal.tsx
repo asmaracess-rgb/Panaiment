@@ -444,7 +444,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                 Urban Farming
               </h3>
               <p className="mt-1 text-[10px] sm:text-[11px] font-medium text-emerald-50 leading-tight max-w-[175px] line-clamp-2">
-                Lorong wisata hijau, hidroponik, akuaponik, & bibit gratis.
+                Pertanian perkotaan, hidroponik, akuaponik, & bibit gratis.
               </p>
             </div>
 
@@ -732,13 +732,13 @@ export const HomePortal: React.FC<HomePortalProps> = ({
             <div>
               <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#059669]">
                 <Sprout className="w-4 h-4" />
-                <span>PROGRAM KETAHANAN PANGAN & LORONG WISATA PANAIKANG</span>
+                <span>PROGRAM KETAHANAN PANGAN & URBAN FARMING PANAIKANG</span>
               </div>
               <h3 className="mt-1 text-lg sm:text-xl font-extrabold text-[#0D3868] tracking-tight">
-                Sentra Urban Farming & Kebun Lorong Hijau
+                Sentra Urban Farming Kelurahan Panaikang
               </h3>
               <p className="mt-0.5 text-xs text-slate-600 max-w-2xl">
-                Pemberdayaan pekarangan dan lorong sempit untuk budidaya hidroponik, akuaponik, tanaman sayuran organik, dan apotek hidup (TOGA) di 7 RW Kelurahan Panaikang.
+                Pemberdayaan pekarangan dan lahan pertanian perkotaan untuk budidaya hidroponik, akuaponik, tanaman sayuran organik, dan apotek hidup (TOGA) di 7 RW Kelurahan Panaikang.
               </p>
             </div>
             <button
@@ -824,7 +824,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
               </div>
               <div>
                 <h4 className="text-sm sm:text-base font-extrabold text-white">
-                  Ingin Memulai Urban Farming di Rumah atau Lorong Anda?
+                  Ingin Memulai Urban Farming di Pekarangan atau Kebun Anda?
                 </h4>
                 <p className="mt-0.5 text-xs text-emerald-100 leading-relaxed max-w-xl">
                   Kelurahan Panaikang menyediakan benih sayuran gratis (Pakcoy, Selada, Cabai Katokkon, Kangkung), media tanam daur ulang, dan pendampingan kader tani untuk warga.

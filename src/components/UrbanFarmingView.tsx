@@ -344,7 +344,7 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
   <div class="sign-row">
     <div class="sign-box">
       <div>Mengetahui,</div>
-      <div style="font-weight:700;margin-top:2px;">KOORDINATOR KETAHANAN PANGAN LORONG</div>
+      <div style="font-weight:700;margin-top:2px;">KOORDINATOR URBAN FARMING</div>
       <div class="sign-space"></div>
       <div style="font-weight:800;text-decoration:underline;color:#0d3868;">Hj. Rahmawati Dg. Ngasseng, S.Sos</div>
       <div style="font-size:9.5px;color:#475569;">Penyuluh Pertanian Perkotaan</div>
@@ -422,15 +422,15 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
         <div className="relative z-10 max-w-3xl space-y-2.5">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 border border-white/20 text-xs font-extrabold text-emerald-200">
             <Sprout className="w-3.5 h-3.5" />
-            <span>PROGRAM KETAHANAN PANGAN LORONG · KELURAHAN PANAIKANG</span>
+            <span>PROGRAM KETAHANAN PANGAN URBAN FARMING · KELURAHAN PANAIKANG</span>
           </div>
 
           <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight">
-            Urban Farming & Pertanian Lorong Mandiri
+            Urban Farming Kelurahan Panaikang
           </h1>
 
           <p className="text-xs sm:text-sm text-emerald-50 leading-relaxed max-w-2xl">
-            Inisiatif pemanfaatan pekarangan sempit, instalasi hidroponik lorong, dan budidaya tanaman
+            Inisiatif pemanfaatan pekarangan sempit, instalasi hidroponik perkotaan, dan budidaya tanaman
             pangan keluarga di 7 wilayah RW Kelurahan Panaikang. Terintegrasi dengan pupuk kompos Bank
             Sampah Unit (BSU) untuk mewujudkan kelurahan hijau, mandiri, dan berdaya saing.
           </p>
@@ -494,7 +494,7 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
             {totalMembersCount} <span className="text-sm font-bold text-slate-500">KK Aktif</span>
           </div>
           <div className="mt-1 text-[11px] text-slate-500">
-            Kelompok Wanita Tani & Komunitas Lorong
+            Kelompok Wanita Tani & Komunitas Tani
           </div>
         </div>
 
@@ -524,7 +524,7 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
           }`}
         >
           <Sprout className="w-4 h-4" />
-          <span>Daftar Kebun Lorong ({spots.length})</span>
+          <span>Daftar Kebun ({spots.length})</span>
         </button>
 
         <button

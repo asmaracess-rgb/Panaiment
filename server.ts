@@ -1436,6 +1436,28 @@ async function startServer() {
     res.status(201).json({ ok: true, data: created });
   });
 
+  app.put('/api/urban-farming/:id', (req, res) => {
+    const { id } = req.params;
+    const idx = (db.urbanFarmingSpots || []).findIndex((s) => s.id === id);
+    if (idx === -1) {
+      res.status(404).json({ ok: false, errors: ['Kebun urban farming tidak ditemukan.'] });
+      return;
+    }
+    db.urbanFarmingSpots[idx] = {
+      ...db.urbanFarmingSpots[idx],
+      ...req.body,
+    };
+    saveDatabase(db);
+    res.json({ ok: true, data: db.urbanFarmingSpots[idx] });
+  });
+
+  app.delete('/api/urban-farming/:id', (req, res) => {
+    const { id } = req.params;
+    db.urbanFarmingSpots = (db.urbanFarmingSpots || []).filter((s) => s.id !== id);
+    saveDatabase(db);
+    res.json({ ok: true, deletedId: id });
+  });
+
   app.get('/api/seed-requests', (_req, res) => {
     res.json({ ok: true, data: db.seedRequests || INITIAL_SEED_REQUESTS });
   });
@@ -1456,12 +1478,34 @@ async function startServer() {
       requestedSeeds: Array.isArray(incoming.requestedSeeds) ? incoming.requestedSeeds : ['Benih Sayuran Daun'],
       plantingMethod: incoming.plantingMethod?.trim() || 'Polybag Pekarangan',
       needsTraining: Boolean(incoming.needsTraining),
-      status: 'Menunggu Pengambilan',
+      status: incoming.status || 'Menunggu Pengambilan',
       createdAt: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) + ' · Baru Saja',
     };
     db.seedRequests = [created, ...(db.seedRequests || [])];
     saveDatabase(db);
     res.status(201).json({ ok: true, data: created });
+  });
+
+  app.put('/api/seed-requests/:id', (req, res) => {
+    const { id } = req.params;
+    const idx = (db.seedRequests || []).findIndex((r) => r.id === id);
+    if (idx === -1) {
+      res.status(404).json({ ok: false, errors: ['Permohonan bibit tidak ditemukan.'] });
+      return;
+    }
+    db.seedRequests[idx] = {
+      ...db.seedRequests[idx],
+      ...req.body,
+    };
+    saveDatabase(db);
+    res.json({ ok: true, data: db.seedRequests[idx] });
+  });
+
+  app.delete('/api/seed-requests/:id', (req, res) => {
+    const { id } = req.params;
+    db.seedRequests = (db.seedRequests || []).filter((r) => r.id !== id);
+    saveDatabase(db);
+    res.json({ ok: true, deletedId: id });
   });
 
   // 6B. Full Urban Farming CRUD Endpoints

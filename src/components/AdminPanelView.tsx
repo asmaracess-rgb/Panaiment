@@ -35,6 +35,7 @@ import {
   History,
   Printer,
   FileDown,
+  Sprout,
 } from 'lucide-react';
 import {
   AppView,
@@ -55,6 +56,8 @@ import {
   AdminActivityLog,
   AdminActivityActionType,
   AdminActivityModule,
+  UrbanFarmingSpot,
+  SeedRequestItem,
 } from '../types';
 import {
   HERO_IMAGE_PATH,
@@ -70,6 +73,8 @@ import {
   INITIAL_WHATSAPP_RECIPIENTS,
   INITIAL_ADMIN_USERS,
   INITIAL_ACTIVITY_LOGS,
+  INITIAL_URBAN_FARMING_SPOTS,
+  INITIAL_SEED_REQUESTS,
 } from '../data/initialData';
 import { resolveImageUrl } from '../utils/resolveImageUrl';
 import { compressImageFile } from '../utils/compressImage';
@@ -90,6 +95,7 @@ import {
   AdminRtRwReportPanel,
   ExternalPrintSelection,
 } from './AdminRtRwReportPanel';
+import { AdminUrbanFarmingPanel } from './AdminUrbanFarmingPanel';
 import {
   SERVICE_CATEGORY_GROUPS,
   ServiceCategoryGroup,
@@ -189,6 +195,24 @@ interface AdminPanelViewProps {
     assignedTeam: string,
     responseNote: string
   ) => void;
+  urbanFarmingSpots?: UrbanFarmingSpot[];
+  seedRequests?: SeedRequestItem[];
+  onAddUrbanFarmingSpot?: (
+    spot: UrbanFarmingSpot
+  ) => Promise<{ ok: boolean; errors?: string[] }>;
+  onUpdateUrbanFarmingSpot?: (
+    id: string,
+    spot: Partial<UrbanFarmingSpot>
+  ) => Promise<{ ok: boolean; errors?: string[] }>;
+  onDeleteUrbanFarmingSpot?: (id: string) => Promise<{ ok: boolean; errors?: string[] }>;
+  onAddSeedRequest?: (
+    req: SeedRequestItem
+  ) => Promise<{ ok: boolean; errors?: string[] }>;
+  onUpdateSeedRequest?: (
+    id: string,
+    req: Partial<SeedRequestItem>
+  ) => Promise<{ ok: boolean; errors?: string[] }>;
+  onDeleteSeedRequest?: (id: string) => Promise<{ ok: boolean; errors?: string[] }>;
 }
 
 export type AdminTab =
@@ -200,6 +224,7 @@ export type AdminTab =
   | 'laporan'
   | 'sampah'
   | 'kerjabakti'
+  | 'urban_farming'
   | 'parameter_user'
   | 'log_aktivitas';
 
@@ -262,6 +287,14 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   onNavigate,
   initialTab,
   onUpdateReportStatus,
+  urbanFarmingSpots = INITIAL_URBAN_FARMING_SPOTS,
+  seedRequests = INITIAL_SEED_REQUESTS,
+  onAddUrbanFarmingSpot,
+  onUpdateUrbanFarmingSpot,
+  onDeleteUrbanFarmingSpot,
+  onAddSeedRequest,
+  onUpdateSeedRequest,
+  onDeleteSeedRequest,
 }) => {
   // ================= AUTHENTICATION STATE =================
   const [adminSession, setAdminSession] = useState<AdminSession | null>(() => {
@@ -320,6 +353,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         'laporan',
         'sampah',
         'kerjabakti',
+        'urban_farming',
         'rtrw',
         'parameter_user',
         'log_aktivitas',
@@ -339,7 +373,16 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     ) {
       return adminSession.allowedAdminTabs;
     }
-    return ['pengurusan_warga', 'profil', 'info', 'laporan', 'sampah', 'kerjabakti', 'rtrw'];
+    return [
+      'pengurusan_warga',
+      'profil',
+      'info',
+      'laporan',
+      'sampah',
+      'kerjabakti',
+      'urban_farming',
+      'rtrw',
+    ];
   }, [isLurahSession, currentAdminAccount, adminSession]);
 
   const effectiveAllowedCategories: string[] | undefined = React.useMemo(() => {
@@ -564,6 +607,123 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           updatedUsers.filter((u) => u.isActive).length
         } Aktif)`,
         severity: nextCount < prevCount ? 'critical' : 'warning',
+      });
+    }
+    return res;
+  };
+
+  const auditedOnAddUrbanFarmingSpot = async (spot: UrbanFarmingSpot) => {
+    if (!onAddUrbanFarmingSpot) return { ok: true };
+    const res = await onAddUrbanFarmingSpot(spot);
+    if (res.ok) {
+      recordAudit({
+        actionType: 'CREATE',
+        module: 'URBAN_FARMING',
+        targetId: spot.id,
+        targetLabel: `Kebun: ${spot.name} (${spot.rw} · ${spot.rt})`,
+        summary: `Menambahkan data kebun urban farming baru "${spot.name}"`,
+        details: `Koordinator: ${spot.coordinatorName} (${spot.coordinatorPhone}) | Metode: ${spot.farmingType} | Komoditas: ${spot.commodities.join(', ')}`,
+        afterValue: `Status: ${spot.status} · Estimasi Produksi: ${spot.monthlyProductionKg} kg/bln`,
+        severity: 'info',
+      });
+    }
+    return res;
+  };
+
+  const auditedOnUpdateUrbanFarmingSpot = async (
+    id: string,
+    updated: Partial<UrbanFarmingSpot>
+  ) => {
+    if (!onUpdateUrbanFarmingSpot) return { ok: true };
+    const prev = urbanFarmingSpots.find((s) => s.id === id);
+    const res = await onUpdateUrbanFarmingSpot(id, updated);
+    if (res.ok) {
+      recordAudit({
+        actionType: 'UPDATE',
+        module: 'URBAN_FARMING',
+        targetId: id,
+        targetLabel: `Kebun: ${updated.name || prev?.name || id}`,
+        summary: `Memperbarui data dan foto dokumentasi kebun urban farming "${updated.name || prev?.name || id}"`,
+        details: `Wilayah: ${updated.rw || prev?.rw} / ${updated.rt || prev?.rt}. Produksi: ${updated.monthlyProductionKg ?? prev?.monthlyProductionKg} kg/bln`,
+        beforeValue: `Status: ${prev?.status || '-'} · Panen: ${prev?.nextHarvestDate || '-'}`,
+        afterValue: `Status: ${updated.status || prev?.status} · Panen: ${updated.nextHarvestDate || prev?.nextHarvestDate}`,
+        severity: 'warning',
+      });
+    }
+    return res;
+  };
+
+  const auditedOnDeleteUrbanFarmingSpot = async (id: string) => {
+    if (!onDeleteUrbanFarmingSpot) return { ok: true };
+    const prev = urbanFarmingSpots.find((s) => s.id === id);
+    const res = await onDeleteUrbanFarmingSpot(id);
+    if (res.ok) {
+      recordAudit({
+        actionType: 'DELETE',
+        module: 'URBAN_FARMING',
+        targetId: id,
+        targetLabel: `Kebun: ${prev?.name || id}`,
+        summary: `Menghapus kebun urban farming "${prev?.name || id}"`,
+        details: `Lokasi sebelumnya di ${prev?.rw || '-'} / ${prev?.rt || '-'} (${prev?.locationAddress || '-'})`,
+        severity: 'critical',
+      });
+    }
+    return res;
+  };
+
+  const auditedOnAddSeedRequest = async (req: SeedRequestItem) => {
+    if (!onAddSeedRequest) return { ok: true };
+    const res = await onAddSeedRequest(req);
+    if (res.ok) {
+      recordAudit({
+        actionType: 'CREATE',
+        module: 'URBAN_FARMING',
+        targetId: req.id,
+        targetLabel: `Permohonan Bibit: ${req.applicantName} (${req.rw})`,
+        summary: `Mencatat permohonan bibit gratis baru dari warga "${req.applicantName}"`,
+        details: `Benih: ${req.requestedSeeds.join(', ')} | Metode: ${req.plantingMethod}`,
+        severity: 'info',
+      });
+    }
+    return res;
+  };
+
+  const auditedOnUpdateSeedRequest = async (
+    id: string,
+    updated: Partial<SeedRequestItem>
+  ) => {
+    if (!onUpdateSeedRequest) return { ok: true };
+    const prev = seedRequests.find((r) => r.id === id);
+    const res = await onUpdateSeedRequest(id, updated);
+    if (res.ok) {
+      recordAudit({
+        actionType: 'VERIFY_STATUS',
+        module: 'URBAN_FARMING',
+        targetId: id,
+        targetLabel: `Permohonan Bibit: ${prev?.applicantName || id}`,
+        summary: `Mengubah status permohonan bibit #${id} menjadi "${updated.status || prev?.status}"`,
+        details: `Pemohon: ${prev?.applicantName} (${prev?.applicantPhone}) · ${prev?.rw}/${prev?.rt}`,
+        beforeValue: `Status: ${prev?.status || '-'}`,
+        afterValue: `Status: ${updated.status || prev?.status}`,
+        severity: 'info',
+      });
+    }
+    return res;
+  };
+
+  const auditedOnDeleteSeedRequest = async (id: string) => {
+    if (!onDeleteSeedRequest) return { ok: true };
+    const prev = seedRequests.find((r) => r.id === id);
+    const res = await onDeleteSeedRequest(id);
+    if (res.ok) {
+      recordAudit({
+        actionType: 'DELETE',
+        module: 'URBAN_FARMING',
+        targetId: id,
+        targetLabel: `Permohonan Bibit: ${prev?.applicantName || id}`,
+        summary: `Menghapus data permohonan bibit #${id}`,
+        details: `Pemohon: ${prev?.applicantName} (${prev?.rw})`,
+        severity: 'warning',
       });
     }
     return res;
@@ -2257,6 +2417,39 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                   }`}
                 >
                   {cleanupEvents.length} Jadwal & Foto
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTabSwitch('urban_farming')}
+                className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                  activeTab === 'urban_farming'
+                    ? 'bg-[#059669] border-[#059669] text-white shadow-xs'
+                    : !isTabAllowed('urban_farming')
+                    ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-75'
+                    : 'bg-emerald-50/70 border-emerald-200 text-[#059669] hover:bg-emerald-100/70 hover:border-emerald-300'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Sprout
+                      className={`w-4 h-4 shrink-0 ${
+                        activeTab === 'urban_farming' ? 'text-emerald-100' : 'text-[#059669]'
+                      }`}
+                    />
+                    <span className="text-xs font-bold truncate">Urban Farming</span>
+                  </div>
+                  {!isTabAllowed('urban_farming') && (
+                    <Lock className="w-3 h-3 text-slate-400 shrink-0" />
+                  )}
+                </div>
+                <span
+                  className={`mt-1 text-[10px] font-medium truncate font-mono-num ${
+                    activeTab === 'urban_farming' ? 'text-emerald-100' : 'text-slate-500'
+                  }`}
+                >
+                  {urbanFarmingSpots.length} Kebun · {seedRequests.length} Bibit
                 </span>
               </button>
 
@@ -5368,6 +5561,27 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ================= TAB URBAN FARMING (CRUD KEBUN, BIBIT, UPLOAD GAMBAR, SIMPAN DATA) ================= */}
+      {activeTab === 'urban_farming' && isTabAllowed('urban_farming') && (
+        <div className="mt-6">
+          <AdminUrbanFarmingPanel
+            spots={urbanFarmingSpots}
+            seedRequests={seedRequests}
+            rwGroups={rwGroups}
+            profile={profile}
+            adminOfficerName={
+              adminSession?.fullName || 'Administrator Satu Data Panaikang'
+            }
+            onAddSpot={auditedOnAddUrbanFarmingSpot}
+            onUpdateSpot={auditedOnUpdateUrbanFarmingSpot}
+            onDeleteSpot={auditedOnDeleteUrbanFarmingSpot}
+            onAddSeedRequest={auditedOnAddSeedRequest}
+            onUpdateSeedRequest={auditedOnUpdateSeedRequest}
+            onDeleteSeedRequest={auditedOnDeleteSeedRequest}
+          />
         </div>
       )}
 

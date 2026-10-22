@@ -10,7 +10,8 @@ export type MainWargaMenuId =
   | 'info_kegiatan'
   | 'cek_status'
   | 'pengumuman'
-  | 'hubungi_kelurahan';
+  | 'hubungi_kelurahan'
+  | 'lontara_plus';
 
 export type DetailedCategoryId =
   | 'administrasi_kependudukan'
@@ -152,6 +153,13 @@ export const MAIN_WARGA_MENUS: MainMenuCardConfig[] = [
     label: 'Hubungi Kelurahan',
     shortDesc: 'Alamat Kantor, Jam Operasional Loket & Direktori Ketua RW se-Panaikang',
     badgeText: 'Kontak & Lokasi',
+  },
+  {
+    id: 'lontara_plus',
+    emoji: '📲',
+    label: 'Aplikasi Lontara+',
+    shortDesc: 'Laporan Keluhan dan pelayanan tingkat lanjut silahkan gunakan aplikasi Lontara+',
+    badgeText: 'Pemkot Makassar ↗',
   },
 ];
 

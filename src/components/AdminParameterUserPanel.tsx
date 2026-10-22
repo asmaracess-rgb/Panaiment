@@ -92,6 +92,12 @@ export const ADMIN_MODULE_OPTIONS: {
     badgeColor: 'bg-purple-50 text-purple-800 border-purple-200',
   },
   {
+    id: 'urban_farming',
+    label: 'Urban Farming',
+    description: 'Manajemen kebun warga, bibit gratis, komoditas panen & data ketahanan pangan',
+    badgeColor: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+  },
+  {
     id: 'rtrw',
     label: 'Data RT & RW',
     description: 'Database Ketua RW, Ketua RT, kontak & jumlah KK wilayah',

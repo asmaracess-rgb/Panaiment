@@ -213,6 +213,7 @@ export type AdminTabId =
   | 'laporan'
   | 'sampah'
   | 'kerjabakti'
+  | 'urban_farming'
   | 'rtrw'
   | 'parameter_user'
   | 'log_aktivitas';
@@ -238,6 +239,7 @@ export type AdminActivityModule =
   | 'LAPORAN_WARGA'
   | 'BANK_SAMPAH'
   | 'KERJA_BAKTI'
+  | 'URBAN_FARMING'
   | 'PARAMETER_USER'
   | 'KATALOG_SOP';
 
@@ -328,7 +330,7 @@ export interface SeedRequestItem {
   requestedSeeds: string[];
   plantingMethod: string;
   needsTraining: boolean;
-  status: 'Menunggu Pengambilan' | 'Disetujui' | 'Telah Didistribusikan';
+  status: 'Menunggu Pengambilan' | 'Disetujui' | 'Telah Didistribusikan' | 'Ditolak';
   createdAt: string;
 }
 

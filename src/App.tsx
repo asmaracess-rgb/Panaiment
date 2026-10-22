@@ -1153,6 +1153,133 @@ export default function App() {
     return { ok: true };
   };
 
+  // 11. Urban Farming Spots & Seed Requests Admin CRUD
+  const handleAdminAddUrbanFarmingSpot = useCallback(
+    async (spot: UrbanFarmingSpot): Promise<{ ok: boolean; errors?: string[] }> => {
+      const nextSpots = [spot, ...stateRef.current.urbanFarmingSpots];
+      setUrbanFarmingSpots(nextSpots);
+      commitPersistence({ urbanFarmingSpots: nextSpots });
+      try {
+        await fetch('/api/urban-farming', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(spot),
+        });
+      } catch {
+        // Fallback persisted via localStorage & PUT /api/data
+      }
+      return { ok: true };
+    },
+    [commitPersistence]
+  );
+
+  const handleAdminUpdateUrbanFarmingSpot = useCallback(
+    async (
+      id: string,
+      updated: Partial<UrbanFarmingSpot>
+    ): Promise<{ ok: boolean; errors?: string[] }> => {
+      const existing = stateRef.current.urbanFarmingSpots.find((s) => s.id === id);
+      if (!existing) {
+        return { ok: false, errors: ['Data kebun urban farming tidak ditemukan.'] };
+      }
+      const merged: UrbanFarmingSpot = { ...existing, ...updated };
+      const nextSpots = stateRef.current.urbanFarmingSpots.map((s) => (s.id === id ? merged : s));
+      setUrbanFarmingSpots(nextSpots);
+      commitPersistence({ urbanFarmingSpots: nextSpots });
+      try {
+        await fetch(`/api/urban-farming/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(merged),
+        });
+      } catch {
+        // Fallback persisted
+      }
+      return { ok: true };
+    },
+    [commitPersistence]
+  );
+
+  const handleAdminDeleteUrbanFarmingSpot = useCallback(
+    async (id: string): Promise<{ ok: boolean; errors?: string[] }> => {
+      const nextSpots = stateRef.current.urbanFarmingSpots.filter((s) => s.id !== id);
+      setUrbanFarmingSpots(nextSpots);
+      commitPersistence({ urbanFarmingSpots: nextSpots });
+      try {
+        await fetch(`/api/urban-farming/${id}`, {
+          method: 'DELETE',
+        });
+      } catch {
+        // Fallback persisted
+      }
+      return { ok: true };
+    },
+    [commitPersistence]
+  );
+
+  const handleAdminAddSeedRequest = useCallback(
+    async (req: SeedRequestItem): Promise<{ ok: boolean; errors?: string[] }> => {
+      const nextReqs = [req, ...stateRef.current.seedRequests];
+      setSeedRequests(nextReqs);
+      commitPersistence({ seedRequests: nextReqs });
+      try {
+        await fetch('/api/seed-requests', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(req),
+        });
+      } catch {
+        // Fallback persisted
+      }
+      return { ok: true };
+    },
+    [commitPersistence]
+  );
+
+  const handleAdminUpdateSeedRequest = useCallback(
+    async (
+      id: string,
+      updated: Partial<SeedRequestItem>
+    ): Promise<{ ok: boolean; errors?: string[] }> => {
+      const existing = stateRef.current.seedRequests.find((r) => r.id === id);
+      if (!existing) {
+        return { ok: false, errors: ['Permohonan bibit tidak ditemukan.'] };
+      }
+      const merged: SeedRequestItem = { ...existing, ...updated };
+      const nextReqs = stateRef.current.seedRequests.map((r) => (r.id === id ? merged : r));
+      setSeedRequests(nextReqs);
+      commitPersistence({ seedRequests: nextReqs });
+      try {
+        await fetch(`/api/seed-requests/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(merged),
+        });
+      } catch {
+        // Fallback persisted
+      }
+      return { ok: true };
+    },
+    [commitPersistence]
+  );
+
+  const handleAdminDeleteSeedRequest = useCallback(
+    async (id: string): Promise<{ ok: boolean; errors?: string[] }> => {
+      const nextReqs = stateRef.current.seedRequests.filter((r) => r.id !== id);
+      setSeedRequests(nextReqs);
+      commitPersistence({ seedRequests: nextReqs });
+      try {
+        await fetch(`/api/seed-requests/${id}`, {
+          method: 'DELETE',
+        });
+      } catch {
+        // Fallback persisted
+      }
+      return { ok: true };
+    },
+    [commitPersistence]
+  );
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
       {/* Top Bar Contract: Compact 3-Zone Single-Row Navigation */}
@@ -1438,6 +1565,14 @@ export default function App() {
             onNavigate={handleNavigate}
             initialTab={adminInitialTab}
             onUpdateReportStatus={handleUpdateReportStatus}
+            urbanFarmingSpots={urbanFarmingSpots}
+            seedRequests={seedRequests}
+            onAddUrbanFarmingSpot={handleAdminAddUrbanFarmingSpot}
+            onUpdateUrbanFarmingSpot={handleAdminUpdateUrbanFarmingSpot}
+            onDeleteUrbanFarmingSpot={handleAdminDeleteUrbanFarmingSpot}
+            onAddSeedRequest={handleAdminAddSeedRequest}
+            onUpdateSeedRequest={handleAdminUpdateSeedRequest}
+            onDeleteSeedRequest={handleAdminDeleteSeedRequest}
           />
         )}
       </main>
