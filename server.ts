@@ -21,6 +21,7 @@ import {
   WasteBankUnit,
   WasteLogEntry,
   TebaSpot,
+  BioporiPoint,
   CleanupEvent,
   KelurahanInfoItem,
   RwGroup,
@@ -39,6 +40,7 @@ import {
 } from './src/types.ts';
 import {
   INITIAL_TEBA_SPOTS,
+  INITIAL_BIOPORI_POINTS,
   INITIAL_URBAN_FARMING_SPOTS,
   INITIAL_SEED_REQUESTS,
   INITIAL_URBAN_FARMING_LOCATIONS,
@@ -64,6 +66,7 @@ interface DatabaseSchema {
   wasteUnits: WasteBankUnit[];
   wasteLogs: WasteLogEntry[];
   tebaSpots: TebaSpot[];
+  bioporiPoints: BioporiPoint[];
   cleanupEvents: CleanupEvent[];
   kelurahanInfos: KelurahanInfoItem[];
   whatsappRecipients: WhatsAppRecipient[];
@@ -115,6 +118,10 @@ function loadDatabase(): DatabaseSchema {
             Array.isArray(parsed.tebaSpots) && parsed.tebaSpots.length > 0
               ? parsed.tebaSpots
               : INITIAL_TEBA_SPOTS,
+          bioporiPoints:
+            Array.isArray(parsed.bioporiPoints) && parsed.bioporiPoints.length > 0
+              ? parsed.bioporiPoints
+              : INITIAL_BIOPORI_POINTS,
           cleanupEvents: Array.isArray(parsed.cleanupEvents)
             ? parsed.cleanupEvents
             : INITIAL_CLEANUP_EVENTS,
@@ -188,6 +195,7 @@ function loadDatabase(): DatabaseSchema {
     wasteUnits: INITIAL_WASTE_UNITS,
     wasteLogs: INITIAL_WASTE_LOGS,
     tebaSpots: INITIAL_TEBA_SPOTS,
+    bioporiPoints: INITIAL_BIOPORI_POINTS,
     cleanupEvents: INITIAL_CLEANUP_EVENTS,
     kelurahanInfos: INITIAL_KELURAHAN_INFOS,
     whatsappRecipients: INITIAL_WHATSAPP_RECIPIENTS,
@@ -307,6 +315,26 @@ function validateTebaSpot(body: Partial<TebaSpot>): string[] {
   }
   if (!body.imageUrl || !body.imageUrl.trim()) {
     errors.push('Foto lokasi titik Teba wajib diunggah.');
+  }
+  return errors;
+}
+
+function validateBioporiPoint(body: Partial<BioporiPoint>): string[] {
+  const errors: string[] = [];
+  if (!body.name || body.name.trim().length < 3) {
+    errors.push('Nama zona / kluster Biopori wajib diisi (minimal 3 karakter).');
+  }
+  if (!body.rw || !body.rw.trim()) {
+    errors.push('Wilayah RW wajib dipilih.');
+  }
+  if (!body.address || body.address.trim().length < 5) {
+    errors.push('Alamat lokasi Biopori wajib diisi (minimal 5 karakter).');
+  }
+  if (!body.locationTag || !body.locationTag.trim()) {
+    errors.push('Tag atau patokan lokasi wajib diisi.');
+  }
+  if (!body.imageUrl || !body.imageUrl.trim()) {
+    errors.push('Foto lokasi Biopori wajib diunggah.');
   }
   return errors;
 }
@@ -603,6 +631,7 @@ async function startServer() {
     if (Array.isArray(incoming.wasteUnits)) db.wasteUnits = incoming.wasteUnits;
     if (Array.isArray(incoming.wasteLogs)) db.wasteLogs = incoming.wasteLogs;
     if (Array.isArray(incoming.tebaSpots)) db.tebaSpots = incoming.tebaSpots;
+    if (Array.isArray(incoming.bioporiPoints)) db.bioporiPoints = incoming.bioporiPoints;
     if (Array.isArray(incoming.cleanupEvents)) db.cleanupEvents = incoming.cleanupEvents;
     if (Array.isArray(incoming.kelurahanInfos)) db.kelurahanInfos = incoming.kelurahanInfos;
     if (Array.isArray(incoming.whatsappRecipients))
@@ -1341,6 +1370,114 @@ async function startServer() {
     db.tebaSpots = db.tebaSpots.filter((t) => t.id !== id);
     saveDatabase(db);
     res.json({ ok: true, deletedId: id, tebaSpots: db.tebaSpots });
+  });
+
+  // 5C. Biopori Points CRUD (Lubang Resapan Biopori / LRB)
+  app.get('/api/biopori-points', (_req, res) => {
+    res.json({ ok: true, data: db.bioporiPoints || [] });
+  });
+
+  app.post('/api/biopori-points', (req, res) => {
+    const incoming = req.body as Partial<BioporiPoint>;
+    const errors = validateBioporiPoint(incoming);
+    if (errors.length > 0) {
+      res.status(400).json({ ok: false, errors });
+      return;
+    }
+
+    const rwClean = incoming.rw?.trim() || 'RW 01';
+    const rtClean = incoming.rt?.trim() || 'RT 01';
+    const nowIso = new Date().toLocaleDateString('id-ID', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
+
+    const newPoint: BioporiPoint = {
+      id: `bio-${Date.now()}`,
+      name: incoming.name!.trim(),
+      code:
+        incoming.code?.trim() ||
+        `BIO-${rwClean.replace(/\s+/g, '')}-${Date.now().toString().slice(-3)}`,
+      rw: rwClean,
+      rt: rtClean,
+      address: incoming.address!.trim(),
+      locationTag: incoming.locationTag!.trim(),
+      totalHoles: Math.max(1, Number(incoming.totalHoles) || 10),
+      diameterCm: Math.max(5, Number(incoming.diameterCm) || 10),
+      depthCm: Math.max(30, Number(incoming.depthCm) || 100),
+      organicTypes:
+        incoming.organicTypes?.trim() || 'Sisa sayuran dapur rumah tangga, dedaunan kering, kulit buah',
+      status: incoming.status || 'Aktif Digunakan',
+      coordinatorName: incoming.coordinatorName?.trim() || 'Kader Lingkungan RW Setempat',
+      coordinatorPhone: incoming.coordinatorPhone?.trim() || '',
+      mapUrl: incoming.mapUrl?.trim() || '',
+      imageUrl: incoming.imageUrl!.trim(),
+      documentationPhotos:
+        Array.isArray(incoming.documentationPhotos) && incoming.documentationPhotos.length > 0
+          ? incoming.documentationPhotos
+          : [incoming.imageUrl!.trim()],
+      harvestHistory: incoming.harvestHistory?.trim() || 'Belum ada catatan panen',
+      installationDate: incoming.installationDate?.trim() || nowIso,
+      notes: incoming.notes?.trim() || 'Pipa biopori resapan air hujan & pengomposan sampah organik mandiri.',
+      updatedAt: nowIso,
+    };
+
+    if (!Array.isArray(db.bioporiPoints)) {
+      db.bioporiPoints = [];
+    }
+    db.bioporiPoints = [newPoint, ...db.bioporiPoints];
+    saveDatabase(db);
+    res.status(201).json({ ok: true, data: newPoint, bioporiPoints: db.bioporiPoints });
+  });
+
+  app.put('/api/biopori-points/:id', (req, res) => {
+    const { id } = req.params;
+    if (!Array.isArray(db.bioporiPoints)) db.bioporiPoints = [];
+    const idx = db.bioporiPoints.findIndex((b) => b.id === id);
+    if (idx === -1) {
+      res.status(404).json({ ok: false, errors: ['Titik / Zona Biopori tidak ditemukan.'] });
+      return;
+    }
+
+    const prevPoint = db.bioporiPoints[idx];
+    const incoming = req.body as Partial<BioporiPoint>;
+    const merged: BioporiPoint = {
+      ...prevPoint,
+      ...incoming,
+      name: (incoming.name ?? prevPoint.name).trim(),
+      rw: (incoming.rw ?? prevPoint.rw).trim(),
+      rt: (incoming.rt ?? prevPoint.rt).trim(),
+      address: (incoming.address ?? prevPoint.address).trim(),
+      locationTag: (incoming.locationTag ?? prevPoint.locationTag).trim(),
+      imageUrl: (incoming.imageUrl ?? prevPoint.imageUrl).trim(),
+      totalHoles: Math.max(1, Number(incoming.totalHoles ?? prevPoint.totalHoles) || 1),
+      diameterCm: Math.max(5, Number(incoming.diameterCm ?? prevPoint.diameterCm) || 10),
+      depthCm: Math.max(30, Number(incoming.depthCm ?? prevPoint.depthCm) || 100),
+      updatedAt: new Date().toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      }),
+    };
+
+    const errors = validateBioporiPoint(merged);
+    if (errors.length > 0) {
+      res.status(400).json({ ok: false, errors });
+      return;
+    }
+
+    db.bioporiPoints[idx] = merged;
+    saveDatabase(db);
+    res.json({ ok: true, data: merged, bioporiPoints: db.bioporiPoints });
+  });
+
+  app.delete('/api/biopori-points/:id', (req, res) => {
+    const { id } = req.params;
+    if (!Array.isArray(db.bioporiPoints)) db.bioporiPoints = [];
+    db.bioporiPoints = db.bioporiPoints.filter((b) => b.id !== id);
+    saveDatabase(db);
+    res.json({ ok: true, deletedId: id, bioporiPoints: db.bioporiPoints });
   });
 
   // 6. Cleanup Events (Kerja Bakti) CRUD

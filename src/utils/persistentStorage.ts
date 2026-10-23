@@ -5,6 +5,7 @@ import {
   WasteBankUnit,
   WasteLogEntry,
   TebaSpot,
+  BioporiPoint,
   CleanupEvent,
   KelurahanInfoItem,
   WhatsAppRecipient,
@@ -27,6 +28,7 @@ import {
   INITIAL_WASTE_UNITS,
   INITIAL_WASTE_LOGS,
   INITIAL_TEBA_SPOTS,
+  INITIAL_BIOPORI_POINTS,
   INITIAL_CLEANUP_EVENTS,
   INITIAL_KELURAHAN_INFOS,
   INITIAL_WHATSAPP_RECIPIENTS,
@@ -51,6 +53,7 @@ export interface PersistedDatabase {
   wasteUnits: WasteBankUnit[];
   wasteLogs: WasteLogEntry[];
   tebaSpots?: TebaSpot[];
+  bioporiPoints?: BioporiPoint[];
   cleanupEvents: CleanupEvent[];
   kelurahanInfos: KelurahanInfoItem[];
   whatsappRecipients: WhatsAppRecipient[];
@@ -104,6 +107,10 @@ export function loadPersistedDatabase(): PersistedDatabase | null {
         Array.isArray(parsed.tebaSpots) && parsed.tebaSpots.length > 0
           ? parsed.tebaSpots
           : INITIAL_TEBA_SPOTS,
+      bioporiPoints:
+        Array.isArray(parsed.bioporiPoints) && parsed.bioporiPoints.length > 0
+          ? parsed.bioporiPoints
+          : INITIAL_BIOPORI_POINTS,
       cleanupEvents: Array.isArray(parsed.cleanupEvents)
         ? parsed.cleanupEvents
         : INITIAL_CLEANUP_EVENTS,

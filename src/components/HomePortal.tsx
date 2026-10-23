@@ -17,6 +17,7 @@ import {
   Camera,
   Sprout,
   Leaf,
+  Building2,
 } from 'lucide-react';
 import {
   AppView,
@@ -43,7 +44,6 @@ import {
   EmblemKelurahanPanaikang,
   LeafAccent,
   IconUntukWarga,
-  IconDashboardLurah,
   IconPetaDigital,
   IconMonitoringSampah,
   IconMonitoringKerjaBakti,
@@ -167,13 +167,8 @@ export const HomePortal: React.FC<HomePortalProps> = ({
     })
     .slice(0, 3);
 
-  const completedReports = reports.filter((r) => r.status === 'Selesai').length;
-  const activeReports = reports.filter((r) => r.status !== 'Selesai').length;
-  const totalRecycledKg = wasteUnits.reduce((acc, u) => acc + u.organikKg + u.anorganikKg, 0);
   const scheduledCleanups = cleanupEvents.filter((e) => e.status !== 'Tuntas');
   const completedCleanups = cleanupEvents.filter((e) => e.status === 'Tuntas');
-  const upcomingCleanups = scheduledCleanups.length;
-  const totalRtCount = rwGroups.reduce((acc, rw) => acc + (rw.rtList?.length || 0), 0);
 
   return (
     <div className="relative overflow-hidden bg-white">
@@ -312,21 +307,21 @@ export const HomePortal: React.FC<HomePortalProps> = ({
             </div>
           </button>
 
-          {/* Card 2: Dashboard Lurah (Green Gradient) */}
+          {/* Card 2: Profil Kelurahan (Green Gradient) */}
           <button
             type="button"
-            onClick={() => onNavigate('lurah')}
+            onClick={() => onNavigate('profil')}
             className="group relative flex flex-col items-center justify-between text-center rounded-2xl p-2.5 sm:p-3.5 bg-gradient-to-b from-[#43A047] via-[#2E7D32] to-[#1B5E20] text-white shadow-[0_6px_16px_-4px_rgba(46,125,50,0.4)] border border-emerald-300/40 hover:-translate-y-0.5 transition-transform duration-150 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
           >
             <div className="flex flex-col items-center">
-              <div className="mb-1.5 p-1.5 rounded-xl bg-white/10 group-hover:scale-105 transition-transform duration-150">
-                <IconDashboardLurah className="w-8 h-7 sm:w-9 sm:h-8" />
+              <div className="mb-1.5 p-1.5 rounded-xl bg-white/10 group-hover:scale-105 transition-transform duration-150 flex items-center justify-center w-8 h-7 sm:w-9 sm:h-8">
+                <Building2 className="w-6 h-6 sm:w-7 sm:h-7 text-emerald-100" />
               </div>
               <h3 className="text-xs sm:text-sm font-extrabold tracking-tight text-white leading-tight">
-                Dashboard Lurah
+                Profil Kelurahan
               </h3>
               <p className="mt-1 text-[10px] sm:text-[11px] font-medium text-emerald-50 leading-tight max-w-[165px] line-clamp-2">
-                Pantau laporan, data lingkungan, dan progres penanganan.
+                Pimpinan lurah, kantor pelayanan, visi, misi, & demografi.
               </p>
             </div>
 
@@ -395,10 +390,10 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                 <IconMonitoringSampah className="w-8 h-7 sm:w-9 sm:h-8" />
               </div>
               <h3 className="text-xs sm:text-sm font-extrabold tracking-tight text-white leading-tight">
-                Bank Sampah Unit (BSU) & Teba
+                Bank Sampah Unit (BSU) & Pengelolaan Sampah
               </h3>
               <p className="mt-1 text-[10px] sm:text-[11px] font-medium text-amber-50 leading-tight max-w-[175px] line-clamp-2">
-                Data BSU pemilahan 3 aliran & monitoring titik Teba komunal.
+                Data BSU pemilahan 3 aliran, sebaran Teba komunal & lubang Biopori.
               </p>
             </div>
 
@@ -447,134 +442,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                 Pertanian perkotaan, hidroponik, akuaponik, & bibit gratis.
               </p>
             </div>
-
-            <div className="mt-2 flex items-center justify-center w-6 h-6 rounded-full bg-white text-[#059669] shadow-xs group-hover:translate-x-0.5 transition-transform duration-150">
-              <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
-            </div>
           </button>
-        </div>
-
-        {/* ================= LIVE RINGKASAN SATU DATA PANAIKANG ================= */}
-        <div className="mt-8 pt-6 border-t border-slate-200/80">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <div>
-              <h3 className="text-base sm:text-lg font-bold text-[#0D3868]">
-                Ringkasan Satu Data Lingkungan Kelurahan Panaikang
-              </h3>
-              <p className="text-xs text-slate-600">
-                Data terintegrasi dari laporan warga RW 01 – RW 06, Bank Sampah Unit, dan agenda
-                Sabtu Bersih
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => onNavigate('rtrw')}
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-[#0D3868] text-xs font-bold transition-colors whitespace-nowrap cursor-pointer"
-              >
-                <Users className="w-3.5 h-3.5 text-[#1C8237]" />
-                <span>
-                  Data RT & RW ({rwGroups.length || 6} RW / {totalRtCount || 30} RT)
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => onNavigate('urbanfarming')}
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 text-[#047857] text-xs font-bold transition-colors whitespace-nowrap cursor-pointer"
-              >
-                <LeafAccent className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span>Urban Farming ({urbanFarmingSpotsList.length} Kebun RW)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => onNavigate('profil')}
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-[#0D3868] text-xs font-bold transition-colors whitespace-nowrap cursor-pointer"
-              >
-                <span>Profil Kelurahan & Visi Misi</span>
-              </button>
-              <button
-                type="button"
-                onClick={onQuickReportClick}
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1C8237] hover:bg-[#15652B] text-white text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer shadow-xs"
-              >
-                <span>+ Buat Laporan Lingkungan</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <button
-              type="button"
-              onClick={() => onNavigate('lurah')}
-              className="text-left p-4 rounded-2xl bg-slate-50/85 hover:bg-slate-100/90 border border-slate-200/90 transition-colors cursor-pointer"
-            >
-              <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
-                <span>Laporan Selesai</span>
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              </div>
-              <div className="mt-2 text-2xl sm:text-3xl font-extrabold text-slate-900 font-mono-num">
-                {completedReports} / {reports.length}
-              </div>
-              <div className="mt-1 text-xs text-slate-500">
-                Tingkat penyelesaian{' '}
-                <span className="font-semibold text-emerald-700 tabular-nums">
-                  {Math.round((completedReports / Math.max(reports.length, 1)) * 100)}%
-                </span>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onNavigate('peta')}
-              className="text-left p-4 rounded-2xl bg-slate-50/85 hover:bg-slate-100/90 border border-slate-200/90 transition-colors cursor-pointer"
-            >
-              <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
-                <span>Titik Aktif Dipantau</span>
-                <Clock className="w-4 h-4 text-sky-600" />
-              </div>
-              <div className="mt-2 text-2xl sm:text-3xl font-extrabold text-slate-900 font-mono-num">
-                {activeReports} Titik
-              </div>
-              <div className="mt-1 text-xs text-slate-500">
-                Terpetakan di Peta Digital Panaikang
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onNavigate('sampah')}
-              className="text-left p-4 rounded-2xl bg-slate-50/85 hover:bg-slate-100/90 border border-slate-200/90 transition-colors cursor-pointer"
-            >
-              <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
-                <span>Sampah Terkelola BSU</span>
-                <Recycle className="w-4 h-4 text-amber-600" />
-              </div>
-              <div className="mt-2 text-2xl sm:text-3xl font-extrabold text-slate-900 font-mono-num">
-                {(totalRecycledKg / 1000).toFixed(2)} Ton
-              </div>
-              <div className="mt-1 text-xs text-slate-500">
-                Organik & Daur Ulang ({wasteUnits.length} BSU RW)
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onNavigate('kerjabakti')}
-              className="text-left p-4 rounded-2xl bg-slate-50/85 hover:bg-slate-100/90 border border-slate-200/90 transition-colors cursor-pointer"
-            >
-              <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
-                <span>Agenda Kerja Bakti</span>
-                <Calendar className="w-4 h-4 text-purple-600" />
-              </div>
-              <div className="mt-2 text-2xl sm:text-3xl font-extrabold text-slate-900 font-mono-num">
-                {upcomingCleanups} Jadwal
-              </div>
-              <div className="mt-1 text-xs text-slate-500">
-                Gotong royong warga & Satgas
-              </div>
-            </button>
-          </div>
         </div>
 
         {/* ================= JADWAL & DOKUMENTASI FOTO KERJA BAKTI DI HALAMAN UTAMA ================= */}

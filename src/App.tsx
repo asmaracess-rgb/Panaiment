@@ -12,6 +12,7 @@ import {
   WasteBankUnit,
   WasteLogEntry,
   TebaSpot,
+  BioporiPoint,
   CleanupEvent,
   KelurahanProfile,
   KelurahanInfoItem,
@@ -27,6 +28,7 @@ import {
   INITIAL_WASTE_UNITS,
   INITIAL_WASTE_LOGS,
   INITIAL_TEBA_SPOTS,
+  INITIAL_BIOPORI_POINTS,
   INITIAL_CLEANUP_EVENTS,
   INITIAL_KELURAHAN_PROFILE,
   INITIAL_KELURAHAN_INFOS,
@@ -126,6 +128,11 @@ export default function App() {
       ? initialPersisted.tebaSpots
       : INITIAL_TEBA_SPOTS
   );
+  const [bioporiPoints, setBioporiPoints] = useState<BioporiPoint[]>(
+    initialPersisted?.bioporiPoints && initialPersisted.bioporiPoints.length > 0
+      ? initialPersisted.bioporiPoints
+      : INITIAL_BIOPORI_POINTS
+  );
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
   const stateRef = useRef({
@@ -135,6 +142,7 @@ export default function App() {
     wasteUnits,
     wasteLogs,
     tebaSpots,
+    bioporiPoints,
     cleanupEvents,
     kelurahanInfos,
     whatsappRecipients,
@@ -153,6 +161,7 @@ export default function App() {
       wasteUnits,
       wasteLogs,
       tebaSpots,
+      bioporiPoints,
       cleanupEvents,
       kelurahanInfos,
       whatsappRecipients,
@@ -169,6 +178,7 @@ export default function App() {
     wasteUnits,
     wasteLogs,
     tebaSpots,
+    bioporiPoints,
     cleanupEvents,
     kelurahanInfos,
     whatsappRecipients,
@@ -188,6 +198,7 @@ export default function App() {
         wasteUnits: partial.wasteUnits ?? stateRef.current.wasteUnits,
         wasteLogs: partial.wasteLogs ?? stateRef.current.wasteLogs,
         tebaSpots: partial.tebaSpots ?? stateRef.current.tebaSpots,
+        bioporiPoints: partial.bioporiPoints ?? stateRef.current.bioporiPoints,
         cleanupEvents: partial.cleanupEvents ?? stateRef.current.cleanupEvents,
         kelurahanInfos: partial.kelurahanInfos ?? stateRef.current.kelurahanInfos,
         whatsappRecipients: partial.whatsappRecipients ?? stateRef.current.whatsappRecipients,
@@ -205,6 +216,7 @@ export default function App() {
         wasteUnits: nextSnapshot.wasteUnits,
         wasteLogs: nextSnapshot.wasteLogs,
         tebaSpots: nextSnapshot.tebaSpots ?? INITIAL_TEBA_SPOTS,
+        bioporiPoints: nextSnapshot.bioporiPoints ?? INITIAL_BIOPORI_POINTS,
         cleanupEvents: nextSnapshot.cleanupEvents,
         kelurahanInfos: nextSnapshot.kelurahanInfos,
         whatsappRecipients: nextSnapshot.whatsappRecipients,
@@ -907,6 +919,110 @@ export default function App() {
     }
   };
 
+  // 3C. Biopori Points CRUD
+  const handleAdminCreateBioporiPoint = async (
+    point: Partial<BioporiPoint>
+  ): Promise<{ ok: boolean; errors?: string[] }> => {
+    try {
+      const res = await fetch('/api/biopori-points', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(point),
+      });
+      const json = await res.json();
+      if (json.ok && json.data) {
+        const next = [json.data, ...stateRef.current.bioporiPoints.filter((b) => b.id !== json.data.id)];
+        setBioporiPoints(next);
+        commitPersistence({ bioporiPoints: next }, false);
+        return { ok: true };
+      }
+      return { ok: false, errors: json.errors || ['Gagal menambahkan data Biopori.'] };
+    } catch {
+      const rwClean = point.rw || 'RW 01';
+      const newPoint: BioporiPoint = {
+        id: `bio-${Date.now()}`,
+        name: point.name || 'Zona Lubang Biopori Komunal',
+        code:
+          point.code ||
+          `BIO-${rwClean.replace(/\s+/g, '')}-${Date.now().toString().slice(-3)}`,
+        rw: rwClean,
+        rt: point.rt || 'RT 01',
+        address: point.address || 'Kelurahan Panaikang',
+        locationTag: point.locationTag || 'Patokan Titik Biopori',
+        totalHoles: Number(point.totalHoles) || 12,
+        diameterCm: Number(point.diameterCm) || 10,
+        depthCm: Number(point.depthCm) || 100,
+        organicTypes:
+          point.organicTypes || 'Sisa sayuran dapur rumah tangga, dedaunan kering, kulit buah',
+        status: point.status || 'Aktif Digunakan',
+        coordinatorName: point.coordinatorName || 'Kader Lingkungan',
+        coordinatorPhone: point.coordinatorPhone || '',
+        mapUrl: point.mapUrl || '',
+        imageUrl: point.imageUrl || '',
+        documentationPhotos: point.documentationPhotos || [point.imageUrl || ''],
+        harvestHistory: point.harvestHistory || 'Belum ada catatan panen',
+        installationDate: point.installationDate || new Date().toLocaleDateString('id-ID'),
+        notes: point.notes || 'Pipa biopori resapan air & pengomposan organik mandiri.',
+        updatedAt: new Date().toLocaleDateString('id-ID'),
+      };
+      const next = [newPoint, ...stateRef.current.bioporiPoints];
+      setBioporiPoints(next);
+      commitPersistence({ bioporiPoints: next }, true);
+      return { ok: true };
+    }
+  };
+
+  const handleAdminUpdateBioporiPoint = async (
+    id: string,
+    point: Partial<BioporiPoint>
+  ): Promise<{ ok: boolean; errors?: string[] }> => {
+    try {
+      const res = await fetch(`/api/biopori-points/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(point),
+      });
+      const json = await res.json();
+      if (json.ok && json.data) {
+        const next = stateRef.current.bioporiPoints.map((b) => (b.id === id ? { ...b, ...json.data } : b));
+        setBioporiPoints(next);
+        commitPersistence({ bioporiPoints: next }, false);
+        return { ok: true };
+      }
+      return { ok: false, errors: json.errors || ['Gagal memperbarui data Biopori.'] };
+    } catch {
+      const next = stateRef.current.bioporiPoints.map((b) =>
+        b.id === id ? { ...b, ...point, updatedAt: new Date().toLocaleDateString('id-ID') } : b
+      );
+      setBioporiPoints(next);
+      commitPersistence({ bioporiPoints: next }, true);
+      return { ok: true };
+    }
+  };
+
+  const handleAdminDeleteBioporiPoint = async (
+    id: string
+  ): Promise<{ ok: boolean; errors?: string[] }> => {
+    try {
+      const res = await fetch(`/api/biopori-points/${id}`, {
+        method: 'DELETE',
+      });
+      const json = await res.json();
+      if (json.ok) {
+        const next = stateRef.current.bioporiPoints.filter((b) => b.id !== id);
+        setBioporiPoints(next);
+        commitPersistence({ bioporiPoints: next }, false);
+        return { ok: true };
+      }
+      return { ok: false, errors: json.errors || ['Gagal menghapus data Biopori.'] };
+    } catch {
+      const next = stateRef.current.bioporiPoints.filter((b) => b.id !== id);
+      setBioporiPoints(next);
+      commitPersistence({ bioporiPoints: next }, true);
+      return { ok: true };
+    }
+  };
+
   // 4. Cleanup Events (Kerja Bakti) CRUD
   const handleJoinCleanup = (eventId: string, participantCount: number) => {
     const target = stateRef.current.cleanupEvents.find((e) => e.id === eventId);
@@ -1461,18 +1577,6 @@ export default function App() {
             Menu Warga
           </a>
           <a
-            href="#lurah"
-            onClick={(e) => {
-              e.preventDefault();
-              handleNavigate('lurah');
-            }}
-            className={`whitespace-nowrap transition-colors hover:text-[#2E7D32] hover:underline underline-offset-4 ${
-              activeView === 'lurah' ? 'text-[#2E7D32] font-bold underline' : ''
-            }`}
-          >
-            Dashboard Lurah
-          </a>
-          <a
             href="#peta"
             onClick={(e) => {
               e.preventDefault();
@@ -1494,7 +1598,7 @@ export default function App() {
               activeView === 'sampah' ? 'text-[#EF6C00] font-bold underline' : ''
             }`}
           >
-            Bank Sampah (BSU) & Teba
+            BSU & Pengelolaan Sampah
           </a>
           <a
             href="#kerjabakti"
@@ -1614,6 +1718,7 @@ export default function App() {
             wasteUnits={wasteUnits}
             wasteLogs={wasteLogs}
             tebaSpots={tebaSpots}
+            bioporiPoints={bioporiPoints}
             onAddWasteLog={handleAddWasteLog}
             onNavigate={handleNavigate}
           />
@@ -1691,6 +1796,10 @@ export default function App() {
             onCreateTebaSpot={handleAdminCreateTebaSpot}
             onUpdateTebaSpot={handleAdminUpdateTebaSpot}
             onDeleteTebaSpot={handleAdminDeleteTebaSpot}
+            bioporiPoints={bioporiPoints}
+            onCreateBioporiPoint={handleAdminCreateBioporiPoint}
+            onUpdateBioporiPoint={handleAdminUpdateBioporiPoint}
+            onDeleteBioporiPoint={handleAdminDeleteBioporiPoint}
           />
         )}
       </main>

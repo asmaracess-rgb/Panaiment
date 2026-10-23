@@ -561,7 +561,7 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
                   <span>Kembali ke Halaman Utama Portal</span>
                 </button>
                 <div className="text-xs font-bold tracking-wider uppercase text-amber-300">
-                  🏛️ PELAYANAN DIGITAL KELURAHAN · KEC. PANAKKUKANG · KOTA MAKASSAR
+                  🏛️ PELAYANAN DIGITAL KELURAHAN PANAIKANG
                 </div>
                 <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                   Menu Warga Kelurahan Panaikang

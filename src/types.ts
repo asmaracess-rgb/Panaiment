@@ -142,6 +142,36 @@ export interface TebaSpot {
   updatedAt?: string;
 }
 
+export type BioporiStatus =
+  | 'Aktif Digunakan'
+  | 'Penuh Kompos'
+  | 'Perlu Perawatan'
+  | 'Siap Panen Kompos';
+
+export interface BioporiPoint {
+  id: string;
+  name: string;
+  code: string;
+  rw: string;
+  rt: string;
+  address: string;
+  locationTag: string;
+  totalHoles: number;
+  diameterCm: number;
+  depthCm: number;
+  organicTypes: string;
+  status: BioporiStatus;
+  coordinatorName: string;
+  coordinatorPhone?: string;
+  mapUrl?: string;
+  imageUrl: string;
+  documentationPhotos?: string[];
+  harvestHistory?: string;
+  installationDate: string;
+  notes?: string;
+  updatedAt?: string;
+}
+
 export interface CleanupEvent {
   id: string;
   title: string;

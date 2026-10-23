@@ -36,6 +36,7 @@ import {
   Printer,
   FileDown,
   Sprout,
+  Layers,
 } from 'lucide-react';
 import {
   AppView,
@@ -46,6 +47,7 @@ import {
   WasteBankUnit,
   WasteLogEntry,
   TebaSpot,
+  BioporiPoint,
   CleanupEvent,
   KelurahanInfoItem,
   RwGroup,
@@ -75,6 +77,7 @@ import {
   INITIAL_ADMIN_USERS,
   INITIAL_ACTIVITY_LOGS,
   INITIAL_TEBA_SPOTS,
+  INITIAL_BIOPORI_POINTS,
   INITIAL_URBAN_FARMING_SPOTS,
   INITIAL_SEED_REQUESTS,
 } from '../data/initialData';
@@ -99,6 +102,7 @@ import {
 } from './AdminRtRwReportPanel';
 import { AdminUrbanFarmingPanel } from './AdminUrbanFarmingPanel';
 import { AdminTebaPanel } from './AdminTebaPanel';
+import { AdminBioporiPanel } from './AdminBioporiPanel';
 import {
   SERVICE_CATEGORY_GROUPS,
   ServiceCategoryGroup,
@@ -225,6 +229,15 @@ interface AdminPanelViewProps {
     spot: Partial<TebaSpot>
   ) => Promise<{ ok: boolean; errors?: string[] }>;
   onDeleteTebaSpot?: (id: string) => Promise<{ ok: boolean; errors?: string[] }>;
+  bioporiPoints?: BioporiPoint[];
+  onCreateBioporiPoint?: (
+    point: Partial<BioporiPoint>
+  ) => Promise<{ ok: boolean; errors?: string[] }>;
+  onUpdateBioporiPoint?: (
+    id: string,
+    point: Partial<BioporiPoint>
+  ) => Promise<{ ok: boolean; errors?: string[] }>;
+  onDeleteBioporiPoint?: (id: string) => Promise<{ ok: boolean; errors?: string[] }>;
 }
 
 export type AdminTab =
@@ -311,6 +324,10 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   onCreateTebaSpot,
   onUpdateTebaSpot,
   onDeleteTebaSpot,
+  bioporiPoints = INITIAL_BIOPORI_POINTS,
+  onCreateBioporiPoint,
+  onUpdateBioporiPoint,
+  onDeleteBioporiPoint,
 }) => {
   // ================= AUTHENTICATION STATE =================
   const [adminSession, setAdminSession] = useState<AdminSession | null>(() => {
@@ -745,7 +762,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     return res;
   };
 
-  const [sampahSubTab, setSampahSubTab] = useState<'bsu' | 'teba'>('bsu');
+  const [sampahSubTab, setSampahSubTab] = useState<'bsu' | 'teba' | 'biopori'>('bsu');
 
   const auditedOnCreateTebaSpot = async (spot: Partial<TebaSpot>) => {
     if (!onCreateTebaSpot) return { ok: true };
@@ -794,6 +811,60 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         targetId: id,
         targetLabel: `Titik Teba: ${prev?.name || id}`,
         summary: `Menghapus data titik Teba komunal "${prev?.name || id}"`,
+        details: `Alamat sebelumnya di ${prev?.address || '-'} (${prev?.rw || '-'})`,
+        severity: 'critical',
+      });
+    }
+    return res;
+  };
+
+  const auditedOnCreateBioporiPoint = async (point: Partial<BioporiPoint>) => {
+    if (!onCreateBioporiPoint) return { ok: true };
+    const res = await onCreateBioporiPoint(point);
+    if (res.ok) {
+      recordAudit({
+        actionType: 'CREATE',
+        module: 'BANK_SAMPAH',
+        targetLabel: `Titik Biopori: ${point.name || 'Baru'} (${point.rw || '-'})`,
+        summary: `Menambahkan titik lubang resapan biopori baru "${point.name}" di ${point.rw}`,
+        details: `Alamat: ${point.address}. Tag: ${point.locationTag}. Jumlah: ${point.totalHoles} lubang`,
+        severity: 'info',
+      });
+    }
+    return res;
+  };
+
+  const auditedOnUpdateBioporiPoint = async (id: string, point: Partial<BioporiPoint>) => {
+    if (!onUpdateBioporiPoint) return { ok: true };
+    const prev = bioporiPoints.find((p) => p.id === id);
+    const res = await onUpdateBioporiPoint(id, point);
+    if (res.ok) {
+      recordAudit({
+        actionType: 'UPDATE',
+        module: 'BANK_SAMPAH',
+        targetId: id,
+        targetLabel: `Titik Biopori: ${point.name || prev?.name || id}`,
+        summary: `Memperbarui data dan dokumentasi titik biopori "${point.name || prev?.name || id}"`,
+        details: `Status: ${point.status || prev?.status}. Jumlah lubang: ${point.totalHoles ?? prev?.totalHoles}`,
+        beforeValue: `Status: ${prev?.status || '-'} · Lubang: ${prev?.totalHoles || 0}`,
+        afterValue: `Status: ${point.status || prev?.status} · Lubang: ${point.totalHoles ?? prev?.totalHoles}`,
+        severity: 'warning',
+      });
+    }
+    return res;
+  };
+
+  const auditedOnDeleteBioporiPoint = async (id: string) => {
+    if (!onDeleteBioporiPoint) return { ok: true };
+    const prev = bioporiPoints.find((p) => p.id === id);
+    const res = await onDeleteBioporiPoint(id);
+    if (res.ok) {
+      recordAudit({
+        actionType: 'DELETE',
+        module: 'BANK_SAMPAH',
+        targetId: id,
+        targetLabel: `Titik Biopori: ${prev?.name || id}`,
+        summary: `Menghapus data titik biopori "${prev?.name || id}"`,
         details: `Alamat sebelumnya di ${prev?.address || '-'} (${prev?.rw || '-'})`,
         severity: 'critical',
       });
@@ -2444,7 +2515,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                         activeTab === 'sampah' ? 'text-amber-200' : 'text-[#EF6C00]'
                       }`}
                     />
-                    <span className="text-xs font-bold truncate">Bank Sampah & Teba</span>
+                    <span className="text-xs font-bold truncate">BSU & Pengelolaan Sampah</span>
                   </div>
                   {!isTabAllowed('sampah') && (
                     <Lock className="w-3 h-3 text-slate-400 shrink-0" />
@@ -2455,7 +2526,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     activeTab === 'sampah' ? 'text-amber-100' : 'text-slate-500'
                   }`}
                 >
-                  {wasteUnits.length} BSU · {tebaSpots.length} Teba
+                  {wasteUnits.length} BSU · {tebaSpots.length} Teba · {bioporiPoints.length} Biopori
                 </span>
               </button>
 
@@ -4558,6 +4629,28 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 {tebaSpots.length} Titik
               </span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => setSampahSubTab('biopori')}
+              className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                sampahSubTab === 'biopori'
+                  ? 'bg-[#146329] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              }`}
+            >
+              <Layers className="w-4 h-4 shrink-0" />
+              <span>Biopori</span>
+              <span
+                className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono-num ${
+                  sampahSubTab === 'biopori'
+                    ? 'bg-emerald-900/40 text-white'
+                    : 'bg-slate-200 text-slate-700'
+                }`}
+              >
+                {bioporiPoints.length} Titik
+              </span>
+            </button>
           </div>
 
           {sampahSubTab === 'teba' ? (
@@ -4566,6 +4659,13 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               onCreateTebaSpot={auditedOnCreateTebaSpot}
               onUpdateTebaSpot={auditedOnUpdateTebaSpot}
               onDeleteTebaSpot={auditedOnDeleteTebaSpot}
+            />
+          ) : sampahSubTab === 'biopori' ? (
+            <AdminBioporiPanel
+              bioporiPoints={bioporiPoints}
+              onCreateBioporiPoint={auditedOnCreateBioporiPoint}
+              onUpdateBioporiPoint={auditedOnUpdateBioporiPoint}
+              onDeleteBioporiPoint={auditedOnDeleteBioporiPoint}
             />
           ) : (
             <div className="space-y-6">
