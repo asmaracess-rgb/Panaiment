@@ -184,7 +184,7 @@ export const MonitoringSampahView: React.FC<MonitoringSampahViewProps> = ({
             <span>Kembali ke Portal Utama</span>
           </button>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0D3868] tracking-tight">
-            Bank Sampah Unit (BSU) & Pengelolaan Sampah
+            Pengelolaan Sampah
           </h1>
           <p className="mt-1 text-xs sm:text-sm text-slate-600 max-w-3xl">
             Sistem tata kelola persampahan terpadu Kelurahan Panaikang: Pemilahan 3 aliran (Organik,
@@ -201,7 +201,7 @@ export const MonitoringSampahView: React.FC<MonitoringSampahViewProps> = ({
         </button>
       </div>
 
-      {/* Sub Menu Navigation (3 Sub Menus: Bank Sampah Unit (BSU), Monitoring Teba, Biopori) */}
+      {/* Sub Menu Navigation (3 Sub Menus: Bank Sampah Unit (BSU), Teba, Biopori) */}
       <div className="mt-6 flex flex-wrap items-center gap-2 sm:gap-3 p-1.5 rounded-2xl bg-slate-100 border border-slate-200">
         {/* Sub-menu 1: BSU */}
         <button
@@ -235,7 +235,7 @@ export const MonitoringSampahView: React.FC<MonitoringSampahViewProps> = ({
           }`}
         >
           <Sprout className="w-4 h-4 shrink-0" />
-          <span>Monitoring Teba</span>
+          <span>Teba</span>
           <span
             className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono-num ${
               activeSubMenu === 'teba' ? 'bg-emerald-800/40 text-white' : 'bg-slate-200 text-slate-700'

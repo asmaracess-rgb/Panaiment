@@ -390,7 +390,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                 <IconMonitoringSampah className="w-8 h-7 sm:w-9 sm:h-8" />
               </div>
               <h3 className="text-xs sm:text-sm font-extrabold tracking-tight text-white leading-tight">
-                Bank Sampah Unit (BSU) & Pengelolaan Sampah
+                Pengelolaan Sampah
               </h3>
               <p className="mt-1 text-[10px] sm:text-[11px] font-medium text-amber-50 leading-tight max-w-[175px] line-clamp-2">
                 Data BSU pemilahan 3 aliran, sebaran Teba komunal & lubang Biopori.

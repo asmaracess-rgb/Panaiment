@@ -2515,7 +2515,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                         activeTab === 'sampah' ? 'text-amber-200' : 'text-[#EF6C00]'
                       }`}
                     />
-                    <span className="text-xs font-bold truncate">BSU & Pengelolaan Sampah</span>
+                    <span className="text-xs font-bold truncate">Pengelolaan Sampah</span>
                   </div>
                   {!isTabAllowed('sampah') && (
                     <Lock className="w-3 h-3 text-slate-400 shrink-0" />
@@ -4618,7 +4618,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               }`}
             >
               <Sprout className="w-4 h-4 shrink-0" />
-              <span>Monitoring Teba</span>
+              <span>Teba</span>
               <span
                 className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono-num ${
                   sampahSubTab === 'teba'

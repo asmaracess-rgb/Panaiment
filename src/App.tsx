@@ -1598,7 +1598,7 @@ export default function App() {
               activeView === 'sampah' ? 'text-[#EF6C00] font-bold underline' : ''
             }`}
           >
-            BSU & Pengelolaan Sampah
+            Pengelolaan Sampah
           </a>
           <a
             href="#kerjabakti"
