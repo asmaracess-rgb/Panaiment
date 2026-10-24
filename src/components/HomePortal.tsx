@@ -204,19 +204,19 @@ export const HomePortal: React.FC<HomePortalProps> = ({
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-36 sm:h-44 bg-gradient-to-t from-white via-white/95 to-transparent" />
 
           {/* Official Dual Emblems at Top Center: KOTA MAKASSAR | KELURAHAN PANAIKANG */}
-          <div className="relative z-10 pt-2.5 sm:pt-3.5 flex flex-col items-center">
-            <div className="inline-flex items-center justify-center gap-4 sm:gap-7">
+          <div className="relative z-10 pt-2.5 sm:pt-3 flex flex-col items-center">
+            <div className="inline-flex items-center justify-center gap-4 sm:gap-6">
               <button
                 type="button"
                 onClick={() => onNavigate('profil')}
-                title="Lihat Profil Resmi Kelurahan Panaikang"
+                title="Lihat Profil Resmi Pemerintah Kota Makassar"
                 className="flex flex-col items-center hover:scale-105 transition-transform duration-150 cursor-pointer focus:outline-none"
               >
-                <EmblemKotaMakassar className="w-16 h-20 sm:w-20 sm:h-24 drop-shadow-[0_4px_12px_rgba(255,255,255,0.9)]" />
+                <EmblemKotaMakassar className="w-14 h-18 sm:w-16 sm:h-20 drop-shadow-[0_4px_12px_rgba(255,255,255,0.95)]" />
               </button>
 
-              {/* Vertical Navy Divider Line matching prototype */}
-              <div className="h-14 sm:h-18 w-[2.5px] bg-[#0D3868] rounded-full shadow-xs" />
+              {/* Vertical Navy Divider Line */}
+              <div className="h-12 sm:h-14 w-[2px] bg-[#0D3868]/60 rounded-full shadow-xs" />
 
               <button
                 type="button"
@@ -224,30 +224,27 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                 title="Lihat Profil Resmi Kelurahan Panaikang"
                 className="flex flex-col items-center hover:scale-105 transition-transform duration-150 cursor-pointer focus:outline-none"
               >
-                <EmblemKelurahanPanaikang className="w-16 h-20 sm:w-20 sm:h-24 drop-shadow-[0_4px_12px_rgba(255,255,255,0.9)]" />
+                <EmblemKelurahanPanaikang className="w-14 h-18 sm:w-16 sm:h-20 drop-shadow-[0_4px_12px_rgba(255,255,255,0.95)]" />
               </button>
             </div>
           </div>
 
-          {/* Main Prototype Title Lockup positioned over the white mist fade */}
-          <div className="absolute inset-x-0 bottom-1.5 sm:bottom-2.5 z-10 flex flex-col items-center text-center px-4">
-            {/* PANAIKANG with Green Leaf above the 'i', strictly baseline-aligned */}
-            <h1 className="relative inline-block text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-[#0D3868] drop-shadow-[0_2px_10px_rgba(255,255,255,0.95)] leading-none select-none pt-4 sm:pt-5">
-              <span>PANA</span>
-              <span className="relative inline-block">
-                <LeafAccent className="pointer-events-none absolute -top-[0.34em] left-1/2 -translate-x-[35%] w-[0.52em] h-[0.52em] transform -rotate-12" />
-                <span>ı</span>
-              </span>
-              <span>KANG</span>
-            </h1>
-
-            {/* SMART ENVIRONMENT */}
-            <p className="mt-0.5 sm:mt-1 text-lg sm:text-2xl lg:text-3xl font-extrabold tracking-wide text-[#1C8237] drop-shadow-[0_2px_8px_rgba(255,255,255,0.9)] leading-tight">
-              SMART ENVIRONMENT
-            </p>
+          {/* Main Official Title & Logo Lockup using the User-Attached Logo */}
+          <div className="absolute inset-x-0 bottom-1 sm:bottom-2 z-10 flex flex-col items-center text-center px-4">
+            <img
+              src="/assets/aistudio/logo-panaikang-smart-environment-transparent.png"
+              alt="Panaikang Smart Environment Logo"
+              className="h-16 sm:h-20 lg:h-24 w-auto max-w-[92vw] sm:max-w-md lg:max-w-lg object-contain drop-shadow-[0_4px_16px_rgba(255,255,255,0.95)] hover:scale-102 transition-transform duration-200 select-none"
+              onError={(e) => {
+                const target = e.currentTarget as HTMLImageElement;
+                if (!target.src.includes('WA0000')) {
+                  target.src = '/assets/aistudio/IMG-20261024-WA0000_e50bebb6.jpg';
+                }
+              }}
+            />
 
             {/* Italic Tagline */}
-            <p className="mt-1 text-xs sm:text-sm lg:text-base italic font-semibold text-[#0D3868]">
+            <p className="mt-1 text-xs sm:text-sm lg:text-base italic font-bold text-[#0D3868] drop-shadow-[0_1px_4px_rgba(255,255,255,0.95)]">
               Satu Laporan, Satu Data, Satu Aksi untuk Panaikang.
             </p>
           </div>
@@ -1309,57 +1306,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
       )}
 
       {/* ================= SIGNATURE WAVE FOOTER MATCHING PROTOTYPE ================= */}
-      <footer className="relative w-full pt-28 sm:pt-36 lg:pt-44 overflow-hidden select-none">
-        {/* Decorative Botanical Green Plant Sprouting on Left Side (matches prototype) */}
-        <div className="pointer-events-none absolute left-4 sm:left-16 lg:left-24 bottom-24 sm:bottom-28 z-10">
-          <svg
-            viewBox="0 0 220 200"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            className="w-36 sm:w-48 lg:w-56 h-auto drop-shadow-sm"
-          >
-            {/* Back Leaf Right */}
-            <path
-              d="M110 185C115 135 155 85 205 65C195 120 160 165 110 185Z"
-              fill="#689F38"
-              opacity="0.85"
-            />
-            <path
-              d="M110 185C135 145 165 105 205 65"
-              stroke="#DCEDC8"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-            />
-            {/* Main Center Tall Leaf */}
-            <path
-              d="M105 190C85 130 95 55 135 12C160 65 150 135 105 190Z"
-              fill="#43A047"
-            />
-            <path
-              d="M105 190C108 130 118 70 135 12"
-              stroke="#E8F5E9"
-              strokeWidth="3"
-              strokeLinecap="round"
-            />
-            {/* Left Arching Leaf */}
-            <path
-              d="M102 190C60 155 25 105 15 48C68 68 98 120 102 190Z"
-              fill="#2E7D32"
-            />
-            <path
-              d="M102 190C75 140 48 95 15 48"
-              stroke="#A5D6A7"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-            />
-            {/* Small Lower Sprout Leaf */}
-            <path
-              d="M108 192C130 175 168 158 198 162C172 188 138 196 108 192Z"
-              fill="#8BC34A"
-            />
-          </svg>
-        </div>
-
+      <footer className="relative w-full pt-16 sm:pt-24 lg:pt-32 overflow-hidden select-none">
         {/* Multi-layered Curved Green & Deep Navy Wave SVG */}
         <div className="relative w-full">
           <svg

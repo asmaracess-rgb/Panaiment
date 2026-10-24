@@ -9,7 +9,41 @@ import React from 'react';
  * - Untaian padi & kapas hijau-emas mengapit lingkaran
  * - Pita merah melengkung di bawah bertuliskan "KOTA MAKASSAR"
  */
-export const EmblemKotaMakassar: React.FC<{ className?: string }> = ({
+export const EmblemKotaMakassar: React.FC<{ className?: string; alt?: string }> = ({
+  className = 'w-28 h-32',
+  alt = 'Lambang Resmi Pemerintah Kota Makassar',
+}) => {
+  const [imgSrc, setImgSrc] = React.useState('/assets/aistudio/logo-makassarkota-239x300_5c872a7e.png');
+  const [errorCount, setErrorCount] = React.useState(0);
+
+  const handleError = () => {
+    if (errorCount === 0) {
+      setImgSrc('/images/logo-kota-makassar.png');
+      setErrorCount(1);
+    } else if (errorCount === 1) {
+      setImgSrc('/logo-kota-makassar.png');
+      setErrorCount(2);
+    } else {
+      setErrorCount(3);
+    }
+  };
+
+  if (errorCount >= 3) {
+    return <EmblemKotaMakassarSvg className={className} />;
+  }
+
+  return (
+    <img
+      src={imgSrc}
+      alt={alt}
+      className={`object-contain ${className}`}
+      loading="eager"
+      onError={handleError}
+    />
+  );
+};
+
+export const EmblemKotaMakassarSvg: React.FC<{ className?: string }> = ({
   className = 'w-28 h-32',
 }) => (
   <svg

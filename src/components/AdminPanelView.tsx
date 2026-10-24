@@ -238,6 +238,8 @@ interface AdminPanelViewProps {
     point: Partial<BioporiPoint>
   ) => Promise<{ ok: boolean; errors?: string[] }>;
   onDeleteBioporiPoint?: (id: string) => Promise<{ ok: boolean; errors?: string[] }>;
+  onExportDatabase?: () => void;
+  onImportDatabase?: (jsonString: string) => { ok: boolean; message: string };
 }
 
 export type AdminTab =
@@ -328,6 +330,8 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   onCreateBioporiPoint,
   onUpdateBioporiPoint,
   onDeleteBioporiPoint,
+  onExportDatabase,
+  onImportDatabase,
 }) => {
   // ================= AUTHENTICATION STATE =================
   const [adminSession, setAdminSession] = useState<AdminSession | null>(() => {
@@ -2292,6 +2296,54 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
+            {onExportDatabase && (
+              <button
+                type="button"
+                onClick={onExportDatabase}
+                title="Unduh seluruh data (laporan warga, bank sampah, profil, RT/RW) ke file JSON cadangan"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold border border-emerald-400/40 shadow-xs transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <FileDown className="w-3.5 h-3.5" />
+                <span>Cadangkan Data (JSON)</span>
+              </button>
+            )}
+            {onImportDatabase && (
+              <>
+                <input
+                  type="file"
+                  id="admin-restore-json-input"
+                  accept=".json,application/json"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (evt) => {
+                      const text = evt.target?.result as string;
+                      if (text && onImportDatabase) {
+                        const res = onImportDatabase(text);
+                        if (res.ok) {
+                          setSuccessMessage(res.message);
+                        } else {
+                          setValidationErrors([res.message]);
+                        }
+                      }
+                    };
+                    reader.readAsText(file);
+                    e.target.value = '';
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => document.getElementById('admin-restore-json-input')?.click()}
+                  title="Pulihkan basis data dari file JSON cadangan"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold border border-amber-400/40 shadow-xs transition-colors cursor-pointer whitespace-nowrap"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Pulihkan Data (JSON)</span>
+                </button>
+              </>
+            )}
             <button
               type="button"
               onClick={() => onNavigate('beranda')}

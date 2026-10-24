@@ -46,6 +46,9 @@ import {
 import {
   loadPersistedDatabase,
   savePersistedDatabase,
+  smartMergeDatabases,
+  exportDatabaseToJson,
+  parseImportDatabaseJson,
   PersistedDatabase,
 } from './utils/persistentStorage';
 import { HomePortal } from './components/HomePortal';
@@ -256,120 +259,103 @@ export default function App() {
     [commitPersistence]
   );
 
-  // Load and synchronize persistent state between browser localStorage and Express backend on mount
+  // Load and synchronize persistent state between browser localStorage and backend on mount
   useEffect(() => {
     let mounted = true;
+
+    // 1. Immediately hydrate all React state from localStorage to ensure zero flash & instant user data availability
+    const initialLocal = loadPersistedDatabase();
+    if (initialLocal) {
+      setKelurahanProfile(initialLocal.profile);
+      setRwGroups(initialLocal.rwGroups);
+      setReports(initialLocal.reports);
+      setWasteUnits(initialLocal.wasteUnits);
+      setWasteLogs(initialLocal.wasteLogs);
+      setCleanupEvents(initialLocal.cleanupEvents);
+      setKelurahanInfos(initialLocal.kelurahanInfos);
+      setWhatsappRecipients(initialLocal.whatsappRecipients);
+      if (initialLocal.serviceCatalog) setServiceCatalog(initialLocal.serviceCatalog);
+      if (initialLocal.adminUsers) setAdminUsers(initialLocal.adminUsers);
+      if (initialLocal.activityLogs) setActivityLogs(initialLocal.activityLogs);
+      if (initialLocal.urbanFarmingSpots) setUrbanFarmingSpots(initialLocal.urbanFarmingSpots);
+      if (initialLocal.seedRequests) setSeedRequests(initialLocal.seedRequests);
+      if (initialLocal.tebaSpots) setTebaSpots(initialLocal.tebaSpots);
+      if (initialLocal.bioporiPoints) setBioporiPoints(initialLocal.bioporiPoints);
+    }
+
+    // 2. Fetch server database and perform bulletproof smart merge (NEVER discarding user input)
     fetch('/api/data', { cache: 'no-store' })
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error('API offline or serverless fallback');
+        return res.json();
+      })
       .then((payload) => {
         if (!mounted || !payload?.ok || !payload.data) return;
         const serverDb = payload.data as Partial<PersistedDatabase>;
-        const serverUpdatedAt = typeof serverDb.updatedAt === 'number' ? serverDb.updatedAt : 0;
         const currentLocal = loadPersistedDatabase();
 
-        if (currentLocal && currentLocal.updatedAt >= serverUpdatedAt) {
-          // Ensure React state has the resolved 7 RW and 62 RT from currentLocal
-          setKelurahanProfile(currentLocal.profile);
-          setRwGroups(currentLocal.rwGroups);
-          // Local browser state is up-to-date or has more recent edits/deletions: ensure server is synced
-          if (currentLocal.updatedAt > serverUpdatedAt) {
-            fetch('/api/data', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(currentLocal),
-            }).catch(() => {});
-          }
-          return;
+        // Non-destructive smart merge: guarantees any citizen report or admin input is preserved
+        const merged = smartMergeDatabases(currentLocal, serverDb);
+
+        setKelurahanProfile(merged.profile);
+        setRwGroups(merged.rwGroups);
+        setReports(merged.reports);
+        setWasteUnits(merged.wasteUnits);
+        setWasteLogs(merged.wasteLogs);
+        setCleanupEvents(merged.cleanupEvents);
+        setKelurahanInfos(merged.kelurahanInfos);
+        setWhatsappRecipients(merged.whatsappRecipients);
+        if (merged.serviceCatalog) setServiceCatalog(merged.serviceCatalog);
+        if (merged.adminUsers) setAdminUsers(merged.adminUsers);
+        if (merged.activityLogs) setActivityLogs(merged.activityLogs);
+        if (merged.urbanFarmingSpots) setUrbanFarmingSpots(merged.urbanFarmingSpots);
+        if (merged.seedRequests) setSeedRequests(merged.seedRequests);
+        if (merged.tebaSpots) setTebaSpots(merged.tebaSpots);
+        if (merged.bioporiPoints) setBioporiPoints(merged.bioporiPoints);
+
+        savePersistedDatabase(merged);
+
+        // If local had user inputs not yet present on server, sync up to server
+        const serverUpdatedAt = typeof serverDb.updatedAt === 'number' ? serverDb.updatedAt : 0;
+        if (!serverUpdatedAt || merged.updatedAt > serverUpdatedAt) {
+          fetch('/api/data', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(merged),
+          }).catch(() => {});
         }
-
-        const hasOfficialServerRw =
-          Array.isArray(serverDb.rwGroups) &&
-          serverDb.rwGroups.length > 0 &&
-          serverDb.rwGroups[0]?.ketuaRwName === 'EDWIN BURHANUDDIN';
-        const nextRwGroups = hasOfficialServerRw ? serverDb.rwGroups! : INITIAL_RW_GROUPS;
-        const baseProfile = serverDb.profile || INITIAL_KELURAHAN_PROFILE;
-        const nextProfile: KelurahanProfile = {
-          ...baseProfile,
-          totalRw: nextRwGroups.length,
-          totalRt: nextRwGroups.reduce((acc, rw) => acc + (rw.rtList?.length || 0), 0),
-        };
-        const nextReports = Array.isArray(serverDb.reports) ? serverDb.reports : INITIAL_REPORTS;
-        const nextWasteUnits = Array.isArray(serverDb.wasteUnits)
-          ? serverDb.wasteUnits
-          : INITIAL_WASTE_UNITS;
-        const nextWasteLogs = Array.isArray(serverDb.wasteLogs)
-          ? serverDb.wasteLogs
-          : INITIAL_WASTE_LOGS;
-        const nextCleanupEvents = Array.isArray(serverDb.cleanupEvents)
-          ? serverDb.cleanupEvents
-          : INITIAL_CLEANUP_EVENTS;
-        const nextKelurahanInfos = Array.isArray(serverDb.kelurahanInfos)
-          ? serverDb.kelurahanInfos
-          : INITIAL_KELURAHAN_INFOS;
-        const nextWhatsappRecipients = Array.isArray(serverDb.whatsappRecipients)
-          ? serverDb.whatsappRecipients
-          : INITIAL_WHATSAPP_RECIPIENTS;
-        const nextServiceCatalog =
-          Array.isArray(serverDb.serviceCatalog) && serverDb.serviceCatalog.length > 0
-            ? serverDb.serviceCatalog
-            : SERVICE_CATEGORY_GROUPS;
-        const nextAdminUsers =
-          Array.isArray(serverDb.adminUsers) && serverDb.adminUsers.length > 0
-            ? serverDb.adminUsers
-            : INITIAL_ADMIN_USERS;
-        const nextActivityLogs =
-          Array.isArray(serverDb.activityLogs) && serverDb.activityLogs.length > 0
-            ? serverDb.activityLogs
-            : INITIAL_ACTIVITY_LOGS;
-        const nextUrbanFarmingSpots =
-          Array.isArray(serverDb.urbanFarmingSpots) && serverDb.urbanFarmingSpots.length > 0
-            ? serverDb.urbanFarmingSpots
-            : INITIAL_URBAN_FARMING_SPOTS;
-        const nextSeedRequests =
-          Array.isArray(serverDb.seedRequests) && serverDb.seedRequests.length > 0
-            ? serverDb.seedRequests
-            : INITIAL_SEED_REQUESTS;
-
-        setKelurahanProfile(nextProfile);
-        setRwGroups(nextRwGroups);
-        setReports(nextReports);
-        setWasteUnits(nextWasteUnits);
-        setWasteLogs(nextWasteLogs);
-        setCleanupEvents(nextCleanupEvents);
-        setKelurahanInfos(nextKelurahanInfos);
-        setWhatsappRecipients(nextWhatsappRecipients);
-        setServiceCatalog(nextServiceCatalog);
-        setAdminUsers(nextAdminUsers);
-        setActivityLogs(nextActivityLogs);
-        setUrbanFarmingSpots(nextUrbanFarmingSpots);
-        setSeedRequests(nextSeedRequests);
-
-        savePersistedDatabase({
-          profile: nextProfile,
-          rwGroups: nextRwGroups,
-          reports: nextReports,
-          wasteUnits: nextWasteUnits,
-          wasteLogs: nextWasteLogs,
-          cleanupEvents: nextCleanupEvents,
-          kelurahanInfos: nextKelurahanInfos,
-          whatsappRecipients: nextWhatsappRecipients,
-          serviceCatalog: nextServiceCatalog,
-          adminUsers: nextAdminUsers,
-          activityLogs: nextActivityLogs,
-          urbanFarmingSpots: nextUrbanFarmingSpots,
-          seedRequests: nextSeedRequests,
-          updatedAt: serverUpdatedAt || Date.now(),
-        });
       })
       .catch(() => {
-        // Offline or static Vercel environment: ensure current state is saved in localStorage
-        const existingLocal = loadPersistedDatabase();
-        if (!existingLocal) {
+        // Vercel serverless / static / offline fallback: ensure current state is safely stored
+        const local = loadPersistedDatabase();
+        if (local) {
+          savePersistedDatabase(local);
+        } else {
           commitPersistence({}, false);
         }
       });
+
+    // Cross-tab synchronization listener
+    const handleStorageUpdate = (e: StorageEvent) => {
+      if ((e.key === 'pnk_smart_env_db_v3' || e.key === 'pnk_smart_env_db_backup_v3') && e.newValue) {
+        try {
+          const updated = loadPersistedDatabase();
+          if (updated) {
+            setReports(updated.reports);
+            setWasteLogs(updated.wasteLogs);
+            setKelurahanProfile(updated.profile);
+            setRwGroups(updated.rwGroups);
+            setWasteUnits(updated.wasteUnits);
+            setCleanupEvents(updated.cleanupEvents);
+          }
+        } catch {}
+      }
+    };
+    window.addEventListener('storage', handleStorageUpdate);
+
     return () => {
       mounted = false;
+      window.removeEventListener('storage', handleStorageUpdate);
     };
   }, [commitPersistence]);
 
@@ -411,6 +397,76 @@ export default function App() {
     setActiveView(view);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  // ================= DATABASE BACKUP & RESTORE HANDLERS =================
+  const handleExportDatabase = useCallback(() => {
+    const currentSnapshot: PersistedDatabase = {
+      profile: kelurahanProfile,
+      rwGroups,
+      reports,
+      wasteUnits,
+      wasteLogs,
+      tebaSpots,
+      bioporiPoints,
+      cleanupEvents,
+      kelurahanInfos,
+      whatsappRecipients,
+      serviceCatalog,
+      adminUsers,
+      activityLogs,
+      urbanFarmingSpots,
+      seedRequests,
+      updatedAt: Date.now(),
+    };
+    exportDatabaseToJson(currentSnapshot);
+  }, [
+    kelurahanProfile,
+    rwGroups,
+    reports,
+    wasteUnits,
+    wasteLogs,
+    tebaSpots,
+    bioporiPoints,
+    cleanupEvents,
+    kelurahanInfos,
+    whatsappRecipients,
+    serviceCatalog,
+    adminUsers,
+    activityLogs,
+    urbanFarmingSpots,
+    seedRequests,
+  ]);
+
+  const handleImportDatabase = useCallback(
+    (jsonString: string): { ok: boolean; message: string } => {
+      const parsed = parseImportDatabaseJson(jsonString);
+      if (!parsed) {
+        return { ok: false, message: 'Format file JSON tidak valid atau struktur data tidak sesuai.' };
+      }
+      setKelurahanProfile(parsed.profile);
+      setRwGroups(parsed.rwGroups);
+      setReports(parsed.reports);
+      setWasteUnits(parsed.wasteUnits);
+      setWasteLogs(parsed.wasteLogs);
+      if (parsed.tebaSpots) setTebaSpots(parsed.tebaSpots);
+      if (parsed.bioporiPoints) setBioporiPoints(parsed.bioporiPoints);
+      setCleanupEvents(parsed.cleanupEvents);
+      setKelurahanInfos(parsed.kelurahanInfos);
+      setWhatsappRecipients(parsed.whatsappRecipients);
+      if (parsed.serviceCatalog) setServiceCatalog(parsed.serviceCatalog);
+      if (parsed.adminUsers) setAdminUsers(parsed.adminUsers);
+      if (parsed.activityLogs) setActivityLogs(parsed.activityLogs);
+      if (parsed.urbanFarmingSpots) setUrbanFarmingSpots(parsed.urbanFarmingSpots);
+      if (parsed.seedRequests) setSeedRequests(parsed.seedRequests);
+
+      commitPersistence(parsed, true);
+      return {
+        ok: true,
+        message: `Berhasil memulihkan ${parsed.reports.length} laporan warga, ${parsed.wasteLogs.length} data sampah, dan seluruh informasi kelurahan!`,
+      };
+    },
+    [commitPersistence]
+  );
 
   // ================= BACKEND-SYNCED HANDLERS =================
 
@@ -1513,17 +1569,26 @@ export default function App() {
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
       {/* Top Bar Contract: Compact 3-Zone Single-Row Navigation */}
       <header className="sticky top-0 z-40 flex items-center justify-between px-3 sm:px-6 py-2 bg-white/95 backdrop-blur-md border-b border-slate-200/90">
-        {/* Zone 1: Application Icon (Logo Kelurahan Panaikang) + Wordmark */}
+        {/* Zone 1: Application Brand Logo */}
         <a
           href="#beranda"
           onClick={(e) => {
             e.preventDefault();
             handleNavigate('beranda');
           }}
-          className="inline-flex items-center gap-2 text-xs sm:text-sm font-extrabold tracking-tight text-[#0D3868] whitespace-nowrap shrink-0"
+          className="inline-flex items-center gap-2 text-xs sm:text-sm font-extrabold tracking-tight text-[#0D3868] whitespace-nowrap shrink-0 hover:opacity-90 transition-opacity"
         >
-          <EmblemKelurahanPanaikang className="w-7 h-7 sm:w-8 sm:h-8 shrink-0" />
-          <span>Panaikang Smart Environment</span>
+          <img
+            src="/assets/aistudio/logo-panaikang-smart-environment-transparent.png"
+            alt="Panaikang Smart Environment"
+            className="h-7 sm:h-8.5 w-auto object-contain"
+            onError={(e) => {
+              const target = e.currentTarget as HTMLImageElement;
+              if (!target.src.includes('WA0000')) {
+                target.src = '/assets/aistudio/IMG-20261024-WA0000_e50bebb6.jpg';
+              }
+            }}
+          />
         </a>
 
         {/* Zone 2: Compact text navigation links */}
@@ -1800,6 +1865,8 @@ export default function App() {
             onCreateBioporiPoint={handleAdminCreateBioporiPoint}
             onUpdateBioporiPoint={handleAdminUpdateBioporiPoint}
             onDeleteBioporiPoint={handleAdminDeleteBioporiPoint}
+            onExportDatabase={handleExportDatabase}
+            onImportDatabase={handleImportDatabase}
           />
         )}
       </main>

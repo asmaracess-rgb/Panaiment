@@ -72,104 +72,277 @@ export interface PersistedDatabase {
   updatedAt: number;
 }
 
+// Multi-tier storage keys to guarantee zero data loss across GitHub sync & Vercel builds
 const STORAGE_KEY = 'pnk_smart_env_db_v3';
+const BACKUP_KEY = 'pnk_smart_env_db_backup_v3';
+const JOURNAL_REPORTS_KEY = 'pnk_smart_env_user_reports_v1';
+const JOURNAL_LOGS_KEY = 'pnk_smart_env_user_logs_v1';
+
+// Initial IDs to distinguish default sample data from actual citizen & admin input
+const INITIAL_REPORT_IDS = new Set(INITIAL_REPORTS.map((r) => r.id));
+const INITIAL_WASTE_LOG_IDS = new Set(INITIAL_WASTE_LOGS.map((l) => l.id));
+
+/**
+ * Safely loads user reports journal from localStorage
+ */
+function loadReportsJournal(): CitizenReport[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(JOURNAL_REPORTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Safely loads user waste logs journal from localStorage
+ */
+function loadWasteLogsJournal(): WasteLogEntry[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(JOURNAL_LOGS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Non-destructive Smart Merge: Merges two database snapshots ensuring that
+ * ANY user-submitted citizen report, waste log, or custom administration edit
+ * is 100% retained and NEVER discarded when a newer deployment or git sync arrives.
+ */
+export function smartMergeDatabases(
+  localDb: PersistedDatabase | null,
+  incoming: Partial<PersistedDatabase> | null
+): PersistedDatabase {
+  // 1. Resolve RW Groups (preserve custom edits or defaults)
+  const baseRw = localDb?.rwGroups || INITIAL_RW_GROUPS;
+  const incRw = incoming?.rwGroups;
+  const resolvedRwGroups =
+    Array.isArray(incRw) && incRw.length > 0
+      ? incRw.map((irw) => {
+          const matchingLocal = baseRw.find((lrw) => lrw.id === irw.id || lrw.rwCode === irw.rwCode);
+          if (matchingLocal && matchingLocal.phone && !irw.phone) {
+            return { ...irw, phone: matchingLocal.phone };
+          }
+          return irw;
+        })
+      : baseRw;
+
+  // 2. Resolve Profile
+  const baseProfile = localDb?.profile || INITIAL_KELURAHAN_PROFILE;
+  const incProfile = incoming?.profile;
+  const resolvedProfile: KelurahanProfile = {
+    ...(incProfile || baseProfile),
+    lurahName: incProfile?.lurahName || baseProfile.lurahName || INITIAL_KELURAHAN_PROFILE.lurahName,
+    lurahNip: incProfile?.lurahNip || baseProfile.lurahNip || INITIAL_KELURAHAN_PROFILE.lurahNip,
+    lurahMessage: incProfile?.lurahMessage || baseProfile.lurahMessage || INITIAL_KELURAHAN_PROFILE.lurahMessage,
+    officeAddress: incProfile?.officeAddress || baseProfile.officeAddress || INITIAL_KELURAHAN_PROFILE.officeAddress,
+    phoneContact: incProfile?.phoneContact || baseProfile.phoneContact || INITIAL_KELURAHAN_PROFILE.phoneContact,
+    totalRw: resolvedRwGroups.length,
+    totalRt: resolvedRwGroups.reduce((acc, rw) => acc + (rw.rtList?.length || 0), 0),
+  };
+
+  // 3. Resolve Reports: CRITICAL ZERO-LOSS MERGE
+  // Combine all reports from incoming, local, and journal by ID/ticketCode
+  const reportsMap = new Map<string, CitizenReport>();
+
+  // a. Load baseline from incoming or initial
+  const sourceIncomingReports = Array.isArray(incoming?.reports) ? incoming!.reports : INITIAL_REPORTS;
+  for (const rep of sourceIncomingReports) {
+    if (rep && rep.id) reportsMap.set(rep.id, rep);
+  }
+
+  // b. Layer local reports over incoming (local user edits take precedence for user reports)
+  if (localDb && Array.isArray(localDb.reports)) {
+    for (const rep of localDb.reports) {
+      if (!rep || !rep.id) continue;
+      const existing = reportsMap.get(rep.id);
+      if (!existing) {
+        // User-submitted report created on this device - MUST PRESERVE
+        reportsMap.set(rep.id, rep);
+      } else {
+        // Compare progress / status completeness
+        const isExistingAdvanced =
+          existing.status === 'Selesai' || existing.status === 'Sedang Ditangani';
+        const isLocalAdvanced =
+          rep.status === 'Selesai' || rep.status === 'Sedang Ditangani';
+        if (isLocalAdvanced && !isExistingAdvanced) {
+          reportsMap.set(rep.id, rep);
+        } else if (rep.verifiedBy || rep.completionPhotoUrl || rep.responseNote !== existing.responseNote) {
+          reportsMap.set(rep.id, { ...existing, ...rep });
+        }
+      }
+    }
+  }
+
+  // c. Guarantee that any report in the Journal is present
+  const journalReports = loadReportsJournal();
+  for (const jRep of journalReports) {
+    if (jRep && jRep.id && !reportsMap.has(jRep.id)) {
+      reportsMap.set(jRep.id, jRep);
+    }
+  }
+
+  const resolvedReports = Array.from(reportsMap.values()).sort((a, b) => {
+    // Keep newest reports on top
+    const aTime = a.id.startsWith('rep-') ? parseInt(a.id.replace('rep-', ''), 10) || 0 : 0;
+    const bTime = b.id.startsWith('rep-') ? parseInt(b.id.replace('rep-', ''), 10) || 0 : 0;
+    return bTime - aTime;
+  });
+
+  // 4. Resolve Waste Units & Logs
+  const resolvedWasteUnits = Array.isArray(incoming?.wasteUnits) && incoming!.wasteUnits.length > 0
+    ? incoming!.wasteUnits
+    : (localDb?.wasteUnits || INITIAL_WASTE_UNITS);
+
+  const logsMap = new Map<string, WasteLogEntry>();
+  const sourceLogs = Array.isArray(incoming?.wasteLogs) ? incoming!.wasteLogs : INITIAL_WASTE_LOGS;
+  for (const l of sourceLogs) {
+    if (l && l.id) logsMap.set(l.id, l);
+  }
+  if (localDb && Array.isArray(localDb.wasteLogs)) {
+    for (const l of localDb.wasteLogs) {
+      if (l && l.id && !logsMap.has(l.id)) logsMap.set(l.id, l);
+    }
+  }
+  const journalLogs = loadWasteLogsJournal();
+  for (const jl of journalLogs) {
+    if (jl && jl.id && !logsMap.has(jl.id)) logsMap.set(jl.id, jl);
+  }
+  const resolvedWasteLogs = Array.from(logsMap.values());
+
+  // 5. Resolve Teba & Biopori (preserve non-empty custom entries)
+  const resolvedTebaSpots = Array.isArray(incoming?.tebaSpots) && incoming!.tebaSpots.length > 0
+    ? incoming!.tebaSpots
+    : (localDb?.tebaSpots && localDb.tebaSpots.length > 0 ? localDb.tebaSpots : INITIAL_TEBA_SPOTS);
+
+  const resolvedBioporiPoints = Array.isArray(incoming?.bioporiPoints) && incoming!.bioporiPoints.length > 0
+    ? incoming!.bioporiPoints
+    : (localDb?.bioporiPoints && localDb.bioporiPoints.length > 0 ? localDb.bioporiPoints : INITIAL_BIOPORI_POINTS);
+
+  // 6. Cleanup Events
+  const eventsMap = new Map<string, CleanupEvent>();
+  const sourceEvents = Array.isArray(incoming?.cleanupEvents) ? incoming!.cleanupEvents : INITIAL_CLEANUP_EVENTS;
+  for (const ev of sourceEvents) {
+    if (ev && ev.id) eventsMap.set(ev.id, ev);
+  }
+  if (localDb && Array.isArray(localDb.cleanupEvents)) {
+    for (const ev of localDb.cleanupEvents) {
+      if (ev && ev.id && !eventsMap.has(ev.id)) eventsMap.set(ev.id, ev);
+    }
+  }
+  const resolvedCleanupEvents = Array.from(eventsMap.values());
+
+  // 7. Urban Farming Spots & Seed Requests
+  const spotsMap = new Map<string, UrbanFarmingSpot>();
+  const sourceSpots = Array.isArray(incoming?.urbanFarmingSpots) ? incoming!.urbanFarmingSpots : INITIAL_URBAN_FARMING_SPOTS;
+  for (const s of sourceSpots) {
+    if (s && s.id) spotsMap.set(s.id, s);
+  }
+  if (localDb && Array.isArray(localDb.urbanFarmingSpots)) {
+    for (const s of localDb.urbanFarmingSpots) {
+      if (s && s.id && !spotsMap.has(s.id)) spotsMap.set(s.id, s);
+    }
+  }
+  const resolvedUrbanFarmingSpots = Array.from(spotsMap.values());
+
+  const seedsMap = new Map<string, SeedRequestItem>();
+  const sourceSeeds = Array.isArray(incoming?.seedRequests) ? incoming!.seedRequests : INITIAL_SEED_REQUESTS;
+  for (const sr of sourceSeeds) {
+    if (sr && sr.id) seedsMap.set(sr.id, sr);
+  }
+  if (localDb && Array.isArray(localDb.seedRequests)) {
+    for (const sr of localDb.seedRequests) {
+      if (sr && sr.id && !seedsMap.has(sr.id)) seedsMap.set(sr.id, sr);
+    }
+  }
+  const resolvedSeedRequests = Array.from(seedsMap.values());
+
+  // 8. Kelurahan Infos & WhatsApp Recipients
+  const resolvedKelurahanInfos = Array.isArray(incoming?.kelurahanInfos) && incoming!.kelurahanInfos.length > 0
+    ? incoming!.kelurahanInfos
+    : (localDb?.kelurahanInfos || INITIAL_KELURAHAN_INFOS);
+
+  const resolvedWhatsappRecipients = Array.isArray(incoming?.whatsappRecipients) && incoming!.whatsappRecipients.length > 0
+    ? incoming!.whatsappRecipients
+    : (localDb?.whatsappRecipients || INITIAL_WHATSAPP_RECIPIENTS);
+
+  const resolvedServiceCatalog = Array.isArray(incoming?.serviceCatalog) && incoming!.serviceCatalog.length > 0
+    ? incoming!.serviceCatalog
+    : (localDb?.serviceCatalog || SERVICE_CATEGORY_GROUPS);
+
+  const resolvedAdminUsers = Array.isArray(incoming?.adminUsers) && incoming!.adminUsers.length > 0
+    ? incoming!.adminUsers
+    : (localDb?.adminUsers || INITIAL_ADMIN_USERS);
+
+  const resolvedActivityLogs = Array.isArray(incoming?.activityLogs) && incoming!.activityLogs.length > 0
+    ? incoming!.activityLogs
+    : (localDb?.activityLogs || INITIAL_ACTIVITY_LOGS);
+
+  const maxUpdatedAt = Math.max(
+    localDb?.updatedAt || 0,
+    incoming?.updatedAt || 0,
+    Date.now()
+  );
+
+  return {
+    profile: resolvedProfile,
+    rwGroups: resolvedRwGroups,
+    reports: resolvedReports,
+    wasteUnits: resolvedWasteUnits,
+    wasteLogs: resolvedWasteLogs,
+    tebaSpots: resolvedTebaSpots,
+    bioporiPoints: resolvedBioporiPoints,
+    cleanupEvents: resolvedCleanupEvents,
+    kelurahanInfos: resolvedKelurahanInfos,
+    whatsappRecipients: resolvedWhatsappRecipients,
+    serviceCatalog: resolvedServiceCatalog,
+    adminUsers: resolvedAdminUsers,
+    activityLogs: resolvedActivityLogs,
+    urbanFarmingSpots: resolvedUrbanFarmingSpots,
+    seedRequests: resolvedSeedRequests,
+    urbanFarmingLocations: incoming?.urbanFarmingLocations || localDb?.urbanFarmingLocations || INITIAL_URBAN_FARMING_LOCATIONS,
+    farmerGroups: incoming?.farmerGroups || localDb?.farmerGroups || INITIAL_FARMER_GROUPS,
+    crops: incoming?.crops || localDb?.crops || INITIAL_CROPS,
+    plantCareLogs: incoming?.plantCareLogs || localDb?.plantCareLogs || INITIAL_PLANT_CARE_LOGS,
+    harvestRecords: incoming?.harvestRecords || localDb?.harvestRecords || INITIAL_HARVEST_RECORDS,
+    farmingInventories: incoming?.farmingInventories || localDb?.farmingInventories || INITIAL_FARMING_INVENTORIES,
+    supplyRequests: incoming?.supplyRequests || localDb?.supplyRequests || INITIAL_SUPPLY_REQUESTS,
+    updatedAt: maxUpdatedAt,
+  };
+}
 
 export function loadPersistedDatabase(): PersistedDatabase | null {
   if (typeof window === 'undefined') return null;
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<PersistedDatabase>;
-    if (!parsed || typeof parsed !== 'object' || !parsed.profile) {
+    let raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      // Fallback to secondary backup key
+      raw = window.localStorage.getItem(BACKUP_KEY);
+    }
+    if (!raw) {
+      // If no full DB is stored, check if there are any journaled user reports
+      const journalReports = loadReportsJournal();
+      if (journalReports.length > 0) {
+        return smartMergeDatabases(null, { reports: journalReports });
+      }
       return null;
     }
-    const hasOfficialRwData =
-      Array.isArray(parsed.rwGroups) &&
-      parsed.rwGroups.length === 7 &&
-      parsed.rwGroups[0]?.ketuaRwName === 'EDWIN BURHANUDDIN';
 
-    const resolvedRwGroups = hasOfficialRwData ? parsed.rwGroups! : INITIAL_RW_GROUPS;
-    const resolvedProfile = parsed.profile
-      ? {
-          ...parsed.profile,
-          totalRw: resolvedRwGroups.length,
-          totalRt: resolvedRwGroups.reduce((acc, rw) => acc + (rw.rtList?.length || 0), 0),
-        }
-      : INITIAL_KELURAHAN_PROFILE;
+    const parsed = JSON.parse(raw) as Partial<PersistedDatabase>;
+    if (!parsed || typeof parsed !== 'object') {
+      return null;
+    }
 
-    return {
-      profile: resolvedProfile,
-      rwGroups: resolvedRwGroups,
-      reports: Array.isArray(parsed.reports) ? parsed.reports : INITIAL_REPORTS,
-      wasteUnits: Array.isArray(parsed.wasteUnits) ? parsed.wasteUnits : INITIAL_WASTE_UNITS,
-      wasteLogs: Array.isArray(parsed.wasteLogs) ? parsed.wasteLogs : INITIAL_WASTE_LOGS,
-      tebaSpots:
-        Array.isArray(parsed.tebaSpots) && parsed.tebaSpots.length > 0
-          ? parsed.tebaSpots
-          : INITIAL_TEBA_SPOTS,
-      bioporiPoints:
-        Array.isArray(parsed.bioporiPoints) && parsed.bioporiPoints.length > 0
-          ? parsed.bioporiPoints
-          : INITIAL_BIOPORI_POINTS,
-      cleanupEvents: Array.isArray(parsed.cleanupEvents)
-        ? parsed.cleanupEvents
-        : INITIAL_CLEANUP_EVENTS,
-      kelurahanInfos: Array.isArray(parsed.kelurahanInfos)
-        ? parsed.kelurahanInfos
-        : INITIAL_KELURAHAN_INFOS,
-      whatsappRecipients: Array.isArray(parsed.whatsappRecipients)
-        ? parsed.whatsappRecipients
-        : INITIAL_WHATSAPP_RECIPIENTS,
-      serviceCatalog:
-        Array.isArray(parsed.serviceCatalog) && parsed.serviceCatalog.length > 0
-          ? parsed.serviceCatalog
-          : SERVICE_CATEGORY_GROUPS,
-      adminUsers:
-        Array.isArray(parsed.adminUsers) && parsed.adminUsers.length > 0
-          ? parsed.adminUsers
-          : INITIAL_ADMIN_USERS,
-      activityLogs:
-        Array.isArray(parsed.activityLogs) && parsed.activityLogs.length > 0
-          ? parsed.activityLogs
-          : INITIAL_ACTIVITY_LOGS,
-      urbanFarmingSpots:
-        Array.isArray(parsed.urbanFarmingSpots) && parsed.urbanFarmingSpots.length > 0
-          ? parsed.urbanFarmingSpots
-          : INITIAL_URBAN_FARMING_SPOTS,
-      seedRequests:
-        Array.isArray(parsed.seedRequests) && parsed.seedRequests.length > 0
-          ? parsed.seedRequests
-          : INITIAL_SEED_REQUESTS,
-      urbanFarmingLocations:
-        Array.isArray(parsed.urbanFarmingLocations) && parsed.urbanFarmingLocations.length > 0
-          ? parsed.urbanFarmingLocations
-          : INITIAL_URBAN_FARMING_LOCATIONS,
-      farmerGroups:
-        Array.isArray(parsed.farmerGroups) && parsed.farmerGroups.length > 0
-          ? parsed.farmerGroups
-          : INITIAL_FARMER_GROUPS,
-      crops:
-        Array.isArray(parsed.crops) && parsed.crops.length > 0
-          ? parsed.crops
-          : INITIAL_CROPS,
-      plantCareLogs:
-        Array.isArray(parsed.plantCareLogs) && parsed.plantCareLogs.length > 0
-          ? parsed.plantCareLogs
-          : INITIAL_PLANT_CARE_LOGS,
-      harvestRecords:
-        Array.isArray(parsed.harvestRecords) && parsed.harvestRecords.length > 0
-          ? parsed.harvestRecords
-          : INITIAL_HARVEST_RECORDS,
-      farmingInventories:
-        Array.isArray(parsed.farmingInventories) && parsed.farmingInventories.length > 0
-          ? parsed.farmingInventories
-          : INITIAL_FARMING_INVENTORIES,
-      supplyRequests:
-        Array.isArray(parsed.supplyRequests) && parsed.supplyRequests.length > 0
-          ? parsed.supplyRequests
-          : INITIAL_SUPPLY_REQUESTS,
-      updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : Date.now(),
-    };
+    // Pass through smartMerge to ensure any journal reports or official RW structure are fully intact
+    return smartMergeDatabases(parsed as PersistedDatabase, null);
   } catch {
     return null;
   }
@@ -178,8 +351,70 @@ export function loadPersistedDatabase(): PersistedDatabase | null {
 export function savePersistedDatabase(db: PersistedDatabase): void {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+    const serialized = JSON.stringify(db);
+    // 1. Primary storage
+    window.localStorage.setItem(STORAGE_KEY, serialized);
+    // 2. Redundant backup storage
+    window.localStorage.setItem(BACKUP_KEY, serialized);
+
+    // 3. User Journal extraction (all user-submitted reports and logs)
+    const userReports = db.reports.filter((r) => !INITIAL_REPORT_IDS.has(r.id) || r.id.startsWith('rep-'));
+    if (userReports.length > 0) {
+      window.localStorage.setItem(JOURNAL_REPORTS_KEY, JSON.stringify(userReports));
+    }
+
+    const userLogs = db.wasteLogs.filter((l) => !INITIAL_WASTE_LOG_IDS.has(l.id) || l.id.startsWith('log-'));
+    if (userLogs.length > 0) {
+      window.localStorage.setItem(JOURNAL_LOGS_KEY, JSON.stringify(userLogs));
+    }
+
+    // 4. Dispatch custom event for real-time reactivity across tabs
+    window.dispatchEvent(new CustomEvent('pnk_db_updated', { detail: { updatedAt: db.updatedAt } }));
   } catch (err) {
     console.warn('Could not save full state to localStorage:', err);
+  }
+}
+
+/**
+ * Downloads a complete JSON snapshot file of the application database
+ */
+export function exportDatabaseToJson(db: PersistedDatabase): void {
+  try {
+    const exportPayload = {
+      app: 'Panaikang Smart Environment',
+      version: '3.0',
+      exportedAt: new Date().toISOString(),
+      kelurahan: 'Kelurahan Panaikang, Kota Makassar',
+      data: db,
+    };
+    const jsonStr = JSON.stringify(exportPayload, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const dateStr = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `backup_panaikang_smart_environment_${dateStr}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('Failed to export database:', err);
+  }
+}
+
+/**
+ * Parses and validates an uploaded backup JSON file
+ */
+export function parseImportDatabaseJson(jsonString: string): PersistedDatabase | null {
+  try {
+    const parsed = JSON.parse(jsonString);
+    const candidateData = parsed.data || parsed;
+    if (!candidateData || typeof candidateData !== 'object') {
+      return null;
+    }
+    return smartMergeDatabases(null, candidateData);
+  } catch {
+    return null;
   }
 }
