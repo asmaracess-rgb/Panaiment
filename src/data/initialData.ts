@@ -366,6 +366,7 @@ export const INITIAL_WASTE_UNITS: WasteBankUnit[] = [
     residuKg: 230,
     activeHouseholds: 142,
     pickupSchedule: 'Senin, Rabu, Jumat · 06:30 WITA',
+    imageUrl: IMG_BANK_SAMPAH,
     lastUpdated: '06 Okt 2026',
   },
   {
@@ -381,6 +382,7 @@ export const INITIAL_WASTE_UNITS: WasteBankUnit[] = [
     residuKg: 290,
     activeHouseholds: 168,
     pickupSchedule: 'Setiap Hari · 06:00 & 16:30 WITA',
+    imageUrl: IMG_BANK_SAMPAH,
     lastUpdated: '06 Okt 2026',
   },
   {
@@ -396,6 +398,7 @@ export const INITIAL_WASTE_UNITS: WasteBankUnit[] = [
     residuKg: 210,
     activeHouseholds: 135,
     pickupSchedule: 'Selasa, Kamis, Sabtu · 07:00 WITA',
+    imageUrl: IMG_BANK_SAMPAH,
     lastUpdated: '06 Okt 2026',
   },
   {
@@ -411,6 +414,7 @@ export const INITIAL_WASTE_UNITS: WasteBankUnit[] = [
     residuKg: 275,
     activeHouseholds: 154,
     pickupSchedule: 'Senin, Rabu, Sabtu · 06:30 WITA',
+    imageUrl: IMG_BANK_SAMPAH,
     lastUpdated: '06 Okt 2026',
   },
   {
@@ -426,6 +430,7 @@ export const INITIAL_WASTE_UNITS: WasteBankUnit[] = [
     residuKg: 195,
     activeHouseholds: 160,
     pickupSchedule: 'Selasa, Kamis, Minggu · 06:30 WITA',
+    imageUrl: IMG_BANK_SAMPAH,
     lastUpdated: '06 Okt 2026',
   },
   {
@@ -441,6 +446,7 @@ export const INITIAL_WASTE_UNITS: WasteBankUnit[] = [
     residuKg: 205,
     activeHouseholds: 118,
     pickupSchedule: 'Senin, Kamis, Sabtu · 07:00 WITA',
+    imageUrl: IMG_BANK_SAMPAH,
     lastUpdated: '05 Okt 2026',
   },
 ];
@@ -2073,7 +2079,9 @@ export const INITIAL_ADMIN_USERS: AdminUserAccount[] = [
       'laporan',
       'sampah',
       'kerjabakti',
+      'urban_farming',
       'rtrw',
+      'traffic',
       'parameter_user',
       'log_aktivitas',
     ],
@@ -2118,6 +2126,7 @@ export const INITIAL_ADMIN_USERS: AdminUserAccount[] = [
       'info',
       'laporan',
       'rtrw',
+      'traffic',
     ],
     allowedServiceCategories: [
       'adminduk',

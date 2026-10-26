@@ -45,6 +45,32 @@ export default async function handler(req, res) {
       const dataToSave = typeof body === 'string' ? JSON.parse(body) : (body || {});
       dataToSave.updatedAt = Date.now();
 
+      // Prune any entities matching deletedItemIds
+      const deletedSet = new Set(Array.isArray(dataToSave.deletedItemIds) ? dataToSave.deletedItemIds : []);
+      if (deletedSet.size > 0) {
+        const arrayKeys = [
+          'reports',
+          'wasteUnits',
+          'wasteLogs',
+          'tebaSpots',
+          'bioporiPoints',
+          'cleanupEvents',
+          'kelurahanInfos',
+          'whatsappRecipients',
+          'adminUsers',
+          'activityLogs',
+          'urbanFarmingSpots',
+          'seedRequests',
+          'crops',
+          'farmerGroups',
+        ];
+        for (const k of arrayKeys) {
+          if (Array.isArray(dataToSave[k])) {
+            dataToSave[k] = dataToSave[k].filter((item) => item && item.id && !deletedSet.has(item.id));
+          }
+        }
+      }
+
       // In serverless, write to /tmp for subsequent reads within the lambda container
       try {
         fs.writeFileSync(tmpPath, JSON.stringify(dataToSave, null, 2));

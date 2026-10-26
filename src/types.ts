@@ -97,6 +97,7 @@ export interface WasteBankUnit {
   activeHouseholds: number;
   pickupSchedule: string;
   lastUpdated: string;
+  imageUrl?: string;
 }
 
 export interface WasteLogEntry {
@@ -276,8 +277,74 @@ export type AdminTabId =
   | 'kerjabakti'
   | 'urban_farming'
   | 'rtrw'
+  | 'traffic'
   | 'parameter_user'
   | 'log_aktivitas';
+
+export interface RealtimeTrafficEvent {
+  id: string;
+  timestamp: string;
+  createdAtMs: number;
+  page: string;
+  pageTitle: string;
+  deviceType: 'Mobile' | 'Desktop' | 'Tablet';
+  platform: string;
+  browser: string;
+  location: string;
+  referrer: string;
+  ipMasked: string;
+  status: '200 OK' | '304 PWA Cache';
+}
+
+export interface TrafficAnalyticsData {
+  totalPageviews: number;
+  uniqueVisitors: number;
+  activeVisitorsNow: number;
+  todayPageviews: number;
+  todayUniqueVisitors: number;
+  avgSessionDuration: string;
+  bounceRate: string;
+  pwaInstalls: number;
+  dailyPoints: {
+    date: string;
+    label: string;
+    pageviews: number;
+    uniqueVisitors: number;
+    mobile: number;
+    desktop: number;
+  }[];
+  sources: {
+    channel: string;
+    visits: number;
+    percentage: number;
+    color: string;
+    description: string;
+  }[];
+  topPages: {
+    path: string;
+    title: string;
+    views: number;
+    percentage: number;
+    avgDuration: string;
+  }[];
+  deviceBreakdown: {
+    device: string;
+    icon: 'mobile' | 'desktop' | 'tablet';
+    percentage: number;
+    visits: number;
+  }[];
+  rwBreakdown: {
+    rw: string;
+    visits: number;
+    percentage: number;
+    topService: string;
+  }[];
+  hourlyDistribution: {
+    hour: string;
+    visits: number;
+  }[];
+  realtimeLogs: RealtimeTrafficEvent[];
+}
 
 export type AdminRoleLevel = 'master_admin' | 'admin_bidang' | 'operator' | 'viewer';
 

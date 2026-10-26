@@ -104,6 +104,12 @@ export const ADMIN_MODULE_OPTIONS: {
     badgeColor: 'bg-slate-100 text-slate-800 border-slate-300',
   },
   {
+    id: 'traffic',
+    label: 'Traffic Web & Aplikasi',
+    description: 'Monitoring analitik pengunjung realtime, sumber rujukan, perangkat & performa',
+    badgeColor: 'bg-cyan-50 text-cyan-800 border-cyan-200',
+  },
+  {
     id: 'parameter_user',
     label: 'Parameter User & Hak Akses',
     description: 'Manajemen akun admin & konfigurasi batasan akses (Khusus Lurah)',

@@ -69,6 +69,7 @@ export interface PersistedDatabase {
   harvestRecords?: HarvestRecord[];
   farmingInventories?: FarmingInventoryItem[];
   supplyRequests?: SupplyRequestItem[];
+  deletedItemIds?: string[];
   updatedAt: number;
 }
 
@@ -77,10 +78,49 @@ const STORAGE_KEY = 'pnk_smart_env_db_v3';
 const BACKUP_KEY = 'pnk_smart_env_db_backup_v3';
 const JOURNAL_REPORTS_KEY = 'pnk_smart_env_user_reports_v1';
 const JOURNAL_LOGS_KEY = 'pnk_smart_env_user_logs_v1';
+const DELETED_IDS_KEY = 'pnk_smart_env_deleted_ids_v1';
 
 // Initial IDs to distinguish default sample data from actual citizen & admin input
 const INITIAL_REPORT_IDS = new Set(INITIAL_REPORTS.map((r) => r.id));
 const INITIAL_WASTE_LOG_IDS = new Set(INITIAL_WASTE_LOGS.map((l) => l.id));
+
+/**
+ * Returns the Set of permanently deleted entity IDs across all sessions
+ */
+export function getDeletedItemIds(): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = window.localStorage.getItem(DELETED_IDS_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    return new Set(Array.isArray(parsed) ? parsed : []);
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * Permanently registers an item ID as deleted (tombstone) so it NEVER resurrects
+ * upon browser refresh, git synchronization, or serverless Vercel rehydration.
+ */
+export function recordDeletedItemId(id: string): void {
+  if (typeof window === 'undefined' || !id) return;
+  try {
+    const set = getDeletedItemIds();
+    set.add(id);
+    window.localStorage.setItem(DELETED_IDS_KEY, JSON.stringify(Array.from(set)));
+
+    // Clean up from user reports journal
+    const jReports = loadReportsJournal().filter((r) => r && r.id !== id);
+    window.localStorage.setItem(JOURNAL_REPORTS_KEY, JSON.stringify(jReports));
+
+    // Clean up from user waste logs journal
+    const jLogs = loadWasteLogsJournal().filter((l) => l && l.id !== id);
+    window.localStorage.setItem(JOURNAL_LOGS_KEY, JSON.stringify(jLogs));
+  } catch (err) {
+    console.warn('Failed to record deleted item id:', err);
+  }
+}
 
 /**
  * Safely loads user reports journal from localStorage
@@ -121,6 +161,13 @@ export function smartMergeDatabases(
   localDb: PersistedDatabase | null,
   incoming: Partial<PersistedDatabase> | null
 ): PersistedDatabase {
+  // Aggregate all permanent deletion tombstones
+  const deletedIds = new Set<string>([
+    ...getDeletedItemIds(),
+    ...(Array.isArray(localDb?.deletedItemIds) ? localDb!.deletedItemIds : []),
+    ...(Array.isArray(incoming?.deletedItemIds) ? incoming!.deletedItemIds : []),
+  ]);
+
   // 1. Resolve RW Groups (preserve custom edits or defaults)
   const baseRw = localDb?.rwGroups || INITIAL_RW_GROUPS;
   const incRw = incoming?.rwGroups;
@@ -149,26 +196,27 @@ export function smartMergeDatabases(
     totalRt: resolvedRwGroups.reduce((acc, rw) => acc + (rw.rtList?.length || 0), 0),
   };
 
-  // 3. Resolve Reports: CRITICAL ZERO-LOSS MERGE
-  // Combine all reports from incoming, local, and journal by ID/ticketCode
+  // 3. Resolve Reports: CRITICAL ZERO-LOSS MERGE WITH TOMBSTONE HONORED
   const reportsMap = new Map<string, CitizenReport>();
 
-  // a. Load baseline from incoming or initial
-  const sourceIncomingReports = Array.isArray(incoming?.reports) ? incoming!.reports : INITIAL_REPORTS;
+  // a. Load baseline from incoming or local or initial (filtering deleted IDs)
+  const sourceIncomingReports = Array.isArray(incoming?.reports)
+    ? incoming!.reports
+    : (localDb?.reports || INITIAL_REPORTS);
   for (const rep of sourceIncomingReports) {
-    if (rep && rep.id) reportsMap.set(rep.id, rep);
+    if (rep && rep.id && !deletedIds.has(rep.id)) {
+      reportsMap.set(rep.id, rep);
+    }
   }
 
   // b. Layer local reports over incoming (local user edits take precedence for user reports)
   if (localDb && Array.isArray(localDb.reports)) {
     for (const rep of localDb.reports) {
-      if (!rep || !rep.id) continue;
+      if (!rep || !rep.id || deletedIds.has(rep.id)) continue;
       const existing = reportsMap.get(rep.id);
       if (!existing) {
-        // User-submitted report created on this device - MUST PRESERVE
         reportsMap.set(rep.id, rep);
       } else {
-        // Compare progress / status completeness
         const isExistingAdvanced =
           existing.status === 'Selesai' || existing.status === 'Sedang Ditangani';
         const isLocalAdvanced =
@@ -182,109 +230,123 @@ export function smartMergeDatabases(
     }
   }
 
-  // c. Guarantee that any report in the Journal is present
+  // c. Guarantee that any report in the Journal is present (unless deleted)
   const journalReports = loadReportsJournal();
   for (const jRep of journalReports) {
-    if (jRep && jRep.id && !reportsMap.has(jRep.id)) {
+    if (jRep && jRep.id && !deletedIds.has(jRep.id) && !reportsMap.has(jRep.id)) {
       reportsMap.set(jRep.id, jRep);
     }
   }
 
   const resolvedReports = Array.from(reportsMap.values()).sort((a, b) => {
-    // Keep newest reports on top
     const aTime = a.id.startsWith('rep-') ? parseInt(a.id.replace('rep-', ''), 10) || 0 : 0;
     const bTime = b.id.startsWith('rep-') ? parseInt(b.id.replace('rep-', ''), 10) || 0 : 0;
     return bTime - aTime;
   });
 
   // 4. Resolve Waste Units & Logs
-  const resolvedWasteUnits = Array.isArray(incoming?.wasteUnits) && incoming!.wasteUnits.length > 0
+  const baseWasteUnits = Array.isArray(incoming?.wasteUnits) && incoming!.wasteUnits.length > 0
     ? incoming!.wasteUnits
-    : (localDb?.wasteUnits || INITIAL_WASTE_UNITS);
+    : (localDb?.wasteUnits && localDb.wasteUnits.length > 0 ? localDb.wasteUnits : INITIAL_WASTE_UNITS);
+  const resolvedWasteUnits = baseWasteUnits.filter((u) => u && u.id && !deletedIds.has(u.id));
 
   const logsMap = new Map<string, WasteLogEntry>();
-  const sourceLogs = Array.isArray(incoming?.wasteLogs) ? incoming!.wasteLogs : INITIAL_WASTE_LOGS;
+  const sourceLogs = Array.isArray(incoming?.wasteLogs)
+    ? incoming!.wasteLogs
+    : (localDb?.wasteLogs || INITIAL_WASTE_LOGS);
   for (const l of sourceLogs) {
-    if (l && l.id) logsMap.set(l.id, l);
+    if (l && l.id && !deletedIds.has(l.id)) logsMap.set(l.id, l);
   }
   if (localDb && Array.isArray(localDb.wasteLogs)) {
     for (const l of localDb.wasteLogs) {
-      if (l && l.id && !logsMap.has(l.id)) logsMap.set(l.id, l);
+      if (l && l.id && !deletedIds.has(l.id) && !logsMap.has(l.id)) logsMap.set(l.id, l);
     }
   }
   const journalLogs = loadWasteLogsJournal();
   for (const jl of journalLogs) {
-    if (jl && jl.id && !logsMap.has(jl.id)) logsMap.set(jl.id, jl);
+    if (jl && jl.id && !deletedIds.has(jl.id) && !logsMap.has(jl.id)) logsMap.set(jl.id, jl);
   }
   const resolvedWasteLogs = Array.from(logsMap.values());
 
-  // 5. Resolve Teba & Biopori (preserve non-empty custom entries)
-  const resolvedTebaSpots = Array.isArray(incoming?.tebaSpots) && incoming!.tebaSpots.length > 0
+  // 5. Resolve Teba & Biopori (preserve non-empty custom entries, omit deleted)
+  const baseTeba = Array.isArray(incoming?.tebaSpots) && incoming!.tebaSpots.length > 0
     ? incoming!.tebaSpots
     : (localDb?.tebaSpots && localDb.tebaSpots.length > 0 ? localDb.tebaSpots : INITIAL_TEBA_SPOTS);
+  const resolvedTebaSpots = baseTeba.filter((s) => s && s.id && !deletedIds.has(s.id));
 
-  const resolvedBioporiPoints = Array.isArray(incoming?.bioporiPoints) && incoming!.bioporiPoints.length > 0
+  const baseBiopori = Array.isArray(incoming?.bioporiPoints) && incoming!.bioporiPoints.length > 0
     ? incoming!.bioporiPoints
     : (localDb?.bioporiPoints && localDb.bioporiPoints.length > 0 ? localDb.bioporiPoints : INITIAL_BIOPORI_POINTS);
+  const resolvedBioporiPoints = baseBiopori.filter((b) => b && b.id && !deletedIds.has(b.id));
 
   // 6. Cleanup Events
   const eventsMap = new Map<string, CleanupEvent>();
-  const sourceEvents = Array.isArray(incoming?.cleanupEvents) ? incoming!.cleanupEvents : INITIAL_CLEANUP_EVENTS;
+  const sourceEvents = Array.isArray(incoming?.cleanupEvents)
+    ? incoming!.cleanupEvents
+    : (localDb?.cleanupEvents || INITIAL_CLEANUP_EVENTS);
   for (const ev of sourceEvents) {
-    if (ev && ev.id) eventsMap.set(ev.id, ev);
+    if (ev && ev.id && !deletedIds.has(ev.id)) eventsMap.set(ev.id, ev);
   }
   if (localDb && Array.isArray(localDb.cleanupEvents)) {
     for (const ev of localDb.cleanupEvents) {
-      if (ev && ev.id && !eventsMap.has(ev.id)) eventsMap.set(ev.id, ev);
+      if (ev && ev.id && !deletedIds.has(ev.id) && !eventsMap.has(ev.id)) eventsMap.set(ev.id, ev);
     }
   }
   const resolvedCleanupEvents = Array.from(eventsMap.values());
 
   // 7. Urban Farming Spots & Seed Requests
   const spotsMap = new Map<string, UrbanFarmingSpot>();
-  const sourceSpots = Array.isArray(incoming?.urbanFarmingSpots) ? incoming!.urbanFarmingSpots : INITIAL_URBAN_FARMING_SPOTS;
+  const sourceSpots = Array.isArray(incoming?.urbanFarmingSpots)
+    ? incoming!.urbanFarmingSpots
+    : (localDb?.urbanFarmingSpots || INITIAL_URBAN_FARMING_SPOTS);
   for (const s of sourceSpots) {
-    if (s && s.id) spotsMap.set(s.id, s);
+    if (s && s.id && !deletedIds.has(s.id)) spotsMap.set(s.id, s);
   }
   if (localDb && Array.isArray(localDb.urbanFarmingSpots)) {
     for (const s of localDb.urbanFarmingSpots) {
-      if (s && s.id && !spotsMap.has(s.id)) spotsMap.set(s.id, s);
+      if (s && s.id && !deletedIds.has(s.id) && !spotsMap.has(s.id)) spotsMap.set(s.id, s);
     }
   }
   const resolvedUrbanFarmingSpots = Array.from(spotsMap.values());
 
   const seedsMap = new Map<string, SeedRequestItem>();
-  const sourceSeeds = Array.isArray(incoming?.seedRequests) ? incoming!.seedRequests : INITIAL_SEED_REQUESTS;
+  const sourceSeeds = Array.isArray(incoming?.seedRequests)
+    ? incoming!.seedRequests
+    : (localDb?.seedRequests || INITIAL_SEED_REQUESTS);
   for (const sr of sourceSeeds) {
-    if (sr && sr.id) seedsMap.set(sr.id, sr);
+    if (sr && sr.id && !deletedIds.has(sr.id)) seedsMap.set(sr.id, sr);
   }
   if (localDb && Array.isArray(localDb.seedRequests)) {
     for (const sr of localDb.seedRequests) {
-      if (sr && sr.id && !seedsMap.has(sr.id)) seedsMap.set(sr.id, sr);
+      if (sr && sr.id && !deletedIds.has(sr.id) && !seedsMap.has(sr.id)) seedsMap.set(sr.id, sr);
     }
   }
   const resolvedSeedRequests = Array.from(seedsMap.values());
 
   // 8. Kelurahan Infos & WhatsApp Recipients
-  const resolvedKelurahanInfos = Array.isArray(incoming?.kelurahanInfos) && incoming!.kelurahanInfos.length > 0
+  const baseInfos = Array.isArray(incoming?.kelurahanInfos) && incoming!.kelurahanInfos.length > 0
     ? incoming!.kelurahanInfos
     : (localDb?.kelurahanInfos || INITIAL_KELURAHAN_INFOS);
+  const resolvedKelurahanInfos = baseInfos.filter((i) => i && i.id && !deletedIds.has(i.id));
 
-  const resolvedWhatsappRecipients = Array.isArray(incoming?.whatsappRecipients) && incoming!.whatsappRecipients.length > 0
+  const baseRecipients = Array.isArray(incoming?.whatsappRecipients) && incoming!.whatsappRecipients.length > 0
     ? incoming!.whatsappRecipients
     : (localDb?.whatsappRecipients || INITIAL_WHATSAPP_RECIPIENTS);
+  const resolvedWhatsappRecipients = baseRecipients.filter((w) => w && w.id && !deletedIds.has(w.id));
 
   const resolvedServiceCatalog = Array.isArray(incoming?.serviceCatalog) && incoming!.serviceCatalog.length > 0
     ? incoming!.serviceCatalog
     : (localDb?.serviceCatalog || SERVICE_CATEGORY_GROUPS);
 
-  const resolvedAdminUsers = Array.isArray(incoming?.adminUsers) && incoming!.adminUsers.length > 0
+  const baseAdminUsers = Array.isArray(incoming?.adminUsers) && incoming!.adminUsers.length > 0
     ? incoming!.adminUsers
     : (localDb?.adminUsers || INITIAL_ADMIN_USERS);
+  const resolvedAdminUsers = baseAdminUsers.filter((u) => u && u.id && !deletedIds.has(u.id));
 
-  const resolvedActivityLogs = Array.isArray(incoming?.activityLogs) && incoming!.activityLogs.length > 0
+  const baseActivityLogs = Array.isArray(incoming?.activityLogs) && incoming!.activityLogs.length > 0
     ? incoming!.activityLogs
     : (localDb?.activityLogs || INITIAL_ACTIVITY_LOGS);
+  const resolvedActivityLogs = baseActivityLogs.filter((a) => a && a.id && !deletedIds.has(a.id));
 
   const maxUpdatedAt = Math.max(
     localDb?.updatedAt || 0,
@@ -315,6 +377,7 @@ export function smartMergeDatabases(
     harvestRecords: incoming?.harvestRecords || localDb?.harvestRecords || INITIAL_HARVEST_RECORDS,
     farmingInventories: incoming?.farmingInventories || localDb?.farmingInventories || INITIAL_FARMING_INVENTORIES,
     supplyRequests: incoming?.supplyRequests || localDb?.supplyRequests || INITIAL_SUPPLY_REQUESTS,
+    deletedItemIds: Array.from(deletedIds),
     updatedAt: maxUpdatedAt,
   };
 }
@@ -351,24 +414,32 @@ export function loadPersistedDatabase(): PersistedDatabase | null {
 export function savePersistedDatabase(db: PersistedDatabase): void {
   if (typeof window === 'undefined') return;
   try {
+    const deletedSet = new Set<string>([
+      ...getDeletedItemIds(),
+      ...(Array.isArray(db.deletedItemIds) ? db.deletedItemIds : []),
+    ]);
+    db.deletedItemIds = Array.from(deletedSet);
+
     const serialized = JSON.stringify(db);
     // 1. Primary storage
     window.localStorage.setItem(STORAGE_KEY, serialized);
     // 2. Redundant backup storage
     window.localStorage.setItem(BACKUP_KEY, serialized);
+    // 3. Persistent tombstone storage
+    window.localStorage.setItem(DELETED_IDS_KEY, JSON.stringify(db.deletedItemIds));
 
-    // 3. User Journal extraction (all user-submitted reports and logs)
-    const userReports = db.reports.filter((r) => !INITIAL_REPORT_IDS.has(r.id) || r.id.startsWith('rep-'));
-    if (userReports.length > 0) {
-      window.localStorage.setItem(JOURNAL_REPORTS_KEY, JSON.stringify(userReports));
-    }
+    // 4. User Journal extraction (all user-submitted reports and logs that are not deleted)
+    const userReports = db.reports.filter(
+      (r) => (!INITIAL_REPORT_IDS.has(r.id) || r.id.startsWith('rep-')) && !deletedSet.has(r.id)
+    );
+    window.localStorage.setItem(JOURNAL_REPORTS_KEY, JSON.stringify(userReports));
 
-    const userLogs = db.wasteLogs.filter((l) => !INITIAL_WASTE_LOG_IDS.has(l.id) || l.id.startsWith('log-'));
-    if (userLogs.length > 0) {
-      window.localStorage.setItem(JOURNAL_LOGS_KEY, JSON.stringify(userLogs));
-    }
+    const userLogs = db.wasteLogs.filter(
+      (l) => (!INITIAL_WASTE_LOG_IDS.has(l.id) || l.id.startsWith('log-')) && !deletedSet.has(l.id)
+    );
+    window.localStorage.setItem(JOURNAL_LOGS_KEY, JSON.stringify(userLogs));
 
-    // 4. Dispatch custom event for real-time reactivity across tabs
+    // 5. Dispatch custom event for real-time reactivity across tabs
     window.dispatchEvent(new CustomEvent('pnk_db_updated', { detail: { updatedAt: db.updatedAt } }));
   } catch (err) {
     console.warn('Could not save full state to localStorage:', err);

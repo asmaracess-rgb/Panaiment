@@ -82,6 +82,7 @@ interface DatabaseSchema {
   harvestRecords: HarvestRecord[];
   farmingInventories: FarmingInventoryItem[];
   supplyRequests: SupplyRequestItem[];
+  deletedItemIds?: string[];
   lastModified: string;
   updatedAt?: number;
 }
@@ -378,6 +379,14 @@ async function startServer() {
 
   let db = loadDatabase();
 
+  function recordServerDeletedId(id: string): void {
+    if (!id) return;
+    if (!Array.isArray(db.deletedItemIds)) db.deletedItemIds = [];
+    if (!db.deletedItemIds.includes(id)) {
+      db.deletedItemIds.push(id);
+    }
+  }
+
   // Keep in-memory db synchronized with disk before every API request
   app.use('/api', (_req, _res, next) => {
     db = loadDatabase();
@@ -611,6 +620,14 @@ async function startServer() {
       res.status(400).json({ ok: false, errors: ['Data sinkronisasi tidak valid.'] });
       return;
     }
+
+    // Merge deletedItemIds tombstones
+    const deletedSet = new Set<string>([
+      ...(Array.isArray(db.deletedItemIds) ? db.deletedItemIds : []),
+      ...(Array.isArray(incoming.deletedItemIds) ? incoming.deletedItemIds : []),
+    ]);
+    db.deletedItemIds = Array.from(deletedSet);
+
     if (incoming.profile) db.profile = incoming.profile;
     if (Array.isArray(incoming.rwGroups) && incoming.rwGroups.length > 0) {
       db.rwGroups = incoming.rwGroups;
@@ -660,6 +677,24 @@ async function startServer() {
       db.farmingInventories = incoming.farmingInventories;
     if (Array.isArray(incoming.supplyRequests))
       db.supplyRequests = incoming.supplyRequests;
+
+    // Prune any items that were permanently deleted
+    if (deletedSet.size > 0) {
+      db.reports = db.reports.filter((r) => r && r.id && !deletedSet.has(r.id));
+      db.wasteUnits = db.wasteUnits.filter((u) => u && u.id && !deletedSet.has(u.id));
+      db.wasteLogs = db.wasteLogs.filter((l) => l && l.id && !deletedSet.has(l.id));
+      db.tebaSpots = db.tebaSpots.filter((s) => s && s.id && !deletedSet.has(s.id));
+      db.bioporiPoints = db.bioporiPoints.filter((b) => b && b.id && !deletedSet.has(b.id));
+      db.cleanupEvents = db.cleanupEvents.filter((e) => e && e.id && !deletedSet.has(e.id));
+      db.kelurahanInfos = db.kelurahanInfos.filter((i) => i && i.id && !deletedSet.has(i.id));
+      db.whatsappRecipients = db.whatsappRecipients.filter((w) => w && w.id && !deletedSet.has(w.id));
+      db.adminUsers = db.adminUsers.filter((u) => u && u.id && !deletedSet.has(u.id));
+      db.activityLogs = db.activityLogs.filter((a) => a && a.id && !deletedSet.has(a.id));
+      db.urbanFarmingSpots = db.urbanFarmingSpots.filter((s) => s && s.id && !deletedSet.has(s.id));
+      db.seedRequests = db.seedRequests.filter((s) => s && s.id && !deletedSet.has(s.id));
+      db.crops = db.crops.filter((c) => c && c.id && !deletedSet.has(c.id));
+      db.farmerGroups = db.farmerGroups.filter((f) => f && f.id && !deletedSet.has(f.id));
+    }
 
     saveDatabase(db, incoming.updatedAt);
     res.json({ ok: true, data: db });
@@ -1097,6 +1132,7 @@ async function startServer() {
       res.status(404).json({ ok: false, errors: ['Data laporan tidak ditemukan.'] });
       return;
     }
+    recordServerDeletedId(id);
     db.reports = db.reports.filter((r) => r.id !== id);
     saveDatabase(db);
     res.json({ ok: true, deletedId: id });
@@ -1136,6 +1172,7 @@ async function startServer() {
       residuKg: Number(incoming.residuKg) || 0,
       activeHouseholds: Number(incoming.activeHouseholds) || 50,
       pickupSchedule: incoming.pickupSchedule?.trim() || 'Senin, Rabu, Jumat · 06:30 WITA',
+      imageUrl: incoming.imageUrl?.trim() || '',
       lastUpdated: '06 Okt 2026',
     };
 
@@ -1159,6 +1196,7 @@ async function startServer() {
       anorganikKg: Number(req.body.anorganikKg ?? db.wasteUnits[idx].anorganikKg),
       residuKg: Number(req.body.residuKg ?? db.wasteUnits[idx].residuKg),
       activeHouseholds: Number(req.body.activeHouseholds ?? db.wasteUnits[idx].activeHouseholds),
+      imageUrl: req.body.imageUrl !== undefined ? req.body.imageUrl : db.wasteUnits[idx].imageUrl,
     };
 
     const errors = validateWasteUnit(merged);
@@ -1177,6 +1215,7 @@ async function startServer() {
 
   app.delete('/api/waste-units/:id', (req, res) => {
     const { id } = req.params;
+    recordServerDeletedId(id);
     db.wasteUnits = db.wasteUnits.filter((u) => u.id !== id);
     saveDatabase(db);
     res.json({ ok: true, deletedId: id });
@@ -1261,6 +1300,7 @@ async function startServer() {
 
   app.delete('/api/waste-logs/:id', (req, res) => {
     const { id } = req.params;
+    recordServerDeletedId(id);
     db.wasteLogs = db.wasteLogs.filter((l) => l.id !== id);
     saveDatabase(db);
     res.json({ ok: true, deletedId: id });
@@ -1367,6 +1407,7 @@ async function startServer() {
   app.delete('/api/teba-spots/:id', (req, res) => {
     const { id } = req.params;
     if (!Array.isArray(db.tebaSpots)) db.tebaSpots = [];
+    recordServerDeletedId(id);
     db.tebaSpots = db.tebaSpots.filter((t) => t.id !== id);
     saveDatabase(db);
     res.json({ ok: true, deletedId: id, tebaSpots: db.tebaSpots });
@@ -1475,6 +1516,7 @@ async function startServer() {
   app.delete('/api/biopori-points/:id', (req, res) => {
     const { id } = req.params;
     if (!Array.isArray(db.bioporiPoints)) db.bioporiPoints = [];
+    recordServerDeletedId(id);
     db.bioporiPoints = db.bioporiPoints.filter((b) => b.id !== id);
     saveDatabase(db);
     res.json({ ok: true, deletedId: id, bioporiPoints: db.bioporiPoints });
@@ -1577,6 +1619,7 @@ async function startServer() {
 
   app.delete('/api/cleanup-events/:id', (req, res) => {
     const { id } = req.params;
+    recordServerDeletedId(id);
     db.cleanupEvents = db.cleanupEvents.filter((e) => e.id !== id);
     saveDatabase(db);
     res.json({ ok: true, deletedId: id });
@@ -1668,6 +1711,7 @@ async function startServer() {
 
   app.delete('/api/infos/:id', (req, res) => {
     const { id } = req.params;
+    recordServerDeletedId(id);
     db.kelurahanInfos = db.kelurahanInfos.filter((item) => item.id !== id);
     saveDatabase(db);
     res.json({ ok: true, deletedId: id });
@@ -1725,6 +1769,7 @@ async function startServer() {
 
   app.delete('/api/urban-farming/:id', (req, res) => {
     const { id } = req.params;
+    recordServerDeletedId(id);
     db.urbanFarmingSpots = (db.urbanFarmingSpots || []).filter((s) => s.id !== id);
     saveDatabase(db);
     res.json({ ok: true, deletedId: id });

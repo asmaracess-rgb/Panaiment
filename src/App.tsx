@@ -49,6 +49,8 @@ import {
   smartMergeDatabases,
   exportDatabaseToJson,
   parseImportDatabaseJson,
+  recordDeletedItemId,
+  getDeletedItemIds,
   PersistedDatabase,
 } from './utils/persistentStorage';
 import { HomePortal } from './components/HomePortal';
@@ -62,6 +64,7 @@ import { MonitoringKerjaBaktiView } from './components/MonitoringKerjaBaktiView'
 import { UrbanFarmingView } from './components/UrbanFarmingView';
 import { AdminPanelView, AdminTab } from './components/AdminPanelView';
 import { EmblemKelurahanPanaikang } from './components/Emblems';
+import { recordTrafficHit } from './utils/trafficTracker';
 
 interface ToastNotification {
   id: string;
@@ -210,6 +213,7 @@ export default function App() {
         activityLogs: partial.activityLogs ?? stateRef.current.activityLogs,
         urbanFarmingSpots: partial.urbanFarmingSpots ?? stateRef.current.urbanFarmingSpots,
         seedRequests: partial.seedRequests ?? stateRef.current.seedRequests,
+        deletedItemIds: partial.deletedItemIds ?? Array.from(getDeletedItemIds()),
         updatedAt: Date.now(),
       };
       stateRef.current = {
@@ -396,6 +400,9 @@ export default function App() {
   const handleNavigate = (view: AppView) => {
     setActiveView(view);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    try {
+      recordTrafficHit(view);
+    } catch {}
   };
 
   // ================= DATABASE BACKUP & RESTORE HANDLERS =================
@@ -665,6 +672,7 @@ export default function App() {
   const handleAdminDeleteReport = async (
     id: string
   ): Promise<{ ok: boolean; errors?: string[] }> => {
+    recordDeletedItemId(id);
     const nextReports = stateRef.current.reports.filter((r) => r.id !== id);
     setReports(nextReports);
     commitPersistence({ reports: nextReports });
@@ -743,6 +751,7 @@ export default function App() {
       residuKg: Math.max(0, Number(unit.residuKg) || 0),
       activeHouseholds: Math.max(1, Number(unit.activeHouseholds) || 50),
       pickupSchedule: unit.pickupSchedule?.trim() || 'Senin, Rabu, Jumat · 06:30 WITA',
+      imageUrl: unit.imageUrl?.trim() || '',
       lastUpdated: '06 Okt 2026',
     };
 
@@ -770,6 +779,7 @@ export default function App() {
         1,
         Number(unit.activeHouseholds ?? existing.activeHouseholds) || 1
       ),
+      imageUrl: unit.imageUrl !== undefined ? unit.imageUrl : existing.imageUrl,
       lastUpdated: '06 Okt 2026',
     };
     const errors: string[] = [];
@@ -792,6 +802,7 @@ export default function App() {
   const handleAdminDeleteWasteUnit = async (
     id: string
   ): Promise<{ ok: boolean; errors?: string[] }> => {
+    recordDeletedItemId(id);
     const nextUnits = stateRef.current.wasteUnits.filter((u) => u.id !== id);
     setWasteUnits(nextUnits);
     commitPersistence({ wasteUnits: nextUnits });
@@ -868,6 +879,7 @@ export default function App() {
   const handleAdminDeleteWasteLog = async (
     id: string
   ): Promise<{ ok: boolean; errors?: string[] }> => {
+    recordDeletedItemId(id);
     const nextLogs = stateRef.current.wasteLogs.filter((l) => l.id !== id);
     setWasteLogs(nextLogs);
     commitPersistence({ wasteLogs: nextLogs });
@@ -955,6 +967,7 @@ export default function App() {
   const handleAdminDeleteTebaSpot = async (
     id: string
   ): Promise<{ ok: boolean; errors?: string[] }> => {
+    recordDeletedItemId(id);
     try {
       const res = await fetch(`/api/teba-spots/${id}`, {
         method: 'DELETE',
@@ -1059,6 +1072,7 @@ export default function App() {
   const handleAdminDeleteBioporiPoint = async (
     id: string
   ): Promise<{ ok: boolean; errors?: string[] }> => {
+    recordDeletedItemId(id);
     try {
       const res = await fetch(`/api/biopori-points/${id}`, {
         method: 'DELETE',
@@ -1222,6 +1236,7 @@ export default function App() {
   const handleAdminDeleteCleanup = async (
     id: string
   ): Promise<{ ok: boolean; errors?: string[] }> => {
+    recordDeletedItemId(id);
     const nextEvents = stateRef.current.cleanupEvents.filter((item) => item.id !== id);
     setCleanupEvents(nextEvents);
     commitPersistence({ cleanupEvents: nextEvents });
@@ -1316,6 +1331,7 @@ export default function App() {
   const handleAdminDeleteInfo = async (
     id: string
   ): Promise<{ ok: boolean; errors?: string[] }> => {
+    recordDeletedItemId(id);
     const nextInfos = stateRef.current.kelurahanInfos.filter((item) => item.id !== id);
     setKelurahanInfos(nextInfos);
     commitPersistence({ kelurahanInfos: nextInfos });
@@ -1487,6 +1503,7 @@ export default function App() {
 
   const handleAdminDeleteUrbanFarmingSpot = useCallback(
     async (id: string): Promise<{ ok: boolean; errors?: string[] }> => {
+      recordDeletedItemId(id);
       const nextSpots = stateRef.current.urbanFarmingSpots.filter((s) => s.id !== id);
       setUrbanFarmingSpots(nextSpots);
       commitPersistence({ urbanFarmingSpots: nextSpots });

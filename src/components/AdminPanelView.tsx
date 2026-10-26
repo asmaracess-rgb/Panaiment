@@ -37,6 +37,8 @@ import {
   FileDown,
   Sprout,
   Layers,
+  Scale,
+  Activity,
 } from 'lucide-react';
 import {
   AppView,
@@ -103,6 +105,7 @@ import {
 import { AdminUrbanFarmingPanel } from './AdminUrbanFarmingPanel';
 import { AdminTebaPanel } from './AdminTebaPanel';
 import { AdminBioporiPanel } from './AdminBioporiPanel';
+import { AdminTrafficView } from './AdminTrafficView';
 import {
   SERVICE_CATEGORY_GROUPS,
   ServiceCategoryGroup,
@@ -252,6 +255,7 @@ export type AdminTab =
   | 'sampah'
   | 'kerjabakti'
   | 'urban_farming'
+  | 'traffic'
   | 'parameter_user'
   | 'log_aktivitas';
 
@@ -392,6 +396,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         'kerjabakti',
         'urban_farming',
         'rtrw',
+        'traffic',
         'parameter_user',
         'log_aktivitas',
       ];
@@ -419,6 +424,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       'kerjabakti',
       'urban_farming',
       'rtrw',
+      'traffic',
     ];
   }, [isLurahSession, currentAdminAccount, adminSession]);
 
@@ -1090,6 +1096,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     residuKg: 180,
     activeHouseholds: 120,
     pickupSchedule: 'Senin, Rabu, Jumat · 06:30 WITA',
+    imageUrl: '',
   });
 
   const [showLogForm, setShowLogForm] = useState(false);
@@ -1863,6 +1870,17 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   };
 
   // ---------- BANK SAMPAH UNIT HANDLERS ----------
+  const handleBsuPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    try {
+      const dataUrl = await compressImageFile(file);
+      setUnitForm((prev) => ({ ...prev, imageUrl: dataUrl }));
+    } catch (err) {
+      console.warn('Gagal memproses foto BSU:', err);
+    }
+  };
+
   const openAddUnitForm = () => {
     clearFeedback();
     setEditingUnitId(null);
@@ -1876,6 +1894,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       residuKg: 150,
       activeHouseholds: 110,
       pickupSchedule: 'Senin, Rabu, Jumat · 06:30 WITA',
+      imageUrl: '',
     });
     setShowUnitForm(true);
   };
@@ -2383,7 +2402,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2.5">
               Menu Navigasi Modul Administrator & Dashboard Lurah
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-2">
               <button
                 type="button"
                 onClick={() => handleTabSwitch('dashboard_lurah')}
@@ -2683,6 +2702,39 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
               <button
                 type="button"
+                onClick={() => handleTabSwitch('traffic')}
+                className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                  activeTab === 'traffic'
+                    ? 'bg-[#00838F] border-[#00838F] text-white shadow-xs'
+                    : !isTabAllowed('traffic')
+                    ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-75'
+                    : 'bg-cyan-50/80 border-cyan-200 text-[#006064] hover:bg-cyan-100/80 hover:border-cyan-300'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Activity
+                      className={`w-4 h-4 shrink-0 ${
+                        activeTab === 'traffic' ? 'text-cyan-200' : 'text-[#00838F]'
+                      }`}
+                    />
+                    <span className="text-xs font-bold truncate">Traffic Web & App</span>
+                  </div>
+                  {!isTabAllowed('traffic') && (
+                    <Lock className="w-3 h-3 text-slate-400 shrink-0" />
+                  )}
+                </div>
+                <span
+                  className={`mt-1 text-[10px] font-medium truncate font-mono-num ${
+                    activeTab === 'traffic' ? 'text-cyan-100' : 'text-[#006064]'
+                  }`}
+                >
+                  Analitik & Live Telemetry
+                </span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => handleTabSwitch('parameter_user')}
                 className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                   activeTab === 'parameter_user'
@@ -2717,7 +2769,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               <button
                 type="button"
                 onClick={() => handleTabSwitch('log_aktivitas')}
-                className={`col-span-2 sm:col-span-1 flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                   activeTab === 'log_aktivitas'
                     ? 'bg-[#0D3868] border-[#0D3868] text-white shadow-xs'
                     : !isTabAllowed('log_aktivitas')
@@ -2788,6 +2840,13 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           >
             Tutup
           </button>
+        </div>
+      )}
+
+      {/* ================= TAB TRAFFIC WEB & APLIKASI ================= */}
+      {activeTab === 'traffic' && isTabAllowed('traffic') && (
+        <div className="mt-6">
+          <AdminTrafficView onNavigateToView={onNavigate} />
         </div>
       )}
 
@@ -4895,6 +4954,64 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 </div>
               </div>
 
+              {/* Fitur Upload Foto BSU */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Foto Dokumentasi / Gedung Bank Sampah Unit (BSU)
+                </label>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-3.5 rounded-xl border border-dashed border-amber-300 bg-amber-50/40">
+                  {unitForm.imageUrl ? (
+                    <div className="relative w-24 h-24 rounded-xl overflow-hidden border border-slate-200 bg-white shrink-0 group shadow-xs">
+                      <img
+                        src={resolveImageUrl(unitForm.imageUrl)}
+                        alt="Foto BSU"
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setUnitForm({ ...unitForm, imageUrl: '' })}
+                        className="absolute inset-0 bg-black/60 text-white flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-xs font-bold"
+                        title="Hapus foto"
+                      >
+                        <Trash2 className="w-5 h-5 text-red-300 mb-1" />
+                        <span>Hapus</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="w-24 h-24 rounded-xl border border-slate-200 bg-white flex flex-col items-center justify-center text-slate-400 shrink-0">
+                      <Camera className="w-6 h-6 text-slate-300 mb-1" />
+                      <span className="text-[10px] text-slate-400 text-center px-1">Belum ada foto</span>
+                    </div>
+                  )}
+                  <div className="flex-1 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold cursor-pointer transition-colors shadow-xs">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>{unitForm.imageUrl ? 'Ganti Foto BSU' : 'Upload Foto BSU'}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleBsuPhotoUpload}
+                          className="hidden"
+                        />
+                      </label>
+                      {unitForm.imageUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setUnitForm({ ...unitForm, imageUrl: '' })}
+                          className="px-3 py-2 rounded-xl border border-slate-300 text-slate-600 text-xs font-semibold hover:bg-slate-100 cursor-pointer"
+                        >
+                          Hapus Foto
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      Format JPG, JPEG, PNG, atau WEBP. Foto otomatis dikompresi hemat penyimpanan dan langsung tampil di kartu BSU publik dan tabel admin.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
@@ -4920,6 +5037,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
+                    <th className="py-3.5 px-4">Foto</th>
                     <th className="py-3.5 px-4">RW & Nama BSU</th>
                     <th className="py-3.5 px-4">Koordinator & Jadwal</th>
                     <th className="py-3.5 px-4 text-right">Organik</th>
@@ -4931,6 +5049,19 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 <tbody className="divide-y divide-slate-200 text-xs">
                   {wasteUnits.map((u) => (
                     <tr key={u.id} className="hover:bg-slate-50/80">
+                      <td className="py-3 px-4">
+                        {u.imageUrl ? (
+                          <img
+                            src={resolveImageUrl(u.imageUrl)}
+                            alt={u.unitName}
+                            className="w-12 h-12 rounded-xl object-cover border border-slate-200 shadow-xs"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
+                            <Recycle className="w-5 h-5 text-emerald-600" />
+                          </div>
+                        )}
+                      </td>
                       <td className="py-3.5 px-4">
                         <div className="font-bold text-[#0D3868]">
                           {u.rw} · {u.unitName}
@@ -4996,24 +5127,29 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             </div>
           </div>
 
-          {/* Log Penimbangan Management (Add, Edit, Delete) */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">
-                  Riwayat Log Penimbangan Harian ({wasteLogs.length} Entri)
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Kelola catatan penimbangan harian sampah Organik, Anorganik, dan Residu.
-                </p>
+          {/* Menu Input Timbangan Harian BSU & Riwayat Log */}
+          <div className="bg-white rounded-2xl border-2 border-emerald-300 p-6 space-y-4 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-800 shrink-0">
+                  <Scale className="w-5 h-5 text-emerald-700" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#0D3868]">
+                    Menu Input Timbangan Harian BSU & Rekapitulasi Mutasi
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Pusat pencatatan timbangan sampah harian BSU terintegrasi ({wasteLogs.length} Entri tercatat).
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={openAddLogForm}
-                className="self-start sm:self-auto inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold cursor-pointer"
+                className="self-start sm:self-auto inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs sm:text-sm font-bold cursor-pointer transition-colors shadow-xs"
               >
-                <Plus className="w-3.5 h-3.5" />
-                <span>+ Tambah Log Penimbangan</span>
+                <Plus className="w-4 h-4" />
+                <span>+ Input Timbangan Harian BSU</span>
               </button>
             </div>
 

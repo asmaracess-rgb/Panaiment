@@ -60,15 +60,6 @@ export const MonitoringSampahView: React.FC<MonitoringSampahViewProps> = ({
   // Main Sub-menu Switcher: 'bsu' | 'teba' | 'biopori'
   const [activeSubMenu, setActiveSubMenu] = useState<'bsu' | 'teba' | 'biopori'>('bsu');
 
-  // ==================== BSU SUB-MENU STATE ====================
-  const [selectedRw, setSelectedRw] = useState<string>('RW 02');
-  const [organikInput, setOrganikInput] = useState<string>('85');
-  const [anorganikInput, setAnorganikInput] = useState<string>('70');
-  const [residuInput, setResiduInput] = useState<string>('25');
-  const [officerInput, setOfficerInput] = useState<string>('');
-  const [notesInput, setNotesInput] = useState<string>('');
-  const [logSuccess, setLogSuccess] = useState<boolean>(false);
-
   // Citizen Waste Bank Conversion Calculator State
   const [petKg, setPetKg] = useState<number>(5);
   const [cardboardKg, setCardboardKg] = useState<number>(8);
@@ -86,25 +77,6 @@ export const MonitoringSampahView: React.FC<MonitoringSampahViewProps> = ({
 
   const estimatedRupiah =
     petKg * 4200 + cardboardKg * 2500 + aluminumKg * 14000 + cookingOilLiters * 6500;
-
-  const handleLogSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const org = Math.max(0, Number(organikInput) || 0);
-    const anorg = Math.max(0, Number(anorganikInput) || 0);
-    const res = Math.max(0, Number(residuInput) || 0);
-    if (org + anorg + res <= 0) return;
-
-    onAddWasteLog(
-      selectedRw,
-      org,
-      anorg,
-      res,
-      officerInput.trim() || `Petugas BSU ${selectedRw}`,
-      notesInput.trim() || `Penimbangan harian terpilah ${selectedRw} Kelurahan Panaikang.`
-    );
-    setLogSuccess(true);
-    setNotesInput('');
-  };
 
   // ==================== TEBA SUB-MENU STATE ====================
   const [tebaSearch, setTebaSearch] = useState('');
@@ -379,49 +351,87 @@ export const MonitoringSampahView: React.FC<MonitoringSampahViewProps> = ({
                 return (
                   <div
                     key={u.id}
-                    className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between hover:border-amber-300 transition-colors"
+                    className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs flex flex-col justify-between hover:border-amber-300 transition-colors"
                   >
                     <div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 font-bold border border-amber-200">
-                          {u.rw}
-                        </span>
-                        <span className="text-slate-400 font-mono-num text-[11px]">
-                          {u.lastUpdated}
-                        </span>
-                      </div>
-                      <h3 className="mt-2 text-base font-bold text-slate-900">{u.unitName}</h3>
-                      <p className="text-xs text-slate-500 mt-0.5">{u.locationLabel}</p>
+                      {u.imageUrl ? (
+                        <div className="relative h-44 w-full bg-slate-100 overflow-hidden border-b border-slate-100">
+                          <img
+                            src={resolveImageUrl(u.imageUrl)}
+                            alt={u.unitName}
+                            className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                          />
+                          <div className="absolute top-3 left-3">
+                            <span className="px-2.5 py-1 rounded-full bg-white/95 backdrop-blur-xs text-amber-800 font-bold border border-amber-200 text-xs shadow-xs">
+                              {u.rw}
+                            </span>
+                          </div>
+                          <div className="absolute top-3 right-3">
+                            <span className="px-2 py-0.5 rounded-md bg-slate-900/70 backdrop-blur-xs text-white font-mono-num text-[11px]">
+                              {u.lastUpdated}
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="h-28 w-full bg-gradient-to-r from-emerald-600 to-teal-700 relative p-4 flex items-center justify-between text-white border-b border-emerald-800/10">
+                          <div className="space-y-1">
+                            <span className="px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-xs text-white font-bold text-xs">
+                              {u.rw}
+                            </span>
+                          </div>
+                          <Recycle className="w-10 h-10 text-white/30" />
+                          <div className="absolute bottom-2 right-3">
+                            <span className="text-white/80 font-mono-num text-[11px]">
+                              {u.lastUpdated}
+                            </span>
+                          </div>
+                        </div>
+                      )}
 
-                      <div className="mt-4 pt-3 border-t border-slate-100 grid grid-cols-3 gap-2 text-center">
-                        <div className="bg-emerald-50 rounded-xl p-2">
-                          <span className="text-[10px] font-semibold text-emerald-800 block">
-                            ORGANIK
-                          </span>
-                          <span className="text-xs font-bold text-slate-900 font-mono-num">
-                            {u.organikKg} kg
-                          </span>
-                        </div>
-                        <div className="bg-sky-50 rounded-xl p-2">
-                          <span className="text-[10px] font-semibold text-sky-800 block">
-                            ANORGANIK
-                          </span>
-                          <span className="text-xs font-bold text-slate-900 font-mono-num">
-                            {u.anorganikKg} kg
-                          </span>
-                        </div>
-                        <div className="bg-amber-50 rounded-xl p-2">
-                          <span className="text-[10px] font-semibold text-amber-800 block">
-                            RESIDU
-                          </span>
-                          <span className="text-xs font-bold text-slate-900 font-mono-num">
-                            {u.residuKg} kg
-                          </span>
+                      <div className="p-5 pb-0">
+                        {!u.imageUrl && (
+                          <div className="flex items-center justify-between text-xs mb-1">
+                            <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 font-bold border border-amber-200">
+                              {u.rw}
+                            </span>
+                            <span className="text-slate-400 font-mono-num text-[11px]">
+                              {u.lastUpdated}
+                            </span>
+                          </div>
+                        )}
+                        <h3 className="text-base font-bold text-slate-900">{u.unitName}</h3>
+                        <p className="text-xs text-slate-500 mt-0.5">{u.locationLabel}</p>
+
+                        <div className="mt-4 pt-3 border-t border-slate-100 grid grid-cols-3 gap-2 text-center">
+                          <div className="bg-emerald-50 rounded-xl p-2">
+                            <span className="text-[10px] font-semibold text-emerald-800 block">
+                              ORGANIK
+                            </span>
+                            <span className="text-xs font-bold text-slate-900 font-mono-num">
+                              {u.organikKg} kg
+                            </span>
+                          </div>
+                          <div className="bg-sky-50 rounded-xl p-2">
+                            <span className="text-[10px] font-semibold text-sky-800 block">
+                              ANORGANIK
+                            </span>
+                            <span className="text-xs font-bold text-slate-900 font-mono-num">
+                              {u.anorganikKg} kg
+                            </span>
+                          </div>
+                          <div className="bg-amber-50 rounded-xl p-2">
+                            <span className="text-[10px] font-semibold text-amber-800 block">
+                              RESIDU
+                            </span>
+                            <span className="text-xs font-bold text-slate-900 font-mono-num">
+                              {u.residuKg} kg
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500 space-y-1">
+                    <div className="p-5 pt-3 mt-3 border-t border-slate-100 text-xs text-slate-500 space-y-1.5">
                       <div className="flex items-center justify-between">
                         <span>Koordinator:</span>
                         <span className="font-semibold text-slate-700">{u.coordinator}</span>
@@ -445,125 +455,63 @@ export const MonitoringSampahView: React.FC<MonitoringSampahViewProps> = ({
             </div>
           </div>
 
-          {/* Interactive Tools: Log Form & Savings Calculator */}
+          {/* Interactive Tools: Layanan Penimbangan BSU & Kalkulator Simulasi Tabungan */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Input Log Timbangan */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
-              <div className="flex items-center gap-2 pb-3 border-b border-slate-200">
-                <Scale className="w-4 h-4 text-[#EF6C00]" />
-                <h2 className="text-base font-bold text-[#0D3868]">
-                  Input Timbangan Sampah Harian BSU
-                </h2>
+            {/* Layanan Penimbangan Harian BSU (Dikelola di Halaman Admin BSU) */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 pb-3 border-b border-slate-200">
+                  <Scale className="w-5 h-5 text-[#EF6C00]" />
+                  <h2 className="text-base font-bold text-[#0D3868]">
+                    Layanan Penimbangan Sampah Harian BSU
+                  </h2>
+                </div>
+
+                <div className="mt-4 p-4 rounded-xl bg-amber-50/70 border border-amber-200/80 text-xs text-amber-950 space-y-2.5">
+                  <div className="flex items-start gap-2">
+                    <Info className="w-4 h-4 text-[#EF6C00] shrink-0 mt-0.5" />
+                    <p className="font-semibold leading-relaxed">
+                      Menu Input Timbangan Harian BSU dikelola secara terpusat oleh Pengurus BSU & Petugas melalui Panel Admin BSU.
+                    </p>
+                  </div>
+                  <p className="text-slate-600 pl-6 leading-relaxed">
+                    Warga dapat menyetorkan sampah terpilah (Organik, Anorganik, dan Residu) langsung ke Bank Sampah Unit RW terdekat. Petugas unit akan menimbang dan mencatat mutasi timbangan harian langsung ke dalam sistem Satu Data Panaikang.
+                  </p>
+                </div>
+
+                {/* Real-time stats */}
+                <div className="mt-5 grid grid-cols-3 gap-2.5 text-center">
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/60">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Log</span>
+                    <span className="text-base font-bold text-slate-800 font-mono-num">{wasteLogs.length}</span>
+                    <span className="text-[10px] text-slate-400 block mt-0.5">Penimbangan</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200/60">
+                    <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">Total Organik</span>
+                    <span className="text-base font-bold text-emerald-700 font-mono-num">{wasteUnits.reduce((a, b) => a + b.organikKg, 0)}</span>
+                    <span className="text-[10px] text-emerald-600 block mt-0.5">Kilogram</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-sky-50/70 border border-sky-200/60">
+                    <span className="text-[10px] font-bold text-sky-800 uppercase tracking-wider block">Total Anorganik</span>
+                    <span className="text-base font-bold text-sky-700 font-mono-num">{wasteUnits.reduce((a, b) => a + b.anorganikKg, 0)}</span>
+                    <span className="text-[10px] text-sky-600 block mt-0.5">Kilogram</span>
+                  </div>
+                </div>
               </div>
-              <p className="mt-2 text-xs text-slate-600">
-                Pencatatan volume timbangan setoran harian warga atau armada kebersihan untuk
-                memperbarui profil timbulan sampah:
-              </p>
 
-              {logSuccess && (
-                <div className="mt-3 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center justify-between">
-                  <span>Data penimbangan berhasil dicatat dan disinkronkan ke rekapitulasi!</span>
-                  <button
-                    type="button"
-                    onClick={() => setLogSuccess(false)}
-                    className="font-bold underline cursor-pointer"
-                  >
-                    Tutup
-                  </button>
-                </div>
-              )}
-
-              <form onSubmit={handleLogSubmit} className="mt-4 space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Wilayah Bank Sampah Unit (BSU)
-                  </label>
-                  <select
-                    value={selectedRw}
-                    onChange={(e) => setSelectedRw(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs sm:text-sm bg-white"
-                  >
-                    {wasteUnits.map((u) => (
-                      <option key={u.id} value={u.rw}>
-                        {u.unitName} ({u.rw})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-emerald-800 mb-1">
-                      Organik (kg)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={organikInput}
-                      onChange={(e) => setOrganikInput(e.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-mono-num"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-sky-800 mb-1">
-                      Anorganik (kg)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={anorganikInput}
-                      onChange={(e) => setAnorganikInput(e.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-mono-num"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-amber-800 mb-1">
-                      Residu (kg)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={residuInput}
-                      onChange={(e) => setResiduInput(e.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-mono-num"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Petugas / Armada Pencatat
-                  </label>
-                  <input
-                    type="text"
-                    value={officerInput}
-                    onChange={(e) => setOfficerInput(e.target.value)}
-                    placeholder="Contoh: Pengurus BSU / Armada Tangkasaki"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs sm:text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Catatan Penimbangan
-                  </label>
-                  <input
-                    type="text"
-                    value={notesInput}
-                    onChange={(e) => setNotesInput(e.target.value)}
-                    placeholder="Contoh: Setoran rutin warga RT 01 - RT 03"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs sm:text-sm"
-                  />
-                </div>
-
+              <div className="mt-6 pt-4 border-t border-slate-100 space-y-2">
                 <button
-                  type="submit"
-                  className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-[#EF6C00] hover:bg-[#E65100] text-white text-xs sm:text-sm font-bold transition-colors cursor-pointer shadow-xs"
+                  type="button"
+                  onClick={() => onNavigate('admin')}
+                  className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-[#0D3868] hover:bg-[#092547] text-white text-xs sm:text-sm font-bold transition-colors cursor-pointer shadow-xs"
                 >
-                  <PlusCircle className="w-4 h-4" />
-                  <span>Simpan Data Penimbangan</span>
+                  <Scale className="w-4 h-4 text-[#EF6C00]" />
+                  <span>Buka Menu Input Timbangan di Halaman Admin BSU</span>
                 </button>
-              </form>
+                <p className="text-[11px] text-center text-slate-400">
+                  Akses khusus Koordinator BSU & Petugas Kelurahan Panaikang
+                </p>
+              </div>
             </div>
 
             {/* Interactive Waste Bank Savings Calculator for Citizens */}
