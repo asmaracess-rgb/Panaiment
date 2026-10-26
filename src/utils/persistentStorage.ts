@@ -101,6 +101,28 @@ export function getDeletedItemIds(): Set<string> {
 }
 
 /**
+ * Permanently registers multiple item IDs as deleted (tombstone) across devices
+ */
+export function recordDeletedItemIds(ids: string[]): void {
+  if (typeof window === 'undefined' || !Array.isArray(ids) || ids.length === 0) return;
+  try {
+    const set = getDeletedItemIds();
+    let changed = false;
+    for (const id of ids) {
+      if (id && !set.has(id)) {
+        set.add(id);
+        changed = true;
+      }
+    }
+    if (changed) {
+      window.localStorage.setItem(DELETED_IDS_KEY, JSON.stringify(Array.from(set)));
+    }
+  } catch (err) {
+    console.warn('Failed to record deleted item ids:', err);
+  }
+}
+
+/**
  * Permanently registers an item ID as deleted (tombstone) so it NEVER resurrects
  * upon browser refresh, git synchronization, or serverless Vercel rehydration.
  */
@@ -156,9 +178,9 @@ function loadWasteLogsJournal(): WasteLogEntry[] {
 /**
  * Helper to merge an entity collection by unique item ID.
  * - Items in deletedSet are NEVER included.
- * - Items in localList are prioritized when localIsNewer or when not yet present in incoming.
- * - If neither local nor incoming has ever been defined, fall back to initialList.
- * - If an array was explicitly emptied (length === 0), it remains empty!
+ * - When incoming is newer or equal (!localIsNewer), incoming list is authoritative and deleted items are never revived.
+ * - If only local exists (e.g. offline first visit before backend is reached), local is returned.
+ * - If neither local nor incoming has ever been set, fall back to initialList.
  */
 function mergeEntityCollection<T extends { id: string }>(
   localList: T[] | undefined,
@@ -175,9 +197,19 @@ function mergeEntityCollection<T extends { id: string }>(
     return initialList.filter((item) => item && item.id && !deletedSet.has(item.id));
   }
 
-  const map = new Map<string, T>();
+  // When incoming is authoritative (server is newer or equal):
+  // Take incoming list directly without resurrecting items that other admins deleted!
+  if (hasIncoming && !localIsNewer) {
+    return incomingList!.filter((item) => item && item.id && !deletedSet.has(item.id));
+  }
 
-  // 1. Populate from incoming if present
+  // If only local exists
+  if (hasLocal && !hasIncoming) {
+    return localList!.filter((item) => item && item.id && !deletedSet.has(item.id));
+  }
+
+  // If local is explicitly newer (uncommitted offline edits)
+  const map = new Map<string, T>();
   if (hasIncoming) {
     for (const item of incomingList!) {
       if (item && item.id && !deletedSet.has(item.id)) {
@@ -186,12 +218,10 @@ function mergeEntityCollection<T extends { id: string }>(
     }
   }
 
-  // 2. Layer local entries over incoming
   if (hasLocal) {
     for (const item of localList!) {
       if (!item || !item.id || deletedSet.has(item.id)) continue;
-      // If item was added locally or local is newer, local version takes precedence!
-      if (!map.has(item.id) || localIsNewer) {
+      if (localIsNewer) {
         map.set(item.id, item);
       }
     }
@@ -216,10 +246,11 @@ export function smartMergeDatabases(
     ...(Array.isArray(localDb?.deletedItemIds) ? localDb!.deletedItemIds : []),
     ...(Array.isArray(incoming?.deletedItemIds) ? incoming!.deletedItemIds : []),
   ]);
+  recordDeletedItemIds(Array.from(deletedIds));
 
   const localUpdatedAt = typeof localDb?.updatedAt === 'number' ? localDb.updatedAt : 0;
   const incomingUpdatedAt = typeof incoming?.updatedAt === 'number' ? incoming.updatedAt : 0;
-  const localIsNewer = localUpdatedAt >= incomingUpdatedAt;
+  const localIsNewer = localUpdatedAt > incomingUpdatedAt;
 
   // 1. Resolve RW Groups (preserve custom edits or defaults)
   const baseRw = localDb?.rwGroups || INITIAL_RW_GROUPS;

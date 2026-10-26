@@ -347,18 +347,16 @@ export default function App() {
       if (initialLocal.bioporiPoints) setBioporiPoints(initialLocal.bioporiPoints);
     }
 
-    // 2. Fetch server database and perform bulletproof smart merge (NEVER discarding user input)
-    fetch('/api/data', { cache: 'no-store' })
-      .then((res) => {
-        if (!res.ok) throw new Error('API offline or serverless fallback');
-        return res.json();
-      })
-      .then((payload) => {
+    // 2. Fetch server database and perform bulletproof smart merge
+    const syncFromServer = async () => {
+      try {
+        const res = await fetch('/api/data', { cache: 'no-store' });
+        if (!res.ok) return;
+        const payload = await res.json();
         if (!mounted || !payload?.ok || !payload.data) return;
         const serverDb = payload.data as Partial<PersistedDatabase>;
         const currentLocal = loadPersistedDatabase();
 
-        // Non-destructive smart merge: guarantees any citizen report or admin input is preserved
         const merged = smartMergeDatabases(currentLocal, serverDb);
 
         setKelurahanProfile(merged.profile);
@@ -374,27 +372,26 @@ export default function App() {
         if (merged.activityLogs) setActivityLogs(merged.activityLogs);
         if (merged.urbanFarmingSpots) setUrbanFarmingSpots(merged.urbanFarmingSpots);
         if (merged.seedRequests) setSeedRequests(merged.seedRequests);
-        if (merged.tebaSpots) setTebaSpots(merged.tebaSpots);
-        if (merged.bioporiPoints) setBioporiPoints(merged.bioporiPoints);
+        setTebaSpots(merged.tebaSpots ?? []);
+        setBioporiPoints(merged.bioporiPoints ?? []);
 
         savePersistedDatabase(merged);
+      } catch {}
+    };
 
-        // Synchronize merged state up to the server
-        fetch('/api/data', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(merged),
-        }).catch(() => {});
-      })
-      .catch(() => {
-        // Vercel serverless / static / offline fallback: ensure current state is safely stored
-        const local = loadPersistedDatabase();
-        if (local) {
-          savePersistedDatabase(local);
-        } else {
-          commitPersistence({}, false);
-        }
-      });
+    syncFromServer();
+
+    // Cross-device synchronization on window focus / tab visibility
+    const handleFocusOrVisible = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        syncFromServer();
+      }
+    };
+    window.addEventListener('focus', handleFocusOrVisible);
+    document.addEventListener('visibilitychange', handleFocusOrVisible);
+
+    // Periodic gentle background poll every 12 seconds for multi-device sync
+    const pollInterval = window.setInterval(syncFromServer, 12000);
 
     // Cross-tab synchronization listener
     const handleStorageUpdate = (e: StorageEvent) => {
@@ -408,6 +405,15 @@ export default function App() {
             setRwGroups(updated.rwGroups);
             setWasteUnits(updated.wasteUnits);
             setCleanupEvents(updated.cleanupEvents);
+            setKelurahanInfos(updated.kelurahanInfos);
+            setWhatsappRecipients(updated.whatsappRecipients);
+            if (updated.serviceCatalog) setServiceCatalog(updated.serviceCatalog);
+            if (updated.adminUsers) setAdminUsers(updated.adminUsers);
+            if (updated.activityLogs) setActivityLogs(updated.activityLogs);
+            if (updated.urbanFarmingSpots) setUrbanFarmingSpots(updated.urbanFarmingSpots);
+            if (updated.seedRequests) setSeedRequests(updated.seedRequests);
+            setTebaSpots(updated.tebaSpots ?? []);
+            setBioporiPoints(updated.bioporiPoints ?? []);
           }
         } catch {}
       }
@@ -416,9 +422,12 @@ export default function App() {
 
     return () => {
       mounted = false;
+      window.clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocusOrVisible);
+      document.removeEventListener('visibilitychange', handleFocusOrVisible);
       window.removeEventListener('storage', handleStorageUpdate);
     };
-  }, [commitPersistence]);
+  }, []);
 
   const dismissToast = useCallback((toastId: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== toastId));
@@ -460,6 +469,33 @@ export default function App() {
     try {
       recordTrafficHit(view);
     } catch {}
+
+    // Instant non-blocking sync on view transition to reflect changes from other devices
+    fetch('/api/data', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((payload) => {
+        if (!payload?.ok || !payload.data) return;
+        const serverDb = payload.data as Partial<PersistedDatabase>;
+        const currentLocal = loadPersistedDatabase();
+        const merged = smartMergeDatabases(currentLocal, serverDb);
+        setKelurahanProfile(merged.profile);
+        setRwGroups(merged.rwGroups);
+        setReports(merged.reports);
+        setWasteUnits(merged.wasteUnits);
+        setWasteLogs(merged.wasteLogs);
+        setCleanupEvents(merged.cleanupEvents);
+        setKelurahanInfos(merged.kelurahanInfos);
+        setWhatsappRecipients(merged.whatsappRecipients);
+        if (merged.serviceCatalog) setServiceCatalog(merged.serviceCatalog);
+        if (merged.adminUsers) setAdminUsers(merged.adminUsers);
+        if (merged.activityLogs) setActivityLogs(merged.activityLogs);
+        if (merged.urbanFarmingSpots) setUrbanFarmingSpots(merged.urbanFarmingSpots);
+        if (merged.seedRequests) setSeedRequests(merged.seedRequests);
+        setTebaSpots(merged.tebaSpots ?? []);
+        setBioporiPoints(merged.bioporiPoints ?? []);
+        savePersistedDatabase(merged);
+      })
+      .catch(() => {});
   };
 
   // ================= DATABASE BACKUP & RESTORE HANDLERS =================
@@ -1753,6 +1789,7 @@ export default function App() {
           <ProfilKelurahanView
             profile={kelurahanProfile}
             wasteUnits={wasteUnits}
+            rwGroups={rwGroups}
             onNavigate={handleNavigate}
           />
         )}

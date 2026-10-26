@@ -113,6 +113,8 @@ import { AdminUrbanFarmingPanel } from './AdminUrbanFarmingPanel';
 import { AdminTebaPanel } from './AdminTebaPanel';
 import { AdminBioporiPanel } from './AdminBioporiPanel';
 import { AdminTrafficView } from './AdminTrafficView';
+import { BaganStrukturKelurahanModal } from './BaganStrukturKelurahanModal';
+import { BaganStrukturRtRwModal } from './BaganStrukturRtRwModal';
 import {
   SERVICE_CATEGORY_GROUPS,
   ServiceCategoryGroup,
@@ -917,6 +919,8 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   const [isOfficialModalOpen, setIsOfficialModalOpen] = useState(false);
   const [editingOfficialId, setEditingOfficialId] = useState<string | null>(null);
   const [officialToDelete, setOfficialToDelete] = useState<StructuralOfficial | null>(null);
+  const [showAdminBaganKelurahan, setShowAdminBaganKelurahan] = useState(false);
+  const [showAdminBaganRtRw, setShowAdminBaganRtRw] = useState(false);
   const [officialForm, setOfficialForm] = useState<{
     positionTitle: string;
     officialName: string;
@@ -3363,14 +3367,32 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     terjadi mutasi, promosi, atau penyesuaian SOTK kelurahan.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleOpenAddOfficial}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap self-start sm:self-auto"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  <span>+ Tambah Jabatan Baru</span>
-                </button>
+                <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setShowAdminBaganKelurahan(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 text-[#0D3868] border border-sky-200 text-xs font-bold transition-all shadow-2xs cursor-pointer whitespace-nowrap"
+                  >
+                    <Building2 className="w-4 h-4" />
+                    <span>Pratinjau Bagan Kelurahan</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAdminBaganRtRw(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-all shadow-2xs cursor-pointer whitespace-nowrap"
+                  >
+                    <Users className="w-4 h-4" />
+                    <span>Pratinjau Bagan RT/RW</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenAddOfficial}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>+ Tambah Jabatan Baru</span>
+                  </button>
+                </div>
               </div>
 
               {/* Daftar Kartu Jabatan */}

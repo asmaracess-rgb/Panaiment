@@ -52,8 +52,8 @@ interface MonitoringSampahViewProps {
 export const MonitoringSampahView: React.FC<MonitoringSampahViewProps> = ({
   wasteUnits,
   wasteLogs,
-  tebaSpots = INITIAL_TEBA_SPOTS,
-  bioporiPoints = INITIAL_BIOPORI_POINTS,
+  tebaSpots = [],
+  bioporiPoints = [],
   onAddWasteLog,
   onNavigate,
 }) => {
@@ -84,7 +84,7 @@ export const MonitoringSampahView: React.FC<MonitoringSampahViewProps> = ({
   const [tebaStatusFilter, setTebaStatusFilter] = useState('Semua');
   const [selectedTebaModal, setSelectedTebaModal] = useState<TebaSpot | null>(null);
 
-  const tebaList = Array.isArray(tebaSpots) && tebaSpots.length > 0 ? tebaSpots : INITIAL_TEBA_SPOTS;
+  const tebaList = Array.isArray(tebaSpots) ? tebaSpots : [];
 
   const filteredTeba = useMemo(() => {
     return tebaList.filter((spot) => {
@@ -114,8 +114,7 @@ export const MonitoringSampahView: React.FC<MonitoringSampahViewProps> = ({
   const [bioporiStatusFilter, setBioporiStatusFilter] = useState('Semua');
   const [selectedBioporiModal, setSelectedBioporiModal] = useState<BioporiPoint | null>(null);
 
-  const bioporiList =
-    Array.isArray(bioporiPoints) && bioporiPoints.length > 0 ? bioporiPoints : INITIAL_BIOPORI_POINTS;
+  const bioporiList = Array.isArray(bioporiPoints) ? bioporiPoints : [];
 
   const filteredBiopori = useMemo(() => {
     return bioporiList.filter((point) => {
