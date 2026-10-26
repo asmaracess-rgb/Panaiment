@@ -23,6 +23,7 @@ import {
 } from '../types';
 import {
   INITIAL_KELURAHAN_PROFILE,
+  INITIAL_OFFICIALS,
   INITIAL_RW_GROUPS,
   INITIAL_REPORTS,
   INITIAL_WASTE_UNITS,
@@ -153,9 +154,57 @@ function loadWasteLogsJournal(): WasteLogEntry[] {
 }
 
 /**
+ * Helper to merge an entity collection by unique item ID.
+ * - Items in deletedSet are NEVER included.
+ * - Items in localList are prioritized when localIsNewer or when not yet present in incoming.
+ * - If neither local nor incoming has ever been defined, fall back to initialList.
+ * - If an array was explicitly emptied (length === 0), it remains empty!
+ */
+function mergeEntityCollection<T extends { id: string }>(
+  localList: T[] | undefined,
+  incomingList: T[] | undefined,
+  initialList: T[],
+  deletedSet: Set<string>,
+  localIsNewer: boolean
+): T[] {
+  const hasLocal = Array.isArray(localList);
+  const hasIncoming = Array.isArray(incomingList);
+
+  // If neither local nor incoming has ever been set, seed from initialList
+  if (!hasLocal && !hasIncoming) {
+    return initialList.filter((item) => item && item.id && !deletedSet.has(item.id));
+  }
+
+  const map = new Map<string, T>();
+
+  // 1. Populate from incoming if present
+  if (hasIncoming) {
+    for (const item of incomingList!) {
+      if (item && item.id && !deletedSet.has(item.id)) {
+        map.set(item.id, item);
+      }
+    }
+  }
+
+  // 2. Layer local entries over incoming
+  if (hasLocal) {
+    for (const item of localList!) {
+      if (!item || !item.id || deletedSet.has(item.id)) continue;
+      // If item was added locally or local is newer, local version takes precedence!
+      if (!map.has(item.id) || localIsNewer) {
+        map.set(item.id, item);
+      }
+    }
+  }
+
+  return Array.from(map.values()).filter((item) => item && item.id && !deletedSet.has(item.id));
+}
+
+/**
  * Non-destructive Smart Merge: Merges two database snapshots ensuring that
- * ANY user-submitted citizen report, waste log, or custom administration edit
- * is 100% retained and NEVER discarded when a newer deployment or git sync arrives.
+ * ANY user-submitted citizen report, waste unit, waste log, or custom administration edit
+ * is 100% retained and NEVER discarded when a newer deployment or git sync arrives,
+ * while permanently honoring deleted IDs across all entities.
  */
 export function smartMergeDatabases(
   localDb: PersistedDatabase | null,
@@ -167,6 +216,10 @@ export function smartMergeDatabases(
     ...(Array.isArray(localDb?.deletedItemIds) ? localDb!.deletedItemIds : []),
     ...(Array.isArray(incoming?.deletedItemIds) ? incoming!.deletedItemIds : []),
   ]);
+
+  const localUpdatedAt = typeof localDb?.updatedAt === 'number' ? localDb.updatedAt : 0;
+  const incomingUpdatedAt = typeof incoming?.updatedAt === 'number' ? incoming.updatedAt : 0;
+  const localIsNewer = localUpdatedAt >= incomingUpdatedAt;
 
   // 1. Resolve RW Groups (preserve custom edits or defaults)
   const baseRw = localDb?.rwGroups || INITIAL_RW_GROUPS;
@@ -185,181 +238,161 @@ export function smartMergeDatabases(
   // 2. Resolve Profile
   const baseProfile = localDb?.profile || INITIAL_KELURAHAN_PROFILE;
   const incProfile = incoming?.profile;
+  const sourceProfile = localIsNewer && localDb?.profile ? localDb.profile : (incProfile || baseProfile);
+
+  const resolvedOfficials = localIsNewer && Array.isArray(localDb?.profile?.officials)
+    ? localDb!.profile!.officials
+    : (Array.isArray(incProfile?.officials)
+        ? incProfile!.officials
+        : (Array.isArray(baseProfile?.officials) ? baseProfile.officials : INITIAL_OFFICIALS));
+
   const resolvedProfile: KelurahanProfile = {
-    ...(incProfile || baseProfile),
-    lurahName: incProfile?.lurahName || baseProfile.lurahName || INITIAL_KELURAHAN_PROFILE.lurahName,
-    lurahNip: incProfile?.lurahNip || baseProfile.lurahNip || INITIAL_KELURAHAN_PROFILE.lurahNip,
-    lurahMessage: incProfile?.lurahMessage || baseProfile.lurahMessage || INITIAL_KELURAHAN_PROFILE.lurahMessage,
-    officeAddress: incProfile?.officeAddress || baseProfile.officeAddress || INITIAL_KELURAHAN_PROFILE.officeAddress,
-    phoneContact: incProfile?.phoneContact || baseProfile.phoneContact || INITIAL_KELURAHAN_PROFILE.phoneContact,
+    ...baseProfile,
+    ...sourceProfile,
+    officials: resolvedOfficials,
+    lurahName: sourceProfile.lurahName || baseProfile.lurahName || INITIAL_KELURAHAN_PROFILE.lurahName,
+    lurahNip: sourceProfile.lurahNip || baseProfile.lurahNip || INITIAL_KELURAHAN_PROFILE.lurahNip,
+    lurahMessage: sourceProfile.lurahMessage || baseProfile.lurahMessage || INITIAL_KELURAHAN_PROFILE.lurahMessage,
+    officeAddress: sourceProfile.officeAddress || baseProfile.officeAddress || INITIAL_KELURAHAN_PROFILE.officeAddress,
+    phoneContact: sourceProfile.phoneContact || baseProfile.phoneContact || INITIAL_KELURAHAN_PROFILE.phoneContact,
     totalRw: resolvedRwGroups.length,
     totalRt: resolvedRwGroups.reduce((acc, rw) => acc + (rw.rtList?.length || 0), 0),
   };
 
   // 3. Resolve Reports: CRITICAL ZERO-LOSS MERGE WITH TOMBSTONE HONORED
-  const reportsMap = new Map<string, CitizenReport>();
+  const resolvedReports = mergeEntityCollection(
+    localDb?.reports,
+    incoming?.reports,
+    INITIAL_REPORTS,
+    deletedIds,
+    localIsNewer
+  );
 
-  // a. Load baseline from incoming or local or initial (filtering deleted IDs)
-  const sourceIncomingReports = Array.isArray(incoming?.reports)
-    ? incoming!.reports
-    : (localDb?.reports || INITIAL_REPORTS);
-  for (const rep of sourceIncomingReports) {
-    if (rep && rep.id && !deletedIds.has(rep.id)) {
-      reportsMap.set(rep.id, rep);
-    }
-  }
-
-  // b. Layer local reports over incoming (local user edits take precedence for user reports)
-  if (localDb && Array.isArray(localDb.reports)) {
-    for (const rep of localDb.reports) {
-      if (!rep || !rep.id || deletedIds.has(rep.id)) continue;
-      const existing = reportsMap.get(rep.id);
-      if (!existing) {
-        reportsMap.set(rep.id, rep);
-      } else {
-        const isExistingAdvanced =
-          existing.status === 'Selesai' || existing.status === 'Sedang Ditangani';
-        const isLocalAdvanced =
-          rep.status === 'Selesai' || rep.status === 'Sedang Ditangani';
-        if (isLocalAdvanced && !isExistingAdvanced) {
-          reportsMap.set(rep.id, rep);
-        } else if (rep.verifiedBy || rep.completionPhotoUrl || rep.responseNote !== existing.responseNote) {
-          reportsMap.set(rep.id, { ...existing, ...rep });
-        }
-      }
-    }
-  }
-
-  // c. Guarantee that any report in the Journal is present (unless deleted)
+  // Guarantee that any report in the Journal is present (unless deleted)
   const journalReports = loadReportsJournal();
+  const reportsMap = new Map<string, CitizenReport>(resolvedReports.map((r) => [r.id, r]));
   for (const jRep of journalReports) {
     if (jRep && jRep.id && !deletedIds.has(jRep.id) && !reportsMap.has(jRep.id)) {
       reportsMap.set(jRep.id, jRep);
     }
   }
-
-  const resolvedReports = Array.from(reportsMap.values()).sort((a, b) => {
+  const finalReports = Array.from(reportsMap.values()).sort((a, b) => {
     const aTime = a.id.startsWith('rep-') ? parseInt(a.id.replace('rep-', ''), 10) || 0 : 0;
     const bTime = b.id.startsWith('rep-') ? parseInt(b.id.replace('rep-', ''), 10) || 0 : 0;
     return bTime - aTime;
   });
 
   // 4. Resolve Waste Units & Logs
-  const baseWasteUnits = Array.isArray(incoming?.wasteUnits) && incoming!.wasteUnits.length > 0
-    ? incoming!.wasteUnits
-    : (localDb?.wasteUnits && localDb.wasteUnits.length > 0 ? localDb.wasteUnits : INITIAL_WASTE_UNITS);
-  const resolvedWasteUnits = baseWasteUnits.filter((u) => u && u.id && !deletedIds.has(u.id));
+  const resolvedWasteUnits = mergeEntityCollection(
+    localDb?.wasteUnits,
+    incoming?.wasteUnits,
+    INITIAL_WASTE_UNITS,
+    deletedIds,
+    localIsNewer
+  );
 
-  const logsMap = new Map<string, WasteLogEntry>();
-  const sourceLogs = Array.isArray(incoming?.wasteLogs)
-    ? incoming!.wasteLogs
-    : (localDb?.wasteLogs || INITIAL_WASTE_LOGS);
-  for (const l of sourceLogs) {
-    if (l && l.id && !deletedIds.has(l.id)) logsMap.set(l.id, l);
-  }
-  if (localDb && Array.isArray(localDb.wasteLogs)) {
-    for (const l of localDb.wasteLogs) {
-      if (l && l.id && !deletedIds.has(l.id) && !logsMap.has(l.id)) logsMap.set(l.id, l);
+  const resolvedWasteLogs = mergeEntityCollection(
+    localDb?.wasteLogs,
+    incoming?.wasteLogs,
+    INITIAL_WASTE_LOGS,
+    deletedIds,
+    localIsNewer
+  );
+
+  // Guarantee journal logs are included if not deleted
+  const journalLogs = loadWasteLogsJournal();
+  const logsMap = new Map<string, WasteLogEntry>(resolvedWasteLogs.map((l) => [l.id, l]));
+  for (const jl of journalLogs) {
+    if (jl && jl.id && !deletedIds.has(jl.id) && !logsMap.has(jl.id)) {
+      logsMap.set(jl.id, jl);
     }
   }
-  const journalLogs = loadWasteLogsJournal();
-  for (const jl of journalLogs) {
-    if (jl && jl.id && !deletedIds.has(jl.id) && !logsMap.has(jl.id)) logsMap.set(jl.id, jl);
-  }
-  const resolvedWasteLogs = Array.from(logsMap.values());
+  const finalWasteLogs = Array.from(logsMap.values());
 
   // 5. Resolve Teba & Biopori (preserve non-empty custom entries, omit deleted)
-  const baseTeba = Array.isArray(incoming?.tebaSpots) && incoming!.tebaSpots.length > 0
-    ? incoming!.tebaSpots
-    : (localDb?.tebaSpots && localDb.tebaSpots.length > 0 ? localDb.tebaSpots : INITIAL_TEBA_SPOTS);
-  const resolvedTebaSpots = baseTeba.filter((s) => s && s.id && !deletedIds.has(s.id));
+  const resolvedTebaSpots = mergeEntityCollection(
+    localDb?.tebaSpots,
+    incoming?.tebaSpots,
+    INITIAL_TEBA_SPOTS,
+    deletedIds,
+    localIsNewer
+  );
 
-  const baseBiopori = Array.isArray(incoming?.bioporiPoints) && incoming!.bioporiPoints.length > 0
-    ? incoming!.bioporiPoints
-    : (localDb?.bioporiPoints && localDb.bioporiPoints.length > 0 ? localDb.bioporiPoints : INITIAL_BIOPORI_POINTS);
-  const resolvedBioporiPoints = baseBiopori.filter((b) => b && b.id && !deletedIds.has(b.id));
+  const resolvedBioporiPoints = mergeEntityCollection(
+    localDb?.bioporiPoints,
+    incoming?.bioporiPoints,
+    INITIAL_BIOPORI_POINTS,
+    deletedIds,
+    localIsNewer
+  );
 
   // 6. Cleanup Events
-  const eventsMap = new Map<string, CleanupEvent>();
-  const sourceEvents = Array.isArray(incoming?.cleanupEvents)
-    ? incoming!.cleanupEvents
-    : (localDb?.cleanupEvents || INITIAL_CLEANUP_EVENTS);
-  for (const ev of sourceEvents) {
-    if (ev && ev.id && !deletedIds.has(ev.id)) eventsMap.set(ev.id, ev);
-  }
-  if (localDb && Array.isArray(localDb.cleanupEvents)) {
-    for (const ev of localDb.cleanupEvents) {
-      if (ev && ev.id && !deletedIds.has(ev.id) && !eventsMap.has(ev.id)) eventsMap.set(ev.id, ev);
-    }
-  }
-  const resolvedCleanupEvents = Array.from(eventsMap.values());
+  const resolvedCleanupEvents = mergeEntityCollection(
+    localDb?.cleanupEvents,
+    incoming?.cleanupEvents,
+    INITIAL_CLEANUP_EVENTS,
+    deletedIds,
+    localIsNewer
+  );
 
   // 7. Urban Farming Spots & Seed Requests
-  const spotsMap = new Map<string, UrbanFarmingSpot>();
-  const sourceSpots = Array.isArray(incoming?.urbanFarmingSpots)
-    ? incoming!.urbanFarmingSpots
-    : (localDb?.urbanFarmingSpots || INITIAL_URBAN_FARMING_SPOTS);
-  for (const s of sourceSpots) {
-    if (s && s.id && !deletedIds.has(s.id)) spotsMap.set(s.id, s);
-  }
-  if (localDb && Array.isArray(localDb.urbanFarmingSpots)) {
-    for (const s of localDb.urbanFarmingSpots) {
-      if (s && s.id && !deletedIds.has(s.id) && !spotsMap.has(s.id)) spotsMap.set(s.id, s);
-    }
-  }
-  const resolvedUrbanFarmingSpots = Array.from(spotsMap.values());
+  const resolvedUrbanFarmingSpots = mergeEntityCollection(
+    localDb?.urbanFarmingSpots,
+    incoming?.urbanFarmingSpots,
+    INITIAL_URBAN_FARMING_SPOTS,
+    deletedIds,
+    localIsNewer
+  );
 
-  const seedsMap = new Map<string, SeedRequestItem>();
-  const sourceSeeds = Array.isArray(incoming?.seedRequests)
-    ? incoming!.seedRequests
-    : (localDb?.seedRequests || INITIAL_SEED_REQUESTS);
-  for (const sr of sourceSeeds) {
-    if (sr && sr.id && !deletedIds.has(sr.id)) seedsMap.set(sr.id, sr);
-  }
-  if (localDb && Array.isArray(localDb.seedRequests)) {
-    for (const sr of localDb.seedRequests) {
-      if (sr && sr.id && !deletedIds.has(sr.id) && !seedsMap.has(sr.id)) seedsMap.set(sr.id, sr);
-    }
-  }
-  const resolvedSeedRequests = Array.from(seedsMap.values());
+  const resolvedSeedRequests = mergeEntityCollection(
+    localDb?.seedRequests,
+    incoming?.seedRequests,
+    INITIAL_SEED_REQUESTS,
+    deletedIds,
+    localIsNewer
+  );
 
   // 8. Kelurahan Infos & WhatsApp Recipients
-  const baseInfos = Array.isArray(incoming?.kelurahanInfos) && incoming!.kelurahanInfos.length > 0
-    ? incoming!.kelurahanInfos
-    : (localDb?.kelurahanInfos || INITIAL_KELURAHAN_INFOS);
-  const resolvedKelurahanInfos = baseInfos.filter((i) => i && i.id && !deletedIds.has(i.id));
+  const resolvedKelurahanInfos = mergeEntityCollection(
+    localDb?.kelurahanInfos,
+    incoming?.kelurahanInfos,
+    INITIAL_KELURAHAN_INFOS,
+    deletedIds,
+    localIsNewer
+  );
 
-  const baseRecipients = Array.isArray(incoming?.whatsappRecipients) && incoming!.whatsappRecipients.length > 0
-    ? incoming!.whatsappRecipients
-    : (localDb?.whatsappRecipients || INITIAL_WHATSAPP_RECIPIENTS);
-  const resolvedWhatsappRecipients = baseRecipients.filter((w) => w && w.id && !deletedIds.has(w.id));
+  const resolvedWhatsappRecipients = mergeEntityCollection(
+    localDb?.whatsappRecipients,
+    incoming?.whatsappRecipients,
+    INITIAL_WHATSAPP_RECIPIENTS,
+    deletedIds,
+    localIsNewer
+  );
 
   const resolvedServiceCatalog = Array.isArray(incoming?.serviceCatalog) && incoming!.serviceCatalog.length > 0
     ? incoming!.serviceCatalog
     : (localDb?.serviceCatalog || SERVICE_CATEGORY_GROUPS);
 
-  const baseAdminUsers = Array.isArray(incoming?.adminUsers) && incoming!.adminUsers.length > 0
-    ? incoming!.adminUsers
-    : (localDb?.adminUsers || INITIAL_ADMIN_USERS);
-  const resolvedAdminUsers = baseAdminUsers.filter((u) => u && u.id && !deletedIds.has(u.id));
+  const resolvedAdminUsers = mergeEntityCollection(
+    localDb?.adminUsers,
+    incoming?.adminUsers,
+    INITIAL_ADMIN_USERS,
+    deletedIds,
+    localIsNewer
+  );
 
-  const baseActivityLogs = Array.isArray(incoming?.activityLogs) && incoming!.activityLogs.length > 0
+  const resolvedActivityLogs = Array.isArray(incoming?.activityLogs) && incoming!.activityLogs.length > 0
     ? incoming!.activityLogs
     : (localDb?.activityLogs || INITIAL_ACTIVITY_LOGS);
-  const resolvedActivityLogs = baseActivityLogs.filter((a) => a && a.id && !deletedIds.has(a.id));
 
-  const maxUpdatedAt = Math.max(
-    localDb?.updatedAt || 0,
-    incoming?.updatedAt || 0,
-    Date.now()
-  );
+  const maxUpdatedAt = Math.max(localUpdatedAt, incomingUpdatedAt, Date.now());
 
   return {
     profile: resolvedProfile,
     rwGroups: resolvedRwGroups,
-    reports: resolvedReports,
+    reports: finalReports,
     wasteUnits: resolvedWasteUnits,
-    wasteLogs: resolvedWasteLogs,
+    wasteLogs: finalWasteLogs,
     tebaSpots: resolvedTebaSpots,
     bioporiPoints: resolvedBioporiPoints,
     cleanupEvents: resolvedCleanupEvents,
@@ -420,6 +453,21 @@ export function savePersistedDatabase(db: PersistedDatabase): void {
     ]);
     db.deletedItemIds = Array.from(deletedSet);
 
+    // Filter all collections against deletedSet before storing
+    if (deletedSet.size > 0) {
+      db.reports = (db.reports || []).filter((r) => r && r.id && !deletedSet.has(r.id));
+      db.wasteUnits = (db.wasteUnits || []).filter((u) => u && u.id && !deletedSet.has(u.id));
+      db.wasteLogs = (db.wasteLogs || []).filter((l) => l && l.id && !deletedSet.has(l.id));
+      db.tebaSpots = (db.tebaSpots || []).filter((s) => s && s.id && !deletedSet.has(s.id));
+      db.bioporiPoints = (db.bioporiPoints || []).filter((b) => b && b.id && !deletedSet.has(b.id));
+      db.cleanupEvents = (db.cleanupEvents || []).filter((e) => e && e.id && !deletedSet.has(e.id));
+      db.kelurahanInfos = (db.kelurahanInfos || []).filter((i) => i && i.id && !deletedSet.has(i.id));
+      db.whatsappRecipients = (db.whatsappRecipients || []).filter((w) => w && w.id && !deletedSet.has(w.id));
+      db.adminUsers = (db.adminUsers || []).filter((u) => u && u.id && !deletedSet.has(u.id));
+      db.urbanFarmingSpots = (db.urbanFarmingSpots || []).filter((s) => s && s.id && !deletedSet.has(s.id));
+      db.seedRequests = (db.seedRequests || []).filter((s) => s && s.id && !deletedSet.has(s.id));
+    }
+
     const serialized = JSON.stringify(db);
     // 1. Primary storage
     window.localStorage.setItem(STORAGE_KEY, serialized);
@@ -450,42 +498,38 @@ export function savePersistedDatabase(db: PersistedDatabase): void {
  * Downloads a complete JSON snapshot file of the application database
  */
 export function exportDatabaseToJson(db: PersistedDatabase): void {
+  if (typeof window === 'undefined') return;
   try {
-    const exportPayload = {
-      app: 'Panaikang Smart Environment',
-      version: '3.0',
-      exportedAt: new Date().toISOString(),
-      kelurahan: 'Kelurahan Panaikang, Kota Makassar',
-      data: db,
-    };
-    const jsonStr = JSON.stringify(exportPayload, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const jsonString = JSON.stringify(db, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    const dateStr = new Date().toISOString().slice(0, 10);
-    a.href = url;
-    a.download = `backup_panaikang_smart_environment_${dateStr}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const link = document.createElement('a');
+    const dateStr = new Date().toISOString().split('T')[0];
+    link.href = url;
+    link.download = `panaikang-smart-environment-backup-${dateStr}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
     URL.revokeObjectURL(url);
   } catch (err) {
-    console.error('Failed to export database:', err);
+    console.error('Failed to export database to JSON file:', err);
   }
 }
 
 /**
- * Parses and validates an uploaded backup JSON file
+ * Parses and validates an uploaded JSON database snapshot file
  */
 export function parseImportDatabaseJson(jsonString: string): PersistedDatabase | null {
   try {
-    const parsed = JSON.parse(jsonString);
-    const candidateData = parsed.data || parsed;
-    if (!candidateData || typeof candidateData !== 'object') {
-      return null;
-    }
-    return smartMergeDatabases(null, candidateData);
-  } catch {
+    const parsed = JSON.parse(jsonString) as Partial<PersistedDatabase>;
+    if (!parsed || typeof parsed !== 'object') return null;
+
+    if (!parsed.profile || !parsed.profile.lurahName) return null;
+    if (!Array.isArray(parsed.rwGroups) || !Array.isArray(parsed.reports)) return null;
+
+    return smartMergeDatabases(null, parsed);
+  } catch (err) {
+    console.error('Failed to parse import database JSON:', err);
     return null;
   }
 }

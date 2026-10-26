@@ -208,6 +208,18 @@ export interface MonthlyReportTrend {
   indeksKebersihan: number;
 }
 
+export interface StructuralOfficial {
+  id: string;
+  positionTitle: string;
+  officialName: string;
+  nip?: string;
+  rank?: string;
+  department?: string;
+  phone?: string;
+  photoUrl?: string;
+  orderIndex?: number;
+}
+
 export interface KelurahanProfile {
   lurahName: string;
   lurahNip: string;
@@ -218,6 +230,7 @@ export interface KelurahanProfile {
   sekretarisName: string;
   kasiKebersihanName: string;
   kasiPemerintahanName: string;
+  officials?: StructuralOfficial[];
   officeAddress: string;
   subDistrict: string;
   city: string;

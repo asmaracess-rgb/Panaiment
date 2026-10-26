@@ -39,10 +39,16 @@ import {
   Layers,
   Scale,
   Activity,
+  Briefcase,
+  UserPlus,
+  UserCheck,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 import {
   AppView,
   KelurahanProfile,
+  StructuralOfficial,
   CitizenReport,
   ReportCategory,
   ReportStatus,
@@ -75,6 +81,7 @@ import {
   IG_POST_8,
   IG_POST_10,
   IG_POST_12,
+  INITIAL_OFFICIALS,
   INITIAL_WHATSAPP_RECIPIENTS,
   INITIAL_ADMIN_USERS,
   INITIAL_ACTIVITY_LOGS,
@@ -886,11 +893,46 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   // Sync profileDraft when profile prop updates
-  const [profileDraft, setProfileDraft] = useState<KelurahanProfile>(profile);
+  const [profileDraft, setProfileDraft] = useState<KelurahanProfile>(() => ({
+    ...profile,
+    officials:
+      Array.isArray(profile.officials) && profile.officials.length > 0
+        ? profile.officials
+        : INITIAL_OFFICIALS,
+  }));
   useEffect(() => {
-    setProfileDraft(profile);
+    setProfileDraft((prev) => ({
+      ...profile,
+      officials:
+        Array.isArray(profile.officials) && profile.officials.length > 0
+          ? profile.officials
+          : prev.officials && prev.officials.length > 0
+          ? prev.officials
+          : INITIAL_OFFICIALS,
+    }));
   }, [profile]);
   const [newMisiText, setNewMisiText] = useState('');
+
+  // Manajemen Jabatan & Struktur Organisasi Kelurahan
+  const [isOfficialModalOpen, setIsOfficialModalOpen] = useState(false);
+  const [editingOfficialId, setEditingOfficialId] = useState<string | null>(null);
+  const [officialToDelete, setOfficialToDelete] = useState<StructuralOfficial | null>(null);
+  const [officialForm, setOfficialForm] = useState<{
+    positionTitle: string;
+    officialName: string;
+    nip: string;
+    rank: string;
+    department: string;
+    phone: string;
+  }>({
+    positionTitle: '',
+    officialName: '',
+    nip: '',
+    rank: '',
+    department: '',
+    phone: '',
+  });
+  const [officialFormError, setOfficialFormError] = useState('');
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1358,6 +1400,181 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       misi: [...prev.misi, newMisiText.trim()],
     }));
     setNewMisiText('');
+  };
+
+  // ---------- MANAJEMEN JABATAN & STRUKTUR PERANGKAT KELURAHAN ----------
+  const handleOpenAddOfficial = () => {
+    setEditingOfficialId(null);
+    setOfficialForm({
+      positionTitle: '',
+      officialName: '',
+      nip: '',
+      rank: '',
+      department: 'Seksi / Bagian',
+      phone: '',
+    });
+    setOfficialFormError('');
+    setIsOfficialModalOpen(true);
+  };
+
+  const handleOpenEditOfficial = (official: StructuralOfficial) => {
+    setEditingOfficialId(official.id);
+    setOfficialForm({
+      positionTitle: official.positionTitle || '',
+      officialName: official.officialName || '',
+      nip: official.nip || '',
+      rank: official.rank || '',
+      department: official.department || '',
+      phone: official.phone || '',
+    });
+    setOfficialFormError('');
+    setIsOfficialModalOpen(true);
+  };
+
+  const handleSaveOfficialForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!officialForm.positionTitle.trim()) {
+      setOfficialFormError('Nama jabatan struktural wajib diisi.');
+      return;
+    }
+    if (!officialForm.officialName.trim()) {
+      setOfficialFormError('Nama lengkap pejabat wajib diisi.');
+      return;
+    }
+
+    const currentOfficials =
+      Array.isArray(profileDraft.officials) && profileDraft.officials.length > 0
+        ? [...profileDraft.officials]
+        : [...INITIAL_OFFICIALS];
+
+    let updatedOfficials: StructuralOfficial[];
+
+    if (editingOfficialId) {
+      updatedOfficials = currentOfficials.map((item) =>
+        item.id === editingOfficialId
+          ? {
+              ...item,
+              positionTitle: officialForm.positionTitle.trim(),
+              officialName: officialForm.officialName.trim(),
+              nip: officialForm.nip.trim() || undefined,
+              rank: officialForm.rank.trim() || undefined,
+              department: officialForm.department.trim() || undefined,
+              phone: officialForm.phone.trim() || undefined,
+            }
+          : item
+      );
+    } else {
+      const newOfficial: StructuralOfficial = {
+        id: `off-${Date.now()}`,
+        positionTitle: officialForm.positionTitle.trim(),
+        officialName: officialForm.officialName.trim(),
+        nip: officialForm.nip.trim() || undefined,
+        rank: officialForm.rank.trim() || undefined,
+        department: officialForm.department.trim() || undefined,
+        phone: officialForm.phone.trim() || undefined,
+        orderIndex: currentOfficials.length + 1,
+      };
+      updatedOfficials = [...currentOfficials, newOfficial];
+    }
+
+    const sek = updatedOfficials.find((o) =>
+      o.positionTitle.toLowerCase().includes('sekretaris')
+    );
+    const kasiKeb = updatedOfficials.find((o) =>
+      o.positionTitle.toLowerCase().includes('kebersihan')
+    );
+    const kasiPem = updatedOfficials.find(
+      (o) =>
+        o.positionTitle.toLowerCase().includes('pemerintahan') ||
+        o.positionTitle.toLowerCase().includes('trantib')
+    );
+
+    const updatedProfile: KelurahanProfile = {
+      ...profileDraft,
+      officials: updatedOfficials,
+      sekretarisName: sek?.officialName || profileDraft.sekretarisName,
+      kasiKebersihanName: kasiKeb?.officialName || profileDraft.kasiKebersihanName,
+      kasiPemerintahanName: kasiPem?.officialName || profileDraft.kasiPemerintahanName,
+    };
+
+    setProfileDraft(updatedProfile);
+    setIsOfficialModalOpen(false);
+    setEditingOfficialId(null);
+
+    // Persist immediately
+    await onSaveProfile(updatedProfile);
+
+    recordAudit({
+      actionType: editingOfficialId ? 'UPDATE' : 'CREATE',
+      module: 'PROFIL_KELURAHAN',
+      targetLabel: `Jabatan: ${officialForm.positionTitle.trim()} (${officialForm.officialName.trim()})`,
+      summary: editingOfficialId
+        ? `Memperbarui data pejabat untuk jabatan ${officialForm.positionTitle.trim()}`
+        : `Menambahkan jabatan struktural baru: ${officialForm.positionTitle.trim()}`,
+      severity: 'info',
+    });
+
+    setSuccessMessage(
+      editingOfficialId
+        ? `Perubahan jabatan "${officialForm.positionTitle}" berhasil disimpan!`
+        : `Jabatan baru "${officialForm.positionTitle}" berhasil ditambahkan dan disimpan!`
+    );
+  };
+
+  const handleConfirmDeleteOfficial = async () => {
+    if (!officialToDelete) return;
+    const currentOfficials =
+      Array.isArray(profileDraft.officials) && profileDraft.officials.length > 0
+        ? [...profileDraft.officials]
+        : [...INITIAL_OFFICIALS];
+
+    const updatedOfficials = currentOfficials.filter((o) => o.id !== officialToDelete.id);
+
+    const updatedProfile: KelurahanProfile = {
+      ...profileDraft,
+      officials: updatedOfficials,
+    };
+
+    setProfileDraft(updatedProfile);
+    await onSaveProfile(updatedProfile);
+
+    recordAudit({
+      actionType: 'DELETE',
+      module: 'PROFIL_KELURAHAN',
+      targetLabel: `Jabatan: ${officialToDelete.positionTitle} (${officialToDelete.officialName})`,
+      summary: `Menghapus jabatan struktural: ${officialToDelete.positionTitle}`,
+      severity: 'warning',
+    });
+
+    setSuccessMessage(`Jabatan "${officialToDelete.positionTitle}" berhasil dihapus.`);
+    setOfficialToDelete(null);
+  };
+
+  const handleMoveOfficial = async (index: number, direction: 'up' | 'down') => {
+    const current =
+      Array.isArray(profileDraft.officials) && profileDraft.officials.length > 0
+        ? [...profileDraft.officials]
+        : [...INITIAL_OFFICIALS];
+
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= current.length) return;
+
+    const copy = [...current];
+    const temp = copy[index];
+    copy[index] = copy[targetIndex];
+    copy[targetIndex] = temp;
+
+    copy.forEach((item, idx) => {
+      item.orderIndex = idx + 1;
+    });
+
+    const updatedProfile: KelurahanProfile = {
+      ...profileDraft,
+      officials: copy,
+    };
+
+    setProfileDraft(updatedProfile);
+    await onSaveProfile(updatedProfile);
   };
 
   // ---------- DATA RT & RW HANDLERS ----------
@@ -3053,117 +3270,206 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             </div>
           </div>
 
-          {/* Section A: Data Lurah & Perangkat */}
-          <div>
-            <h3 className="text-sm font-bold text-slate-900 mb-3">
-              01. Data Pimpinan Lurah & Perangkat Struktural
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Nama Lengkap Lurah *
-                </label>
-                <input
-                  type="text"
-                  value={profileDraft.lurahName}
-                  onChange={(e) =>
-                    setProfileDraft({ ...profileDraft, lurahName: e.target.value })
-                  }
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm"
-                />
+          {/* Section A: Data Lurah & Struktur Jabatan */}
+          <div className="space-y-6">
+            {/* Subsection 01.1: Data Lurah */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-[#0D3868]" />
+                  <span>01. Data Pimpinan Lurah Panaikang</span>
+                </h3>
+                <span className="text-xs text-slate-500">Pimpinan Utama Instansi</span>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  NIP Lurah *
-                </label>
-                <input
-                  type="text"
-                  value={profileDraft.lurahNip}
-                  onChange={(e) =>
-                    setProfileDraft({ ...profileDraft, lurahNip: e.target.value })
-                  }
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-mono-num"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Pangkat / Golongan *
-                </label>
-                <input
-                  type="text"
-                  value={profileDraft.lurahRank}
-                  onChange={(e) =>
-                    setProfileDraft({ ...profileDraft, lurahRank: e.target.value })
-                  }
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Periode Jabatan
-                </label>
-                <input
-                  type="text"
-                  value={profileDraft.lurahPeriod}
-                  onChange={(e) =>
-                    setProfileDraft({ ...profileDraft, lurahPeriod: e.target.value })
-                  }
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Sekretaris Lurah
-                </label>
-                <input
-                  type="text"
-                  value={profileDraft.sekretarisName}
-                  onChange={(e) =>
-                    setProfileDraft({ ...profileDraft, sekretarisName: e.target.value })
-                  }
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Kasi Kebersihan & Lingkungan
-                </label>
-                <input
-                  type="text"
-                  value={profileDraft.kasiKebersihanName}
-                  onChange={(e) =>
-                    setProfileDraft({ ...profileDraft, kasiKebersihanName: e.target.value })
-                  }
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Kasi Pemerintahan & Trantib
-                </label>
-                <input
-                  type="text"
-                  value={profileDraft.kasiPemerintahanName}
-                  onChange={(e) =>
-                    setProfileDraft({ ...profileDraft, kasiPemerintahanName: e.target.value })
-                  }
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-slate-50/70 p-4 rounded-xl border border-slate-200">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Nama Lengkap Lurah *
+                  </label>
+                  <input
+                    type="text"
+                    value={profileDraft.lurahName}
+                    onChange={(e) =>
+                      setProfileDraft({ ...profileDraft, lurahName: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    NIP Lurah *
+                  </label>
+                  <input
+                    type="text"
+                    value={profileDraft.lurahNip}
+                    onChange={(e) =>
+                      setProfileDraft({ ...profileDraft, lurahNip: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm font-mono-num"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Pangkat / Golongan *
+                  </label>
+                  <input
+                    type="text"
+                    value={profileDraft.lurahRank}
+                    onChange={(e) =>
+                      setProfileDraft({ ...profileDraft, lurahRank: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Periode Masa Tugas Lurah
+                  </label>
+                  <input
+                    type="text"
+                    value={profileDraft.lurahPeriod}
+                    onChange={(e) =>
+                      setProfileDraft({ ...profileDraft, lurahPeriod: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Sambutan / Pesan Lurah Panaikang
+                  </label>
+                  <input
+                    type="text"
+                    value={profileDraft.lurahMessage}
+                    onChange={(e) =>
+                      setProfileDraft({ ...profileDraft, lurahMessage: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm"
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="mt-4">
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Sambutan / Pesan Lurah Panaikang
-              </label>
-              <textarea
-                rows={2}
-                value={profileDraft.lurahMessage}
-                onChange={(e) =>
-                  setProfileDraft({ ...profileDraft, lurahMessage: e.target.value })
-                }
-                className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm"
-              />
+            {/* Subsection 01.2: Manajemen Struktur Jabatan Perangkat Kelurahan (Tambah, Edit, Hapus) */}
+            <div className="pt-4 border-t border-slate-200">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <Briefcase className="w-4 h-4 text-[#1C8237]" />
+                    <span>02. Struktur Jabatan & Perangkat Kelurahan</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Metode fleksibel untuk <strong>Tambah, Edit, dan Hapus Jabatan</strong> apabila
+                    terjadi mutasi, promosi, atau penyesuaian SOTK kelurahan.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenAddOfficial}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap self-start sm:self-auto"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>+ Tambah Jabatan Baru</span>
+                </button>
+              </div>
+
+              {/* Daftar Kartu Jabatan */}
+              {(!profileDraft.officials || profileDraft.officials.length === 0) ? (
+                <div className="p-8 text-center bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+                  <Briefcase className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                  <p className="text-xs font-medium text-slate-600">
+                    Belum ada jabatan struktural yang terdaftar.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleOpenAddOfficial}
+                    className="mt-3 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-semibold cursor-pointer"
+                  >
+                    Tambah Jabatan Pertama
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {profileDraft.officials.map((official, idx) => (
+                    <div
+                      key={official.id}
+                      className="p-4 rounded-xl border border-slate-200 bg-white hover:border-slate-300 shadow-xs flex flex-col justify-between transition-all"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-sky-50 text-[#0277BD] border border-sky-100">
+                              <Briefcase className="w-3 h-3" />
+                              <span>{official.positionTitle}</span>
+                            </span>
+                            {official.department && (
+                              <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                                {official.department}
+                              </span>
+                            )}
+                          </div>
+                          <h4 className="text-sm font-bold text-slate-900">
+                            {official.officialName}
+                          </h4>
+                          <div className="mt-1 space-y-0.5 text-xs text-slate-500">
+                            {official.nip && (
+                              <p className="font-mono-num">NIP: {official.nip}</p>
+                            )}
+                            {official.rank && <p>Pangkat: {official.rank}</p>}
+                            {official.phone && (
+                              <p className="text-emerald-700 font-mono-num">
+                                Kontak: {official.phone}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Quick Action Buttons: Reorder, Edit, Delete */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          {/* Order Buttons */}
+                          <div className="flex flex-col border border-slate-200 rounded-lg overflow-hidden mr-1">
+                            <button
+                              type="button"
+                              onClick={() => handleMoveOfficial(idx, 'up')}
+                              disabled={idx === 0}
+                              className="p-1 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600 cursor-pointer"
+                              title="Pindahkan ke atas"
+                            >
+                              <ChevronUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMoveOfficial(idx, 'down')}
+                              disabled={idx === profileDraft.officials!.length - 1}
+                              className="p-1 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600 border-t border-slate-200 cursor-pointer"
+                              title="Pindahkan ke bawah"
+                            >
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditOfficial(official)}
+                            className="p-2 rounded-lg border border-slate-200 hover:bg-sky-50 hover:border-sky-300 text-slate-700 hover:text-sky-700 transition-colors cursor-pointer"
+                            title={`Edit Jabatan ${official.positionTitle}`}
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setOfficialToDelete(official)}
+                            className="p-2 rounded-lg border border-red-200 bg-red-50/50 hover:bg-red-100 text-red-600 transition-colors cursor-pointer"
+                            title={`Hapus Jabatan ${official.positionTitle}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -6526,6 +6832,220 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: TAMBAH / EDIT JABATAN PERANGKAT KELURAHAN ================= */}
+      {isOfficialModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50/80">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-[#1C8237] flex items-center justify-center">
+                  <Briefcase className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    {editingOfficialId ? 'Edit Data Jabatan & Pejabat' : 'Tambah Jabatan Struktural Baru'}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Perangkat Kelurahan Panaikang
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsOfficialModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body Form */}
+            <form onSubmit={handleSaveOfficialForm} className="p-6 space-y-4 overflow-y-auto">
+              {officialFormError && (
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{officialFormError}</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Nama Posisi / Jabatan Struktural *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Sekretaris Lurah / Kasi Pemberdayaan Masyarakat"
+                  value={officialForm.positionTitle}
+                  onChange={(e) =>
+                    setOfficialForm({ ...officialForm, positionTitle: e.target.value })
+                  }
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500 outline-hidden"
+                  required
+                />
+                {/* Quick suggestion chips */}
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <span className="text-[10px] text-slate-400 font-medium self-center mr-1">Rekomendasi:</span>
+                  {[
+                    'Sekretaris Lurah',
+                    'Kasi Kebersihan & Lingkungan',
+                    'Kasi Pemerintahan & Trantib',
+                    'Kasi Pemberdayaan Masyarakat',
+                    'Kasubag Umum & Kepegawaian',
+                    'Bendahara Pengeluaran',
+                    'Pranata IT / Operator Data',
+                  ].map((sug) => (
+                    <button
+                      key={sug}
+                      type="button"
+                      onClick={() => setOfficialForm({ ...officialForm, positionTitle: sug })}
+                      className="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 hover:bg-sky-100 text-slate-700 hover:text-[#0277BD] transition-colors cursor-pointer"
+                    >
+                      {sug}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Nama Lengkap Pejabat / Pegawai *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Drs. Muhammad Ilham, M.Si"
+                  value={officialForm.officialName}
+                  onChange={(e) =>
+                    setOfficialForm({ ...officialForm, officialName: e.target.value })
+                  }
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500 outline-hidden"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    NIP (Nomor Induk Pegawai)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: 19820512 201001 1 012"
+                    value={officialForm.nip}
+                    onChange={(e) =>
+                      setOfficialForm({ ...officialForm, nip: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-mono-num"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Pangkat / Golongan Ruang
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: Penata Tk. I (III/d)"
+                    value={officialForm.rank}
+                    onChange={(e) =>
+                      setOfficialForm({ ...officialForm, rank: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Seksi / Divisi / Unit Kerja
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: Seksi Trantib & Pemerintahan"
+                    value={officialForm.department}
+                    onChange={(e) =>
+                      setOfficialForm({ ...officialForm, department: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Nomor Telepon / WhatsApp
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: 0812-4100-xxxx"
+                    value={officialForm.phone}
+                    onChange={(e) =>
+                      setOfficialForm({ ...officialForm, phone: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-mono-num"
+                  />
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsOfficialModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold transition-colors cursor-pointer shadow-sm"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>{editingOfficialId ? 'Simpan Perubahan' : 'Tambahkan Jabatan'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: KONFIRMASI HAPUS JABATAN ================= */}
+      {officialToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div className="text-center">
+              <h3 className="text-base font-bold text-slate-900">
+                Konfirmasi Hapus Jabatan
+              </h3>
+              <p className="mt-2 text-xs text-slate-600 leading-relaxed">
+                Apakah Anda yakin ingin menghapus jabatan{' '}
+                <strong className="text-slate-900">"{officialToDelete.positionTitle}"</strong> atas nama{' '}
+                <strong className="text-slate-900">{officialToDelete.officialName}</strong> dari struktur
+                perangkat kelurahan?
+              </p>
+            </div>
+            <div className="pt-2 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setOfficialToDelete(null)}
+                className="px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteOfficial}
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors cursor-pointer shadow-sm"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Ya, Hapus Jabatan</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

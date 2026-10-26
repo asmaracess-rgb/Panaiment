@@ -121,20 +121,76 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
               </div>
 
               {/* Perangkat Struktural Kelurahan */}
-              <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3.5 text-xs">
-                <div className="p-3.5 rounded-xl border border-slate-200 bg-white">
-                  <div className="text-slate-500">Sekretaris Lurah</div>
-                  <div className="font-bold text-slate-900 mt-1">{profile.sekretarisName}</div>
-                </div>
-                <div className="p-3.5 rounded-xl border border-slate-200 bg-white">
-                  <div className="text-slate-500">Kasi Kebersihan & Lingkungan</div>
-                  <div className="font-bold text-slate-900 mt-1">{profile.kasiKebersihanName}</div>
-                </div>
-                <div className="p-3.5 rounded-xl border border-slate-200 bg-white">
-                  <div className="text-slate-500">Kasi Pemerintahan & Trantib</div>
-                  <div className="font-bold text-slate-900 mt-1">
-                    {profile.kasiPemerintahanName}
+              <div className="mt-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-xs font-bold text-slate-700 tracking-wide uppercase">
+                    Struktur Jabatan & Perangkat Kelurahan
                   </div>
+                  <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                    {(profile.officials && profile.officials.length > 0
+                      ? profile.officials.length
+                      : 3)}{' '}
+                    Pejabat Struktural
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  {(profile.officials && profile.officials.length > 0
+                    ? profile.officials
+                    : [
+                        {
+                          id: 'off-1',
+                          positionTitle: 'Sekretaris Lurah',
+                          officialName: profile.sekretarisName || 'Hj. Rahmawati Dg. Ngasseng, S.Sos.',
+                          department: 'Sekretariat',
+                        },
+                        {
+                          id: 'off-2',
+                          positionTitle: 'Kasi Kebersihan & Lingkungan',
+                          officialName: profile.kasiKebersihanName || 'Muh. Syahrul Ramadhan, S.T.',
+                          department: 'Seksi Kebersihan',
+                        },
+                        {
+                          id: 'off-3',
+                          positionTitle: 'Kasi Pemerintahan & Trantib',
+                          officialName: profile.kasiPemerintahanName || 'Drs. H. Kamaruddin Lira',
+                          department: 'Seksi Trantib',
+                        },
+                      ]
+                  ).map((official) => (
+                    <div
+                      key={official.id}
+                      className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-sky-300 transition-colors shadow-sm flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="inline-block px-2 py-0.5 bg-sky-50 text-[#0277BD] border border-sky-100 rounded-md text-[11px] font-semibold mb-1">
+                          {official.positionTitle}
+                        </div>
+                        <div className="font-bold text-slate-900 text-sm mt-0.5">
+                          {official.officialName}
+                        </div>
+                        {official.nip && (
+                          <div className="text-[11px] font-mono-num text-slate-500 mt-1">
+                            NIP. {official.nip}
+                          </div>
+                        )}
+                        {official.rank && (
+                          <div className="text-[11px] text-slate-600 mt-0.5">
+                            Pangkat: {official.rank}
+                          </div>
+                        )}
+                      </div>
+                      <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                        <span className="font-medium text-slate-600">
+                          {official.department || 'Perangkat Kelurahan'}
+                        </span>
+                        {official.phone && (
+                          <span className="font-mono-num text-emerald-700 font-semibold">
+                            {official.phone}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

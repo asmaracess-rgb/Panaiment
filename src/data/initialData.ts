@@ -7,6 +7,7 @@ import {
   CleanupEvent,
   MonthlyReportTrend,
   KelurahanProfile,
+  StructuralOfficial,
   KelurahanInfoItem,
   RwGroup,
   WhatsAppRecipient,
@@ -1696,6 +1697,49 @@ export const INITIAL_MONTHLY_TRENDS: MonthlyReportTrend[] = [
   },
 ];
 
+export const INITIAL_OFFICIALS: StructuralOfficial[] = [
+  {
+    id: 'off-1',
+    positionTitle: 'Sekretaris Lurah',
+    officialName: 'Hj. Rahmawati Dg. Ngasseng, S.Sos.',
+    nip: '19790412 200801 2 015',
+    rank: 'Penata Tk. I (III/d)',
+    department: 'Sekretariat Kelurahan',
+    phone: '0812-4421-9801',
+    orderIndex: 1,
+  },
+  {
+    id: 'off-2',
+    positionTitle: 'Kepala Seksi Kebersihan & Lingkungan Hidup',
+    officialName: 'Muh. Syahrul Ramadhan, S.T.',
+    nip: '19850918 201101 1 008',
+    rank: 'Penata (III/c)',
+    department: 'Seksi Kebersihan & Lingkungan Hidup',
+    phone: '0852-9981-4432',
+    orderIndex: 2,
+  },
+  {
+    id: 'off-3',
+    positionTitle: 'Kepala Seksi Ketentraman, Ketertiban & Pemerintahan',
+    officialName: 'Drs. H. Kamaruddin Lira',
+    nip: '19810325 200902 1 003',
+    rank: 'Penata Tk. I (III/d)',
+    department: 'Seksi Pemerintahan & Trantib',
+    phone: '0813-5567-1120',
+    orderIndex: 3,
+  },
+  {
+    id: 'off-4',
+    positionTitle: 'Kepala Seksi Pemberdayaan Masyarakat & Kesejahteraan Sosial',
+    officialName: 'Dra. Hj. Nurhayati, M.M.',
+    nip: '19830715 201001 2 018',
+    rank: 'Penata (III/c)',
+    department: 'Seksi Kesra & Pemberdayaan',
+    phone: '0811-4198-3321',
+    orderIndex: 4,
+  },
+];
+
 export const INITIAL_KELURAHAN_PROFILE: KelurahanProfile = {
   lurahName: 'Muthmainnah, SE, MM',
   lurahNip: '19880412 201010 1 002',
@@ -1706,6 +1750,7 @@ export const INITIAL_KELURAHAN_PROFILE: KelurahanProfile = {
   sekretarisName: 'Hj. Rahmawati Dg. Ngasseng, S.Sos.',
   kasiKebersihanName: 'Muh. Syahrul Ramadhan, S.T.',
   kasiPemerintahanName: 'Drs. H. Kamaruddin Lira',
+  officials: INITIAL_OFFICIALS,
   officeAddress:
     'Jl Haji Kalla, Komplek Haji Kalla No.1 , Kelurahan Panaikang, Kecamatan Panakkukang',
   subDistrict: 'Kecamatan Panakkukang',

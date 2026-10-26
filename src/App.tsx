@@ -83,62 +83,111 @@ export default function App() {
   const [kelurahanProfile, setKelurahanProfile] = useState<KelurahanProfile>(
     initialPersisted?.profile ?? INITIAL_KELURAHAN_PROFILE
   );
-  const [reports, setReports] = useState<CitizenReport[]>(
-    initialPersisted?.reports ?? INITIAL_REPORTS
-  );
-  const [wasteUnits, setWasteUnits] = useState<WasteBankUnit[]>(
-    initialPersisted?.wasteUnits ?? INITIAL_WASTE_UNITS
-  );
-  const [wasteLogs, setWasteLogs] = useState<WasteLogEntry[]>(
-    initialPersisted?.wasteLogs ?? INITIAL_WASTE_LOGS
-  );
-  const [cleanupEvents, setCleanupEvents] = useState<CleanupEvent[]>(
-    initialPersisted?.cleanupEvents ?? INITIAL_CLEANUP_EVENTS
-  );
-  const [kelurahanInfos, setKelurahanInfos] = useState<KelurahanInfoItem[]>(
-    initialPersisted?.kelurahanInfos ?? INITIAL_KELURAHAN_INFOS
-  );
+
+  const [reports, setReports] = useState<CitizenReport[]>(() => {
+    const deleted = getDeletedItemIds();
+    const source = Array.isArray(initialPersisted?.reports)
+      ? initialPersisted.reports
+      : INITIAL_REPORTS;
+    return source.filter((r) => r && r.id && !deleted.has(r.id));
+  });
+
+  const [wasteUnits, setWasteUnits] = useState<WasteBankUnit[]>(() => {
+    const deleted = getDeletedItemIds();
+    const source = Array.isArray(initialPersisted?.wasteUnits)
+      ? initialPersisted.wasteUnits
+      : INITIAL_WASTE_UNITS;
+    return source.filter((u) => u && u.id && !deleted.has(u.id));
+  });
+
+  const [wasteLogs, setWasteLogs] = useState<WasteLogEntry[]>(() => {
+    const deleted = getDeletedItemIds();
+    const source = Array.isArray(initialPersisted?.wasteLogs)
+      ? initialPersisted.wasteLogs
+      : INITIAL_WASTE_LOGS;
+    return source.filter((l) => l && l.id && !deleted.has(l.id));
+  });
+
+  const [cleanupEvents, setCleanupEvents] = useState<CleanupEvent[]>(() => {
+    const deleted = getDeletedItemIds();
+    const source = Array.isArray(initialPersisted?.cleanupEvents)
+      ? initialPersisted.cleanupEvents
+      : INITIAL_CLEANUP_EVENTS;
+    return source.filter((e) => e && e.id && !deleted.has(e.id));
+  });
+
+  const [kelurahanInfos, setKelurahanInfos] = useState<KelurahanInfoItem[]>(() => {
+    const deleted = getDeletedItemIds();
+    const source = Array.isArray(initialPersisted?.kelurahanInfos)
+      ? initialPersisted.kelurahanInfos
+      : INITIAL_KELURAHAN_INFOS;
+    return source.filter((i) => i && i.id && !deleted.has(i.id));
+  });
+
   const [rwGroups, setRwGroups] = useState<RwGroup[]>(
     initialPersisted?.rwGroups ?? INITIAL_RW_GROUPS
   );
-  const [whatsappRecipients, setWhatsappRecipients] = useState<WhatsAppRecipient[]>(
-    initialPersisted?.whatsappRecipients ?? INITIAL_WHATSAPP_RECIPIENTS
-  );
+
+  const [whatsappRecipients, setWhatsappRecipients] = useState<WhatsAppRecipient[]>(() => {
+    const deleted = getDeletedItemIds();
+    const source = Array.isArray(initialPersisted?.whatsappRecipients)
+      ? initialPersisted.whatsappRecipients
+      : INITIAL_WHATSAPP_RECIPIENTS;
+    return source.filter((w) => w && w.id && !deleted.has(w.id));
+  });
+
   const [serviceCatalog, setServiceCatalog] = useState<ServiceCategoryGroup[]>(
-    initialPersisted?.serviceCatalog && initialPersisted.serviceCatalog.length > 0
+    Array.isArray(initialPersisted?.serviceCatalog) && initialPersisted.serviceCatalog.length > 0
       ? initialPersisted.serviceCatalog
       : SERVICE_CATEGORY_GROUPS
   );
-  const [adminUsers, setAdminUsers] = useState<AdminUserAccount[]>(
-    initialPersisted?.adminUsers && initialPersisted.adminUsers.length > 0
+
+  const [adminUsers, setAdminUsers] = useState<AdminUserAccount[]>(() => {
+    const deleted = getDeletedItemIds();
+    const source = Array.isArray(initialPersisted?.adminUsers)
       ? initialPersisted.adminUsers
-      : INITIAL_ADMIN_USERS
-  );
+      : INITIAL_ADMIN_USERS;
+    return source.filter((u) => u && u.id && !deleted.has(u.id));
+  });
+
   const [activityLogs, setActivityLogs] = useState<AdminActivityLog[]>(
-    initialPersisted?.activityLogs && initialPersisted.activityLogs.length > 0
+    Array.isArray(initialPersisted?.activityLogs)
       ? initialPersisted.activityLogs
       : INITIAL_ACTIVITY_LOGS
   );
-  const [urbanFarmingSpots, setUrbanFarmingSpots] = useState<UrbanFarmingSpot[]>(
-    initialPersisted?.urbanFarmingSpots && initialPersisted.urbanFarmingSpots.length > 0
+
+  const [urbanFarmingSpots, setUrbanFarmingSpots] = useState<UrbanFarmingSpot[]>(() => {
+    const deleted = getDeletedItemIds();
+    const source = Array.isArray(initialPersisted?.urbanFarmingSpots)
       ? initialPersisted.urbanFarmingSpots
-      : INITIAL_URBAN_FARMING_SPOTS
-  );
-  const [seedRequests, setSeedRequests] = useState<SeedRequestItem[]>(
-    initialPersisted?.seedRequests && initialPersisted.seedRequests.length > 0
+      : INITIAL_URBAN_FARMING_SPOTS;
+    return source.filter((s) => s && s.id && !deleted.has(s.id));
+  });
+
+  const [seedRequests, setSeedRequests] = useState<SeedRequestItem[]>(() => {
+    const deleted = getDeletedItemIds();
+    const source = Array.isArray(initialPersisted?.seedRequests)
       ? initialPersisted.seedRequests
-      : INITIAL_SEED_REQUESTS
-  );
-  const [tebaSpots, setTebaSpots] = useState<TebaSpot[]>(
-    initialPersisted?.tebaSpots && initialPersisted.tebaSpots.length > 0
+      : INITIAL_SEED_REQUESTS;
+    return source.filter((s) => s && s.id && !deleted.has(s.id));
+  });
+
+  const [tebaSpots, setTebaSpots] = useState<TebaSpot[]>(() => {
+    const deleted = getDeletedItemIds();
+    const source = Array.isArray(initialPersisted?.tebaSpots)
       ? initialPersisted.tebaSpots
-      : INITIAL_TEBA_SPOTS
-  );
-  const [bioporiPoints, setBioporiPoints] = useState<BioporiPoint[]>(
-    initialPersisted?.bioporiPoints && initialPersisted.bioporiPoints.length > 0
+      : INITIAL_TEBA_SPOTS;
+    return source.filter((s) => s && s.id && !deleted.has(s.id));
+  });
+
+  const [bioporiPoints, setBioporiPoints] = useState<BioporiPoint[]>(() => {
+    const deleted = getDeletedItemIds();
+    const source = Array.isArray(initialPersisted?.bioporiPoints)
       ? initialPersisted.bioporiPoints
-      : INITIAL_BIOPORI_POINTS
-  );
+      : INITIAL_BIOPORI_POINTS;
+    return source.filter((b) => b && b.id && !deleted.has(b.id));
+  });
+
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
   const stateRef = useRef({
@@ -197,43 +246,54 @@ export default function App() {
 
   const commitPersistence = useCallback(
     (partial: Partial<Omit<PersistedDatabase, 'updatedAt'>>, syncServer = true) => {
+      const deletedSet = getDeletedItemIds();
+      const nextDeletedArray = Array.from(
+        new Set([
+          ...deletedSet,
+          ...(Array.isArray(partial.deletedItemIds) ? partial.deletedItemIds : []),
+        ])
+      );
+
       const nextSnapshot: PersistedDatabase = {
         profile: partial.profile ?? stateRef.current.profile,
         rwGroups: partial.rwGroups ?? stateRef.current.rwGroups,
-        reports: partial.reports ?? stateRef.current.reports,
-        wasteUnits: partial.wasteUnits ?? stateRef.current.wasteUnits,
-        wasteLogs: partial.wasteLogs ?? stateRef.current.wasteLogs,
-        tebaSpots: partial.tebaSpots ?? stateRef.current.tebaSpots,
-        bioporiPoints: partial.bioporiPoints ?? stateRef.current.bioporiPoints,
-        cleanupEvents: partial.cleanupEvents ?? stateRef.current.cleanupEvents,
-        kelurahanInfos: partial.kelurahanInfos ?? stateRef.current.kelurahanInfos,
-        whatsappRecipients: partial.whatsappRecipients ?? stateRef.current.whatsappRecipients,
+        reports: (partial.reports ?? stateRef.current.reports).filter((r) => r && r.id && !deletedSet.has(r.id)),
+        wasteUnits: (partial.wasteUnits ?? stateRef.current.wasteUnits).filter((u) => u && u.id && !deletedSet.has(u.id)),
+        wasteLogs: (partial.wasteLogs ?? stateRef.current.wasteLogs).filter((l) => l && l.id && !deletedSet.has(l.id)),
+        tebaSpots: (partial.tebaSpots ?? stateRef.current.tebaSpots).filter((s) => s && s.id && !deletedSet.has(s.id)),
+        bioporiPoints: (partial.bioporiPoints ?? stateRef.current.bioporiPoints).filter((b) => b && b.id && !deletedSet.has(b.id)),
+        cleanupEvents: (partial.cleanupEvents ?? stateRef.current.cleanupEvents).filter((e) => e && e.id && !deletedSet.has(e.id)),
+        kelurahanInfos: (partial.kelurahanInfos ?? stateRef.current.kelurahanInfos).filter((i) => i && i.id && !deletedSet.has(i.id)),
+        whatsappRecipients: (partial.whatsappRecipients ?? stateRef.current.whatsappRecipients).filter((w) => w && w.id && !deletedSet.has(w.id)),
         serviceCatalog: partial.serviceCatalog ?? stateRef.current.serviceCatalog,
-        adminUsers: partial.adminUsers ?? stateRef.current.adminUsers,
+        adminUsers: (partial.adminUsers ?? stateRef.current.adminUsers).filter((u) => u && u.id && !deletedSet.has(u.id)),
         activityLogs: partial.activityLogs ?? stateRef.current.activityLogs,
-        urbanFarmingSpots: partial.urbanFarmingSpots ?? stateRef.current.urbanFarmingSpots,
-        seedRequests: partial.seedRequests ?? stateRef.current.seedRequests,
-        deletedItemIds: partial.deletedItemIds ?? Array.from(getDeletedItemIds()),
+        urbanFarmingSpots: (partial.urbanFarmingSpots ?? stateRef.current.urbanFarmingSpots).filter((s) => s && s.id && !deletedSet.has(s.id)),
+        seedRequests: (partial.seedRequests ?? stateRef.current.seedRequests).filter((s) => s && s.id && !deletedSet.has(s.id)),
+        deletedItemIds: nextDeletedArray,
         updatedAt: Date.now(),
       };
+
       stateRef.current = {
         profile: nextSnapshot.profile,
         rwGroups: nextSnapshot.rwGroups,
         reports: nextSnapshot.reports,
         wasteUnits: nextSnapshot.wasteUnits,
         wasteLogs: nextSnapshot.wasteLogs,
-        tebaSpots: nextSnapshot.tebaSpots ?? INITIAL_TEBA_SPOTS,
-        bioporiPoints: nextSnapshot.bioporiPoints ?? INITIAL_BIOPORI_POINTS,
+        tebaSpots: nextSnapshot.tebaSpots ?? [],
+        bioporiPoints: nextSnapshot.bioporiPoints ?? [],
         cleanupEvents: nextSnapshot.cleanupEvents,
         kelurahanInfos: nextSnapshot.kelurahanInfos,
         whatsappRecipients: nextSnapshot.whatsappRecipients,
         serviceCatalog: nextSnapshot.serviceCatalog ?? SERVICE_CATEGORY_GROUPS,
-        adminUsers: nextSnapshot.adminUsers ?? INITIAL_ADMIN_USERS,
-        activityLogs: nextSnapshot.activityLogs ?? INITIAL_ACTIVITY_LOGS,
-        urbanFarmingSpots: nextSnapshot.urbanFarmingSpots ?? INITIAL_URBAN_FARMING_SPOTS,
-        seedRequests: nextSnapshot.seedRequests ?? INITIAL_SEED_REQUESTS,
+        adminUsers: nextSnapshot.adminUsers ?? [],
+        activityLogs: nextSnapshot.activityLogs ?? [],
+        urbanFarmingSpots: nextSnapshot.urbanFarmingSpots ?? [],
+        seedRequests: nextSnapshot.seedRequests ?? [],
       };
+
       savePersistedDatabase(nextSnapshot);
+
       if (syncServer) {
         fetch('/api/data', {
           method: 'PUT',
@@ -319,15 +379,12 @@ export default function App() {
 
         savePersistedDatabase(merged);
 
-        // If local had user inputs not yet present on server, sync up to server
-        const serverUpdatedAt = typeof serverDb.updatedAt === 'number' ? serverDb.updatedAt : 0;
-        if (!serverUpdatedAt || merged.updatedAt > serverUpdatedAt) {
-          fetch('/api/data', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(merged),
-          }).catch(() => {});
-        }
+        // Synchronize merged state up to the server
+        fetch('/api/data', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(merged),
+        }).catch(() => {});
       })
       .catch(() => {
         // Vercel serverless / static / offline fallback: ensure current state is safely stored
@@ -805,7 +862,8 @@ export default function App() {
     recordDeletedItemId(id);
     const nextUnits = stateRef.current.wasteUnits.filter((u) => u.id !== id);
     setWasteUnits(nextUnits);
-    commitPersistence({ wasteUnits: nextUnits });
+    commitPersistence({ wasteUnits: nextUnits }, true);
+    fetch('/api/waste-units/' + id, { method: 'DELETE' }).catch(() => {});
     return { ok: true };
   };
 
@@ -882,7 +940,8 @@ export default function App() {
     recordDeletedItemId(id);
     const nextLogs = stateRef.current.wasteLogs.filter((l) => l.id !== id);
     setWasteLogs(nextLogs);
-    commitPersistence({ wasteLogs: nextLogs });
+    commitPersistence({ wasteLogs: nextLogs }, true);
+    fetch('/api/waste-logs/' + id, { method: 'DELETE' }).catch(() => {});
     return { ok: true };
   };
 
@@ -890,207 +949,154 @@ export default function App() {
   const handleAdminCreateTebaSpot = async (
     spot: Partial<TebaSpot>
   ): Promise<{ ok: boolean; errors?: string[] }> => {
-    try {
-      const res = await fetch('/api/teba-spots', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(spot),
-      });
-      const json = await res.json();
-      if (json.ok && json.data) {
-        const next = [json.data, ...stateRef.current.tebaSpots.filter((s) => s.id !== json.data.id)];
-        setTebaSpots(next);
-        commitPersistence({ tebaSpots: next }, false);
-        return { ok: true };
-      }
-      return { ok: false, errors: json.errors || ['Gagal menambahkan titik Teba.'] };
-    } catch {
-      const newSpot: TebaSpot = {
-        id: `teba-${Date.now()}`,
-        name: spot.name || 'Titik Teba Komunal',
-        code:
-          spot.code ||
-          `TEBA-${(spot.rw || 'RW 01').replace(/\s+/g, '')}-${Date.now().toString().slice(-3)}`,
-        rw: spot.rw || 'RW 01',
-        rt: spot.rt || 'RT 01',
-        address: spot.address || 'Kelurahan Panaikang',
-        locationTag: spot.locationTag || 'Patokan Titik Teba',
-        mapUrl: spot.mapUrl || '',
-        imageUrl: spot.imageUrl || '',
-        documentationPhotos: spot.documentationPhotos || [spot.imageUrl || ''],
-        capacityKg: Number(spot.capacityKg) || 300,
-        currentLoadKg: Number(spot.currentLoadKg) || 0,
-        wasteTypeProcessed: spot.wasteTypeProcessed || 'Sisa sayur dapur & dedaunan',
-        coordinatorName: spot.coordinatorName || 'Kader Lingkungan',
-        coordinatorPhone: spot.coordinatorPhone || '',
-        status: spot.status || 'Aktif Beroperasi',
-        description:
-          spot.description || 'Fasilitas teba komunal biopori resapan organik mandiri.',
-        lastHarvestDate: spot.lastHarvestDate || 'Belum ada panen',
-        createdAt: new Date().toLocaleDateString('id-ID'),
-      };
-      const next = [newSpot, ...stateRef.current.tebaSpots];
-      setTebaSpots(next);
-      commitPersistence({ tebaSpots: next }, true);
-      return { ok: true };
-    }
+    const rwClean = spot.rw || 'RW 01';
+    const newSpot: TebaSpot = {
+      id: 'teba-' + Date.now(),
+      name: spot.name || 'Titik Teba Komunal',
+      code:
+        spot.code ||
+        'TEBA-' + rwClean.replace(/\s+/g, '') + '-' + Date.now().toString().slice(-3),
+      rw: rwClean,
+      rt: spot.rt || 'RT 01',
+      address: spot.address || 'Kelurahan Panaikang',
+      locationTag: spot.locationTag || 'Patokan Titik Teba',
+      mapUrl: spot.mapUrl || '',
+      imageUrl: spot.imageUrl || '',
+      documentationPhotos: spot.documentationPhotos || [spot.imageUrl || ''],
+      capacityKg: Number(spot.capacityKg) || 300,
+      currentLoadKg: Number(spot.currentLoadKg) || 0,
+      wasteTypeProcessed: spot.wasteTypeProcessed || 'Sisa sayur dapur & dedaunan',
+      coordinatorName: spot.coordinatorName || 'Kader Lingkungan',
+      coordinatorPhone: spot.coordinatorPhone || '',
+      status: spot.status || 'Aktif Beroperasi',
+      description:
+        spot.description || 'Fasilitas teba komunal biopori resapan organik mandiri.',
+      lastHarvestDate: spot.lastHarvestDate || 'Belum ada panen',
+      createdAt: new Date().toLocaleDateString('id-ID'),
+    };
+    const next = [newSpot, ...stateRef.current.tebaSpots.filter((s) => s.id !== newSpot.id)];
+    setTebaSpots(next);
+    commitPersistence({ tebaSpots: next }, true);
+
+    fetch('/api/teba-spots', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newSpot),
+    }).catch(() => {});
+
+    return { ok: true };
   };
 
   const handleAdminUpdateTebaSpot = async (
     id: string,
     spot: Partial<TebaSpot>
   ): Promise<{ ok: boolean; errors?: string[] }> => {
-    try {
-      const res = await fetch(`/api/teba-spots/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(spot),
-      });
-      const json = await res.json();
-      if (json.ok && json.data) {
-        const next = stateRef.current.tebaSpots.map((s) => (s.id === id ? { ...s, ...json.data } : s));
-        setTebaSpots(next);
-        commitPersistence({ tebaSpots: next }, false);
-        return { ok: true };
-      }
-      return { ok: false, errors: json.errors || ['Gagal memperbarui data titik Teba.'] };
-    } catch {
-      const next = stateRef.current.tebaSpots.map((s) =>
-        s.id === id ? { ...s, ...spot, updatedAt: new Date().toLocaleDateString('id-ID') } : s
-      );
-      setTebaSpots(next);
-      commitPersistence({ tebaSpots: next }, true);
-      return { ok: true };
-    }
+    const next = stateRef.current.tebaSpots.map((s) =>
+      s.id === id ? { ...s, ...spot, updatedAt: new Date().toLocaleDateString('id-ID') } : s
+    );
+    setTebaSpots(next);
+    commitPersistence({ tebaSpots: next }, true);
+
+    fetch('/api/teba-spots/' + id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(spot),
+    }).catch(() => {});
+
+    return { ok: true };
   };
 
   const handleAdminDeleteTebaSpot = async (
     id: string
   ): Promise<{ ok: boolean; errors?: string[] }> => {
     recordDeletedItemId(id);
-    try {
-      const res = await fetch(`/api/teba-spots/${id}`, {
-        method: 'DELETE',
-      });
-      const json = await res.json();
-      if (json.ok) {
-        const next = stateRef.current.tebaSpots.filter((s) => s.id !== id);
-        setTebaSpots(next);
-        commitPersistence({ tebaSpots: next }, false);
-        return { ok: true };
-      }
-      return { ok: false, errors: json.errors || ['Gagal menghapus data titik Teba.'] };
-    } catch {
-      const next = stateRef.current.tebaSpots.filter((s) => s.id !== id);
-      setTebaSpots(next);
-      commitPersistence({ tebaSpots: next }, true);
-      return { ok: true };
-    }
+    const next = stateRef.current.tebaSpots.filter((s) => s.id !== id);
+    setTebaSpots(next);
+    commitPersistence({ tebaSpots: next }, true);
+
+    fetch('/api/teba-spots/' + id, {
+      method: 'DELETE',
+    }).catch(() => {});
+
+    return { ok: true };
   };
 
   // 3C. Biopori Points CRUD
   const handleAdminCreateBioporiPoint = async (
     point: Partial<BioporiPoint>
   ): Promise<{ ok: boolean; errors?: string[] }> => {
-    try {
-      const res = await fetch('/api/biopori-points', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(point),
-      });
-      const json = await res.json();
-      if (json.ok && json.data) {
-        const next = [json.data, ...stateRef.current.bioporiPoints.filter((b) => b.id !== json.data.id)];
-        setBioporiPoints(next);
-        commitPersistence({ bioporiPoints: next }, false);
-        return { ok: true };
-      }
-      return { ok: false, errors: json.errors || ['Gagal menambahkan data Biopori.'] };
-    } catch {
-      const rwClean = point.rw || 'RW 01';
-      const newPoint: BioporiPoint = {
-        id: `bio-${Date.now()}`,
-        name: point.name || 'Zona Lubang Biopori Komunal',
-        code:
-          point.code ||
-          `BIO-${rwClean.replace(/\s+/g, '')}-${Date.now().toString().slice(-3)}`,
-        rw: rwClean,
-        rt: point.rt || 'RT 01',
-        address: point.address || 'Kelurahan Panaikang',
-        locationTag: point.locationTag || 'Patokan Titik Biopori',
-        totalHoles: Number(point.totalHoles) || 12,
-        diameterCm: Number(point.diameterCm) || 10,
-        depthCm: Number(point.depthCm) || 100,
-        organicTypes:
-          point.organicTypes || 'Sisa sayuran dapur rumah tangga, dedaunan kering, kulit buah',
-        status: point.status || 'Aktif Digunakan',
-        coordinatorName: point.coordinatorName || 'Kader Lingkungan',
-        coordinatorPhone: point.coordinatorPhone || '',
-        mapUrl: point.mapUrl || '',
-        imageUrl: point.imageUrl || '',
-        documentationPhotos: point.documentationPhotos || [point.imageUrl || ''],
-        harvestHistory: point.harvestHistory || 'Belum ada catatan panen',
-        installationDate: point.installationDate || new Date().toLocaleDateString('id-ID'),
-        notes: point.notes || 'Pipa biopori resapan air & pengomposan organik mandiri.',
-        updatedAt: new Date().toLocaleDateString('id-ID'),
-      };
-      const next = [newPoint, ...stateRef.current.bioporiPoints];
-      setBioporiPoints(next);
-      commitPersistence({ bioporiPoints: next }, true);
-      return { ok: true };
-    }
+    const rwClean = point.rw || 'RW 01';
+    const newPoint: BioporiPoint = {
+      id: 'bio-' + Date.now(),
+      name: point.name || 'Zona Lubang Biopori Komunal',
+      code:
+        point.code ||
+        'BIO-' + rwClean.replace(/\s+/g, '') + '-' + Date.now().toString().slice(-3),
+      rw: rwClean,
+      rt: point.rt || 'RT 01',
+      address: point.address || 'Kelurahan Panaikang',
+      locationTag: point.locationTag || 'Patokan Titik Biopori',
+      totalHoles: Number(point.totalHoles) || 12,
+      diameterCm: Number(point.diameterCm) || 10,
+      depthCm: Number(point.depthCm) || 100,
+      organicTypes:
+        point.organicTypes || 'Sisa sayuran dapur rumah tangga, dedaunan kering, kulit buah',
+      status: point.status || 'Aktif Digunakan',
+      coordinatorName: point.coordinatorName || 'Kader Lingkungan',
+      coordinatorPhone: point.coordinatorPhone || '',
+      mapUrl: point.mapUrl || '',
+      imageUrl: point.imageUrl || '',
+      documentationPhotos: point.documentationPhotos || [point.imageUrl || ''],
+      harvestHistory: point.harvestHistory || 'Belum ada catatan panen',
+      installationDate: point.installationDate || new Date().toLocaleDateString('id-ID'),
+      notes: point.notes || 'Pipa biopori resapan air & pengomposan organik mandiri.',
+      updatedAt: new Date().toLocaleDateString('id-ID'),
+    };
+    const next = [newPoint, ...stateRef.current.bioporiPoints.filter((b) => b.id !== newPoint.id)];
+    setBioporiPoints(next);
+    commitPersistence({ bioporiPoints: next }, true);
+
+    fetch('/api/biopori-points', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newPoint),
+    }).catch(() => {});
+
+    return { ok: true };
   };
 
   const handleAdminUpdateBioporiPoint = async (
     id: string,
     point: Partial<BioporiPoint>
   ): Promise<{ ok: boolean; errors?: string[] }> => {
-    try {
-      const res = await fetch(`/api/biopori-points/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(point),
-      });
-      const json = await res.json();
-      if (json.ok && json.data) {
-        const next = stateRef.current.bioporiPoints.map((b) => (b.id === id ? { ...b, ...json.data } : b));
-        setBioporiPoints(next);
-        commitPersistence({ bioporiPoints: next }, false);
-        return { ok: true };
-      }
-      return { ok: false, errors: json.errors || ['Gagal memperbarui data Biopori.'] };
-    } catch {
-      const next = stateRef.current.bioporiPoints.map((b) =>
-        b.id === id ? { ...b, ...point, updatedAt: new Date().toLocaleDateString('id-ID') } : b
-      );
-      setBioporiPoints(next);
-      commitPersistence({ bioporiPoints: next }, true);
-      return { ok: true };
-    }
+    const next = stateRef.current.bioporiPoints.map((b) =>
+      b.id === id ? { ...b, ...point, updatedAt: new Date().toLocaleDateString('id-ID') } : b
+    );
+    setBioporiPoints(next);
+    commitPersistence({ bioporiPoints: next }, true);
+
+    fetch('/api/biopori-points/' + id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(point),
+    }).catch(() => {});
+
+    return { ok: true };
   };
 
   const handleAdminDeleteBioporiPoint = async (
     id: string
   ): Promise<{ ok: boolean; errors?: string[] }> => {
     recordDeletedItemId(id);
-    try {
-      const res = await fetch(`/api/biopori-points/${id}`, {
-        method: 'DELETE',
-      });
-      const json = await res.json();
-      if (json.ok) {
-        const next = stateRef.current.bioporiPoints.filter((b) => b.id !== id);
-        setBioporiPoints(next);
-        commitPersistence({ bioporiPoints: next }, false);
-        return { ok: true };
-      }
-      return { ok: false, errors: json.errors || ['Gagal menghapus data Biopori.'] };
-    } catch {
-      const next = stateRef.current.bioporiPoints.filter((b) => b.id !== id);
-      setBioporiPoints(next);
-      commitPersistence({ bioporiPoints: next }, true);
-      return { ok: true };
-    }
+    const next = stateRef.current.bioporiPoints.filter((b) => b.id !== id);
+    setBioporiPoints(next);
+    commitPersistence({ bioporiPoints: next }, true);
+
+    fetch('/api/biopori-points/' + id, {
+      method: 'DELETE',
+    }).catch(() => {});
+
+    return { ok: true };
   };
 
   // 4. Cleanup Events (Kerja Bakti) CRUD

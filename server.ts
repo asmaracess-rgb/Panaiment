@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import {
   INITIAL_KELURAHAN_PROFILE,
+  INITIAL_OFFICIALS,
   INITIAL_REPORTS,
   INITIAL_WASTE_UNITS,
   INITIAL_WASTE_LOGS,
@@ -99,6 +100,10 @@ function loadDatabase(): DatabaseSchema {
       const raw = fs.readFileSync(DB_FILE, 'utf-8');
       const parsed = JSON.parse(raw) as Partial<DatabaseSchema>;
       if (parsed && parsed.profile) {
+        const deletedSet = new Set<string>(
+          Array.isArray(parsed.deletedItemIds) ? parsed.deletedItemIds : []
+        );
+
         const hasOfficialRwData =
           Array.isArray(parsed.rwGroups) &&
           parsed.rwGroups.length === 7 &&
@@ -106,80 +111,49 @@ function loadDatabase(): DatabaseSchema {
         const resolvedRwGroups = hasOfficialRwData ? parsed.rwGroups! : INITIAL_RW_GROUPS;
         const resolvedProfile: KelurahanProfile = {
           ...parsed.profile,
+          officials: Array.isArray(parsed.profile?.officials)
+            ? parsed.profile.officials
+            : INITIAL_OFFICIALS,
           totalRw: resolvedRwGroups.length,
           totalRt: resolvedRwGroups.reduce((acc, rw) => acc + (rw.rtList?.length || 0), 0),
         };
+
+        const filterDeleted = <T extends { id: string }>(arr: T[] | undefined, fallback: T[]): T[] => {
+          const list = Array.isArray(arr) ? arr : fallback;
+          return list.filter((item) => item && item.id && !deletedSet.has(item.id));
+        };
+
         return {
           profile: resolvedProfile,
           rwGroups: resolvedRwGroups,
-          reports: Array.isArray(parsed.reports) ? parsed.reports : INITIAL_REPORTS,
-          wasteUnits: Array.isArray(parsed.wasteUnits) ? parsed.wasteUnits : INITIAL_WASTE_UNITS,
-          wasteLogs: Array.isArray(parsed.wasteLogs) ? parsed.wasteLogs : INITIAL_WASTE_LOGS,
-          tebaSpots:
-            Array.isArray(parsed.tebaSpots) && parsed.tebaSpots.length > 0
-              ? parsed.tebaSpots
-              : INITIAL_TEBA_SPOTS,
-          bioporiPoints:
-            Array.isArray(parsed.bioporiPoints) && parsed.bioporiPoints.length > 0
-              ? parsed.bioporiPoints
-              : INITIAL_BIOPORI_POINTS,
-          cleanupEvents: Array.isArray(parsed.cleanupEvents)
-            ? parsed.cleanupEvents
-            : INITIAL_CLEANUP_EVENTS,
-          kelurahanInfos: Array.isArray(parsed.kelurahanInfos)
-            ? parsed.kelurahanInfos
-            : INITIAL_KELURAHAN_INFOS,
-          whatsappRecipients: Array.isArray(parsed.whatsappRecipients)
-            ? parsed.whatsappRecipients
-            : INITIAL_WHATSAPP_RECIPIENTS,
+          reports: filterDeleted(parsed.reports, INITIAL_REPORTS),
+          wasteUnits: filterDeleted(parsed.wasteUnits, INITIAL_WASTE_UNITS),
+          wasteLogs: filterDeleted(parsed.wasteLogs, INITIAL_WASTE_LOGS),
+          tebaSpots: filterDeleted(parsed.tebaSpots, INITIAL_TEBA_SPOTS),
+          bioporiPoints: filterDeleted(parsed.bioporiPoints, INITIAL_BIOPORI_POINTS),
+          cleanupEvents: filterDeleted(parsed.cleanupEvents, INITIAL_CLEANUP_EVENTS),
+          kelurahanInfos: filterDeleted(parsed.kelurahanInfos, INITIAL_KELURAHAN_INFOS),
+          whatsappRecipients: filterDeleted(parsed.whatsappRecipients, INITIAL_WHATSAPP_RECIPIENTS),
           serviceCatalog:
             Array.isArray(parsed.serviceCatalog) && parsed.serviceCatalog.length > 0
               ? parsed.serviceCatalog
               : SERVICE_CATEGORY_GROUPS,
-          adminUsers:
-            Array.isArray(parsed.adminUsers) && parsed.adminUsers.length > 0
-              ? parsed.adminUsers
-              : INITIAL_ADMIN_USERS,
-          activityLogs:
-            Array.isArray(parsed.activityLogs) && parsed.activityLogs.length > 0
-              ? parsed.activityLogs
-              : INITIAL_ACTIVITY_LOGS,
-          urbanFarmingSpots:
-            Array.isArray(parsed.urbanFarmingSpots) && parsed.urbanFarmingSpots.length > 0
-              ? parsed.urbanFarmingSpots
-              : INITIAL_URBAN_FARMING_SPOTS,
-          seedRequests:
-            Array.isArray(parsed.seedRequests) && parsed.seedRequests.length > 0
-              ? parsed.seedRequests
-              : INITIAL_SEED_REQUESTS,
-          urbanFarmingLocations:
-            Array.isArray(parsed.urbanFarmingLocations) && parsed.urbanFarmingLocations.length > 0
-              ? parsed.urbanFarmingLocations
-              : INITIAL_URBAN_FARMING_LOCATIONS,
-          farmerGroups:
-            Array.isArray(parsed.farmerGroups) && parsed.farmerGroups.length > 0
-              ? parsed.farmerGroups
-              : INITIAL_FARMER_GROUPS,
-          crops:
-            Array.isArray(parsed.crops) && parsed.crops.length > 0
-              ? parsed.crops
-              : INITIAL_CROPS,
-          plantCareLogs:
-            Array.isArray(parsed.plantCareLogs) && parsed.plantCareLogs.length > 0
-              ? parsed.plantCareLogs
-              : INITIAL_PLANT_CARE_LOGS,
-          harvestRecords:
-            Array.isArray(parsed.harvestRecords) && parsed.harvestRecords.length > 0
-              ? parsed.harvestRecords
-              : INITIAL_HARVEST_RECORDS,
-          farmingInventories:
-            Array.isArray(parsed.farmingInventories) && parsed.farmingInventories.length > 0
-              ? parsed.farmingInventories
-              : INITIAL_FARMING_INVENTORIES,
-          supplyRequests:
-            Array.isArray(parsed.supplyRequests) && parsed.supplyRequests.length > 0
-              ? parsed.supplyRequests
-              : INITIAL_SUPPLY_REQUESTS,
+          adminUsers: filterDeleted(parsed.adminUsers, INITIAL_ADMIN_USERS),
+          activityLogs: Array.isArray(parsed.activityLogs) ? parsed.activityLogs : INITIAL_ACTIVITY_LOGS,
+          urbanFarmingSpots: filterDeleted(parsed.urbanFarmingSpots, INITIAL_URBAN_FARMING_SPOTS),
+          seedRequests: filterDeleted(parsed.seedRequests, INITIAL_SEED_REQUESTS),
+          urbanFarmingLocations: Array.isArray(parsed.urbanFarmingLocations)
+            ? parsed.urbanFarmingLocations
+            : INITIAL_URBAN_FARMING_LOCATIONS,
+          farmerGroups: Array.isArray(parsed.farmerGroups) ? parsed.farmerGroups : INITIAL_FARMER_GROUPS,
+          crops: Array.isArray(parsed.crops) ? parsed.crops : INITIAL_CROPS,
+          plantCareLogs: Array.isArray(parsed.plantCareLogs) ? parsed.plantCareLogs : INITIAL_PLANT_CARE_LOGS,
+          harvestRecords: Array.isArray(parsed.harvestRecords) ? parsed.harvestRecords : INITIAL_HARVEST_RECORDS,
+          farmingInventories: Array.isArray(parsed.farmingInventories)
+            ? parsed.farmingInventories
+            : INITIAL_FARMING_INVENTORIES,
+          supplyRequests: Array.isArray(parsed.supplyRequests) ? parsed.supplyRequests : INITIAL_SUPPLY_REQUESTS,
+          deletedItemIds: Array.from(deletedSet),
           lastModified: parsed.lastModified || new Date().toISOString(),
           updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : 0,
         };
@@ -212,6 +186,7 @@ function loadDatabase(): DatabaseSchema {
     harvestRecords: INITIAL_HARVEST_RECORDS,
     farmingInventories: INITIAL_FARMING_INVENTORIES,
     supplyRequests: INITIAL_SUPPLY_REQUESTS,
+    deletedItemIds: [],
     lastModified: new Date().toISOString(),
     updatedAt: 0,
   };
