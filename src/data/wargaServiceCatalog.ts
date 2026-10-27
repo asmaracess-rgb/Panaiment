@@ -1,4 +1,4 @@
-import { ReportCategory, ReportUrgency } from '../types';
+import type { ReportCategory, ReportUrgency } from '../types.ts';
 
 export type MainWargaMenuId =
   | 'buat_surat'

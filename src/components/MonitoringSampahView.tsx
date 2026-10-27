@@ -30,7 +30,6 @@ import {
   BioporiPoint,
   AppView,
 } from '../types';
-import { INITIAL_TEBA_SPOTS, INITIAL_BIOPORI_POINTS } from '../data/initialData';
 import { resolveImageUrl } from '../utils/resolveImageUrl';
 
 interface MonitoringSampahViewProps {

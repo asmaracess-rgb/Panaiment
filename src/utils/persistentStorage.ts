@@ -85,18 +85,23 @@ const DELETED_IDS_KEY = 'pnk_smart_env_deleted_ids_v1';
 const INITIAL_REPORT_IDS = new Set(INITIAL_REPORTS.map((r) => r.id));
 const INITIAL_WASTE_LOG_IDS = new Set(INITIAL_WASTE_LOGS.map((l) => l.id));
 
+const LEGACY_DEFAULT_OFFICIAL_IDS = ['off-1', 'off-2', 'off-3', 'off-4'];
+
 /**
  * Returns the Set of permanently deleted entity IDs across all sessions
  */
 export function getDeletedItemIds(): Set<string> {
-  if (typeof window === 'undefined') return new Set();
+  const baseTombstones = new Set<string>(LEGACY_DEFAULT_OFFICIAL_IDS);
+  if (typeof window === 'undefined') return baseTombstones;
   try {
     const raw = window.localStorage.getItem(DELETED_IDS_KEY);
-    if (!raw) return new Set();
+    if (!raw) return baseTombstones;
     const parsed = JSON.parse(raw);
-    return new Set(Array.isArray(parsed) ? parsed : []);
+    const set = new Set(Array.isArray(parsed) ? parsed : []);
+    LEGACY_DEFAULT_OFFICIAL_IDS.forEach((id) => set.add(id));
+    return set;
   } catch {
-    return new Set();
+    return baseTombstones;
   }
 }
 
@@ -271,11 +276,13 @@ export function smartMergeDatabases(
   const incProfile = incoming?.profile;
   const sourceProfile = localIsNewer && localDb?.profile ? localDb.profile : (incProfile || baseProfile);
 
-  const resolvedOfficials = localIsNewer && Array.isArray(localDb?.profile?.officials)
-    ? localDb!.profile!.officials
-    : (Array.isArray(incProfile?.officials)
-        ? incProfile!.officials
-        : (Array.isArray(baseProfile?.officials) ? baseProfile.officials : INITIAL_OFFICIALS));
+  const resolvedOfficials = (
+    localIsNewer && Array.isArray(localDb?.profile?.officials)
+      ? localDb!.profile!.officials
+      : (Array.isArray(incProfile?.officials)
+          ? incProfile!.officials
+          : (Array.isArray(baseProfile?.officials) ? baseProfile.officials : []))
+  ).filter((o) => o && o.id && !deletedIds.has(o.id));
 
   const resolvedProfile: KelurahanProfile = {
     ...baseProfile,
@@ -486,6 +493,9 @@ export function savePersistedDatabase(db: PersistedDatabase): void {
 
     // Filter all collections against deletedSet before storing
     if (deletedSet.size > 0) {
+      if (db.profile && Array.isArray(db.profile.officials)) {
+        db.profile.officials = db.profile.officials.filter((o) => o && o.id && !deletedSet.has(o.id));
+      }
       db.reports = (db.reports || []).filter((r) => r && r.id && !deletedSet.has(r.id));
       db.wasteUnits = (db.wasteUnits || []).filter((u) => u && u.id && !deletedSet.has(u.id));
       db.wasteLogs = (db.wasteLogs || []).filter((l) => l && l.id && !deletedSet.has(l.id));

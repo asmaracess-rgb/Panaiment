@@ -119,6 +119,7 @@ import {
   SERVICE_CATEGORY_GROUPS,
   ServiceCategoryGroup,
 } from '../data/wargaServiceCatalog';
+import { recordDeletedItemId } from '../utils/persistentStorage';
 
 interface AdminSession {
   token: string;
@@ -897,20 +898,16 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   // Sync profileDraft when profile prop updates
   const [profileDraft, setProfileDraft] = useState<KelurahanProfile>(() => ({
     ...profile,
-    officials:
-      Array.isArray(profile.officials) && profile.officials.length > 0
-        ? profile.officials
-        : INITIAL_OFFICIALS,
+    officials: Array.isArray(profile.officials) ? profile.officials : [],
   }));
   useEffect(() => {
     setProfileDraft((prev) => ({
       ...profile,
-      officials:
-        Array.isArray(profile.officials) && profile.officials.length > 0
-          ? profile.officials
-          : prev.officials && prev.officials.length > 0
-          ? prev.officials
-          : INITIAL_OFFICIALS,
+      officials: Array.isArray(profile.officials)
+        ? profile.officials
+        : Array.isArray(prev.officials)
+        ? prev.officials
+        : [],
     }));
   }, [profile]);
   const [newMisiText, setNewMisiText] = useState('');
@@ -1446,10 +1443,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       return;
     }
 
-    const currentOfficials =
-      Array.isArray(profileDraft.officials) && profileDraft.officials.length > 0
-        ? [...profileDraft.officials]
-        : [...INITIAL_OFFICIALS];
+    const currentOfficials = Array.isArray(profileDraft.officials)
+      ? [...profileDraft.officials]
+      : [];
 
     let updatedOfficials: StructuralOfficial[];
 
@@ -1496,9 +1492,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     const updatedProfile: KelurahanProfile = {
       ...profileDraft,
       officials: updatedOfficials,
-      sekretarisName: sek?.officialName || profileDraft.sekretarisName,
-      kasiKebersihanName: kasiKeb?.officialName || profileDraft.kasiKebersihanName,
-      kasiPemerintahanName: kasiPem?.officialName || profileDraft.kasiPemerintahanName,
+      sekretarisName: sek?.officialName || (editingOfficialId ? profileDraft.sekretarisName : ''),
+      kasiKebersihanName: kasiKeb?.officialName || (editingOfficialId ? profileDraft.kasiKebersihanName : ''),
+      kasiPemerintahanName: kasiPem?.officialName || (editingOfficialId ? profileDraft.kasiPemerintahanName : ''),
     };
 
     setProfileDraft(updatedProfile);
@@ -1527,16 +1523,45 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
   const handleConfirmDeleteOfficial = async () => {
     if (!officialToDelete) return;
-    const currentOfficials =
-      Array.isArray(profileDraft.officials) && profileDraft.officials.length > 0
-        ? [...profileDraft.officials]
-        : [...INITIAL_OFFICIALS];
+    recordDeletedItemId(officialToDelete.id);
+
+    const currentOfficials = Array.isArray(profileDraft.officials)
+      ? [...profileDraft.officials]
+      : [];
 
     const updatedOfficials = currentOfficials.filter((o) => o.id !== officialToDelete.id);
+
+    // Also clear Lurah-card name fields if the deleted official is one of the key roles
+    let updatedSekretaris = profileDraft.sekretarisName;
+    let updatedKasiKeb = profileDraft.kasiKebersihanName;
+    let updatedKasiPem = profileDraft.kasiPemerintahanName;
+
+    if (officialToDelete.positionTitle.toLowerCase().includes('sekretaris')) {
+      const remainingSek = updatedOfficials.find((o) => o.positionTitle.toLowerCase().includes('sekretaris'));
+      updatedSekretaris = remainingSek?.officialName || '';
+    }
+    if (officialToDelete.positionTitle.toLowerCase().includes('kebersihan')) {
+      const remainingKeb = updatedOfficials.find((o) => o.positionTitle.toLowerCase().includes('kebersihan'));
+      updatedKasiKeb = remainingKeb?.officialName || '';
+    }
+    if (
+      officialToDelete.positionTitle.toLowerCase().includes('pemerintahan') ||
+      officialToDelete.positionTitle.toLowerCase().includes('trantib')
+    ) {
+      const remainingPem = updatedOfficials.find(
+        (o) =>
+          o.positionTitle.toLowerCase().includes('pemerintahan') ||
+          o.positionTitle.toLowerCase().includes('trantib')
+      );
+      updatedKasiPem = remainingPem?.officialName || '';
+    }
 
     const updatedProfile: KelurahanProfile = {
       ...profileDraft,
       officials: updatedOfficials,
+      sekretarisName: updatedSekretaris,
+      kasiKebersihanName: updatedKasiKeb,
+      kasiPemerintahanName: updatedKasiPem,
     };
 
     setProfileDraft(updatedProfile);
@@ -1555,10 +1580,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   };
 
   const handleMoveOfficial = async (index: number, direction: 'up' | 'down') => {
-    const current =
-      Array.isArray(profileDraft.officials) && profileDraft.officials.length > 0
-        ? [...profileDraft.officials]
-        : [...INITIAL_OFFICIALS];
+    const current = Array.isArray(profileDraft.officials)
+      ? [...profileDraft.officials]
+      : [];
 
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= current.length) return;
@@ -1579,6 +1603,89 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
     setProfileDraft(updatedProfile);
     await onSaveProfile(updatedProfile);
+  };
+
+  // Upload Gambar Bagan Struktur Organisasi Handlers
+  const handleUploadBaganKelurahan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    try {
+      const dataUrl = await compressImageFile(file);
+      const updatedProfile: KelurahanProfile = {
+        ...profileDraft,
+        baganStrukturKelurahanUrl: dataUrl,
+      };
+      setProfileDraft(updatedProfile);
+      await onSaveProfile(updatedProfile);
+      recordAudit({
+        actionType: 'UPDATE',
+        module: 'PROFIL_KELURAHAN',
+        targetLabel: 'Bagan Struktur Kelurahan',
+        summary: 'Mengunggah gambar bagan struktur organisasi kelurahan baru',
+        severity: 'info',
+      });
+      setSuccessMessage('Gambar Bagan Struktur Organisasi Kelurahan berhasil diunggah.');
+    } catch (err) {
+      console.warn('Gagal memproses gambar bagan:', err);
+    }
+  };
+
+  const handleRemoveBaganKelurahan = async () => {
+    const updatedProfile: KelurahanProfile = {
+      ...profileDraft,
+      baganStrukturKelurahanUrl: '',
+    };
+    setProfileDraft(updatedProfile);
+    await onSaveProfile(updatedProfile);
+    recordAudit({
+      actionType: 'DELETE',
+      module: 'PROFIL_KELURAHAN',
+      targetLabel: 'Bagan Struktur Kelurahan',
+      summary: 'Menghapus gambar bagan struktur organisasi kelurahan',
+      severity: 'warning',
+    });
+    setSuccessMessage('Gambar Bagan Struktur Organisasi Kelurahan berhasil dihapus.');
+  };
+
+  const handleUploadBaganRtRw = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    try {
+      const dataUrl = await compressImageFile(file);
+      const updatedProfile: KelurahanProfile = {
+        ...profileDraft,
+        baganStrukturRtRwUrl: dataUrl,
+      };
+      setProfileDraft(updatedProfile);
+      await onSaveProfile(updatedProfile);
+      recordAudit({
+        actionType: 'UPDATE',
+        module: 'PROFIL_KELURAHAN',
+        targetLabel: 'Bagan Struktur RT/RW',
+        summary: 'Mengunggah gambar bagan struktur organisasi RT dan RW baru',
+        severity: 'info',
+      });
+      setSuccessMessage('Gambar Bagan Struktur Organisasi RT/RW berhasil diunggah.');
+    } catch (err) {
+      console.warn('Gagal memproses gambar bagan RT/RW:', err);
+    }
+  };
+
+  const handleRemoveBaganRtRw = async () => {
+    const updatedProfile: KelurahanProfile = {
+      ...profileDraft,
+      baganStrukturRtRwUrl: '',
+    };
+    setProfileDraft(updatedProfile);
+    await onSaveProfile(updatedProfile);
+    recordAudit({
+      actionType: 'DELETE',
+      module: 'PROFIL_KELURAHAN',
+      targetLabel: 'Bagan Struktur RT/RW',
+      summary: 'Menghapus gambar bagan struktur organisasi RT dan RW',
+      severity: 'warning',
+    });
+    setSuccessMessage('Gambar Bagan Struktur Organisasi RT/RW berhasil dihapus.');
   };
 
   // ---------- DATA RT & RW HANDLERS ----------
@@ -3492,6 +3599,179 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* Subsection 01.3: Menu Upload Gambar Bagan Struktur Organisasi */}
+            <div className="pt-6 border-t border-slate-200">
+              <div className="mb-4">
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <ImageIcon className="w-4 h-4 text-[#0D3868]" />
+                  <span>03. Upload Gambar Bagan Struktur Organisasi</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Unggah file gambar bagan struktur organisasi kelurahan dan struktur RT/RW resmi. Gambar yang diunggah akan langsung ditampilkan saat warga atau admin mengklik tombol bagan di Profil Kelurahan.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Upload Card 1: Bagan Struktur Organisasi Kelurahan */}
+                <div className="bg-slate-50/80 rounded-2xl border border-slate-200 p-5 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-sky-100 text-[#0D3868] border border-sky-200">
+                        <Building2 className="w-3.5 h-3.5" />
+                        <span>Bagan Struktur Kelurahan</span>
+                      </span>
+                      {profileDraft.baganStrukturKelurahanUrl ? (
+                        <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>Gambar Tersimpan</span>
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-medium text-slate-500 bg-slate-200/70 px-2 py-0.5 rounded-md">
+                          Belum Ada Gambar
+                        </span>
+                      )}
+                    </div>
+
+                    <h4 className="text-xs font-bold text-slate-800 mb-1">
+                      Gambar Bagan Struktur SOTK Kelurahan
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mb-4">
+                      Format disarankan: PNG atau JPG landscape dengan resolusi jelas.
+                    </p>
+
+                    {/* Preview Area */}
+                    <div className="relative aspect-video w-full rounded-xl border border-slate-200 bg-white overflow-hidden flex items-center justify-center mb-4">
+                      {profileDraft.baganStrukturKelurahanUrl ? (
+                        <img
+                          src={profileDraft.baganStrukturKelurahanUrl}
+                          alt="Bagan Struktur Kelurahan"
+                          className="w-full h-full object-contain p-2"
+                        />
+                      ) : (
+                        <div className="text-center p-4">
+                          <ImageIcon className="w-8 h-8 text-slate-300 mx-auto mb-1" />
+                          <p className="text-[11px] text-slate-400 font-medium">Belum ada gambar bagan kelurahan</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-3 border-t border-slate-200">
+                    <label className="flex-1 inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold cursor-pointer transition shadow-2xs text-center">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{profileDraft.baganStrukturKelurahanUrl ? 'Ganti Gambar Bagan' : 'Unggah Gambar Bagan'}</span>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/jpg"
+                        onChange={handleUploadBaganKelurahan}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {profileDraft.baganStrukturKelurahanUrl && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setShowAdminBaganKelurahan(true)}
+                          className="px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 cursor-pointer"
+                          title="Pratinjau Layar Penuh"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleRemoveBaganKelurahan}
+                          className="px-3 py-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-xs font-semibold text-rose-700 cursor-pointer"
+                          title="Hapus Gambar"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Upload Card 2: Bagan Struktur Organisasi RT dan RW */}
+                <div className="bg-slate-50/80 rounded-2xl border border-slate-200 p-5 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        <Users className="w-3.5 h-3.5" />
+                        <span>Bagan Struktur RT / RW (LKK)</span>
+                      </span>
+                      {profileDraft.baganStrukturRtRwUrl ? (
+                        <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>Gambar Tersimpan</span>
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-medium text-slate-500 bg-slate-200/70 px-2 py-0.5 rounded-md">
+                          Belum Ada Gambar
+                        </span>
+                      )}
+                    </div>
+
+                    <h4 className="text-xs font-bold text-slate-800 mb-1">
+                      Gambar Bagan Struktur Organisasi 7 RW & 62 RT
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mb-4">
+                      Format disarankan: PNG atau JPG landscape dengan bagan hierarki RT/RW.
+                    </p>
+
+                    {/* Preview Area */}
+                    <div className="relative aspect-video w-full rounded-xl border border-slate-200 bg-white overflow-hidden flex items-center justify-center mb-4">
+                      {profileDraft.baganStrukturRtRwUrl ? (
+                        <img
+                          src={profileDraft.baganStrukturRtRwUrl}
+                          alt="Bagan Struktur RT/RW"
+                          className="w-full h-full object-contain p-2"
+                        />
+                      ) : (
+                        <div className="text-center p-4">
+                          <ImageIcon className="w-8 h-8 text-slate-300 mx-auto mb-1" />
+                          <p className="text-[11px] text-slate-400 font-medium">Belum ada gambar bagan RT/RW</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-3 border-t border-slate-200">
+                    <label className="flex-1 inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold cursor-pointer transition shadow-2xs text-center">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{profileDraft.baganStrukturRtRwUrl ? 'Ganti Gambar Bagan' : 'Unggah Gambar Bagan'}</span>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/jpg"
+                        onChange={handleUploadBaganRtRw}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {profileDraft.baganStrukturRtRwUrl && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setShowAdminBaganRtRw(true)}
+                          className="px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 cursor-pointer"
+                          title="Pratinjau Layar Penuh"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleRemoveBaganRtRw}
+                          className="px-3 py-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-xs font-semibold text-rose-700 cursor-pointer"
+                          title="Hapus Gambar"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 

@@ -244,6 +244,8 @@ export interface KelurahanProfile {
   totalPopulation: string;
   visi: string;
   misi: string[];
+  baganStrukturKelurahanUrl?: string;
+  baganStrukturRtRwUrl?: string;
   boundaries: {
     utara: string;
     selatan: string;

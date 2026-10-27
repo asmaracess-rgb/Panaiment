@@ -1609,6 +1609,7 @@ export default function App() {
 
   const handleAdminDeleteSeedRequest = useCallback(
     async (id: string): Promise<{ ok: boolean; errors?: string[] }> => {
+      recordDeletedItemId(id);
       const nextReqs = stateRef.current.seedRequests.filter((r) => r.id !== id);
       setSeedRequests(nextReqs);
       commitPersistence({ seedRequests: nextReqs });

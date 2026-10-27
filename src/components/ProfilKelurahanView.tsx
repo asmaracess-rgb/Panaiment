@@ -59,117 +59,32 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5 self-start">
+        <div className="flex flex-wrap items-center gap-2 self-start">
           <button
             type="button"
             onClick={() => setShowBaganKelurahan(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition-all shadow-xs cursor-pointer whitespace-nowrap"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-semibold transition-all shadow-xs cursor-pointer whitespace-nowrap"
           >
-            <Building2 className="w-4 h-4" />
+            <Building2 className="w-3.5 h-3.5" />
             <span>Bagan Struktur Kelurahan</span>
           </button>
 
           <button
             type="button"
             onClick={() => setShowBaganRtRw(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold transition-all shadow-xs cursor-pointer whitespace-nowrap"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-semibold transition-all shadow-xs cursor-pointer whitespace-nowrap"
           >
-            <Users className="w-4 h-4" />
+            <Users className="w-3.5 h-3.5" />
             <span>Bagan Struktur RT / RW</span>
           </button>
 
           <button
             type="button"
             onClick={() => onNavigate('peta')}
-            className="px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-800 transition-colors cursor-pointer whitespace-nowrap"
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 transition-colors cursor-pointer whitespace-nowrap"
           >
             Peta Wilayah
           </button>
-        </div>
-      </div>
-
-      {/* FEATURED DUAL ORGANOGRAM CARDS */}
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Card 1: Bagan Struktur Organisasi Kelurahan */}
-        <div
-          onClick={() => setShowBaganKelurahan(true)}
-          className="group relative bg-gradient-to-br from-[#0D3868] to-[#072647] text-white p-5 sm:p-6 rounded-2xl shadow-md border border-slate-200/50 hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between overflow-hidden"
-        >
-          <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 w-32 h-32 bg-white/5 rounded-full pointer-events-none" />
-
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-400 text-slate-950 uppercase tracking-wider">
-                <Sparkles className="w-3 h-3" />
-                <span>Hierarki SOTK Resmi</span>
-              </span>
-              <span className="text-xs text-sky-200 font-mono-num flex items-center gap-1">
-                <Eye className="w-3.5 h-3.5" />
-                <span>Klik untuk Melihat</span>
-              </span>
-            </div>
-
-            <div className="flex items-start gap-3">
-              <div className="p-3 bg-white/10 rounded-xl border border-white/15 text-amber-300 shrink-0">
-                <Building2 className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-base sm:text-lg font-black text-white group-hover:text-amber-200 transition-colors leading-tight">
-                  Bagan Struktur Organisasi Kelurahan
-                </h3>
-                <p className="text-xs text-sky-100 mt-1 leading-relaxed">
-                  Susunan bagan hierarki lengkap Pemerintah Kelurahan Panaikang: Kepala Kelurahan
-                  (Lurah), Sekretariat, dan Seksi-Seksi Jabatan Struktural.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 pt-3 border-t border-white/15 flex items-center justify-between text-xs font-semibold text-amber-300">
-            <span>Buka Diagram Bagan Interaktif</span>
-            <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-          </div>
-        </div>
-
-        {/* Card 2: Bagan Struktur Organisasi RT dan RW */}
-        <div
-          onClick={() => setShowBaganRtRw(true)}
-          className="group relative bg-gradient-to-br from-[#1C8237] to-[#125323] text-white p-5 sm:p-6 rounded-2xl shadow-md border border-emerald-500/50 hover:shadow-xl transition-all cursor-pointer flex flex-col justify-between overflow-hidden"
-        >
-          <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 w-32 h-32 bg-white/5 rounded-full pointer-events-none" />
-
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-300 text-emerald-950 uppercase tracking-wider">
-                <Users className="w-3 h-3" />
-                <span>Lembaga Kemasyarakatan (LKK)</span>
-              </span>
-              <span className="text-xs text-emerald-100 font-mono-num flex items-center gap-1">
-                <Eye className="w-3.5 h-3.5" />
-                <span>Klik untuk Melihat</span>
-              </span>
-            </div>
-
-            <div className="flex items-start gap-3">
-              <div className="p-3 bg-white/10 rounded-xl border border-white/15 text-emerald-200 shrink-0">
-                <Layers className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-base sm:text-lg font-black text-white group-hover:text-emerald-200 transition-colors leading-tight">
-                  Bagan Struktur Organisasi RT & RW
-                </h3>
-                <p className="text-xs text-emerald-100 mt-1 leading-relaxed">
-                  Susunan bagan organisasi 7 RW & 62 RT: Pimpinan Ketua RW, Sekretaris, Bendahara,
-                  Seksi Lingkungan & seluruh Ketua RT se-Kelurahan Panaikang.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 pt-3 border-t border-white/15 flex items-center justify-between text-xs font-semibold text-emerald-200">
-            <span>Buka Diagram Bagan RT/RW (RW 01 – RW 07)</span>
-            <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-          </div>
         </div>
       </div>
 
@@ -244,72 +159,60 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
                       Lihat Bagan Organigram →
                     </button>
                     <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-                      {(profile.officials && profile.officials.length > 0
-                        ? profile.officials.length
-                        : 3)}{' '}
-                      Pejabat Struktural
+                      {profile.officials?.length || 0} Pejabat Terdaftar
                     </span>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                  {(profile.officials && profile.officials.length > 0
-                    ? profile.officials
-                    : [
-                        {
-                          id: 'off-1',
-                          positionTitle: 'Sekretaris Lurah',
-                          officialName: profile.sekretarisName || 'Hj. Rahmawati Dg. Ngasseng, S.Sos.',
-                          department: 'Sekretariat',
-                        },
-                        {
-                          id: 'off-2',
-                          positionTitle: 'Kasi Kebersihan & Lingkungan',
-                          officialName: profile.kasiKebersihanName || 'Muh. Syahrul Ramadhan, S.T.',
-                          department: 'Seksi Kebersihan',
-                        },
-                        {
-                          id: 'off-3',
-                          positionTitle: 'Kasi Pemerintahan & Trantib',
-                          officialName: profile.kasiPemerintahanName || 'Drs. H. Kamaruddin Lira',
-                          department: 'Seksi Trantib',
-                        },
-                      ]
-                  ).map((official) => (
-                    <div
-                      key={official.id}
-                      className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-sky-300 transition-colors shadow-sm flex flex-col justify-between"
-                    >
-                      <div>
-                        <div className="inline-block px-2 py-0.5 bg-sky-50 text-[#0277BD] border border-sky-100 rounded-md text-[11px] font-semibold mb-1">
-                          {official.positionTitle}
-                        </div>
-                        <div className="font-bold text-slate-900 text-sm mt-0.5">
-                          {official.officialName}
-                        </div>
-                        {official.nip && (
-                          <div className="text-[11px] font-mono-num text-slate-500 mt-1">
-                            NIP. {official.nip}
+
+                {profile.officials && profile.officials.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    {profile.officials.map((official) => (
+                      <div
+                        key={official.id}
+                        className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-sky-300 transition-colors shadow-sm flex flex-col justify-between"
+                      >
+                        <div>
+                          <div className="inline-block px-2 py-0.5 bg-sky-50 text-[#0277BD] border border-sky-100 rounded-md text-[11px] font-semibold mb-1">
+                            {official.positionTitle}
                           </div>
-                        )}
-                        {official.rank && (
-                          <div className="text-[11px] text-slate-600 mt-0.5">
-                            Pangkat: {official.rank}
+                          <div className="font-bold text-slate-900 text-sm mt-0.5">
+                            {official.officialName}
                           </div>
-                        )}
-                      </div>
-                      <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-                        <span className="font-medium text-slate-600">
-                          {official.department || 'Perangkat Kelurahan'}
-                        </span>
-                        {official.phone && (
-                          <span className="font-mono-num text-emerald-700 font-semibold">
-                            {official.phone}
+                          {official.nip && (
+                            <div className="text-[11px] font-mono-num text-slate-500 mt-1">
+                              NIP. {official.nip}
+                            </div>
+                          )}
+                          {official.rank && (
+                            <div className="text-[11px] text-slate-600 mt-0.5">
+                              Pangkat: {official.rank}
+                            </div>
+                          )}
+                        </div>
+                        <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                          <span className="font-medium text-slate-600">
+                            {official.department || 'Perangkat Kelurahan'}
                           </span>
-                        )}
+                          {official.phone && (
+                            <span className="font-mono-num text-emerald-700 font-semibold">
+                              {official.phone}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-6 text-center rounded-xl border border-dashed border-slate-200 bg-slate-50/70">
+                    <Users className="w-7 h-7 text-slate-300 mx-auto mb-2" />
+                    <p className="text-xs font-semibold text-slate-700">
+                      Belum ada data perangkat struktural kelurahan
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-1 max-w-sm mx-auto">
+                      Data pejabat struktural dan perangkat kelurahan diisi mandiri oleh Administrator melalui Panel Admin.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -129,9 +129,9 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
   onNavigate,
   profile = INITIAL_KELURAHAN_PROFILE,
   rwGroups = [],
-  spots = INITIAL_URBAN_FARMING_SPOTS,
+  spots = [],
   onAddSpot,
-  seedRequests = INITIAL_SEED_REQUESTS,
+  seedRequests = [],
   onAddSeedRequest,
 }) => {
   const [activeTab, setActiveTab] = useState<'kebun' | 'panen' | 'edukasi' | 'bibit'>('kebun');

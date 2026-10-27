@@ -16,7 +16,7 @@ import {
   INITIAL_ADMIN_USERS,
   INITIAL_ACTIVITY_LOGS,
 } from './src/data/initialData.ts';
-import {
+import type {
   KelurahanProfile,
   CitizenReport,
   WasteBankUnit,
@@ -54,7 +54,7 @@ import {
 } from './src/data/initialData.ts';
 import {
   SERVICE_CATEGORY_GROUPS,
-  ServiceCategoryGroup,
+  type ServiceCategoryGroup,
 } from './src/data/wargaServiceCatalog.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -109,11 +109,26 @@ function loadDatabase(): DatabaseSchema {
           parsed.rwGroups.length === 7 &&
           parsed.rwGroups[0]?.ketuaRwName === 'EDWIN BURHANUDDIN';
         const resolvedRwGroups = hasOfficialRwData ? parsed.rwGroups! : INITIAL_RW_GROUPS;
+        const legacyOfficialIds = new Set(['off-1', 'off-2', 'off-3', 'off-4']);
+        const resolvedOfficials = (
+          Array.isArray(parsed.profile?.officials) ? parsed.profile.officials : []
+        ).filter((o) => o && o.id && !deletedSet.has(o.id) && !legacyOfficialIds.has(o.id));
+
         const resolvedProfile: KelurahanProfile = {
           ...parsed.profile,
-          officials: Array.isArray(parsed.profile?.officials)
-            ? parsed.profile.officials
-            : INITIAL_OFFICIALS,
+          officials: resolvedOfficials,
+          sekretarisName:
+            parsed.profile?.sekretarisName === 'Hj. Rahmawati Dg. Ngasseng, S.Sos.'
+              ? ''
+              : (parsed.profile?.sekretarisName || ''),
+          kasiKebersihanName:
+            parsed.profile?.kasiKebersihanName === 'Muh. Syahrul Ramadhan, S.T.'
+              ? ''
+              : (parsed.profile?.kasiKebersihanName || ''),
+          kasiPemerintahanName:
+            parsed.profile?.kasiPemerintahanName === 'Drs. H. Kamaruddin Lira'
+              ? ''
+              : (parsed.profile?.kasiPemerintahanName || ''),
           totalRw: resolvedRwGroups.length,
           totalRt: resolvedRwGroups.reduce((acc, rw) => acc + (rw.rtList?.length || 0), 0),
         };
@@ -603,7 +618,14 @@ async function startServer() {
     ]);
     db.deletedItemIds = Array.from(deletedSet);
 
-    if (incoming.profile) db.profile = incoming.profile;
+    if (incoming.profile) {
+      db.profile = incoming.profile;
+      if (Array.isArray(incoming.profile.officials)) {
+        db.profile.officials = incoming.profile.officials.filter(
+          (o) => o && o.id && !deletedSet.has(o.id)
+        );
+      }
+    }
     if (Array.isArray(incoming.rwGroups) && incoming.rwGroups.length > 0) {
       db.rwGroups = incoming.rwGroups;
       db.profile.totalRw = incoming.rwGroups.length;
@@ -628,13 +650,13 @@ async function startServer() {
     if (Array.isArray(incoming.kelurahanInfos)) db.kelurahanInfos = incoming.kelurahanInfos;
     if (Array.isArray(incoming.whatsappRecipients))
       db.whatsappRecipients = incoming.whatsappRecipients;
-    if (Array.isArray(incoming.serviceCatalog) && incoming.serviceCatalog.length > 0)
+    if (Array.isArray(incoming.serviceCatalog))
       db.serviceCatalog = incoming.serviceCatalog;
-    if (Array.isArray(incoming.adminUsers) && incoming.adminUsers.length > 0)
+    if (Array.isArray(incoming.adminUsers))
       db.adminUsers = incoming.adminUsers;
     if (Array.isArray(incoming.activityLogs))
       db.activityLogs = incoming.activityLogs;
-    if (Array.isArray(incoming.urbanFarmingSpots) && incoming.urbanFarmingSpots.length > 0)
+    if (Array.isArray(incoming.urbanFarmingSpots))
       db.urbanFarmingSpots = incoming.urbanFarmingSpots;
     if (Array.isArray(incoming.seedRequests))
       db.seedRequests = incoming.seedRequests;
@@ -655,6 +677,9 @@ async function startServer() {
 
     // Prune any items that were permanently deleted
     if (deletedSet.size > 0) {
+      if (db.profile && Array.isArray(db.profile.officials)) {
+        db.profile.officials = db.profile.officials.filter((o) => o && o.id && !deletedSet.has(o.id));
+      }
       db.reports = db.reports.filter((r) => r && r.id && !deletedSet.has(r.id));
       db.wasteUnits = db.wasteUnits.filter((u) => u && u.id && !deletedSet.has(u.id));
       db.wasteLogs = db.wasteLogs.filter((l) => l && l.id && !deletedSet.has(l.id));
