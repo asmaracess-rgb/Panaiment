@@ -323,7 +323,31 @@ export default function App() {
     [commitPersistence]
   );
 
-  // Load and synchronize persistent state between browser localStorage and backend on mount
+  const applyRemoteDatabase = useCallback((serverDb: Partial<PersistedDatabase>) => {
+    if (!serverDb) return;
+    const currentLocal = loadPersistedDatabase();
+    const merged = smartMergeDatabases(currentLocal, serverDb);
+
+    setKelurahanProfile(merged.profile);
+    setRwGroups(merged.rwGroups);
+    setReports(merged.reports);
+    setWasteUnits(merged.wasteUnits);
+    setWasteLogs(merged.wasteLogs);
+    setCleanupEvents(merged.cleanupEvents);
+    setKelurahanInfos(merged.kelurahanInfos);
+    setWhatsappRecipients(merged.whatsappRecipients);
+    if (merged.serviceCatalog) setServiceCatalog(merged.serviceCatalog);
+    if (merged.adminUsers) setAdminUsers(merged.adminUsers);
+    if (merged.activityLogs) setActivityLogs(merged.activityLogs);
+    if (merged.urbanFarmingSpots) setUrbanFarmingSpots(merged.urbanFarmingSpots);
+    if (merged.seedRequests) setSeedRequests(merged.seedRequests);
+    setTebaSpots(merged.tebaSpots ?? []);
+    setBioporiPoints(merged.bioporiPoints ?? []);
+
+    savePersistedDatabase(merged);
+  }, []);
+
+  // Load and continuously synchronize persistent state between browser and backend in real-time
   useEffect(() => {
     let mounted = true;
 
@@ -347,39 +371,69 @@ export default function App() {
       if (initialLocal.bioporiPoints) setBioporiPoints(initialLocal.bioporiPoints);
     }
 
-    // 2. Fetch server database and perform bulletproof smart merge
+    // 2. Fetch server database snapshot
     const syncFromServer = async () => {
       try {
         const res = await fetch('/api/data', { cache: 'no-store' });
         if (!res.ok) return;
         const payload = await res.json();
         if (!mounted || !payload?.ok || !payload.data) return;
-        const serverDb = payload.data as Partial<PersistedDatabase>;
-        const currentLocal = loadPersistedDatabase();
-
-        const merged = smartMergeDatabases(currentLocal, serverDb);
-
-        setKelurahanProfile(merged.profile);
-        setRwGroups(merged.rwGroups);
-        setReports(merged.reports);
-        setWasteUnits(merged.wasteUnits);
-        setWasteLogs(merged.wasteLogs);
-        setCleanupEvents(merged.cleanupEvents);
-        setKelurahanInfos(merged.kelurahanInfos);
-        setWhatsappRecipients(merged.whatsappRecipients);
-        if (merged.serviceCatalog) setServiceCatalog(merged.serviceCatalog);
-        if (merged.adminUsers) setAdminUsers(merged.adminUsers);
-        if (merged.activityLogs) setActivityLogs(merged.activityLogs);
-        if (merged.urbanFarmingSpots) setUrbanFarmingSpots(merged.urbanFarmingSpots);
-        if (merged.seedRequests) setSeedRequests(merged.seedRequests);
-        setTebaSpots(merged.tebaSpots ?? []);
-        setBioporiPoints(merged.bioporiPoints ?? []);
-
-        savePersistedDatabase(merged);
+        applyRemoteDatabase(payload.data as Partial<PersistedDatabase>);
       } catch {}
     };
 
     syncFromServer();
+
+    // 3. Connect to Server-Sent Events (SSE) for instant live push whenever any admin updates data
+    let es: EventSource | null = null;
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const initEventSource = () => {
+      if (!mounted) return;
+      try {
+        es = new EventSource('/api/realtime/stream');
+
+        es.addEventListener('init', (e) => {
+          try {
+            const parsed = JSON.parse(e.data);
+            if (parsed?.data && mounted) {
+              applyRemoteDatabase(parsed.data);
+            }
+          } catch {}
+        });
+
+        es.addEventListener('data_update', (e) => {
+          try {
+            const parsed = JSON.parse(e.data);
+            if (parsed?.data && mounted) {
+              applyRemoteDatabase(parsed.data);
+            }
+          } catch {}
+        });
+
+        es.onerror = () => {
+          if (es) {
+            es.close();
+            es = null;
+          }
+          if (mounted && !reconnectTimeout) {
+            reconnectTimeout = setTimeout(() => {
+              reconnectTimeout = null;
+              initEventSource();
+            }, 3000);
+          }
+        };
+      } catch {
+        if (mounted && !reconnectTimeout) {
+          reconnectTimeout = setTimeout(() => {
+            reconnectTimeout = null;
+            initEventSource();
+          }, 4000);
+        }
+      }
+    };
+
+    initEventSource();
 
     // Cross-device synchronization on window focus / tab visibility
     const handleFocusOrVisible = () => {
@@ -390,8 +444,8 @@ export default function App() {
     window.addEventListener('focus', handleFocusOrVisible);
     document.addEventListener('visibilitychange', handleFocusOrVisible);
 
-    // Periodic gentle background poll every 12 seconds for multi-device sync
-    const pollInterval = window.setInterval(syncFromServer, 12000);
+    // Continuous resilient gentle background poll (every 5 seconds) as fallback
+    const pollInterval = window.setInterval(syncFromServer, 5000);
 
     // Cross-tab synchronization listener
     const handleStorageUpdate = (e: StorageEvent) => {
@@ -422,12 +476,14 @@ export default function App() {
 
     return () => {
       mounted = false;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (es) es.close();
       window.clearInterval(pollInterval);
       window.removeEventListener('focus', handleFocusOrVisible);
       document.removeEventListener('visibilitychange', handleFocusOrVisible);
       window.removeEventListener('storage', handleStorageUpdate);
     };
-  }, []);
+  }, [applyRemoteDatabase]);
 
   const dismissToast = useCallback((toastId: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== toastId));

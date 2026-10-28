@@ -376,6 +376,81 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     }
   }, [initialTab]);
 
+  // Single-Live Admin Lock status across all registered admins
+  const [activeAdminLockInfo, setActiveAdminLockInfo] = useState<{
+    isLocked: boolean;
+    activeAdmin?: {
+      username: string;
+      fullName: string;
+      role: string;
+      roleLevel?: string;
+      loginAt: string;
+    } | null;
+  }>({ isLocked: false, activeAdmin: null });
+
+  const checkSessionStatus = React.useCallback(async () => {
+    try {
+      const res = await fetch('/api/auth/session-status', { cache: 'no-store' });
+      if (res.ok) {
+        const json = await res.json();
+        if (json?.ok) {
+          setActiveAdminLockInfo({
+            isLocked: Boolean(json.isLocked),
+            activeAdmin: json.activeAdmin || null,
+          });
+        }
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    checkSessionStatus();
+    const interval = setInterval(checkSessionStatus, 5000);
+    return () => clearInterval(interval);
+  }, [checkSessionStatus]);
+
+  // Keep heartbeat active every 10 seconds while admin session is live; release on window close
+  useEffect(() => {
+    if (!adminSession?.token) return;
+
+    const heartbeatTimer = setInterval(async () => {
+      try {
+        const res = await fetch('/api/auth/heartbeat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: adminSession.token }),
+        });
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}));
+          console.warn('[Admin Lock] Sesi admin kedaluwarsa atau dialihkan:', json.error);
+          sessionStorage.removeItem('pnk_admin_session');
+          setAdminSession(null);
+          setLoginError(
+            json.error || 'Sesi Administrator Anda telah kedaluwarsa atau dialihkan ke perangkat lain.'
+          );
+          checkSessionStatus();
+        }
+      } catch {}
+    }, 10000);
+
+    const handleBeforeUnload = () => {
+      if (navigator.sendBeacon && adminSession.token) {
+        navigator.sendBeacon(
+          '/api/auth/beacon-logout',
+          JSON.stringify({ token: adminSession.token })
+        );
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handleBeforeUnload);
+
+    return () => {
+      clearInterval(heartbeatTimer);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handleBeforeUnload);
+    };
+  }, [adminSession?.token, checkSessionStatus]);
+
   const currentAdminAccount = React.useMemo(() => {
     if (!adminSession) return null;
     const cleanU = adminSession.username.toLowerCase();
@@ -1002,12 +1077,22 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: cleanUser, password: cleanPass }),
+        body: JSON.stringify({
+          username: cleanUser,
+          password: cleanPass,
+          clientToken: adminSession?.token,
+        }),
       });
       const json = await res.json();
       setIsLoggingIn(false);
 
       if (!res.ok || !json.ok) {
+        if (json.isLocked && json.activeAdmin) {
+          setActiveAdminLockInfo({
+            isLocked: true,
+            activeAdmin: json.activeAdmin,
+          });
+        }
         setLoginError(
           json.error || 'Username atau kata sandi tidak sesuai. Silakan coba kembali.'
         );
@@ -1018,6 +1103,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       setAdminSession(sessionData);
       sessionStorage.setItem('pnk_admin_session', JSON.stringify(sessionData));
       setLoginPassword('');
+      checkSessionStatus();
       recordAudit({
         actionType: 'LOGIN',
         module: 'AUTENTIKASI',
@@ -1043,69 +1129,18 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       }
     } catch {
       setIsLoggingIn(false);
-      // Fallback local verification against adminUsers if server request fails
-      const lowerU = cleanUser.toLowerCase();
-      const cleanNip = lowerU.replace(/\s+/g, '');
-      const matchedLocalUser = adminUsers.find((u) => {
-        const uName = u.username.toLowerCase();
-        const uNip = (u.nip || '').replace(/\s+/g, '').toLowerCase();
-        const isMasterAlias =
-          Boolean(u.isMasterLurah || u.roleLevel === 'master_admin') &&
-          ['admin', 'lurah', 'lurah.panaikang'].includes(lowerU);
-        return uName === lowerU || (uNip && uNip === cleanNip) || isMasterAlias;
-      });
-
-      if (matchedLocalUser) {
-        const passOk =
-          matchedLocalUser.password === cleanPass ||
-          (matchedLocalUser.password === 'panaikang2026' &&
-            ['panaikang2026', 'admin123'].includes(cleanPass));
-        if (!passOk) {
-          setLoginError('Kata sandi yang dimasukkan tidak sesuai untuk akun tersebut.');
-          return;
-        }
-        if (!matchedLocalUser.isActive) {
-          setLoginError(
-            'Akun user ini sedang dinonaktifkan oleh Master Admin (Lurah). Silakan hubungi Lurah Panaikang.'
-          );
-          return;
-        }
-        const fallbackSession: AdminSession = {
-          token: `pnk-local-${Date.now()}`,
-          userId: matchedLocalUser.id,
-          username: matchedLocalUser.username,
-          fullName: matchedLocalUser.fullName,
-          nip: matchedLocalUser.nip,
-          role: `${matchedLocalUser.jabatan} · ${matchedLocalUser.unitBidang}`,
-          roleLevel: matchedLocalUser.roleLevel,
-          isMasterLurah: Boolean(
-            matchedLocalUser.isMasterLurah || matchedLocalUser.roleLevel === 'master_admin'
-          ),
-          allowedAdminTabs: matchedLocalUser.allowedAdminTabs as AdminTab[],
-          allowedServiceCategories: matchedLocalUser.allowedServiceCategories,
-          actionPermissions: matchedLocalUser.actionPermissions,
-          loginAt: 'Baru Saja',
-        };
-        setAdminSession(fallbackSession);
-        sessionStorage.setItem('pnk_admin_session', JSON.stringify(fallbackSession));
-        if (
-          Array.isArray(matchedLocalUser.allowedAdminTabs) &&
-          matchedLocalUser.allowedAdminTabs.length > 0 &&
-          !matchedLocalUser.allowedAdminTabs.includes(activeTab)
-        ) {
-          setActiveTab(matchedLocalUser.allowedAdminTabs[0] as AdminTab);
-        }
-      } else {
-        setLoginError(
-          'Username/NIP atau kata sandi yang dimasukkan tidak sesuai. Silakan coba kembali.'
-        );
-      }
+      setLoginError('Terjadi kendala koneksi ke server autentikasi. Silakan periksa jaringan Anda.');
     }
   };
 
   const handleLogout = async () => {
+    const token = adminSession?.token;
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
     } catch {
       // ignore
     }
@@ -1114,6 +1149,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     setLoginUsername('');
     setLoginPassword('');
     setLoginError('');
+    checkSessionStatus();
   };
 
   // ================= 1B. DATA RT & RW CRUD STATE =================
@@ -2929,6 +2965,42 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
           {/* Login Form Body */}
           <div className="p-6 sm:p-8">
+            {/* Live Single-Admin Lock Status Indicator */}
+            {activeAdminLockInfo.isLocked && activeAdminLockInfo.activeAdmin ? (
+              <div className="mb-5 p-3.5 rounded-2xl bg-amber-50 border border-amber-300 text-xs text-amber-950 flex items-start gap-3 shadow-xs">
+                <Lock className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-amber-950 text-xs flex items-center justify-between">
+                    <span>Akses Terkunci Sementara (1 Admin Live)</span>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-800 bg-amber-200/70 px-2 py-0.5 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse" />
+                      Aktif
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-amber-900 leading-relaxed">
+                    Administrator <strong>{activeAdminLockInfo.activeAdmin.fullName}</strong> (@{activeAdminLockInfo.activeAdmin.username}) sedang aktif di perangkat lain sejak{' '}
+                    <span className="font-semibold">{activeAdminLockInfo.activeAdmin.loginAt}</span>.
+                  </p>
+                  <div className="mt-2 text-[10px] bg-amber-100/90 p-2 rounded-lg border border-amber-300/60 text-amber-900 font-medium leading-normal">
+                    Demi keamanan & konsistensi data, aplikasi hanya mengizinkan 1 admin aktif dalam waktu bersamaan. Admin tersebut harus melakukan <strong>Logout</strong> agar perangkat ini dapat login.
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="mb-4 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-medium flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <span>Slot Administrator Terbuka (Siap Login)</span>
+                </div>
+                <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider bg-emerald-100/70 px-2 py-0.5 rounded-full">
+                  Siap
+                </span>
+              </div>
+            )}
+
             {initialTab === 'dashboard_lurah' && (
               <div className="mb-5 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs font-semibold text-amber-950 flex items-start gap-2.5">
                 <Lock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
@@ -3030,8 +3102,17 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               <ShieldCheck className="w-5 h-5 text-emerald-300" />
             </div>
             <div>
-              <div className="text-xs sm:text-sm font-bold text-white">
-                {adminSession.fullName}
+              <div className="flex items-center gap-2">
+                <span className="text-xs sm:text-sm font-bold text-white">
+                  {adminSession.fullName}
+                </span>
+                <span
+                  title="Sesi tunggal aktif: Akses admin lain dikunci sampai Anda logout"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-[10px] font-semibold text-emerald-300 cursor-help"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  1 Admin Live
+                </span>
               </div>
               <div className="text-[11px] text-sky-200">
                 {adminSession.role} · Login:{' '}
