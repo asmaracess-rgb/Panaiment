@@ -1,4 +1,13 @@
-import React, { useState } from 'react';
+/// <reference types="@types/google.maps" />
+import React, { useState, useEffect } from 'react';
+import {
+  APIProvider,
+  Map,
+  AdvancedMarker,
+  Pin,
+  InfoWindow,
+  useMap,
+} from '@vis.gl/react-google-maps';
 import {
   ArrowLeft,
   MapPin,
@@ -7,10 +16,11 @@ import {
   AlertCircle,
   Recycle,
   Calendar,
-  ZoomIn,
-  ZoomOut,
-  RotateCcw,
   Navigation,
+  Building2,
+  Layers,
+  Compass,
+  Check,
 } from 'lucide-react';
 import {
   CitizenReport,
@@ -35,6 +45,226 @@ interface PetaDigitalViewProps {
 
 type LayerType = 'semua' | 'laporan' | 'bsu' | 'kerjabakti';
 
+// Geographic center and bounds for Kelurahan Panaikang, Panakkukang, Makassar
+const PANAIKANG_CENTER = { lat: -5.1385, lng: 119.4475 };
+const PANAIKANG_DEFAULT_ZOOM = 15;
+
+// Perimeter administrative boundary polygon of Kelurahan Panaikang
+const PANAIKANG_PERIMETER_POLYGON: google.maps.LatLngLiteral[] = [
+  { lat: -5.1320, lng: 119.4402 }, // Barat Laut (Kanal Pampang / Flyover)
+  { lat: -5.1315, lng: 119.4450 }, // Utara 1 (Kanal Pampang)
+  { lat: -5.1328, lng: 119.4510 }, // Utara 2 (Aliran Kanal Panaikang)
+  { lat: -5.1340, lng: 119.4552 }, // Timur Laut (Batas Kel. Tello Baru)
+  { lat: -5.1375, lng: 119.4568 }, // Timur (Batas Kec. Manggala)
+  { lat: -5.1412, lng: 119.4555 }, // Tenggara 1 (Batas Kel. Tamamaung)
+  { lat: -5.1448, lng: 119.4522 }, // Tenggara 2 (Kompleks Kejaksaan Selatan)
+  { lat: -5.1458, lng: 119.4470 }, // Selatan (Batas Kel. Pandang / Karampuang)
+  { lat: -5.1442, lng: 119.4415 }, // Barat Daya (Jl. Sukaria Selatan)
+  { lat: -5.1398, lng: 119.4390 }, // Barat (Jl. Racing Centre / Pettarani)
+  { lat: -5.1355, lng: 119.4388 }, // Barat Tengah (Sisi Barat Nipah Mall)
+  { lat: -5.1320, lng: 119.4402 }, // Close polygon
+];
+
+// RW Zone Sub-polygons within Kelurahan Panaikang
+interface RwZone {
+  rw: string;
+  name: string;
+  color: string;
+  paths: google.maps.LatLngLiteral[];
+  center: google.maps.LatLngLiteral;
+}
+
+const RW_ZONES: RwZone[] = [
+  {
+    rw: 'RW 01',
+    name: 'Kawasan Nipah Mall & Racing Centre',
+    color: '#0284C7', // Sky
+    center: { lat: -5.1368, lng: 119.4412 },
+    paths: [
+      { lat: -5.1320, lng: 119.4402 },
+      { lat: -5.1318, lng: 119.4442 },
+      { lat: -5.1388, lng: 119.4435 },
+      { lat: -5.1398, lng: 119.4390 },
+      { lat: -5.1355, lng: 119.4388 },
+      { lat: -5.1320, lng: 119.4402 },
+    ],
+  },
+  {
+    rw: 'RW 02',
+    name: 'Koridor Poros Jl. Urip Sumoharjo',
+    color: '#0D9488', // Teal
+    center: { lat: -5.1375, lng: 119.4470 },
+    paths: [
+      { lat: -5.1350, lng: 119.4442 },
+      { lat: -5.1352, lng: 119.4502 },
+      { lat: -5.1398, lng: 119.4498 },
+      { lat: -5.1395, lng: 119.4440 },
+      { lat: -5.1350, lng: 119.4442 },
+    ],
+  },
+  {
+    rw: 'RW 03',
+    name: 'Kawasan Kampus UMI & Lorong 2',
+    color: '#16A34A', // Green
+    center: { lat: -5.1340, lng: 119.4485 },
+    paths: [
+      { lat: -5.1315, lng: 119.4450 },
+      { lat: -5.1325, lng: 119.4520 },
+      { lat: -5.1352, lng: 119.4502 },
+      { lat: -5.1350, lng: 119.4442 },
+      { lat: -5.1315, lng: 119.4450 },
+    ],
+  },
+  {
+    rw: 'RW 04',
+    name: 'Kawasan Jl. Sukaria Raya Lorong 1–5',
+    color: '#D97706', // Amber
+    center: { lat: -5.1415, lng: 119.4435 },
+    paths: [
+      { lat: -5.1395, lng: 119.4440 },
+      { lat: -5.1398, lng: 119.4498 },
+      { lat: -5.1455, lng: 119.4468 },
+      { lat: -5.1442, lng: 119.4415 },
+      { lat: -5.1398, lng: 119.4390 },
+      { lat: -5.1395, lng: 119.4440 },
+    ],
+  },
+  {
+    rw: 'RW 05',
+    name: 'Kawasan Kompleks Kejaksaan & Adhyaksa',
+    color: '#9333EA', // Purple
+    center: { lat: -5.1428, lng: 119.4505 },
+    paths: [
+      { lat: -5.1398, lng: 119.4498 },
+      { lat: -5.1408, lng: 119.4542 },
+      { lat: -5.1448, lng: 119.4522 },
+      { lat: -5.1455, lng: 119.4468 },
+      { lat: -5.1398, lng: 119.4498 },
+    ],
+  },
+  {
+    rw: 'RW 06',
+    name: 'Kawasan Bantaran Kanal Pampang - Panaikang',
+    color: '#2563EB', // Blue
+    center: { lat: -5.1345, lng: 119.4538 },
+    paths: [
+      { lat: -5.1328, lng: 119.4510 },
+      { lat: -5.1340, lng: 119.4552 },
+      { lat: -5.1378, lng: 119.4565 },
+      { lat: -5.1385, lng: 119.4522 },
+      { lat: -5.1352, lng: 119.4502 },
+      { lat: -5.1328, lng: 119.4510 },
+    ],
+  },
+  {
+    rw: 'RW 07',
+    name: 'Kawasan Flamboyan & Sukaria Timur',
+    color: '#E11D48', // Rose
+    center: { lat: -5.1398, lng: 119.4545 },
+    paths: [
+      { lat: -5.1385, lng: 119.4522 },
+      { lat: -5.1378, lng: 119.4565 },
+      { lat: -5.1412, lng: 119.4555 },
+      { lat: -5.1408, lng: 119.4542 },
+      { lat: -5.1385, lng: 119.4522 },
+    ],
+  },
+];
+
+// Kantor Lurah Panaikang Coordinate
+const KANTOR_LURAH_COORDINATE = { lat: -5.1388, lng: 119.4468 };
+
+// Coordinate resolution helper: parses coordinatesLabel or projects mapX/mapY
+function resolveCoordinate(
+  coordinatesLabel?: string,
+  mapX: number = 50,
+  mapY: number = 50
+): google.maps.LatLngLiteral {
+  if (coordinatesLabel && coordinatesLabel.includes(',')) {
+    const parts = coordinatesLabel.split(',');
+    if (parts.length === 2) {
+      const lat = parseFloat(parts[0].trim());
+      const lng = parseFloat(parts[1].trim());
+      if (!isNaN(lat) && !isNaN(lng) && lat < 0 && lng > 100) {
+        return { lat, lng };
+      }
+    }
+  }
+  // Bounding box mapping
+  const NORTH = -5.1320;
+  const SOUTH = -5.1455;
+  const WEST = 119.4385;
+  const EAST = 119.4565;
+
+  const lat = NORTH - (mapY / 100) * (NORTH - SOUTH);
+  const lng = WEST + (mapX / 100) * (EAST - WEST);
+  return { lat, lng };
+}
+
+// Subcomponent: Custom Google Maps Polygon renderer using useMap hook
+function GoogleMapsPolygon({
+  paths,
+  strokeColor,
+  strokeOpacity = 0.9,
+  strokeWeight = 2,
+  fillColor,
+  fillOpacity = 0.15,
+  onClick,
+}: {
+  paths: google.maps.LatLngLiteral[];
+  strokeColor: string;
+  strokeOpacity?: number;
+  strokeWeight?: number;
+  fillColor: string;
+  fillOpacity?: number;
+  onClick?: () => void;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map) return;
+    const polygon = new google.maps.Polygon({
+      paths,
+      strokeColor,
+      strokeOpacity,
+      strokeWeight,
+      fillColor,
+      fillOpacity,
+      map,
+    });
+
+    let listener: google.maps.MapsEventListener | null = null;
+    if (onClick) {
+      listener = polygon.addListener('click', onClick);
+    }
+
+    return () => {
+      if (listener) google.maps.event.removeListener(listener);
+      polygon.setMap(null);
+    };
+  }, [map, paths, strokeColor, strokeOpacity, strokeWeight, fillColor, fillOpacity, onClick]);
+
+  return null;
+}
+
+// Subcomponent: Map Controller for Pan/Zoom actions
+function MapController({
+  targetCenter,
+  triggerKey,
+}: {
+  targetCenter: google.maps.LatLngLiteral | null;
+  triggerKey: number;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map || !targetCenter) return;
+    map.panTo(targetCenter);
+  }, [map, targetCenter, triggerKey]);
+
+  return null;
+}
+
 export const PetaDigitalView: React.FC<PetaDigitalViewProps> = ({
   reports,
   wasteUnits,
@@ -44,14 +274,29 @@ export const PetaDigitalView: React.FC<PetaDigitalViewProps> = ({
 }) => {
   const [activeLayer, setActiveLayer] = useState<LayerType>('semua');
   const [statusFilter, setStatusFilter] = useState<'Semua' | ReportStatus>('Semua');
-  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [showRwBoundaries, setShowRwBoundaries] = useState<boolean>(true);
+  const [mapTypeId, setMapTypeId] = useState<'roadmap' | 'hybrid'>('roadmap');
+
   const [selectedItem, setSelectedItem] = useState<{
-    type: 'laporan' | 'bsu' | 'kerjabakti';
+    type: 'laporan' | 'bsu' | 'kerjabakti' | 'kantor';
     id: string;
   }>({
     type: 'laporan',
     id: reports[0]?.id || '',
   });
+
+  const [infoWindowTarget, setInfoWindowTarget] = useState<{
+    type: 'laporan' | 'bsu' | 'kerjabakti' | 'kantor';
+    id: string;
+    position: google.maps.LatLngLiteral;
+    title: string;
+    description: string;
+    badge: string;
+    badgeColor: string;
+  } | null>(null);
+
+  const [panTarget, setPanTarget] = useState<google.maps.LatLngLiteral | null>(null);
+  const [panTrigger, setPanTrigger] = useState<number>(0);
 
   const visibleReports = reports.filter(
     (r) => statusFilter === 'Semua' || r.status === statusFilter
@@ -72,6 +317,84 @@ export const PetaDigitalView: React.FC<PetaDigitalViewProps> = ({
       ? cleanupEvents.find((c) => c.id === selectedItem.id) || cleanupEvents[0]
       : null;
 
+  const handleSelectReport = (rep: CitizenReport) => {
+    const pos = resolveCoordinate(rep.coordinatesLabel, rep.mapX, rep.mapY);
+    setSelectedItem({ type: 'laporan', id: rep.id });
+    setInfoWindowTarget({
+      type: 'laporan',
+      id: rep.id,
+      position: pos,
+      title: rep.title,
+      description: `${rep.rw} / ${rep.rt} · ${rep.locationName}`,
+      badge: rep.status,
+      badgeColor:
+        rep.status === 'Selesai'
+          ? 'bg-emerald-600'
+          : rep.status === 'Sedang Ditangani'
+          ? 'bg-sky-600'
+          : 'bg-amber-500',
+    });
+    setPanTarget(pos);
+    setPanTrigger((k) => k + 1);
+  };
+
+  const handleSelectBsu = (unit: WasteBankUnit) => {
+    const pos = resolveCoordinate(undefined, unit.mapX, unit.mapY);
+    setSelectedItem({ type: 'bsu', id: unit.id });
+    setInfoWindowTarget({
+      type: 'bsu',
+      id: unit.id,
+      position: pos,
+      title: unit.unitName,
+      description: `${unit.rw} · ${unit.locationLabel}`,
+      badge: `BSU ${unit.rw}`,
+      badgeColor: 'bg-orange-600',
+    });
+    setPanTarget(pos);
+    setPanTrigger((k) => k + 1);
+  };
+
+  const handleSelectCleanup = (ev: CleanupEvent) => {
+    const pos = resolveCoordinate(undefined, ev.mapX, ev.mapY);
+    setSelectedItem({ type: 'kerjabakti', id: ev.id });
+    setInfoWindowTarget({
+      type: 'kerjabakti',
+      id: ev.id,
+      position: pos,
+      title: ev.title,
+      description: `${ev.rw} · ${ev.date}`,
+      badge: 'Kerja Bakti',
+      badgeColor: 'bg-purple-600',
+    });
+    setPanTarget(pos);
+    setPanTrigger((k) => k + 1);
+  };
+
+  const handleSelectKantor = () => {
+    setSelectedItem({ type: 'kantor', id: 'kantor-lurah' });
+    setInfoWindowTarget({
+      type: 'kantor',
+      id: 'kantor-lurah',
+      position: KANTOR_LURAH_COORDINATE,
+      title: 'Kantor Lurah Panaikang',
+      description: 'Pusat Pemerintahan & Posko Smart Environment Kelurahan Panaikang',
+      badge: 'Kantor Kelurahan',
+      badgeColor: 'bg-[#0D3868]',
+    });
+    setPanTarget(KANTOR_LURAH_COORDINATE);
+    setPanTrigger((k) => k + 1);
+  };
+
+  const handleResetCamera = () => {
+    setPanTarget(PANAIKANG_CENTER);
+    setPanTrigger((k) => k + 1);
+    setInfoWindowTarget(null);
+  };
+
+  const apiKey =
+    import.meta.env.VITE_GOOGLE_MAPS_API_KEY ||
+    'AIzaSyA8mWm8VCvHzQRy1pYB-z-w5yTsSjlBzhI';
+
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8">
       {/* Header */}
@@ -85,12 +408,18 @@ export const PetaDigitalView: React.FC<PetaDigitalViewProps> = ({
             <ArrowLeft className="w-4 h-4" />
             <span>Kembali ke Portal Utama</span>
           </button>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0D3868] tracking-tight">
-            Peta Digital Kelurahan Panaikang
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0D3868] tracking-tight">
+              Peta Digital Kelurahan Panaikang
+            </h1>
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
+              <Navigation className="w-3 h-3 text-[#0284C7]" />
+              <span>Google Maps Live</span>
+            </span>
+          </div>
           <p className="mt-1 text-sm text-slate-600">
-            Pemantauan spasial real-time titik laporan warga, lokasi Bank Sampah Unit (BSU), dan
-            titik kerja bakti RW 01 – RW 07.
+            Pemetaan spasial resmi wilayah Kelurahan Panaikang (Kec. Panakkukang, Makassar)
+            dengan garis batas administrasi wilayah, pembagian zona RW 01 – RW 07, titik laporan warga, dan Bank Sampah Unit.
           </p>
         </div>
 
@@ -118,7 +447,7 @@ export const PetaDigitalView: React.FC<PetaDigitalViewProps> = ({
         </div>
       </div>
 
-      {/* Filter Bar for Report Status */}
+      {/* Filter Bar & Map Controls */}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 bg-white px-4 py-3 rounded-2xl border border-slate-200">
         <div className="flex items-center gap-2 overflow-x-auto">
           <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">
@@ -140,260 +469,324 @@ export const PetaDigitalView: React.FC<PetaDigitalViewProps> = ({
           ))}
         </div>
 
-        <div className="flex items-center gap-4 text-xs text-slate-600">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" />
-            <span>Verifikasi</span>
+        {/* Map View Controls: Satellite Toggle, RW Boundaries Toggle, Center Button */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowRwBoundaries((prev) => !prev)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+              showRwBoundaries
+                ? 'bg-sky-50 border-sky-300 text-sky-800'
+                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+            }`}
+            title="Sembunyikan / Tampilkan Batas Zona RW"
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>{showRwBoundaries ? 'Batas RW: Aktif' : 'Batas RW: Nonaktif'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMapTypeId(mapTypeId === 'roadmap' ? 'hybrid' : 'roadmap')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 cursor-pointer"
+            title="Ganti Tampilan Peta Jalan / Satelit"
+          >
+            <span>{mapTypeId === 'roadmap' ? 'Mode Satelit' : 'Mode Jalan'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleResetCamera}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#0D3868] hover:bg-[#072647] text-white cursor-pointer shadow-2xs"
+            title="Kembalikan Peta ke Pusat Kelurahan Panaikang"
+          >
+            <Compass className="w-3.5 h-3.5" />
+            <span>Pusatkan Peta</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Boundary Legend Badges */}
+      <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+        <div className="p-2 rounded-xl bg-sky-50/80 border border-sky-200 flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-sky-600 shrink-0" />
+          <span className="truncate">
+            <strong>Batas Utara:</strong> Kanal Pampang / Pampang
           </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-sky-600 inline-block" />
-            <span>Ditangani</span>
+        </div>
+        <div className="p-2 rounded-xl bg-amber-50/80 border border-amber-200 flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-amber-600 shrink-0" />
+          <span className="truncate">
+            <strong>Batas Timur:</strong> Manggala & Tamamaung
           </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 inline-block" />
-            <span>Selesai</span>
+        </div>
+        <div className="p-2 rounded-xl bg-emerald-50/80 border border-emerald-200 flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 shrink-0" />
+          <span className="truncate">
+            <strong>Batas Selatan:</strong> Karampuang & Pandang
           </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-sm bg-orange-500 inline-block" />
-            <span>BSU RW</span>
+        </div>
+        <div className="p-2 rounded-xl bg-purple-50/80 border border-purple-200 flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-purple-600 shrink-0" />
+          <span className="truncate">
+            <strong>Batas Barat:</strong> Sinrijala / Pettarani
           </span>
         </div>
       </div>
 
       {/* Map Canvas + Right Inspection Panel */}
-      <div className="mt-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left: Interactive Spatial Map of Kelurahan Panaikang */}
-        <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col">
-          <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+      <div className="mt-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left: Google Maps Container */}
+        <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col shadow-xs">
+          <div className="px-4 py-2.5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
             <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
               <Navigation className="w-3.5 h-3.5 text-[#00838F]" />
-              <span>Peta Spasial Wilayah Kelurahan Panaikang, Kec. Panakkukang (-5.1385, 119.4465)</span>
+              <span>Peta Google Maps Spasial Wilayah Kelurahan Panaikang (-5.1385, 119.4475)</span>
             </div>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setZoomLevel((z) => Math.min(z + 0.15, 1.45))}
-                className="p-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 cursor-pointer"
-                title="Perbesar Peta"
-              >
-                <ZoomIn className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setZoomLevel((z) => Math.max(z - 0.15, 0.85))}
-                className="p-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 cursor-pointer"
-                title="Perkecil Peta"
-              >
-                <ZoomOut className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setZoomLevel(1)}
-                className="p-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 cursor-pointer"
-                title="Reset Zoom"
-              >
-                <RotateCcw className="w-4 h-4" />
-              </button>
+            <div className="flex items-center gap-3 text-[11px] text-slate-500">
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-sky-600" />
+                <span>Garis Batas Kelurahan</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-sm bg-orange-500" />
+                <span>Bank Sampah</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-sm bg-purple-600" />
+                <span>Kerja Bakti</span>
+              </span>
             </div>
           </div>
 
-          {/* Interactive Map Viewport */}
-          <div className="relative h-[460px] sm:h-[520px] w-full overflow-hidden bg-[#EEF6F3] select-none">
-            <div
-              className="relative w-full h-full transition-transform duration-150 origin-center"
-              style={{ transform: `scale(${zoomLevel})` }}
-            >
-              {/* Base Cartographic Vector Map of Kelurahan Panaikang */}
-              <svg
-                viewBox="0 0 1000 650"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                className="w-full h-full object-cover"
+          {/* Google Maps Container */}
+          <div className="relative h-[500px] sm:h-[560px] w-full">
+            <APIProvider apiKey={apiKey}>
+              <Map
+                defaultCenter={PANAIKANG_CENTER}
+                defaultZoom={PANAIKANG_DEFAULT_ZOOM}
+                mapId="DEMO_MAP_ID"
+                mapTypeId={mapTypeId}
+                gestureHandling="greedy"
+                disableDefaultUI={false}
+                className="w-full h-full"
               >
-                {/* Background RW Zones */}
-                <rect width="1000" height="650" fill="#EDF5F0" />
+                {/* Controller for camera changes */}
+                <MapController targetCenter={panTarget} triggerKey={panTrigger} />
 
-                {/* RW Zone Blocks */}
-                <path d="M40 160H340V380H40V160Z" fill="#E2EFE7" stroke="#CBD5E1" strokeWidth="1.5" />
-                <path d="M350 180H640V380H350V180Z" fill="#E6F2EB" stroke="#CBD5E1" strokeWidth="1.5" />
-                <path d="M650 120H940V360H650V120Z" fill="#DFEFE6" stroke="#CBD5E1" strokeWidth="1.5" />
-                <path d="M120 400H490V610H120V400Z" fill="#E7F1EC" stroke="#CBD5E1" strokeWidth="1.5" />
-                <path d="M510 400H890V610H510V400Z" fill="#E1EFE8" stroke="#CBD5E1" strokeWidth="1.5" />
-
-                {/* Kanal Panaikang - Pampang Waterway (Blue Canal on North-East) */}
-                <path
-                  d="M520 20C640 90 740 180 980 250"
-                  stroke="#38BDF8"
-                  strokeWidth="22"
-                  strokeLinecap="round"
+                {/* Main Perimeter Boundary Polygon of Kelurahan Panaikang */}
+                <GoogleMapsPolygon
+                  paths={PANAIKANG_PERIMETER_POLYGON}
+                  strokeColor="#0284C7"
+                  strokeOpacity={0.95}
+                  strokeWeight={3.5}
+                  fillColor="#0284C7"
+                  fillOpacity={0.06}
                 />
-                <path
-                  d="M520 20C640 90 740 180 980 250"
-                  stroke="#0284C7"
-                  strokeWidth="2"
-                  strokeDasharray="8 6"
-                />
-                <text x="690" y="135" fill="#0369A1" fontSize="13" fontWeight="700" transform="rotate(24 690 135)">
-                  KANAL PANAIKANG - PAMPANG
-                </text>
 
-                {/* Secondary Roads: Jl. Racing Centre, Jl. Sukaria, Jl. Abd. Dg. Sirua */}
-                <path d="M220 40L250 630" stroke="#FFFFFF" strokeWidth="16" />
-                <path d="M220 40L250 630" stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="6 6" />
-                <text x="200" y="140" fill="#475569" fontSize="12" fontWeight="700" transform="rotate(87 200 140)">
-                  JL. RACING CENTRE
-                </text>
+                {/* Sub-polygons for RW 01 – RW 07 */}
+                {showRwBoundaries &&
+                  RW_ZONES.map((zone) => (
+                    <GoogleMapsPolygon
+                      key={zone.rw}
+                      paths={zone.paths}
+                      strokeColor={zone.color}
+                      strokeOpacity={0.7}
+                      strokeWeight={1.8}
+                      fillColor={zone.color}
+                      fillOpacity={0.09}
+                    />
+                  ))}
 
-                <path d="M380 310L360 630" stroke="#FFFFFF" strokeWidth="14" />
-                <text x="392" y="520" fill="#475569" fontSize="12" fontWeight="700">
-                  JL. SUKARIA RAYA
-                </text>
-
-                <path d="M120 560L920 530" stroke="#FFFFFF" strokeWidth="15" />
-                <text x="580" y="520" fill="#475569" fontSize="12" fontWeight="700">
-                  KORIDOR KOMPLEKS KEJAKSAAN / SELATAN
-                </text>
-
-                {/* Primary Artery: JL. URIP SUMOHARJO (East-West Highway) */}
-                <path d="M0 300Q480 285 1000 295" stroke="#CBD5E1" strokeWidth="36" />
-                <path d="M0 300Q480 285 1000 295" stroke="#334155" strokeWidth="28" />
-                <path
-                  d="M0 300Q480 285 1000 295"
-                  stroke="#FACC15"
-                  strokeWidth="2.5"
-                  strokeDasharray="14 10"
-                />
-                <text x="410" y="275" fill="#0F172A" fontSize="14" fontWeight="800" letterSpacing="1">
-                  POROS JL. URIP SUMOHARJO (KELURAHAN PANAIKANG)
-                </text>
-
-                {/* Major Landmark Footprints */}
-                {/* NIPAH MALL */}
-                <rect x="110" y="205" width="115" height="60" rx="8" fill="#D97706" fillOpacity="0.18" stroke="#B45309" strokeWidth="2" />
-                <text x="167" y="238" textAnchor="middle" fill="#92400E" fontSize="12" fontWeight="800">
-                  NIPAH MALL
-                </text>
-
-                {/* KAMPUS UMI */}
-                <rect x="450" y="175" width="150" height="72" rx="8" fill="#0284C7" fillOpacity="0.16" stroke="#0369A1" strokeWidth="2" />
-                <text x="525" y="208" textAnchor="middle" fill="#075985" fontSize="12" fontWeight="800">
-                  KAMPUS UMI
-                </text>
-                <text x="525" y="225" textAnchor="middle" fill="#0369A1" fontSize="10" fontWeight="600">
-                  Univ. Muslim Indonesia
-                </text>
-
-                {/* KANTOR LURAH PANAIKANG */}
-                <rect x="440" y="330" width="140" height="50" rx="8" fill="#15803D" fillOpacity="0.16" stroke="#166534" strokeWidth="2" />
-                <text x="510" y="359" textAnchor="middle" fill="#14532D" fontSize="11" fontWeight="800">
-                  POSKO SMART ENV
-                </text>
-
-                {/* RW Labels */}
-                <text x="80" y="195" fill="#64748B" fontSize="16" fontWeight="800" opacity="0.65">RW 01</text>
-                <text x="375" y="215" fill="#64748B" fontSize="16" fontWeight="800" opacity="0.65">RW 02</text>
-                <text x="625" y="215" fill="#64748B" fontSize="16" fontWeight="800" opacity="0.65">RW 03</text>
-                <text x="165" y="455" fill="#64748B" fontSize="16" fontWeight="800" opacity="0.65">RW 04</text>
-                <text x="550" y="465" fill="#64748B" fontSize="16" fontWeight="800" opacity="0.65">RW 05</text>
-                <text x="795" y="185" fill="#64748B" fontSize="16" fontWeight="800" opacity="0.65">RW 06</text>
-                <text x="775" y="465" fill="#64748B" fontSize="16" fontWeight="800" opacity="0.65">RW 07</text>
-              </svg>
-
-              {/* Interactive Overlay Markers: Citizen Reports */}
-              {(activeLayer === 'semua' || activeLayer === 'laporan') &&
-                visibleReports.map((rep) => {
-                  const isSelected =
-                    selectedItem.type === 'laporan' && selectedItem.id === rep.id;
-                  const pinColor =
-                    rep.status === 'Selesai'
-                      ? 'bg-emerald-600 border-white text-white'
-                      : rep.status === 'Sedang Ditangani'
-                      ? 'bg-sky-600 border-white text-white'
-                      : 'bg-amber-500 border-white text-white';
-
-                  return (
-                    <button
-                      key={rep.id}
-                      type="button"
-                      onClick={() => setSelectedItem({ type: 'laporan', id: rep.id })}
-                      style={{ left: `${rep.mapX}%`, top: `${rep.mapY}%` }}
-                      className={`absolute -translate-x-1/2 -translate-y-1/2 z-20 group cursor-pointer focus:outline-none`}
+                {/* RW Center Labels */}
+                {showRwBoundaries &&
+                  RW_ZONES.map((zone) => (
+                    <AdvancedMarker
+                      key={`label-${zone.rw}`}
+                      position={zone.center}
                     >
-                      <div
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border-2 shadow-md transition-transform ${pinColor} ${
-                          isSelected ? 'scale-125 ring-4 ring-sky-400/50' : 'hover:scale-110'
-                        }`}
+                      <div className="px-2 py-0.5 rounded-md bg-white/90 border border-slate-300 shadow-xs text-[10px] font-extrabold text-slate-700 pointer-events-none select-none">
+                        {zone.rw}
+                      </div>
+                    </AdvancedMarker>
+                  ))}
+
+                {/* Marker: Kantor Lurah Panaikang */}
+                <AdvancedMarker
+                  position={KANTOR_LURAH_COORDINATE}
+                  onClick={handleSelectKantor}
+                  title="Kantor Lurah Panaikang"
+                >
+                  <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#0D3868] text-white border-2 border-white shadow-lg cursor-pointer hover:scale-110 transition-transform">
+                    <Building2 className="w-3.5 h-3.5 text-amber-300" />
+                    <span className="text-[11px] font-bold">Kantor Lurah</span>
+                  </div>
+                </AdvancedMarker>
+
+                {/* Markers: Citizen Reports */}
+                {(activeLayer === 'semua' || activeLayer === 'laporan') &&
+                  visibleReports.map((rep) => {
+                    const pos = resolveCoordinate(rep.coordinatesLabel, rep.mapX, rep.mapY);
+                    const isSelected =
+                      selectedItem.type === 'laporan' && selectedItem.id === rep.id;
+                    const pinBg =
+                      rep.status === 'Selesai'
+                        ? '#059669' // emerald-600
+                        : rep.status === 'Sedang Ditangani'
+                        ? '#0284C7' // sky-600
+                        : '#F59E0B'; // amber-500
+
+                    return (
+                      <AdvancedMarker
+                        key={`rep-${rep.id}`}
+                        position={pos}
+                        onClick={() => handleSelectReport(rep)}
+                        title={rep.title}
                       >
-                        <MapPin className="w-3.5 h-3.5 shrink-0" />
-                        <span className="text-[11px] font-mono-num font-bold whitespace-nowrap">
-                          {rep.rw}
+                        <div
+                          className={`flex items-center gap-1 px-2 py-1 rounded-full text-white border-2 border-white shadow-md cursor-pointer transition-transform ${
+                            isSelected ? 'scale-125 ring-4 ring-sky-400' : 'hover:scale-110'
+                          }`}
+                          style={{ backgroundColor: pinBg }}
+                        >
+                          <MapPin className="w-3 h-3" />
+                          <span className="text-[10px] font-mono-num font-bold">{rep.rw}</span>
+                        </div>
+                      </AdvancedMarker>
+                    );
+                  })}
+
+                {/* Markers: Bank Sampah Units (BSU) */}
+                {(activeLayer === 'semua' || activeLayer === 'bsu') &&
+                  wasteUnits.map((unit) => {
+                    const pos = resolveCoordinate(undefined, unit.mapX, unit.mapY);
+                    const isSelected =
+                      selectedItem.type === 'bsu' && selectedItem.id === unit.id;
+
+                    return (
+                      <AdvancedMarker
+                        key={`bsu-${unit.id}`}
+                        position={pos}
+                        onClick={() => handleSelectBsu(unit)}
+                        title={unit.unitName}
+                      >
+                        <div
+                          className={`flex items-center gap-1 px-2 py-1 rounded-lg bg-[#EA580C] text-white border-2 border-white shadow-md cursor-pointer transition-transform ${
+                            isSelected ? 'scale-125 ring-4 ring-amber-400' : 'hover:scale-110'
+                          }`}
+                        >
+                          <Recycle className="w-3 h-3" />
+                          <span className="text-[10px] font-bold">BSU {unit.rw}</span>
+                        </div>
+                      </AdvancedMarker>
+                    );
+                  })}
+
+                {/* Markers: Kerja Bakti */}
+                {(activeLayer === 'semua' || activeLayer === 'kerjabakti') &&
+                  cleanupEvents.map((ev) => {
+                    const pos = resolveCoordinate(undefined, ev.mapX, ev.mapY);
+                    const isSelected =
+                      selectedItem.type === 'kerjabakti' && selectedItem.id === ev.id;
+
+                    return (
+                      <AdvancedMarker
+                        key={`kb-${ev.id}`}
+                        position={pos}
+                        onClick={() => handleSelectCleanup(ev)}
+                        title={ev.title}
+                      >
+                        <div
+                          className={`flex items-center gap-1 px-2 py-1 rounded-lg bg-[#7C3AED] text-white border-2 border-white shadow-md cursor-pointer transition-transform ${
+                            isSelected ? 'scale-125 ring-4 ring-purple-400' : 'hover:scale-110'
+                          }`}
+                        >
+                          <Calendar className="w-3 h-3" />
+                          <span className="text-[10px] font-bold">Kerja Bakti</span>
+                        </div>
+                      </AdvancedMarker>
+                    );
+                  })}
+
+                {/* InfoWindow on Selected Marker */}
+                {infoWindowTarget && (
+                  <InfoWindow
+                    position={infoWindowTarget.position}
+                    onCloseClick={() => setInfoWindowTarget(null)}
+                  >
+                    <div className="p-1 max-w-[240px] text-slate-800">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold text-white ${infoWindowTarget.badgeColor}`}
+                        >
+                          {infoWindowTarget.badge}
                         </span>
                       </div>
-                    </button>
-                  );
-                })}
-
-              {/* Interactive Overlay Markers: Bank Sampah Units (BSU) */}
-              {(activeLayer === 'semua' || activeLayer === 'bsu') &&
-                wasteUnits.map((unit) => {
-                  const isSelected =
-                    selectedItem.type === 'bsu' && selectedItem.id === unit.id;
-                  return (
-                    <button
-                      key={unit.id}
-                      type="button"
-                      onClick={() => setSelectedItem({ type: 'bsu', id: unit.id })}
-                      style={{ left: `${unit.mapX}%`, top: `${unit.mapY}%` }}
-                      className="absolute -translate-x-1/2 -translate-y-1/2 z-10 cursor-pointer focus:outline-none"
-                    >
-                      <div
-                        className={`flex items-center gap-1 px-2 py-1 rounded-lg bg-[#EF6C00] text-white border-2 border-white shadow-md transition-transform ${
-                          isSelected ? 'scale-125 ring-4 ring-amber-400/50' : 'hover:scale-110'
-                        }`}
-                      >
-                        <Recycle className="w-3.5 h-3.5 shrink-0" />
-                        <span className="text-[10px] font-bold whitespace-nowrap">
-                          BSU {unit.rw}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-
-              {/* Interactive Overlay Markers: Kerja Bakti Points */}
-              {(activeLayer === 'semua' || activeLayer === 'kerjabakti') &&
-                cleanupEvents.map((ev) => {
-                  const isSelected =
-                    selectedItem.type === 'kerjabakti' && selectedItem.id === ev.id;
-                  return (
-                    <button
-                      key={ev.id}
-                      type="button"
-                      onClick={() => setSelectedItem({ type: 'kerjabakti', id: ev.id })}
-                      style={{ left: `${ev.mapX}%`, top: `${ev.mapY}%` }}
-                      className="absolute -translate-x-1/2 -translate-y-1/2 z-10 cursor-pointer focus:outline-none"
-                    >
-                      <div
-                        className={`flex items-center gap-1 px-2 py-1 rounded-lg bg-[#5E35B1] text-white border-2 border-white shadow-md transition-transform ${
-                          isSelected ? 'scale-125 ring-4 ring-purple-400/50' : 'hover:scale-110'
-                        }`}
-                      >
-                        <Calendar className="w-3.5 h-3.5 shrink-0" />
-                        <span className="text-[10px] font-bold whitespace-nowrap">
-                          Kerja Bakti
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-            </div>
+                      <h4 className="text-xs font-bold text-[#0D3868] line-clamp-2">
+                        {infoWindowTarget.title}
+                      </h4>
+                      <p className="mt-1 text-[11px] text-slate-600">
+                        {infoWindowTarget.description}
+                      </p>
+                    </div>
+                  </InfoWindow>
+                )}
+              </Map>
+            </APIProvider>
           </div>
         </div>
 
         {/* Right: Real-Time Detail Inspector Panel */}
         <div className="lg:col-span-4">
-          {selectedReport && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+          {selectedItem.type === 'kantor' && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4 shadow-xs">
+              <div className="pb-3 border-b border-slate-200">
+                <div className="text-xs font-bold text-[#0D3868] flex items-center gap-1.5">
+                  <Building2 className="w-4 h-4 text-[#0D3868]" />
+                  <span>PUSAT PEMERINTAHAN</span>
+                </div>
+                <h2 className="mt-1 text-base font-bold text-[#0D3868]">
+                  Kantor Lurah Panaikang
+                </h2>
+              </div>
+
+              <div className="space-y-2 text-xs text-slate-600">
+                <div>
+                  <span className="text-slate-500">Alamat: </span>
+                  <span className="font-semibold text-slate-800">
+                    Jl. Haji Kalla No. 1 / Poros Panaikang, Panakkukang, Makassar
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500">Layanan: </span>
+                  <span className="font-medium text-slate-800">
+                    Senin – Jumat · 08:00 – 16:00 WITA
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500">Hotline: </span>
+                  <span className="font-mono-num font-semibold text-slate-800">
+                    (0411) 452-910 · 0812-4210-9988
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-sky-50 border border-sky-100 text-xs text-sky-900 leading-relaxed">
+                Posko Terpadu Smart Environment & Pelayanan Satu Pintu Kelurahan Panaikang. Seluruh data koordinat laporan diverifikasi di posko ini.
+              </div>
+
+              <button
+                type="button"
+                onClick={() => onNavigate('profil')}
+                className="w-full py-2.5 px-4 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition cursor-pointer"
+              >
+                Buka Halaman Profil Kelurahan →
+              </button>
+            </div>
+          )}
+
+          {selectedReport && selectedItem.type === 'laporan' && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4 shadow-xs">
               <div className="pb-3 border-b border-slate-200">
                 <div className="text-xs text-slate-500 font-mono-num">
                   TITIK LAPORAN WARGA · {selectedReport.ticketCode}
@@ -447,7 +840,7 @@ export const PetaDigitalView: React.FC<PetaDigitalViewProps> = ({
 
               <div className="text-xs text-slate-700">
                 <span className="font-semibold text-slate-900">Catatan Petugas: </span>
-                {selectedReport.responseNote}
+                {selectedReport.responseNote || 'Belum ada catatan respons.'}
               </div>
 
               {/* Quick Status Action Buttons directly from Map */}
@@ -484,8 +877,8 @@ export const PetaDigitalView: React.FC<PetaDigitalViewProps> = ({
             </div>
           )}
 
-          {selectedBsu && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+          {selectedBsu && selectedItem.type === 'bsu' && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4 shadow-xs">
               <div className="pb-3 border-b border-slate-200">
                 <div className="text-xs font-semibold text-amber-700">
                   TITIK BANK SAMPAH UNIT · {selectedBsu.rw}
@@ -543,8 +936,8 @@ export const PetaDigitalView: React.FC<PetaDigitalViewProps> = ({
             </div>
           )}
 
-          {selectedCleanup && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+          {selectedCleanup && selectedItem.type === 'kerjabakti' && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4 shadow-xs">
               <div className="pb-3 border-b border-slate-200">
                 <div className="text-xs font-semibold text-purple-700">
                   TITIK KERJA BAKTI · {selectedCleanup.rw}

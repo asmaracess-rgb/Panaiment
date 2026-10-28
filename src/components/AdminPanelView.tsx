@@ -44,6 +44,13 @@ import {
   UserCheck,
   ChevronUp,
   ChevronDown,
+  Mail,
+  MapPin,
+  Compass,
+  Quote,
+  ArrowUp,
+  ArrowDown,
+  ArrowRight,
 } from 'lucide-react';
 import {
   AppView,
@@ -935,6 +942,51 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   });
   const [officialFormError, setOfficialFormError] = useState('');
 
+  // ---------- PROFIL KELURAHAN CRUD STATES ----------
+  // Data Lurah Modal & Delete State
+  const [isLurahModalOpen, setIsLurahModalOpen] = useState(false);
+  const [confirmDeleteLurah, setConfirmDeleteLurah] = useState(false);
+  const [lurahForm, setLurahForm] = useState({
+    lurahName: '',
+    lurahNip: '',
+    lurahRank: '',
+    lurahPeriod: '',
+    lurahMessage: '',
+    lurahPhotoUrl: '',
+  });
+
+  // Visi Kelurahan Modal & Delete State
+  const [isVisiModalOpen, setIsVisiModalOpen] = useState(false);
+  const [confirmDeleteVisi, setConfirmDeleteVisi] = useState(false);
+  const [visiFormText, setVisiFormText] = useState('');
+
+  // Misi Kelurahan Modal & Delete State
+  const [isMisiModalOpen, setIsMisiModalOpen] = useState(false);
+  const [editingMisiIndex, setEditingMisiIndex] = useState<number | null>(null);
+  const [misiToDeleteIndex, setMisiToDeleteIndex] = useState<number | null>(null);
+  const [misiFormText, setMisiFormText] = useState('');
+
+  // Alamat & Kontak Kantor Kelurahan Modal & Delete State
+  const [isOfficeContactModalOpen, setIsOfficeContactModalOpen] = useState(false);
+  const [confirmDeleteOfficeContact, setConfirmDeleteOfficeContact] = useState(false);
+  const [officeContactForm, setOfficeContactForm] = useState({
+    officeAddress: '',
+    postalCode: '',
+    serviceHours: '',
+    phoneContact: '',
+    emailContact: '',
+  });
+
+  // Batas Wilayah Modal & Delete State
+  const [isBoundariesModalOpen, setIsBoundariesModalOpen] = useState(false);
+  const [confirmDeleteBoundaries, setConfirmDeleteBoundaries] = useState(false);
+  const [boundariesForm, setBoundariesForm] = useState({
+    utara: '',
+    selatan: '',
+    timur: '',
+    barat: '',
+  });
+
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
@@ -1390,17 +1442,363 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     }
   };
 
-  const handleAddMisiItem = () => {
-    if (!newMisiText.trim()) {
-      setValidationErrors(['Butir misi baru tidak boleh kosong.']);
+  // ---------- DATA LURAH CRUD HANDLERS ----------
+  const handleOpenAddLurah = () => {
+    setLurahForm({
+      lurahName: '',
+      lurahNip: '',
+      lurahRank: '',
+      lurahPeriod: '2024 – Sekarang',
+      lurahMessage: '',
+      lurahPhotoUrl: '',
+    });
+    setIsLurahModalOpen(true);
+  };
+
+  const handleOpenEditLurah = () => {
+    setLurahForm({
+      lurahName: profileDraft.lurahName || '',
+      lurahNip: profileDraft.lurahNip || '',
+      lurahRank: profileDraft.lurahRank || '',
+      lurahPeriod: profileDraft.lurahPeriod || '',
+      lurahMessage: profileDraft.lurahMessage || '',
+      lurahPhotoUrl: profileDraft.lurahPhotoUrl || '',
+    });
+    setIsLurahModalOpen(true);
+  };
+
+  const handleSaveLurahForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!lurahForm.lurahName.trim()) {
+      setValidationErrors(['Nama lengkap Lurah wajib diisi.']);
       return;
     }
-    clearFeedback();
-    setProfileDraft((prev) => ({
-      ...prev,
-      misi: [...prev.misi, newMisiText.trim()],
-    }));
-    setNewMisiText('');
+    const updatedProfile: KelurahanProfile = {
+      ...profileDraft,
+      lurahName: lurahForm.lurahName.trim(),
+      lurahNip: lurahForm.lurahNip.trim(),
+      lurahRank: lurahForm.lurahRank.trim(),
+      lurahPeriod: lurahForm.lurahPeriod.trim(),
+      lurahMessage: lurahForm.lurahMessage.trim(),
+      lurahPhotoUrl: lurahForm.lurahPhotoUrl,
+    };
+    setProfileDraft(updatedProfile);
+    setIsLurahModalOpen(false);
+    await onSaveProfile(updatedProfile);
+    recordAudit({
+      actionType: profileDraft.lurahName ? 'UPDATE' : 'CREATE',
+      module: 'PROFIL_KELURAHAN',
+      targetLabel: `Data Lurah: ${updatedProfile.lurahName}`,
+      summary: `Menyimpan data pimpinan Lurah Panaikang (${updatedProfile.lurahName})`,
+      severity: 'info',
+    });
+    setSuccessMessage(`Data pimpinan Lurah "${updatedProfile.lurahName}" berhasil disimpan!`);
+  };
+
+  const handleConfirmDeleteLurah = async () => {
+    const updatedProfile: KelurahanProfile = {
+      ...profileDraft,
+      lurahName: '',
+      lurahNip: '',
+      lurahRank: '',
+      lurahPeriod: '',
+      lurahMessage: '',
+      lurahPhotoUrl: '',
+    };
+    setProfileDraft(updatedProfile);
+    setConfirmDeleteLurah(false);
+    await onSaveProfile(updatedProfile);
+    recordAudit({
+      actionType: 'DELETE',
+      module: 'PROFIL_KELURAHAN',
+      targetLabel: 'Data Lurah Panaikang',
+      summary: 'Menghapus data pimpinan Lurah Panaikang',
+      severity: 'warning',
+    });
+    setSuccessMessage('Data pimpinan Lurah berhasil dikosongkan/dihapus.');
+  };
+
+  const handleLurahPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const compressed = await compressImageFile(file);
+      setLurahForm((prev) => ({ ...prev, lurahPhotoUrl: compressed }));
+    } catch {
+      setValidationErrors(['Gagal memproses gambar foto Lurah.']);
+    }
+  };
+
+  // ---------- VISI KELURAHAN CRUD HANDLERS ----------
+  const handleOpenAddVisi = () => {
+    setVisiFormText('');
+    setIsVisiModalOpen(true);
+  };
+
+  const handleOpenEditVisi = () => {
+    setVisiFormText(profileDraft.visi || '');
+    setIsVisiModalOpen(true);
+  };
+
+  const handleSaveVisiForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!visiFormText.trim()) {
+      setValidationErrors(['Pernyataan visi kelurahan tidak boleh kosong.']);
+      return;
+    }
+    const updatedProfile: KelurahanProfile = {
+      ...profileDraft,
+      visi: visiFormText.trim(),
+    };
+    setProfileDraft(updatedProfile);
+    setIsVisiModalOpen(false);
+    await onSaveProfile(updatedProfile);
+    recordAudit({
+      actionType: profileDraft.visi ? 'UPDATE' : 'CREATE',
+      module: 'PROFIL_KELURAHAN',
+      targetLabel: 'Visi Kelurahan',
+      summary: 'Menyimpan pernyataan Visi Kelurahan Panaikang',
+      severity: 'info',
+    });
+    setSuccessMessage('Pernyataan Visi Kelurahan Panaikang berhasil disimpan.');
+  };
+
+  const handleConfirmDeleteVisi = async () => {
+    const updatedProfile: KelurahanProfile = {
+      ...profileDraft,
+      visi: '',
+    };
+    setProfileDraft(updatedProfile);
+    setConfirmDeleteVisi(false);
+    await onSaveProfile(updatedProfile);
+    recordAudit({
+      actionType: 'DELETE',
+      module: 'PROFIL_KELURAHAN',
+      targetLabel: 'Visi Kelurahan',
+      summary: 'Menghapus pernyataan Visi Kelurahan Panaikang',
+      severity: 'warning',
+    });
+    setSuccessMessage('Pernyataan Visi Kelurahan berhasil dihapus.');
+  };
+
+  // ---------- MISI KELURAHAN CRUD HANDLERS ----------
+  const handleOpenAddMisiModal = () => {
+    setEditingMisiIndex(null);
+    setMisiFormText('');
+    setIsMisiModalOpen(true);
+  };
+
+  const handleOpenEditMisiModal = (idx: number) => {
+    setEditingMisiIndex(idx);
+    setMisiFormText(profileDraft.misi[idx] || '');
+    setIsMisiModalOpen(true);
+  };
+
+  const handleSaveMisiForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!misiFormText.trim()) {
+      setValidationErrors(['Teks butir misi tidak boleh kosong.']);
+      return;
+    }
+    const currentMisi = Array.isArray(profileDraft.misi) ? [...profileDraft.misi] : [];
+    if (editingMisiIndex !== null) {
+      currentMisi[editingMisiIndex] = misiFormText.trim();
+    } else {
+      currentMisi.push(misiFormText.trim());
+    }
+    const updatedProfile: KelurahanProfile = {
+      ...profileDraft,
+      misi: currentMisi,
+    };
+    setProfileDraft(updatedProfile);
+    setIsMisiModalOpen(false);
+    setEditingMisiIndex(null);
+    await onSaveProfile(updatedProfile);
+    recordAudit({
+      actionType: editingMisiIndex !== null ? 'UPDATE' : 'CREATE',
+      module: 'PROFIL_KELURAHAN',
+      targetLabel: `Misi Butir #${(editingMisiIndex ?? currentMisi.length - 1) + 1}`,
+      summary: editingMisiIndex !== null ? 'Memperbarui butir misi kelurahan' : 'Menambahkan butir misi kelurahan baru',
+      severity: 'info',
+    });
+    setSuccessMessage('Butir Misi Kelurahan Panaikang berhasil disimpan.');
+  };
+
+  const handleConfirmDeleteMisi = async () => {
+    if (misiToDeleteIndex === null) return;
+    const currentMisi = Array.isArray(profileDraft.misi) ? [...profileDraft.misi] : [];
+    const removedText = currentMisi[misiToDeleteIndex];
+    const updatedMisi = currentMisi.filter((_, i) => i !== misiToDeleteIndex);
+    const updatedProfile: KelurahanProfile = {
+      ...profileDraft,
+      misi: updatedMisi,
+    };
+    setProfileDraft(updatedProfile);
+    setMisiToDeleteIndex(null);
+    await onSaveProfile(updatedProfile);
+    recordAudit({
+      actionType: 'DELETE',
+      module: 'PROFIL_KELURAHAN',
+      targetLabel: `Misi Butir #${misiToDeleteIndex + 1}`,
+      summary: `Menghapus butir misi: "${removedText?.slice(0, 40)}..."`,
+      severity: 'warning',
+    });
+    setSuccessMessage('Butir misi berhasil dihapus.');
+  };
+
+  const handleMoveMisi = async (idx: number, direction: 'up' | 'down') => {
+    const currentMisi = Array.isArray(profileDraft.misi) ? [...profileDraft.misi] : [];
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= currentMisi.length) return;
+    const temp = currentMisi[idx];
+    currentMisi[idx] = currentMisi[targetIdx];
+    currentMisi[targetIdx] = temp;
+    const updatedProfile: KelurahanProfile = {
+      ...profileDraft,
+      misi: currentMisi,
+    };
+    setProfileDraft(updatedProfile);
+    await onSaveProfile(updatedProfile);
+  };
+
+  // ---------- ALAMAT & KONTAK KANTOR CRUD HANDLERS ----------
+  const handleOpenAddOfficeContact = () => {
+    setOfficeContactForm({
+      officeAddress: '',
+      postalCode: '',
+      serviceHours: 'Senin – Jumat: 08.00 – 16.00 WITA',
+      phoneContact: '',
+      emailContact: '',
+    });
+    setIsOfficeContactModalOpen(true);
+  };
+
+  const handleOpenEditOfficeContact = () => {
+    setOfficeContactForm({
+      officeAddress: profileDraft.officeAddress || '',
+      postalCode: profileDraft.postalCode || '',
+      serviceHours: profileDraft.serviceHours || '',
+      phoneContact: profileDraft.phoneContact || '',
+      emailContact: profileDraft.emailContact || '',
+    });
+    setIsOfficeContactModalOpen(true);
+  };
+
+  const handleSaveOfficeContactForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!officeContactForm.officeAddress.trim()) {
+      setValidationErrors(['Alamat lengkap kantor kelurahan wajib diisi.']);
+      return;
+    }
+    const updatedProfile: KelurahanProfile = {
+      ...profileDraft,
+      officeAddress: officeContactForm.officeAddress.trim(),
+      postalCode: officeContactForm.postalCode.trim(),
+      serviceHours: officeContactForm.serviceHours.trim(),
+      phoneContact: officeContactForm.phoneContact.trim(),
+      emailContact: officeContactForm.emailContact.trim(),
+    };
+    setProfileDraft(updatedProfile);
+    setIsOfficeContactModalOpen(false);
+    await onSaveProfile(updatedProfile);
+    recordAudit({
+      actionType: profileDraft.officeAddress ? 'UPDATE' : 'CREATE',
+      module: 'PROFIL_KELURAHAN',
+      targetLabel: 'Alamat & Kontak Kantor',
+      summary: 'Menyimpan data alamat dan kontak kantor kelurahan',
+      severity: 'info',
+    });
+    setSuccessMessage('Data alamat kantor dan kontak resmi berhasil disimpan.');
+  };
+
+  const handleConfirmDeleteOfficeContact = async () => {
+    const updatedProfile: KelurahanProfile = {
+      ...profileDraft,
+      officeAddress: '',
+      postalCode: '',
+      serviceHours: '',
+      phoneContact: '',
+      emailContact: '',
+    };
+    setProfileDraft(updatedProfile);
+    setConfirmDeleteOfficeContact(false);
+    await onSaveProfile(updatedProfile);
+    recordAudit({
+      actionType: 'DELETE',
+      module: 'PROFIL_KELURAHAN',
+      targetLabel: 'Alamat & Kontak Kantor',
+      summary: 'Mengosongkan/menghapus data alamat dan kontak kantor kelurahan',
+      severity: 'warning',
+    });
+    setSuccessMessage('Data alamat kantor dan kontak resmi berhasil dikosongkan.');
+  };
+
+  // ---------- BATAS WILAYAH CRUD HANDLERS ----------
+  const handleOpenAddBoundaries = () => {
+    setBoundariesForm({
+      utara: '',
+      selatan: '',
+      timur: '',
+      barat: '',
+    });
+    setIsBoundariesModalOpen(true);
+  };
+
+  const handleOpenEditBoundaries = () => {
+    setBoundariesForm({
+      utara: profileDraft.boundaries?.utara || '',
+      selatan: profileDraft.boundaries?.selatan || '',
+      timur: profileDraft.boundaries?.timur || '',
+      barat: profileDraft.boundaries?.barat || '',
+    });
+    setIsBoundariesModalOpen(true);
+  };
+
+  const handleSaveBoundariesForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const updatedProfile: KelurahanProfile = {
+      ...profileDraft,
+      boundaries: {
+        utara: boundariesForm.utara.trim(),
+        selatan: boundariesForm.selatan.trim(),
+        timur: boundariesForm.timur.trim(),
+        barat: boundariesForm.barat.trim(),
+      },
+    };
+    setProfileDraft(updatedProfile);
+    setIsBoundariesModalOpen(false);
+    await onSaveProfile(updatedProfile);
+    recordAudit({
+      actionType: 'UPDATE',
+      module: 'PROFIL_KELURAHAN',
+      targetLabel: 'Batas Wilayah Kelurahan',
+      summary: 'Menyimpan konfigurasi batas wilayah administrasi Kelurahan Panaikang',
+      severity: 'info',
+    });
+    setSuccessMessage('Konfigurasi 4 batas wilayah administrasi berhasil disimpan.');
+  };
+
+  const handleConfirmDeleteBoundaries = async () => {
+    const updatedProfile: KelurahanProfile = {
+      ...profileDraft,
+      boundaries: {
+        utara: '',
+        selatan: '',
+        timur: '',
+        barat: '',
+      },
+    };
+    setProfileDraft(updatedProfile);
+    setConfirmDeleteBoundaries(false);
+    await onSaveProfile(updatedProfile);
+    recordAudit({
+      actionType: 'DELETE',
+      module: 'PROFIL_KELURAHAN',
+      targetLabel: 'Batas Wilayah Kelurahan',
+      summary: 'Mereset/menghapus batas wilayah administrasi',
+      severity: 'warning',
+    });
+    setSuccessMessage('Data batas wilayah administrasi berhasil direset/dikosongkan.');
   };
 
   // ---------- MANAJEMEN JABATAN & STRUKTUR PERANGKAT KELURAHAN ----------
@@ -3383,82 +3781,144 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
           {/* Section A: Data Lurah & Struktur Jabatan */}
           <div className="space-y-6">
-            {/* Subsection 01.1: Data Lurah */}
+            {/* Subsection 01.1: Data Lurah (Tambah, Edit, Hapus) */}
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                   <UserCheck className="w-4 h-4 text-[#0D3868]" />
                   <span>01. Data Pimpinan Lurah Panaikang</span>
                 </h3>
-                <span className="text-xs text-slate-500">Pimpinan Utama Instansi</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-slate-50/70 p-4 rounded-xl border border-slate-200">
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Nama Lengkap Lurah *
-                  </label>
-                  <input
-                    type="text"
-                    value={profileDraft.lurahName}
-                    onChange={(e) =>
-                      setProfileDraft({ ...profileDraft, lurahName: e.target.value })
-                    }
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    NIP Lurah *
-                  </label>
-                  <input
-                    type="text"
-                    value={profileDraft.lurahNip}
-                    onChange={(e) =>
-                      setProfileDraft({ ...profileDraft, lurahNip: e.target.value })
-                    }
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm font-mono-num"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Pangkat / Golongan *
-                  </label>
-                  <input
-                    type="text"
-                    value={profileDraft.lurahRank}
-                    onChange={(e) =>
-                      setProfileDraft({ ...profileDraft, lurahRank: e.target.value })
-                    }
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Periode Masa Tugas Lurah
-                  </label>
-                  <input
-                    type="text"
-                    value={profileDraft.lurahPeriod}
-                    onChange={(e) =>
-                      setProfileDraft({ ...profileDraft, lurahPeriod: e.target.value })
-                    }
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Sambutan / Pesan Lurah Panaikang
-                  </label>
-                  <input
-                    type="text"
-                    value={profileDraft.lurahMessage}
-                    onChange={(e) =>
-                      setProfileDraft({ ...profileDraft, lurahMessage: e.target.value })
-                    }
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm"
-                  />
+                <div className="flex items-center gap-2">
+                  {!profileDraft.lurahName ? (
+                    <button
+                      type="button"
+                      onClick={handleOpenAddLurah}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Tambah Data Lurah</span>
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleOpenEditLurah}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 text-xs font-bold transition cursor-pointer"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>Edit Data Lurah</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteLurah(true)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold transition cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Hapus</span>
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
+
+              {!profileDraft.lurahName ? (
+                <div className="p-8 text-center bg-slate-50/80 rounded-2xl border-2 border-dashed border-slate-200">
+                  <User className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                  <p className="text-xs font-medium text-slate-600">
+                    Belum ada data pimpinan lurah yang terdaftar.
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Klik tombol di bawah untuk menambahkan data lurah beserta foto dan sambutan resmi.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleOpenAddLurah}
+                    className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-[#0D3868] hover:bg-[#072647] text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Tambah Data Lurah Baru</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="p-5 rounded-2xl border border-slate-200 bg-white shadow-xs">
+                  <div className="flex flex-col sm:flex-row gap-5 items-start">
+                    {/* Lurah Photo */}
+                    <div className="relative group shrink-0 mx-auto sm:mx-0">
+                      <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden border-2 border-slate-200 bg-slate-100 flex items-center justify-center shadow-xs">
+                        {profileDraft.lurahPhotoUrl ? (
+                          <img
+                            src={profileDraft.lurahPhotoUrl}
+                            alt={profileDraft.lurahName}
+                            className="w-full h-full object-cover object-top"
+                          />
+                        ) : (
+                          <User className="w-12 h-12 text-slate-400" />
+                        )}
+                      </div>
+                      <label className="mt-2 inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold w-full cursor-pointer transition text-center">
+                        <Camera className="w-3 h-3" />
+                        <span>{profileDraft.lurahPhotoUrl ? 'Ganti Foto' : 'Unggah Foto'}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            try {
+                              const compressed = await compressImageFile(file);
+                              const updated = { ...profileDraft, lurahPhotoUrl: compressed };
+                              setProfileDraft(updated);
+                              await onSaveProfile(updated);
+                              setSuccessMessage('Foto Lurah berhasil diperbarui.');
+                            } catch {
+                              setValidationErrors(['Gagal memproses foto Lurah.']);
+                            }
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+
+                    {/* Lurah Info */}
+                    <div className="flex-1 space-y-3 w-full">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#0D3868] text-white">
+                            <UserCheck className="w-3 h-3" />
+                            <span>Lurah Panaikang</span>
+                          </span>
+                          {profileDraft.lurahPeriod && (
+                            <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-md">
+                              Masa Tugas: {profileDraft.lurahPeriod}
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="mt-1 text-base sm:text-lg font-bold text-slate-900">
+                          {profileDraft.lurahName}
+                        </h4>
+                        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+                          {profileDraft.lurahNip && (
+                            <span className="font-mono-num">
+                              <strong>NIP:</strong> {profileDraft.lurahNip}
+                            </span>
+                          )}
+                          {profileDraft.lurahRank && (
+                            <span>
+                              <strong>Pangkat/Gol:</strong> {profileDraft.lurahRank}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {profileDraft.lurahMessage && (
+                        <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 leading-relaxed italic">
+                          "{profileDraft.lurahMessage}"
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Subsection 01.2: Manajemen Struktur Jabatan Perangkat Kelurahan (Tambah, Edit, Hapus) */}
@@ -3775,219 +4235,422 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             </div>
           </div>
 
-          {/* Section B: Alamat Kantor & Kontak */}
-          <div className="pt-4 border-t border-slate-200">
-            <h3 className="text-sm font-bold text-slate-900 mb-3">
-              02. Alamat Kantor Kelurahan, Jam Pelayanan & Batas Wilayah
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Alamat Lengkap Kantor Kelurahan Panaikang *
-                </label>
-                <input
-                  type="text"
-                  value={profileDraft.officeAddress}
-                  onChange={(e) =>
-                    setProfileDraft({ ...profileDraft, officeAddress: e.target.value })
-                  }
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm"
-                />
-              </div>
+          {/* Section 04: Alamat Kantor & Kontak Kelurahan (Tambah, Edit, Hapus) */}
+          <div className="pt-6 border-t border-slate-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Kode Pos
-                </label>
-                <input
-                  type="text"
-                  value={profileDraft.postalCode}
-                  onChange={(e) =>
-                    setProfileDraft({ ...profileDraft, postalCode: e.target.value })
-                  }
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-mono-num"
-                />
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-[#0D3868]" />
+                  <span>04. Alamat Kantor Kelurahan & Kontak Resmi</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Informasi resmi domisili kantor kelurahan, kode pos, jam operasional, telepon hotline, dan email pelayanan.
+                </p>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Jam Operasional Pelayanan
-                </label>
-                <input
-                  type="text"
-                  value={profileDraft.serviceHours}
-                  onChange={(e) =>
-                    setProfileDraft({ ...profileDraft, serviceHours: e.target.value })
-                  }
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Telepon / Hotline
-                </label>
-                <input
-                  type="text"
-                  value={profileDraft.phoneContact}
-                  onChange={(e) =>
-                    setProfileDraft({ ...profileDraft, phoneContact: e.target.value })
-                  }
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-mono-num"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Email Resmi Kelurahan *
-                </label>
-                <input
-                  type="email"
-                  value={profileDraft.emailContact}
-                  onChange={(e) =>
-                    setProfileDraft({ ...profileDraft, emailContact: e.target.value })
-                  }
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm"
-                />
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Batas Utara
-                </label>
-                <input
-                  type="text"
-                  value={profileDraft.boundaries.utara}
-                  onChange={(e) =>
-                    setProfileDraft({
-                      ...profileDraft,
-                      boundaries: { ...profileDraft.boundaries, utara: e.target.value },
-                    })
-                  }
-                  className="w-full rounded-xl border border-slate-300 px-3 py-1.5 text-xs"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Batas Selatan
-                </label>
-                <input
-                  type="text"
-                  value={profileDraft.boundaries.selatan}
-                  onChange={(e) =>
-                    setProfileDraft({
-                      ...profileDraft,
-                      boundaries: { ...profileDraft.boundaries, selatan: e.target.value },
-                    })
-                  }
-                  className="w-full rounded-xl border border-slate-300 px-3 py-1.5 text-xs"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Batas Timur
-                </label>
-                <input
-                  type="text"
-                  value={profileDraft.boundaries.timur}
-                  onChange={(e) =>
-                    setProfileDraft({
-                      ...profileDraft,
-                      boundaries: { ...profileDraft.boundaries, timur: e.target.value },
-                    })
-                  }
-                  className="w-full rounded-xl border border-slate-300 px-3 py-1.5 text-xs"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Batas Barat
-                </label>
-                <input
-                  type="text"
-                  value={profileDraft.boundaries.barat}
-                  onChange={(e) =>
-                    setProfileDraft({
-                      ...profileDraft,
-                      boundaries: { ...profileDraft.boundaries, barat: e.target.value },
-                    })
-                  }
-                  className="w-full rounded-xl border border-slate-300 px-3 py-1.5 text-xs"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section C: Visi & Misi */}
-          <div className="pt-4 border-t border-slate-200">
-            <h3 className="text-sm font-bold text-slate-900 mb-3">
-              03. Pernyataan Visi & Daftar Misi Kelurahan Panaikang
-            </h3>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Visi Kelurahan Panaikang *
-              </label>
-              <textarea
-                rows={2}
-                value={profileDraft.visi}
-                onChange={(e) => setProfileDraft({ ...profileDraft, visi: e.target.value })}
-                className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm"
-              />
-            </div>
-
-            <div className="mt-4">
-              <label className="block text-xs font-semibold text-slate-700 mb-2">
-                Butir Misi Kelurahan Panaikang ({profileDraft.misi.length} Butir) *
-              </label>
-              <div className="space-y-2">
-                {profileDraft.misi.map((item, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <span className="font-mono-num text-xs font-bold text-[#1C8237] w-6">
-                      0{idx + 1}.
-                    </span>
-                    <input
-                      type="text"
-                      value={item}
-                      onChange={(e) => {
-                        const updated = [...profileDraft.misi];
-                        updated[idx] = e.target.value;
-                        setProfileDraft({ ...profileDraft, misi: updated });
-                      }}
-                      className="flex-1 rounded-xl border border-slate-300 px-3 py-1.5 text-xs sm:text-sm"
-                    />
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                {!profileDraft.officeAddress ? (
+                  <button
+                    type="button"
+                    onClick={handleOpenAddOfficeContact}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Tambah Alamat & Kontak</span>
+                  </button>
+                ) : (
+                  <>
                     <button
                       type="button"
-                      onClick={() =>
-                        setProfileDraft({
-                          ...profileDraft,
-                          misi: profileDraft.misi.filter((_, i) => i !== idx),
-                        })
-                      }
-                      className="p-2 rounded-lg text-red-600 hover:bg-red-50 cursor-pointer"
-                      title="Hapus butir misi"
+                      onClick={handleOpenEditOfficeContact}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 text-xs font-bold transition cursor-pointer"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Edit Alamat & Kontak</span>
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteOfficeContact(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold transition cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Hapus / Kosongkan</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {!profileDraft.officeAddress ? (
+              <div className="p-8 text-center bg-slate-50/80 rounded-2xl border-2 border-dashed border-slate-200">
+                <MapPin className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                <p className="text-xs font-medium text-slate-600">
+                  Belum ada informasi alamat dan kontak kantor kelurahan.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleOpenAddOfficeContact}
+                  className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-[#0D3868] hover:bg-[#072647] text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Tambah Alamat & Kontak Kantor</span>
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Card 1: Alamat & Kode Pos */}
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-1">
+                  <div className="flex items-center gap-2 text-xs font-bold text-[#0D3868] mb-1">
+                    <Building2 className="w-4 h-4 text-[#0D3868]" />
+                    <span>Lokasi Kantor & Domisili</span>
+                  </div>
+                  <p className="text-xs text-slate-800 font-medium">
+                    {profileDraft.officeAddress}
+                  </p>
+                  {profileDraft.postalCode && (
+                    <p className="text-[11px] text-slate-500 font-mono-num">
+                      Kode Pos: {profileDraft.postalCode}
+                    </p>
+                  )}
+                </div>
+
+                {/* Card 2: Jam Pelayanan */}
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-1">
+                  <div className="flex items-center gap-2 text-xs font-bold text-[#0D3868] mb-1">
+                    <Clock className="w-4 h-4 text-[#0D3868]" />
+                    <span>Jam Operasional Pelayanan</span>
+                  </div>
+                  <p className="text-xs text-slate-800 font-medium">
+                    {profileDraft.serviceHours || 'Senin – Jumat · 08.00 – 16.00 WITA'}
+                  </p>
+                  <p className="text-[11px] text-emerald-700 font-semibold">
+                    Pelayanan Satu Pintu (PTSP)
+                  </p>
+                </div>
+
+                {/* Card 3: Telepon & Email */}
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-1">
+                  <div className="flex items-center gap-2 text-xs font-bold text-[#0D3868] mb-1">
+                    <Phone className="w-4 h-4 text-[#0D3868]" />
+                    <span>Saluran Komunikasi Resmi</span>
+                  </div>
+                  {profileDraft.phoneContact && (
+                    <p className="text-xs text-slate-800 font-mono-num font-medium flex items-center gap-1.5">
+                      <Phone className="w-3 h-3 text-slate-500" />
+                      <span>{profileDraft.phoneContact}</span>
+                    </p>
+                  )}
+                  {profileDraft.emailContact && (
+                    <p className="text-xs text-slate-800 font-medium flex items-center gap-1.5 truncate">
+                      <Mail className="w-3 h-3 text-slate-500 shrink-0" />
+                      <span className="truncate">{profileDraft.emailContact}</span>
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Section 05: Batas-Batas Wilayah Administrasi (Tambah, Edit, Hapus) */}
+          <div className="pt-6 border-t border-slate-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Compass className="w-4 h-4 text-[#0D3868]" />
+                  <span>05. Batas Wilayah Administrasi Kelurahan</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Batas geografis 4 arah mata angin (Utara, Selatan, Timur, Barat) Kelurahan Panaikang.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                {(!profileDraft.boundaries?.utara &&
+                  !profileDraft.boundaries?.selatan &&
+                  !profileDraft.boundaries?.timur &&
+                  !profileDraft.boundaries?.barat) ? (
+                  <button
+                    type="button"
+                    onClick={handleOpenAddBoundaries}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Atur Batas Wilayah</span>
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleOpenEditBoundaries}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 text-xs font-bold transition cursor-pointer"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Edit Batas Wilayah</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteBoundaries(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold transition cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Reset / Hapus</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {(!profileDraft.boundaries?.utara &&
+              !profileDraft.boundaries?.selatan &&
+              !profileDraft.boundaries?.timur &&
+              !profileDraft.boundaries?.barat) ? (
+              <div className="p-8 text-center bg-slate-50/80 rounded-2xl border-2 border-dashed border-slate-200">
+                <Compass className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                <p className="text-xs font-medium text-slate-600">
+                  Batas wilayah administrasi belum diatur.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleOpenAddBoundaries}
+                  className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-[#0D3868] hover:bg-[#072647] text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Atur Batas Wilayah</span>
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                {/* Batas Utara */}
+                <div className="p-4 rounded-xl border border-sky-200 bg-sky-50/60 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[11px] font-bold text-sky-800 uppercase tracking-wider flex items-center gap-1">
+                        <ArrowUp className="w-3.5 h-3.5 text-sky-700" />
+                        <span>Batas Utara</span>
+                      </span>
+                    </div>
+                    <p className="text-xs font-semibold text-slate-800">
+                      {profileDraft.boundaries?.utara || '-'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Batas Selatan */}
+                <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/60 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1">
+                        <ArrowDown className="w-3.5 h-3.5 text-emerald-700" />
+                        <span>Batas Selatan</span>
+                      </span>
+                    </div>
+                    <p className="text-xs font-semibold text-slate-800">
+                      {profileDraft.boundaries?.selatan || '-'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Batas Timur */}
+                <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/60 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider flex items-center gap-1">
+                        <ArrowRight className="w-3.5 h-3.5 text-amber-700" />
+                        <span>Batas Timur</span>
+                      </span>
+                    </div>
+                    <p className="text-xs font-semibold text-slate-800">
+                      {profileDraft.boundaries?.timur || '-'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Batas Barat */}
+                <div className="p-4 rounded-xl border border-purple-200 bg-purple-50/60 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[11px] font-bold text-purple-800 uppercase tracking-wider flex items-center gap-1">
+                        <ArrowLeft className="w-3.5 h-3.5 text-purple-700" />
+                        <span>Batas Barat</span>
+                      </span>
+                    </div>
+                    <p className="text-xs font-semibold text-slate-800">
+                      {profileDraft.boundaries?.barat || '-'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Section 06: Pernyataan Visi Kelurahan (Tambah, Edit, Hapus) */}
+          <div className="pt-6 border-t border-slate-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Quote className="w-4 h-4 text-[#0D3868]" />
+                  <span>06. Pernyataan Visi Kelurahan Panaikang</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Visi utama arah pembangunan dan pelayanan kemasyarakatan Kelurahan Panaikang.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                {!profileDraft.visi ? (
+                  <button
+                    type="button"
+                    onClick={handleOpenAddVisi}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Tambah Visi</span>
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleOpenEditVisi}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 text-xs font-bold transition cursor-pointer"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Edit Visi</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteVisi(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold transition cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Hapus</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {!profileDraft.visi ? (
+              <div className="p-8 text-center bg-slate-50/80 rounded-2xl border-2 border-dashed border-slate-200">
+                <Quote className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                <p className="text-xs font-medium text-slate-600">
+                  Belum ada pernyataan visi kelurahan yang tersimpan.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleOpenAddVisi}
+                  className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-[#0D3868] hover:bg-[#072647] text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Tambah Pernyataan Visi</span>
+                </button>
+              </div>
+            ) : (
+              <div className="p-5 rounded-2xl border border-sky-200 bg-sky-50/50 relative overflow-hidden">
+                <Quote className="w-16 h-16 text-sky-200 absolute -bottom-4 -right-2 pointer-events-none" />
+                <p className="text-xs sm:text-sm text-slate-800 font-semibold leading-relaxed relative z-10 italic">
+                  "{profileDraft.visi}"
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Section 07: Butir-Butir Misi Kelurahan (Tambah, Edit, Hapus) */}
+          <div className="pt-6 border-t border-slate-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-[#1C8237]" />
+                  <span>07. Daftar Butir Misi Kelurahan Panaikang</span>
+                  <span className="text-xs font-mono-num font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                    {profileDraft.misi?.length || 0} Butir
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Langkah-langkah strategis pencapaian visi kelurahan yang dapat ditambah, diedit, diurutkan, atau dihapus secara dinamis.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleOpenAddMisiModal}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold transition shadow-xs cursor-pointer self-start sm:self-auto"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Tambah Butir Misi</span>
+              </button>
+            </div>
+
+            {(!profileDraft.misi || profileDraft.misi.length === 0) ? (
+              <div className="p-8 text-center bg-slate-50/80 rounded-2xl border-2 border-dashed border-slate-200">
+                <CheckCircle2 className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                <p className="text-xs font-medium text-slate-600">
+                  Belum ada butir misi yang terdaftar.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleOpenAddMisiModal}
+                  className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-[#1C8237] hover:bg-[#146329] text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Tambah Butir Misi Pertama</span>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {profileDraft.misi.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-slate-300 shadow-2xs flex items-center justify-between gap-3 transition"
+                  >
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <span className="font-mono-num text-xs font-extrabold text-[#1C8237] bg-emerald-50 px-2 py-1 rounded-md shrink-0 border border-emerald-100">
+                        {String(idx + 1).padStart(2, '0')}.
+                      </span>
+                      <p className="text-xs sm:text-sm text-slate-800 leading-relaxed font-medium pt-0.5">
+                        {item}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      {/* Reorder Buttons */}
+                      <div className="flex flex-col border border-slate-200 rounded-lg overflow-hidden mr-1">
+                        <button
+                          type="button"
+                          onClick={() => handleMoveMisi(idx, 'up')}
+                          disabled={idx === 0}
+                          className="p-1 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600 cursor-pointer"
+                          title="Pindahkan ke atas"
+                        >
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleMoveMisi(idx, 'down')}
+                          disabled={idx === profileDraft.misi.length - 1}
+                          className="p-1 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600 border-t border-slate-200 cursor-pointer"
+                          title="Pindahkan ke bawah"
+                        >
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditMisiModal(idx)}
+                        className="p-2 rounded-lg border border-slate-200 hover:bg-sky-50 hover:border-sky-300 text-slate-700 hover:text-sky-700 transition cursor-pointer"
+                        title="Edit Butir Misi"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMisiToDeleteIndex(idx)}
+                        className="p-2 rounded-lg border border-red-200 bg-red-50/50 hover:bg-red-100 text-red-600 transition cursor-pointer"
+                        title="Hapus Butir Misi"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
-
-              <div className="mt-3 flex items-center gap-2">
-                <input
-                  type="text"
-                  value={newMisiText}
-                  onChange={(e) => setNewMisiText(e.target.value)}
-                  placeholder="Ketik butir misi baru untuk ditambahkan..."
-                  className="flex-1 rounded-xl border border-slate-300 px-3.5 py-2 text-xs sm:text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddMisiItem}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-800 cursor-pointer whitespace-nowrap"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Tambah Butir Misi</span>
-                </button>
-              </div>
-            </div>
+            )}
           </div>
         </form>
       )}
@@ -7351,6 +8014,684 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           </div>
         </div>
       )}
+      {/* ================= MODAL: TAMBAH / EDIT DATA LURAH ================= */}
+      {isLurahModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 p-6 space-y-4 my-8 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-sky-100 text-[#0D3868] flex items-center justify-center">
+                  <UserCheck className="w-4 h-4" />
+                </div>
+                <h3 className="text-base font-bold text-slate-900">
+                  {profileDraft.lurahName ? 'Edit Data Pimpinan Lurah' : 'Tambah Data Pimpinan Lurah Baru'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsLurahModalOpen(false)}
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveLurahForm} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Nama Lengkap Lurah (Beserta Gelar) *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Muthmainnah, SE, MM"
+                  value={lurahForm.lurahName}
+                  onChange={(e) => setLurahForm({ ...lurahForm, lurahName: e.target.value })}
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm focus:border-[#0D3868] focus:ring-1 focus:ring-[#0D3868] outline-hidden"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    NIP Lurah
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: 19820415 200801 2 018"
+                    value={lurahForm.lurahNip}
+                    onChange={(e) => setLurahForm({ ...lurahForm, lurahNip: e.target.value })}
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-mono-num"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Pangkat / Golongan
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: Pembina (IV/a)"
+                    value={lurahForm.lurahRank}
+                    onChange={(e) => setLurahForm({ ...lurahForm, lurahRank: e.target.value })}
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Periode Masa Tugas
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: 2024 – Sekarang"
+                  value={lurahForm.lurahPeriod}
+                  onChange={(e) => setLurahForm({ ...lurahForm, lurahPeriod: e.target.value })}
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Sambutan / Pesan Pimpinan Lurah
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Ketik kata sambutan atau pesan resmi lurah untuk warga Kelurahan Panaikang..."
+                  value={lurahForm.lurahMessage}
+                  onChange={(e) => setLurahForm({ ...lurahForm, lurahMessage: e.target.value })}
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Foto Resmi Lurah
+                </label>
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-14 rounded-xl border border-slate-200 bg-slate-100 overflow-hidden flex items-center justify-center shrink-0">
+                    {lurahForm.lurahPhotoUrl ? (
+                      <img
+                        src={lurahForm.lurahPhotoUrl}
+                        alt="Preview"
+                        className="w-full h-full object-cover object-top"
+                      />
+                    ) : (
+                      <User className="w-6 h-6 text-slate-400" />
+                    )}
+                  </div>
+                  <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer transition">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>{lurahForm.lurahPhotoUrl ? 'Ganti File Foto' : 'Pilih Foto Lurah'}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLurahPhotoUpload}
+                      className="hidden"
+                    />
+                  </label>
+                  {lurahForm.lurahPhotoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setLurahForm((prev) => ({ ...prev, lurahPhotoUrl: '' }))}
+                      className="text-xs text-red-600 hover:underline cursor-pointer"
+                    >
+                      Hapus Foto
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsLurahModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Simpan Data Lurah</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: KONFIRMASI HAPUS DATA LURAH ================= */}
+      {confirmDeleteLurah && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div className="text-center">
+              <h3 className="text-base font-bold text-slate-900">
+                Konfirmasi Hapus Data Lurah
+              </h3>
+              <p className="mt-2 text-xs text-slate-600 leading-relaxed">
+                Apakah Anda yakin ingin menghapus/mengosongkan data pimpinan Lurah Panaikang? Data ini akan dikosongkan dan dapat diisi kembali kapan saja oleh Admin.
+              </p>
+            </div>
+            <div className="pt-2 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteLurah(false)}
+                className="px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteLurah}
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition shadow-sm cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Ya, Hapus Data Lurah</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: TAMBAH / EDIT ALAMAT & KONTAK ================= */}
+      {isOfficeContactModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 p-6 space-y-4 my-8 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-sky-100 text-[#0D3868] flex items-center justify-center">
+                  <Building2 className="w-4 h-4" />
+                </div>
+                <h3 className="text-base font-bold text-slate-900">
+                  {profileDraft.officeAddress ? 'Edit Alamat & Kontak Kantor' : 'Tambah Alamat & Kontak Kantor'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsOfficeContactModalOpen(false)}
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveOfficeContactForm} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Alamat Lengkap Kantor Kelurahan *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Jl. Haji Kalla No. 1 / Poros Panaikang, Panakkukang, Makassar"
+                  value={officeContactForm.officeAddress}
+                  onChange={(e) =>
+                    setOfficeContactForm({ ...officeContactForm, officeAddress: e.target.value })
+                  }
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm focus:border-[#0D3868] focus:ring-1 focus:ring-[#0D3868] outline-hidden"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Kode Pos
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: 90231"
+                    value={officeContactForm.postalCode}
+                    onChange={(e) =>
+                      setOfficeContactForm({ ...officeContactForm, postalCode: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-mono-num"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Jam Operasional Pelayanan
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: Senin – Jumat · 08.00 – 16.00 WITA"
+                    value={officeContactForm.serviceHours}
+                    onChange={(e) =>
+                      setOfficeContactForm({ ...officeContactForm, serviceHours: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Telepon / Hotline
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: (0411) 452-910"
+                    value={officeContactForm.phoneContact}
+                    onChange={(e) =>
+                      setOfficeContactForm({ ...officeContactForm, phoneContact: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-mono-num"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Email Resmi Kelurahan
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="Contoh: kelurahan.panaikang@makassarkota.go.id"
+                    value={officeContactForm.emailContact}
+                    onChange={(e) =>
+                      setOfficeContactForm({ ...officeContactForm, emailContact: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsOfficeContactModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Simpan Alamat & Kontak</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: KONFIRMASI HAPUS ALAMAT & KONTAK ================= */}
+      {confirmDeleteOfficeContact && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div className="text-center">
+              <h3 className="text-base font-bold text-slate-900">
+                Konfirmasi Kosongkan Alamat & Kontak
+              </h3>
+              <p className="mt-2 text-xs text-slate-600 leading-relaxed">
+                Apakah Anda yakin ingin menghapus data alamat kantor kelurahan dan kontak resmi?
+              </p>
+            </div>
+            <div className="pt-2 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteOfficeContact(false)}
+                className="px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteOfficeContact}
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition shadow-sm cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Ya, Kosongkan Data</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: TAMBAH / EDIT BATAS WILAYAH ================= */}
+      {isBoundariesModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 p-6 space-y-4 my-8 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-sky-100 text-[#0D3868] flex items-center justify-center">
+                  <Compass className="w-4 h-4" />
+                </div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Konfigurasi Batas Wilayah Administrasi
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBoundariesModalOpen(false)}
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveBoundariesForm} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
+                  <ArrowUp className="w-3.5 h-3.5 text-sky-600" />
+                  <span>Batas Utara (Perbatasan Sisi Utara)</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Kelurahan Pampang & Tello Baru / Aliran Kanal Pampang"
+                  value={boundariesForm.utara}
+                  onChange={(e) => setBoundariesForm({ ...boundariesForm, utara: e.target.value })}
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500 outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
+                  <ArrowDown className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Batas Selatan (Perbatasan Sisi Selatan)</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Kelurahan Karampuang & Kelurahan Pandang"
+                  value={boundariesForm.selatan}
+                  onChange={(e) => setBoundariesForm({ ...boundariesForm, selatan: e.target.value })}
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
+                  <ArrowRight className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Batas Timur (Perbatasan Sisi Timur)</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Kelurahan Tamamaung & Kecamatan Manggala"
+                  value={boundariesForm.timur}
+                  onChange={(e) => setBoundariesForm({ ...boundariesForm, timur: e.target.value })}
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
+                  <ArrowLeft className="w-3.5 h-3.5 text-purple-600" />
+                  <span>Batas Barat (Perbatasan Sisi Barat)</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Kelurahan Sinrijala & Koridor Flyover / A.P. Pettarani"
+                  value={boundariesForm.barat}
+                  onChange={(e) => setBoundariesForm({ ...boundariesForm, barat: e.target.value })}
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-hidden"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsBoundariesModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Simpan Batas Wilayah</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: KONFIRMASI HAPUS BATAS WILAYAH ================= */}
+      {confirmDeleteBoundaries && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div className="text-center">
+              <h3 className="text-base font-bold text-slate-900">
+                Konfirmasi Reset Batas Wilayah
+              </h3>
+              <p className="mt-2 text-xs text-slate-600 leading-relaxed">
+                Apakah Anda yakin ingin mengosongkan/mereset seluruh deskripsi 4 batas wilayah administrasi?
+              </p>
+            </div>
+            <div className="pt-2 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteBoundaries(false)}
+                className="px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteBoundaries}
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition shadow-sm cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Ya, Reset Batas Wilayah</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: TAMBAH / EDIT VISI ================= */}
+      {isVisiModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-sky-100 text-[#0D3868] flex items-center justify-center">
+                  <Quote className="w-4 h-4" />
+                </div>
+                <h3 className="text-base font-bold text-slate-900">
+                  {profileDraft.visi ? 'Edit Pernyataan Visi' : 'Tambah Pernyataan Visi Baru'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsVisiModalOpen(false)}
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveVisiForm} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Pernyataan Visi Kelurahan Panaikang *
+                </label>
+                <textarea
+                  rows={4}
+                  placeholder="Contoh: Terwujudnya Kelurahan Panaikang yang Bersih, Hijau, Tangguh Bencana, dan Berdaya Saing melalui Tata Kelola Kolaboratif Berbasis Komunitas..."
+                  value={visiFormText}
+                  onChange={(e) => setVisiFormText(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:border-[#0D3868] focus:ring-1 focus:ring-[#0D3868] outline-hidden leading-relaxed"
+                  required
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsVisiModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Simpan Visi</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: KONFIRMASI HAPUS VISI ================= */}
+      {confirmDeleteVisi && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div className="text-center">
+              <h3 className="text-base font-bold text-slate-900">
+                Konfirmasi Hapus Visi
+              </h3>
+              <p className="mt-2 text-xs text-slate-600 leading-relaxed">
+                Apakah Anda yakin ingin menghapus pernyataan visi Kelurahan Panaikang?
+              </p>
+            </div>
+            <div className="pt-2 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteVisi(false)}
+                className="px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteVisi}
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition shadow-sm cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Ya, Hapus Visi</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: TAMBAH / EDIT BUTIR MISI ================= */}
+      {isMisiModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-100 text-[#1C8237] flex items-center justify-center">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+                <h3 className="text-base font-bold text-slate-900">
+                  {editingMisiIndex !== null
+                    ? `Edit Butir Misi #${editingMisiIndex + 1}`
+                    : 'Tambah Butir Misi Baru'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMisiModalOpen(false);
+                  setEditingMisiIndex(null);
+                }}
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveMisiForm} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Teks Butir Misi *
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Ketik uraian butir misi kelurahan..."
+                  value={misiFormText}
+                  onChange={(e) => setMisiFormText(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:border-[#1C8237] focus:ring-1 focus:ring-[#1C8237] outline-hidden leading-relaxed"
+                  required
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMisiModalOpen(false);
+                    setEditingMisiIndex(null);
+                  }}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Simpan Butir Misi</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: KONFIRMASI HAPUS BUTIR MISI ================= */}
+      {misiToDeleteIndex !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div className="text-center">
+              <h3 className="text-base font-bold text-slate-900">
+                Konfirmasi Hapus Butir Misi
+              </h3>
+              <p className="mt-2 text-xs text-slate-600 leading-relaxed">
+                Apakah Anda yakin ingin menghapus butir misi #{misiToDeleteIndex + 1}:
+              </p>
+              <div className="mt-2 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 text-left italic">
+                "{profileDraft.misi[misiToDeleteIndex]}"
+              </div>
+            </div>
+            <div className="pt-2 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setMisiToDeleteIndex(null)}
+                className="px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteMisi}
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition shadow-sm cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Ya, Hapus Butir Misi</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
