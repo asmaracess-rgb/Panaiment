@@ -1836,6 +1836,7 @@ export default function App() {
             cleanupEvents={cleanupEvents}
             onUpdateReportStatus={handleUpdateReportStatus}
             onNavigate={handleNavigate}
+            profile={kelurahanProfile}
           />
         )}
 

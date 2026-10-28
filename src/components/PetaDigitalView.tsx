@@ -28,6 +28,7 @@ import {
   WasteBankUnit,
   CleanupEvent,
   AppView,
+  KelurahanProfile,
 } from '../types';
 
 interface PetaDigitalViewProps {
@@ -41,6 +42,7 @@ interface PetaDigitalViewProps {
     responseNote: string
   ) => void;
   onNavigate: (view: AppView) => void;
+  profile?: KelurahanProfile;
 }
 
 type LayerType = 'semua' | 'laporan' | 'bsu' | 'kerjabakti';
@@ -265,20 +267,78 @@ function MapController({
   return null;
 }
 
+// Cardinal Boundary Points on Kelurahan Panaikang perimeter
+const BOUNDARY_POINTS: Record<
+  'utara' | 'timur' | 'selatan' | 'barat',
+  {
+    title: string;
+    directionLabel: string;
+    pos: google.maps.LatLngLiteral;
+    color: string;
+    badgeBg: string;
+    borderRing: string;
+  }
+> = {
+  utara: {
+    title: 'Batas Wilayah Bagian Utara',
+    directionLabel: 'Utara',
+    pos: { lat: -5.1315, lng: 119.4475 },
+    color: 'bg-sky-600',
+    badgeBg: 'bg-sky-600',
+    borderRing: 'ring-sky-400',
+  },
+  timur: {
+    title: 'Batas Wilayah Bagian Timur',
+    directionLabel: 'Timur',
+    pos: { lat: -5.1375, lng: 119.4568 },
+    color: 'bg-amber-600',
+    badgeBg: 'bg-amber-600',
+    borderRing: 'ring-amber-400',
+  },
+  selatan: {
+    title: 'Batas Wilayah Bagian Selatan',
+    directionLabel: 'Selatan',
+    pos: { lat: -5.1458, lng: 119.4470 },
+    color: 'bg-emerald-600',
+    badgeBg: 'bg-emerald-600',
+    borderRing: 'ring-emerald-400',
+  },
+  barat: {
+    title: 'Batas Wilayah Bagian Barat',
+    directionLabel: 'Barat',
+    pos: { lat: -5.1375, lng: 119.4388 },
+    color: 'bg-purple-600',
+    badgeBg: 'bg-purple-600',
+    borderRing: 'ring-purple-400',
+  },
+};
+
 export const PetaDigitalView: React.FC<PetaDigitalViewProps> = ({
   reports,
   wasteUnits,
   cleanupEvents,
   onUpdateReportStatus,
   onNavigate,
+  profile,
 }) => {
   const [activeLayer, setActiveLayer] = useState<LayerType>('semua');
   const [statusFilter, setStatusFilter] = useState<'Semua' | ReportStatus>('Semua');
   const [showRwBoundaries, setShowRwBoundaries] = useState<boolean>(true);
+  const [showBoundaryMarkers, setShowBoundaryMarkers] = useState<boolean>(true);
   const [mapTypeId, setMapTypeId] = useState<'roadmap' | 'hybrid'>('roadmap');
 
+  // Boundaries directly connected from Lurah/Admin input in Profil Kelurahan
+  const batasUtara = profile?.boundaries?.utara?.trim() || 'Kanal Pampang / Pampang';
+  const batasTimur = profile?.boundaries?.timur?.trim() || 'Manggala & Tamamaung';
+  const batasSelatan = profile?.boundaries?.selatan?.trim() || 'Karampuang & Pandang';
+  const batasBarat = profile?.boundaries?.barat?.trim() || 'Sinrijala / Pettarani';
+
+  const [selectedBoundaryDir, setSelectedBoundaryDir] = useState<
+    'utara' | 'timur' | 'selatan' | 'barat' | null
+  >(null);
+
   const [selectedItem, setSelectedItem] = useState<{
-    type: 'laporan' | 'bsu' | 'kerjabakti' | 'kantor';
+    type: 'laporan' | 'bsu' | 'kerjabakti' | 'kantor' | 'batas';
     id: string;
   }>({
     type: 'laporan',
@@ -286,7 +346,7 @@ export const PetaDigitalView: React.FC<PetaDigitalViewProps> = ({
   });
 
   const [infoWindowTarget, setInfoWindowTarget] = useState<{
-    type: 'laporan' | 'bsu' | 'kerjabakti' | 'kantor';
+    type: 'laporan' | 'bsu' | 'kerjabakti' | 'kantor' | 'batas';
     id: string;
     position: google.maps.LatLngLiteral;
     title: string;
@@ -385,10 +445,37 @@ export const PetaDigitalView: React.FC<PetaDigitalViewProps> = ({
     setPanTrigger((k) => k + 1);
   };
 
+  const handleSelectBoundary = (dir: 'utara' | 'timur' | 'selatan' | 'barat') => {
+    const point = BOUNDARY_POINTS[dir];
+    const boundaryText =
+      dir === 'utara'
+        ? batasUtara
+        : dir === 'timur'
+        ? batasTimur
+        : dir === 'selatan'
+        ? batasSelatan
+        : batasBarat;
+
+    setSelectedBoundaryDir(dir);
+    setSelectedItem({ type: 'batas', id: dir });
+    setInfoWindowTarget({
+      type: 'batas',
+      id: dir,
+      position: point.pos,
+      title: `${point.title}: ${boundaryText}`,
+      description: `Batas resmi wilayah administratif berdasarkan data Profil Kelurahan yang dikelola langsung oleh Lurah & Administrator.`,
+      badge: `Batas Administrasi (${point.directionLabel})`,
+      badgeColor: point.badgeBg,
+    });
+    setPanTarget(point.pos);
+    setPanTrigger((k) => k + 1);
+  };
+
   const handleResetCamera = () => {
     setPanTarget(PANAIKANG_CENTER);
     setPanTrigger((k) => k + 1);
     setInfoWindowTarget(null);
+    setSelectedBoundaryDir(null);
   };
 
   const apiKey =
@@ -412,10 +499,19 @@ export const PetaDigitalView: React.FC<PetaDigitalViewProps> = ({
             <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0D3868] tracking-tight">
               Peta Digital Kelurahan Panaikang
             </h1>
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
-              <Navigation className="w-3 h-3 text-[#0284C7]" />
-              <span>Google Maps Live</span>
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
+                <Navigation className="w-3 h-3 text-[#0284C7]" />
+                <span>Google Maps Live</span>
+              </span>
+              <span
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200"
+                title="Data batas wilayah terkoneksi langsung dengan Profil Kelurahan"
+              >
+                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                <span>Terkoneksi Profil Kelurahan</span>
+              </span>
+            </div>
           </div>
           <p className="mt-1 text-sm text-slate-600">
             Pemetaan spasial resmi wilayah Kelurahan Panaikang (Kec. Panakkukang, Makassar)
@@ -469,8 +565,22 @@ export const PetaDigitalView: React.FC<PetaDigitalViewProps> = ({
           ))}
         </div>
 
-        {/* Map View Controls: Satellite Toggle, RW Boundaries Toggle, Center Button */}
-        <div className="flex items-center gap-2">
+        {/* Map View Controls: Satellite Toggle, RW Boundaries Toggle, Boundary Pins Toggle, Center Button */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setShowBoundaryMarkers((prev) => !prev)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+              showBoundaryMarkers
+                ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+            }`}
+            title="Sembunyikan / Tampilkan Pin Titik Batas Administrasi di Peta"
+          >
+            <Compass className="w-3.5 h-3.5" />
+            <span>{showBoundaryMarkers ? 'Pin Batas: Aktif' : 'Pin Batas: Nonaktif'}</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setShowRwBoundaries((prev) => !prev)}
@@ -506,32 +616,95 @@ export const PetaDigitalView: React.FC<PetaDigitalViewProps> = ({
         </div>
       </div>
 
-      {/* Boundary Legend Badges */}
+      {/* Boundary Legend Badges - Dynamic from Profil Kelurahan */}
       <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-        <div className="p-2 rounded-xl bg-sky-50/80 border border-sky-200 flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-sky-600 shrink-0" />
-          <span className="truncate">
-            <strong>Batas Utara:</strong> Kanal Pampang / Pampang
-          </span>
-        </div>
-        <div className="p-2 rounded-xl bg-amber-50/80 border border-amber-200 flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-amber-600 shrink-0" />
-          <span className="truncate">
-            <strong>Batas Timur:</strong> Manggala & Tamamaung
-          </span>
-        </div>
-        <div className="p-2 rounded-xl bg-emerald-50/80 border border-emerald-200 flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 shrink-0" />
-          <span className="truncate">
-            <strong>Batas Selatan:</strong> Karampuang & Pandang
-          </span>
-        </div>
-        <div className="p-2 rounded-xl bg-purple-50/80 border border-purple-200 flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-purple-600 shrink-0" />
-          <span className="truncate">
-            <strong>Batas Barat:</strong> Sinrijala / Pettarani
-          </span>
-        </div>
+        <button
+          type="button"
+          onClick={() => handleSelectBoundary('utara')}
+          className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+            selectedBoundaryDir === 'utara' && selectedItem.type === 'batas'
+              ? 'bg-sky-100 border-sky-400 ring-2 ring-sky-300 shadow-xs'
+              : 'bg-sky-50/80 border-sky-200 hover:bg-sky-100/70'
+          }`}
+          title="Klik untuk memusatkan peta ke Batas Bagian Utara"
+        >
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 font-bold text-sky-900">
+              <span className="w-2.5 h-2.5 rounded-full bg-sky-600 shrink-0" />
+              <span>Batas Utara</span>
+            </span>
+            <span className="text-[10px] text-sky-700 font-mono">U</span>
+          </div>
+          <div className="mt-1 text-slate-800 font-semibold truncate text-xs" title={batasUtara}>
+            {batasUtara}
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleSelectBoundary('timur')}
+          className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+            selectedBoundaryDir === 'timur' && selectedItem.type === 'batas'
+              ? 'bg-amber-100 border-amber-400 ring-2 ring-amber-300 shadow-xs'
+              : 'bg-amber-50/80 border-amber-200 hover:bg-amber-100/70'
+          }`}
+          title="Klik untuk memusatkan peta ke Batas Bagian Timur"
+        >
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 font-bold text-amber-900">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-600 shrink-0" />
+              <span>Batas Timur</span>
+            </span>
+            <span className="text-[10px] text-amber-700 font-mono">T</span>
+          </div>
+          <div className="mt-1 text-slate-800 font-semibold truncate text-xs" title={batasTimur}>
+            {batasTimur}
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleSelectBoundary('selatan')}
+          className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+            selectedBoundaryDir === 'selatan' && selectedItem.type === 'batas'
+              ? 'bg-emerald-100 border-emerald-400 ring-2 ring-emerald-300 shadow-xs'
+              : 'bg-emerald-50/80 border-emerald-200 hover:bg-emerald-100/70'
+          }`}
+          title="Klik untuk memusatkan peta ke Batas Bagian Selatan"
+        >
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 font-bold text-emerald-900">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 shrink-0" />
+              <span>Batas Selatan</span>
+            </span>
+            <span className="text-[10px] text-emerald-700 font-mono">S</span>
+          </div>
+          <div className="mt-1 text-slate-800 font-semibold truncate text-xs" title={batasSelatan}>
+            {batasSelatan}
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleSelectBoundary('barat')}
+          className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+            selectedBoundaryDir === 'barat' && selectedItem.type === 'batas'
+              ? 'bg-purple-100 border-purple-400 ring-2 ring-purple-300 shadow-xs'
+              : 'bg-purple-50/80 border-purple-200 hover:bg-purple-100/70'
+          }`}
+          title="Klik untuk memusatkan peta ke Batas Bagian Barat"
+        >
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 font-bold text-purple-900">
+              <span className="w-2.5 h-2.5 rounded-full bg-purple-600 shrink-0" />
+              <span>Batas Barat</span>
+            </span>
+            <span className="text-[10px] text-purple-700 font-mono">B</span>
+          </div>
+          <div className="mt-1 text-slate-800 font-semibold truncate text-xs" title={batasBarat}>
+            {batasBarat}
+          </div>
+        </button>
       </div>
 
       {/* Map Canvas + Right Inspection Panel */}
@@ -708,6 +881,46 @@ export const PetaDigitalView: React.FC<PetaDigitalViewProps> = ({
                     );
                   })}
 
+                {/* 4 Cardinal Boundary Markers (Utara, Timur, Selatan, Barat) connected to Profil Kelurahan */}
+                {showBoundaryMarkers &&
+                  (['utara', 'timur', 'selatan', 'barat'] as const).map((dir) => {
+                    const point = BOUNDARY_POINTS[dir];
+                    const boundaryText =
+                      dir === 'utara'
+                        ? batasUtara
+                        : dir === 'timur'
+                        ? batasTimur
+                        : dir === 'selatan'
+                        ? batasSelatan
+                        : batasBarat;
+                    const isSelected =
+                      selectedItem.type === 'batas' && selectedBoundaryDir === dir;
+
+                    return (
+                      <AdvancedMarker
+                        key={`boundary-marker-${dir}`}
+                        position={point.pos}
+                        onClick={() => handleSelectBoundary(dir)}
+                        title={`${point.title}: ${boundaryText}`}
+                      >
+                        <div
+                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-white text-[11px] font-bold shadow-lg border-2 border-white cursor-pointer transition-all ${
+                            point.color
+                          } ${
+                            isSelected
+                              ? 'scale-125 ring-4 ring-offset-1 ' + point.borderRing
+                              : 'hover:scale-110'
+                          }`}
+                        >
+                          <Compass className="w-3.5 h-3.5 text-white/90" />
+                          <span className="whitespace-nowrap drop-shadow-xs">
+                            Batas {point.directionLabel}: {boundaryText}
+                          </span>
+                        </div>
+                      </AdvancedMarker>
+                    );
+                  })}
+
                 {/* InfoWindow on Selected Marker */}
                 {infoWindowTarget && (
                   <InfoWindow
@@ -737,7 +950,107 @@ export const PetaDigitalView: React.FC<PetaDigitalViewProps> = ({
         </div>
 
         {/* Right: Real-Time Detail Inspector Panel */}
-        <div className="lg:col-span-4">
+        <div className="lg:col-span-4 space-y-4">
+          {selectedItem.type === 'batas' && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4 shadow-xs">
+              <div className="pb-3 border-b border-slate-200">
+                <div className="inline-flex items-center gap-1.5 text-xs font-bold text-sky-700">
+                  <Compass className="w-4 h-4 text-sky-600" />
+                  <span>DATA RESMI PROFIL KELURAHAN</span>
+                </div>
+                <h2 className="mt-1 text-base font-bold text-[#0D3868]">
+                  Batas Wilayah Kelurahan Panaikang
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Tersinkronisasi langsung dengan ketetapan batas administratif yang diisi oleh Lurah & Administrator.
+                </p>
+              </div>
+
+              {/* Direction selector list */}
+              <div className="space-y-2.5">
+                {(['utara', 'timur', 'selatan', 'barat'] as const).map((dir) => {
+                  const point = BOUNDARY_POINTS[dir];
+                  const boundaryText =
+                    dir === 'utara'
+                      ? batasUtara
+                      : dir === 'timur'
+                      ? batasTimur
+                      : dir === 'selatan'
+                      ? batasSelatan
+                      : batasBarat;
+                  const isActive = selectedItem.type === 'batas' && selectedBoundaryDir === dir;
+
+                  return (
+                    <div
+                      key={dir}
+                      onClick={() => handleSelectBoundary(dir)}
+                      className={`p-3 rounded-xl border transition-all cursor-pointer ${
+                        isActive
+                          ? 'bg-sky-50 border-sky-400 ring-2 ring-sky-300 shadow-xs'
+                          : 'bg-slate-50/70 border-slate-200 hover:bg-sky-50/40 hover:border-sky-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-xs font-bold">
+                        <span className="flex items-center gap-2">
+                          <span
+                            className={`w-2.5 h-2.5 rounded-full ${point.color}`}
+                          />
+                          <span className="text-slate-900">{point.title}</span>
+                        </span>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700">
+                          {point.directionLabel}
+                        </span>
+                      </div>
+                      <div className="mt-1.5 text-xs font-bold text-[#0D3868] pl-4">
+                        {boundaryText}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Geographic Overview */}
+              <div className="pt-3 border-t border-slate-200 text-xs text-slate-600 space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Luas Wilayah:</span>
+                  <span className="font-semibold text-slate-800 font-mono-num">
+                    {profile?.areaKm2 || '1.74 km²'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Cakupan Administrasi:</span>
+                  <span className="font-semibold text-slate-800 font-mono-num">
+                    {profile?.totalRw || 7} RW · {profile?.totalRt || 38} RT
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Pusat Pemerintahan:</span>
+                  <span className="font-semibold text-slate-800 truncate max-w-[180px]">
+                    {profile?.officeAddress || 'Jl. Kesadaran IV No. 1'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Navigation Action Buttons */}
+              <div className="flex flex-col gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => onNavigate('profil')}
+                  className="w-full py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition cursor-pointer text-center"
+                >
+                  Buka Halaman Profil Kelurahan →
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('admin')}
+                  className="w-full py-2.5 px-3 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition cursor-pointer text-center"
+                >
+                  Ubah Batas Wilayah di Panel Admin
+                </button>
+              </div>
+            </div>
+          )}
+
           {selectedItem.type === 'kantor' && (
             <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4 shadow-xs">
               <div className="pb-3 border-b border-slate-200">
@@ -979,6 +1292,18 @@ export const PetaDigitalView: React.FC<PetaDigitalViewProps> = ({
                 Lihat Detail & Daftar Kerja Bakti →
               </button>
             </div>
+          )}
+
+          {/* Quick Link to Boundaries when inspecting other items */}
+          {selectedItem.type !== 'batas' && (
+            <button
+              type="button"
+              onClick={() => handleSelectBoundary('utara')}
+              className="w-full py-2.5 px-3 rounded-xl border border-sky-200 bg-sky-50/80 hover:bg-sky-100 text-sky-900 text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs"
+            >
+              <Compass className="w-3.5 h-3.5 text-sky-700" />
+              <span>Lihat Batas Wilayah Kelurahan (4 Arah)</span>
+            </button>
           )}
         </div>
       </div>
