@@ -105,9 +105,7 @@ function loadDatabase(): DatabaseSchema {
         );
 
         const hasOfficialRwData =
-          Array.isArray(parsed.rwGroups) &&
-          parsed.rwGroups.length === 7 &&
-          parsed.rwGroups[0]?.ketuaRwName === 'EDWIN BURHANUDDIN';
+          Array.isArray(parsed.rwGroups) && parsed.rwGroups.length > 0;
         const resolvedRwGroups = hasOfficialRwData ? parsed.rwGroups! : INITIAL_RW_GROUPS;
         const legacyOfficialIds = new Set(['off-1', 'off-2', 'off-3', 'off-4']);
         const resolvedOfficials = (
@@ -224,18 +222,64 @@ interface ActiveAdminSession {
 }
 
 let activeAdminSession: ActiveAdminSession | null = null;
-const ADMIN_HEARTBEAT_TIMEOUT_MS = 35000; // 35 seconds of inactivity releases the single admin lock
+const ADMIN_LOCK_FILE = path.join(DATA_DIR, 'admin_session_lock.json');
+const ADMIN_HEARTBEAT_TIMEOUT_MS = 30000; // 30 seconds of inactivity releases the single admin lock
+
+function readPersistedAdminLock(): ActiveAdminSession | null {
+  try {
+    if (fs.existsSync(ADMIN_LOCK_FILE)) {
+      const raw = fs.readFileSync(ADMIN_LOCK_FILE, 'utf-8');
+      if (raw && raw.trim()) {
+        const parsed = JSON.parse(raw) as ActiveAdminSession;
+        if (parsed && parsed.token && typeof parsed.lastHeartbeat === 'number') {
+          const age = Date.now() - parsed.lastHeartbeat;
+          if (age <= ADMIN_HEARTBEAT_TIMEOUT_MS) {
+            return parsed;
+          } else {
+            console.log(`[Admin Lock] Lock file kedaluwarsa (${Math.round(age / 1000)}s > 30s). Menghapus lock.`);
+            try {
+              fs.unlinkSync(ADMIN_LOCK_FILE);
+            } catch {}
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[Admin Lock] Gagal membaca file lock:', err);
+  }
+  return null;
+}
+
+function writePersistedAdminLock(session: ActiveAdminSession | null): void {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    if (!session) {
+      if (fs.existsSync(ADMIN_LOCK_FILE)) {
+        try {
+          fs.unlinkSync(ADMIN_LOCK_FILE);
+        } catch {}
+      }
+    } else {
+      fs.writeFileSync(ADMIN_LOCK_FILE, JSON.stringify(session, null, 2), 'utf-8');
+    }
+  } catch (err) {
+    console.error('[Admin Lock] Gagal menyimpan file lock:', err);
+  }
+}
 
 function getValidActiveAdminSession(): ActiveAdminSession | null {
-  if (!activeAdminSession) return null;
-  const now = Date.now();
-  if (now - activeAdminSession.lastHeartbeat > ADMIN_HEARTBEAT_TIMEOUT_MS) {
-    console.log(`[Admin Lock] Sesi untuk ${activeAdminSession.username} telah berakhir karena tidak ada heartbeat.`);
-    activeAdminSession = null;
-    broadcastAdminSessionStatus();
+  const diskSession = readPersistedAdminLock();
+  if (!diskSession) {
+    if (activeAdminSession) {
+      activeAdminSession = null;
+      broadcastAdminSessionStatus();
+    }
     return null;
   }
-  return activeAdminSession;
+  activeAdminSession = diskSession;
+  return diskSession;
 }
 
 function getPublicActiveAdminInfo() {
@@ -261,9 +305,11 @@ function getPublicActiveAdminInfo() {
 
 function broadcastAdminSessionStatus(): void {
   const info = getPublicActiveAdminInfo();
+  const session = getValidActiveAdminSession();
   const payload = JSON.stringify({
     type: 'admin_session_changed',
     ...info,
+    activeToken: session ? session.token : null,
   });
   const message = `event: admin_session\ndata: ${payload}\n\n`;
   for (const client of sseClients) {
@@ -505,20 +551,46 @@ async function startServer() {
   });
 
   // 0B. Query current Admin Session Lock status
-  app.get('/api/auth/session-status', (_req, res) => {
+  app.get('/api/auth/session-status', (req, res) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    const clientToken =
+      (req.query.token as string | undefined) ||
+      (req.headers['x-admin-token'] as string | undefined) ||
+      '';
+    const session = getValidActiveAdminSession();
+    if (!session) {
+      res.json({
+        ok: true,
+        isLocked: false,
+        activeAdmin: null,
+        isCurrentTokenValid: false,
+      });
+      return;
+    }
+    const isSameToken = Boolean(clientToken && session.token === clientToken);
     res.json({
       ok: true,
-      ...getPublicActiveAdminInfo(),
+      isLocked: true,
+      activeAdmin: {
+        userId: session.userId,
+        username: session.username,
+        fullName: session.fullName,
+        role: session.role,
+        roleLevel: session.roleLevel,
+        loginAt: session.loginAt,
+      },
+      isCurrentTokenValid: isSameToken,
     });
   });
 
   // 0C. Administrator Authentication with Strict Single-Live Admin Enforcement
   app.post('/api/auth/login', (req, res) => {
-    const { username, password, clientToken } = req.body as {
+    const { username, password, clientToken, forceTakeover, masterPassphrase } = req.body as {
       username?: string;
       password?: string;
       clientToken?: string;
+      forceTakeover?: boolean;
+      masterPassphrase?: string;
     };
     const cleanUser = (username || '').trim().toLowerCase();
     const cleanNip = cleanUser.replace(/\s+/g, '');
@@ -587,19 +659,36 @@ async function startServer() {
         (headerToken && headerToken === currentSession.token);
 
       if (!isSameSession) {
-        // Reject login attempt: another admin is currently live
-        res.status(409).json({
-          ok: false,
-          isLocked: true,
-          activeAdmin: {
-            username: currentSession.username,
-            fullName: currentSession.fullName,
-            role: currentSession.role,
-            loginAt: currentSession.loginAt,
-          },
-          error: `Saat ini akun Administrator "${currentSession.fullName}" (@${currentSession.username}) sedang aktif di dalam sistem sejak ${currentSession.loginAt}. Demi keamanan dan integritas data Satu Data Panaikang, hanya 1 admin yang dapat online dalam waktu bersamaan. Admin tersebut harus melakukan Logout terlebih dahulu sebelum admin lain dapat masuk.`,
-        });
-        return;
+        // Check if caller is authorized for emergency takeover / release
+        const canForce =
+          Boolean(forceTakeover) &&
+          (isMaster ||
+            cleanPass === 'panaikang2026' ||
+            (masterPassphrase && ['panaikang2026', 'admin123'].includes(masterPassphrase.trim())));
+
+        if (canForce) {
+          console.log(
+            `[Admin Lock] Otoritas Master (${cleanUser}) mengambil alih sesi tunggal dari ${currentSession.username}`
+          );
+          writePersistedAdminLock(null);
+          activeAdminSession = null;
+        } else {
+          // Reject login attempt: another admin is currently live
+          res.status(409).json({
+            ok: false,
+            isLocked: true,
+            activeAdmin: {
+              userId: currentSession.userId,
+              username: currentSession.username,
+              fullName: currentSession.fullName,
+              role: currentSession.role,
+              roleLevel: currentSession.roleLevel,
+              loginAt: currentSession.loginAt,
+            },
+            error: `Saat ini akun Administrator "${currentSession.fullName}" (@${currentSession.username}) sedang aktif di perangkat lain sejak ${currentSession.loginAt}. Demi keamanan dan konsistensi data Satu Data Panaikang, hanya 1 admin yang dapat online dalam waktu bersamaan. Admin tersebut harus melakukan Logout terlebih dahulu sebelum admin lain dapat masuk.`,
+          });
+          return;
+        }
       }
     }
 
@@ -624,6 +713,7 @@ async function startServer() {
       lastHeartbeat: Date.now(),
     };
 
+    writePersistedAdminLock(activeAdminSession);
     saveDatabase(db);
     broadcastAdminSessionStatus();
 
@@ -651,13 +741,17 @@ async function startServer() {
   // 0D. Admin Heartbeat (renews single-admin occupancy lock while browser is active)
   app.post('/api/auth/heartbeat', (req, res) => {
     const { token } = req.body as { token?: string };
+    const headerToken = req.headers['x-admin-token'] as string | undefined;
+    const reqToken = token || headerToken;
     const current = getValidActiveAdminSession();
     if (!current) {
       res.status(401).json({ ok: false, error: 'Tidak ada sesi admin yang aktif.' });
       return;
     }
-    if (token && current.token === token) {
+    if (reqToken && current.token === reqToken) {
       current.lastHeartbeat = Date.now();
+      writePersistedAdminLock(current);
+      activeAdminSession = current;
       res.json({ ok: true, active: true });
       return;
     }
@@ -670,9 +764,12 @@ async function startServer() {
   // 0E. Explicit Admin Logout (Immediately releases lock so another admin can login)
   app.post('/api/auth/logout', (req, res) => {
     const { token } = req.body as { token?: string };
-    const current = activeAdminSession;
-    if (current && (!token || current.token === token)) {
+    const headerToken = req.headers['x-admin-token'] as string | undefined;
+    const reqToken = token || headerToken;
+    const current = getValidActiveAdminSession();
+    if (current && (!reqToken || current.token === reqToken)) {
       console.log(`[Admin Lock] Admin ${current.username} telah logout. Kunci admin dilepaskan.`);
+      writePersistedAdminLock(null);
       activeAdminSession = null;
       broadcastAdminSessionStatus();
     }
@@ -691,13 +788,30 @@ async function startServer() {
       }
     } catch {}
 
-    const current = activeAdminSession;
+    const current = getValidActiveAdminSession();
     if (current && (!bodyToken || current.token === bodyToken)) {
       console.log(`[Admin Lock] Admin ${current.username} beacon logout. Kunci admin dilepaskan.`);
+      writePersistedAdminLock(null);
       activeAdminSession = null;
       broadcastAdminSessionStatus();
     }
     res.status(204).end();
+  });
+
+  // 0G. Force Logout / Break Stale Session (For Master Lurah)
+  app.post('/api/auth/force-logout', (req, res) => {
+    const { masterPassword } = req.body as { masterPassword?: string };
+    const cleanPass = (masterPassword || '').trim();
+    if (cleanPass !== 'panaikang2026' && cleanPass !== 'admin123' && cleanPass !== 'makassar2026') {
+      res.status(403).json({ ok: false, error: 'Kata sandi otoritas Master Lurah tidak sesuai.' });
+      return;
+    }
+    const prev = getValidActiveAdminSession();
+    writePersistedAdminLock(null);
+    activeAdminSession = null;
+    broadcastAdminSessionStatus();
+    console.log(`[Admin Lock] Sesi admin sebelumnya (${prev?.username || 'unknown'}) diputus paksa.`);
+    res.json({ ok: true, message: 'Sesi admin sebelumnya telah diputus paksa. Slot login sekarang terbuka.' });
   });
 
   app.post('/api/lurah-photo', (req, res) => {

@@ -3195,7 +3195,7 @@
       },
       "createdAt": "01 Jan 2026",
       "updatedAt": "08 Okt 2026",
-      "lastLoginAt": "Hari ini · 11.27 WITA",
+      "lastLoginAt": "Hari ini · 14.01 WITA",
       "notes": "Akun Master Admin / Super Admin Lurah Panaikang dengan otoritas penuh seluruh modul dan pengaturan batasan akses user."
     },
     {
@@ -3237,7 +3237,7 @@
       },
       "createdAt": "05 Jan 2026",
       "updatedAt": "08 Okt 2026",
-      "lastLoginAt": "08 Okt 2026 · 08:40 WITA",
+      "lastLoginAt": "Hari ini · 14.01 WITA",
       "notes": "Mengelola verifikasi administrasi surat menyurat, profil kelurahan, dan publikasi informasi kelurahan."
     },
     {
@@ -3352,6 +3352,23 @@
     }
   ],
   "activityLogs": [
+    {
+      "actorUsername": "lurah",
+      "actorName": "Muthmainnah, SE, MM",
+      "actorJabatan": "Lurah Panaikang · Master / Super Admin · Pimpinan Kelurahan Panaikang",
+      "actorNip": "19880412 201010 1 002",
+      "actorRoleLevel": "master_admin",
+      "actionType": "LOGIN",
+      "module": "AUTENTIKASI",
+      "targetId": "usr-master-lurah",
+      "targetLabel": "Sesi Portal Admin · Muthmainnah, SE, MM (@lurah)",
+      "summary": "Login berhasil ke Panel Admin Kelurahan Panaikang",
+      "details": "Peran: Lurah Panaikang · Master / Super Admin · Pimpinan Kelurahan Panaikang",
+      "severity": "info",
+      "id": "log-act-1793368769370-ag2l",
+      "timestamp": "30 Okt 2026 · 21.59 WITA",
+      "createdAtMs": 1793368769324
+    },
     {
       "actorUsername": "lurah",
       "actorName": "Muthmainnah, SE, MM",
@@ -4461,6 +4478,6 @@
     "off-3",
     "off-4"
   ],
-  "lastModified": "2026-10-28T11:27:14.551Z",
-  "updatedAt": 1793186834551
+  "lastModified": "2026-10-30T14:01:01.479Z",
+  "updatedAt": 1793368861479
 }

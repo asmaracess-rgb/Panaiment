@@ -1,0 +1,359 @@
+{
+  "entities": {
+    "KelurahanProfile": {
+      "title": "KelurahanProfile",
+      "description": "Profil resmi Kelurahan Panaikang mencakup data Lurah, visi, misi, kontak, dan batas wilayah",
+      "type": "object",
+      "properties": {
+        "lurahName": { "type": "string" },
+        "lurahNip": { "type": "string" },
+        "lurahRank": { "type": "string" },
+        "lurahPeriod": { "type": "string" },
+        "lurahMessage": { "type": "string" },
+        "lurahPhotoUrl": { "type": "string" },
+        "sekretarisName": { "type": "string" },
+        "kasiKebersihanName": { "type": "string" },
+        "kasiPemerintahanName": { "type": "string" },
+        "officeAddress": { "type": "string" },
+        "subDistrict": { "type": "string" },
+        "city": { "type": "string" },
+        "postalCode": { "type": "string" },
+        "serviceHours": { "type": "string" },
+        "phoneContact": { "type": "string" },
+        "emailContact": { "type": "string" },
+        "areaKm2": { "type": "string" },
+        "totalRw": { "type": "number" },
+        "totalRt": { "type": "number" },
+        "totalPopulation": { "type": "string" },
+        "visi": { "type": "string" },
+        "misi": { "type": "array" },
+        "boundaries": { "type": "object" },
+        "officials": { "type": "array" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["lurahName", "lurahNip", "officeAddress", "visi", "misi"]
+    },
+    "RwGroup": {
+      "title": "RwGroup",
+      "description": "Data satuan Rukun Warga (RW 01 s/d RW 07) dan daftar RT di Kelurahan Panaikang",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "rwCode": { "type": "string" },
+        "rwName": { "type": "string" },
+        "ketuaRwName": { "type": "string" },
+        "phone": { "type": "string" },
+        "areaDescription": { "type": "string" },
+        "boundaryGeoJson": { "type": "object" },
+        "rtList": { "type": "array" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "rwCode", "rwName", "ketuaRwName"]
+    },
+    "CitizenReport": {
+      "title": "CitizenReport",
+      "description": "Laporan pengaduan warga terkait persampahan dan lingkungan",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ticketCode": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "urgency": { "type": "string" },
+        "status": { "type": "string" },
+        "reporterName": { "type": "string" },
+        "reporterPhone": { "type": "string" },
+        "rw": { "type": "string" },
+        "rt": { "type": "string" },
+        "locationName": { "type": "string" },
+        "mapX": { "type": "number" },
+        "mapY": { "type": "number" },
+        "coordinatesLabel": { "type": "string" },
+        "assignedTeam": { "type": "string" },
+        "responseNote": { "type": "string" },
+        "upvotes": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "updatedAtMs": { "type": "number" }
+      },
+      "required": ["id", "ticketCode", "title", "reporterName", "rw", "rt", "locationName"]
+    },
+    "WasteBankUnit": {
+      "title": "WasteBankUnit",
+      "description": "Bank Sampah Unit (BSU) di wilayah RW",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "rw": { "type": "string" },
+        "unitName": { "type": "string" },
+        "coordinator": { "type": "string" },
+        "phone": { "type": "string" },
+        "nasabahCount": { "type": "number" },
+        "organikKg": { "type": "number" },
+        "anorganikKg": { "type": "number" },
+        "residuKg": { "type": "number" },
+        "operationalDays": { "type": "string" },
+        "operationalHours": { "type": "string" },
+        "address": { "type": "string" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "rw", "unitName", "coordinator"]
+    },
+    "WasteLogEntry": {
+      "title": "WasteLogEntry",
+      "description": "Catatan rekap penimbangan dan log sampah per RW",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "rw": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "organikKg": { "type": "number" },
+        "anorganikKg": { "type": "number" },
+        "residuKg": { "type": "number" },
+        "officerName": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAtMs": { "type": "number" }
+      },
+      "required": ["id", "rw", "organikKg", "anorganikKg", "residuKg"]
+    },
+    "CleanupEvent": {
+      "title": "CleanupEvent",
+      "description": "Kegiatan kerja bakti dan aksi kebersihan lingkungan",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "rw": { "type": "string" },
+        "locationName": { "type": "string" },
+        "targetParticipants": { "type": "number" },
+        "confirmedParticipants": { "type": "number" },
+        "focusActivity": { "type": "string" },
+        "status": { "type": "string" },
+        "leaderName": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "title", "date", "rw", "locationName"]
+    },
+    "KelurahanInfoItem": {
+      "title": "KelurahanInfoItem",
+      "description": "Warta dan pengumuman resmi Kelurahan Panaikang",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "date": { "type": "string" },
+        "author": { "type": "string" },
+        "summary": { "type": "string" },
+        "content": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "isPinned": { "type": "boolean" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "title", "category", "summary"]
+    },
+    "TebaSpot": {
+      "title": "TebaSpot",
+      "description": "Lokasi Titik Teba Pengomposan Organik",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "rw": { "type": "string" },
+        "address": { "type": "string" },
+        "locationTag": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "status": { "type": "string" },
+        "capacityKg": { "type": "number" },
+        "picName": { "type": "string" },
+        "picPhone": { "type": "string" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "name", "rw", "address"]
+    },
+    "BioporiPoint": {
+      "title": "BioporiPoint",
+      "description": "Titik Lubang Resapan Biopori Lingkungan",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "rw": { "type": "string" },
+        "address": { "type": "string" },
+        "locationTag": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "holesCount": { "type": "number" },
+        "depthCm": { "type": "number" },
+        "status": { "type": "string" },
+        "picName": { "type": "string" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "name", "rw", "address"]
+    },
+    "UrbanFarmingSpot": {
+      "title": "UrbanFarmingSpot",
+      "description": "Titik kebun urban farming dan lorong PKK binaan kelurahan",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "rw": { "type": "string" },
+        "address": { "type": "string" },
+        "category": { "type": "string" },
+        "plantTypes": { "type": "array" },
+        "harvestCount": { "type": "number" },
+        "picName": { "type": "string" },
+        "picPhone": { "type": "string" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "name", "rw", "address"]
+    },
+    "SeedRequestItem": {
+      "title": "SeedRequestItem",
+      "description": "Pengajuan bibit tanaman lingkungan oleh warga atau kelompok tani",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "requesterName": { "type": "string" },
+        "phone": { "type": "string" },
+        "rw": { "type": "string" },
+        "rt": { "type": "string" },
+        "seedType": { "type": "string" },
+        "quantity": { "type": "number" },
+        "notes": { "type": "string" },
+        "status": { "type": "string" },
+        "requestDate": { "type": "string" },
+        "createdAtMs": { "type": "number" }
+      },
+      "required": ["id", "requesterName", "phone", "rw", "seedType", "quantity"]
+    },
+    "AdminUserAccount": {
+      "title": "AdminUserAccount",
+      "description": "Akun kredensial dan hak akses administrator kelurahan",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "username": { "type": "string" },
+        "password": { "type": "string" },
+        "fullName": { "type": "string" },
+        "nip": { "type": "string" },
+        "jabatan": { "type": "string" },
+        "unitBidang": { "type": "string" },
+        "roleLevel": { "type": "string" },
+        "isMasterLurah": { "type": "boolean" },
+        "allowedAdminTabs": { "type": "array" },
+        "actionPermissions": { "type": "object" },
+        "lastLoginAt": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "username", "password", "fullName", "roleLevel"]
+    },
+    "AdminActivityLog": {
+      "title": "AdminActivityLog",
+      "description": "Audit trail riwayat aktivitas admin",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "createdAtMs": { "type": "number" },
+        "actorUsername": { "type": "string" },
+        "actorName": { "type": "string" },
+        "actorJabatan": { "type": "string" },
+        "actorNip": { "type": "string" },
+        "actorRoleLevel": { "type": "string" },
+        "actionType": { "type": "string" },
+        "module": { "type": "string" },
+        "targetId": { "type": "string" },
+        "targetLabel": { "type": "string" },
+        "summary": { "type": "string" },
+        "details": { "type": "string" },
+        "severity": { "type": "string" }
+      },
+      "required": ["id", "timestamp", "actorUsername", "actionType", "summary"]
+    },
+    "AdminSessionLock": {
+      "title": "AdminSessionLock",
+      "description": "Kunci sesi live admin tunggal yang terikat waktu heartbeat",
+      "type": "object",
+      "properties": {
+        "token": { "type": "string" },
+        "userId": { "type": "string" },
+        "username": { "type": "string" },
+        "fullName": { "type": "string" },
+        "nip": { "type": "string" },
+        "role": { "type": "string" },
+        "roleLevel": { "type": "string" },
+        "loginAt": { "type": "string" },
+        "lastHeartbeat": { "type": "number" }
+      },
+      "required": ["token", "userId", "username", "lastHeartbeat"]
+    }
+  },
+  "firestore": {
+    "/kelurahan_profiles/{profileId}": {
+      "schema": "#/entities/KelurahanProfile",
+      "description": "Profil tunggal Kelurahan Panaikang"
+    },
+    "/rw_groups/{rwId}": {
+      "schema": "#/entities/RwGroup",
+      "description": "Data RW dan RT"
+    },
+    "/citizen_reports/{reportId}": {
+      "schema": "#/entities/CitizenReport",
+      "description": "Koleksi laporan warga"
+    },
+    "/waste_units/{unitId}": {
+      "schema": "#/entities/WasteBankUnit",
+      "description": "Koleksi Bank Sampah Unit"
+    },
+    "/waste_logs/{logId}": {
+      "schema": "#/entities/WasteLogEntry",
+      "description": "Koleksi catatan timbangan sampah"
+    },
+    "/cleanup_events/{eventId}": {
+      "schema": "#/entities/CleanupEvent",
+      "description": "Koleksi agenda kerja bakti"
+    },
+    "/kelurahan_infos/{infoId}": {
+      "schema": "#/entities/KelurahanInfoItem",
+      "description": "Koleksi pengumuman dan warta"
+    },
+    "/teba_spots/{spotId}": {
+      "schema": "#/entities/TebaSpot",
+      "description": "Koleksi titik lubang teba"
+    },
+    "/biopori_points/{pointId}": {
+      "schema": "#/entities/BioporiPoint",
+      "description": "Koleksi titik biopori"
+    },
+    "/urban_farming_spots/{spotId}": {
+      "schema": "#/entities/UrbanFarmingSpot",
+      "description": "Koleksi titik urban farming"
+    },
+    "/seed_requests/{requestId}": {
+      "schema": "#/entities/SeedRequestItem",
+      "description": "Koleksi pengajuan bibit warga"
+    },
+    "/admin_users/{userId}": {
+      "schema": "#/entities/AdminUserAccount",
+      "description": "Koleksi akun administrator"
+    },
+    "/activity_logs/{logId}": {
+      "schema": "#/entities/AdminActivityLog",
+      "description": "Koleksi log aktivitas administrator"
+    },
+    "/admin_session_locks/{lockId}": {
+      "schema": "#/entities/AdminSessionLock",
+      "description": "Dokumen lock sesi admin aktif tunggal"
+    },
+    "/panaikang_app_data/{docId}": {
+      "schema": "#/entities/KelurahanProfile",
+      "description": "Sinkronisasi realtime snapshot database aplikasi lintas perangkat"
+    }
+  }
+}

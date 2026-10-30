@@ -1,0 +1,102 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Kelurahan Profile: Public read, administrative updates
+    match /kelurahan_profiles/{profileId} {
+      allow read: if true;
+      allow write: if isValidId(profileId);
+    }
+
+    // RW & RT Groups: Public read, administrative management
+    match /rw_groups/{rwId} {
+      allow read: if true;
+      allow write: if isValidId(rwId);
+    }
+
+    // Citizen Reports: Public read, citizens create reports, admin updates/deletes
+    match /citizen_reports/{reportId} {
+      allow read: if true;
+      allow create: if isValidId(reportId) && request.resource.data.title is string;
+      allow update, delete: if isValidId(reportId);
+    }
+
+    // Bank Sampah Units & Logs
+    match /waste_units/{unitId} {
+      allow read: if true;
+      allow write: if isValidId(unitId);
+    }
+
+    match /waste_logs/{logId} {
+      allow read: if true;
+      allow write: if isValidId(logId);
+    }
+
+    // Cleanup Events & Infos
+    match /cleanup_events/{eventId} {
+      allow read: if true;
+      allow write: if isValidId(eventId);
+    }
+
+    match /kelurahan_infos/{infoId} {
+      allow read: if true;
+      allow write: if isValidId(infoId);
+    }
+
+    // Environmental Spots
+    match /teba_spots/{spotId} {
+      allow read: if true;
+      allow write: if isValidId(spotId);
+    }
+
+    match /biopori_points/{pointId} {
+      allow read: if true;
+      allow write: if isValidId(pointId);
+    }
+
+    match /urban_farming_spots/{spotId} {
+      allow read: if true;
+      allow write: if isValidId(spotId);
+    }
+
+    // Seed Requests
+    match /seed_requests/{requestId} {
+      allow read: if true;
+      allow create: if isValidId(requestId) && request.resource.data.requesterName is string;
+      allow update, delete: if isValidId(requestId);
+    }
+
+    // Administrative Accounts & Logs
+    match /admin_users/{userId} {
+      allow read, write: if isValidId(userId);
+    }
+
+    match /activity_logs/{logId} {
+      allow read: if true;
+      allow write: if isValidId(logId);
+    }
+
+    match /admin_session_locks/{lockId} {
+      allow read: if true;
+      allow write: if isValidId(lockId);
+    }
+
+    // Full Application Realtime Sync Document
+    match /panaikang_app_data/{docId} {
+      allow read, write: if isValidId(docId);
+    }
+
+    // Connection testing
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+  }
+}

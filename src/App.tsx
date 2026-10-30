@@ -44,6 +44,12 @@ import {
   ServiceCategoryGroup,
 } from './data/wargaServiceCatalog';
 import {
+  testConnection,
+  subscribeToFirestoreDatabase,
+  pushFullDatabaseToFirestore,
+  seedInitialFirestoreIfEmpty,
+} from './firebase/firestoreService';
+import {
   loadPersistedDatabase,
   savePersistedDatabase,
   smartMergeDatabases,
@@ -294,6 +300,11 @@ export default function App() {
 
       savePersistedDatabase(nextSnapshot);
 
+      // Instantly sync to Firebase Firestore Cloud Database (for permanent cross-device sync)
+      pushFullDatabaseToFirestore(nextSnapshot).catch((err) => {
+        console.warn('[Firestore Sync Notice]', err);
+      });
+
       if (syncServer) {
         fetch('/api/data', {
           method: 'PUT',
@@ -344,12 +355,33 @@ export default function App() {
     setTebaSpots(merged.tebaSpots ?? []);
     setBioporiPoints(merged.bioporiPoints ?? []);
 
+    stateRef.current = {
+      profile: merged.profile,
+      rwGroups: merged.rwGroups,
+      reports: merged.reports,
+      wasteUnits: merged.wasteUnits,
+      wasteLogs: merged.wasteLogs,
+      tebaSpots: merged.tebaSpots ?? [],
+      bioporiPoints: merged.bioporiPoints ?? [],
+      cleanupEvents: merged.cleanupEvents,
+      kelurahanInfos: merged.kelurahanInfos,
+      whatsappRecipients: merged.whatsappRecipients,
+      serviceCatalog: merged.serviceCatalog ?? SERVICE_CATEGORY_GROUPS,
+      adminUsers: merged.adminUsers ?? [],
+      activityLogs: merged.activityLogs ?? [],
+      urbanFarmingSpots: merged.urbanFarmingSpots ?? [],
+      seedRequests: merged.seedRequests ?? [],
+    };
+
     savePersistedDatabase(merged);
   }, []);
 
   // Load and continuously synchronize persistent state between browser and backend in real-time
   useEffect(() => {
     let mounted = true;
+
+    // 0. Test Firestore Cloud connection and subscribe to live changes
+    testConnection();
 
     // 1. Immediately hydrate all React state from localStorage to ensure zero flash & instant user data availability
     const initialLocal = loadPersistedDatabase();
@@ -371,7 +403,41 @@ export default function App() {
       if (initialLocal.bioporiPoints) setBioporiPoints(initialLocal.bioporiPoints);
     }
 
-    // 2. Fetch server database snapshot
+    // Seed Firestore if this is the first deployment
+    seedInitialFirestoreIfEmpty(
+      initialLocal || {
+        profile: INITIAL_KELURAHAN_PROFILE,
+        rwGroups: INITIAL_RW_GROUPS,
+        reports: INITIAL_REPORTS,
+        wasteUnits: INITIAL_WASTE_UNITS,
+        wasteLogs: INITIAL_WASTE_LOGS,
+        tebaSpots: INITIAL_TEBA_SPOTS,
+        bioporiPoints: INITIAL_BIOPORI_POINTS,
+        cleanupEvents: INITIAL_CLEANUP_EVENTS,
+        kelurahanInfos: INITIAL_KELURAHAN_INFOS,
+        whatsappRecipients: INITIAL_WHATSAPP_RECIPIENTS,
+        serviceCatalog: SERVICE_CATEGORY_GROUPS,
+        adminUsers: INITIAL_ADMIN_USERS,
+        activityLogs: INITIAL_ACTIVITY_LOGS,
+        urbanFarmingSpots: INITIAL_URBAN_FARMING_SPOTS,
+        seedRequests: INITIAL_SEED_REQUESTS,
+        deletedItemIds: [],
+        updatedAt: Date.now(),
+      }
+    );
+
+    // 2. Real-time Firestore Subscription (instant push across all devices/smartphones/computers)
+    const unsubscribeFirestore = subscribeToFirestoreDatabase(
+      (firestoreDb) => {
+        if (!mounted || !firestoreDb) return;
+        applyRemoteDatabase(firestoreDb);
+      },
+      (err) => {
+        console.warn('[Firestore] Realtime subscription notice:', err.message);
+      }
+    );
+
+    // 3. Fetch server database snapshot as resilient backup
     const syncFromServer = async () => {
       try {
         const res = await fetch('/api/data', { cache: 'no-store' });
@@ -384,7 +450,7 @@ export default function App() {
 
     syncFromServer();
 
-    // 3. Connect to Server-Sent Events (SSE) for instant live push whenever any admin updates data
+    // 4. Connect to Server-Sent Events (SSE) for instant live push whenever any admin updates data
     let es: EventSource | null = null;
     let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -408,6 +474,13 @@ export default function App() {
             if (parsed?.data && mounted) {
               applyRemoteDatabase(parsed.data);
             }
+          } catch {}
+        });
+
+        es.addEventListener('admin_session', (e) => {
+          try {
+            const parsed = JSON.parse(e.data);
+            window.dispatchEvent(new CustomEvent('pnk_admin_session_sse', { detail: parsed }));
           } catch {}
         });
 
@@ -476,6 +549,7 @@ export default function App() {
 
     return () => {
       mounted = false;
+      unsubscribeFirestore();
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
       if (es) es.close();
       window.clearInterval(pollInterval);
