@@ -127,6 +127,14 @@ import {
   ServiceCategoryGroup,
 } from '../data/wargaServiceCatalog';
 import { recordDeletedItemId } from '../utils/persistentStorage';
+import {
+  getFirestoreSessionStatus,
+  subscribeToFirestoreSessionLock,
+  loginWithFirestore,
+  heartbeatFirestore,
+  logoutFirestore,
+  forceLogoutFirestore,
+} from '../firebase/adminAuthService';
 
 interface AdminSession {
   token: string;
@@ -395,6 +403,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   const [isTakingOver, setIsTakingOver] = useState(false);
 
   const checkSessionStatus = React.useCallback(async () => {
+    let handledByServer = false;
     try {
       const url = adminSession?.token
         ? `/api/auth/session-status?token=${encodeURIComponent(adminSession.token)}`
@@ -407,6 +416,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       if (res.ok && contentType.includes('application/json')) {
         const json = await res.json();
         if (json?.ok) {
+          handledByServer = true;
           setActiveAdminLockInfo({
             isLocked: Boolean(json.isLocked),
             activeAdmin: json.activeAdmin || null,
@@ -439,6 +449,37 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       }
     } catch {}
 
+    // Resilient fallback to Firebase Firestore cloud lock (works seamlessly on Vercel/Static/Multi-device)
+    if (!handledByServer) {
+      try {
+        const firestoreStatus = await getFirestoreSessionStatus();
+        setActiveAdminLockInfo({
+          isLocked: firestoreStatus.isLocked,
+          activeAdmin: firestoreStatus.activeAdmin || null,
+        });
+        if (adminSession?.token) {
+          if (firestoreStatus.isLocked && firestoreStatus.activeToken !== adminSession.token) {
+            sessionStorage.removeItem('pnk_admin_session');
+            localStorage.removeItem('pnk_active_admin_session_lock');
+            setAdminSession(null);
+            setLoginError(
+              `Sesi Administrator Anda telah dialihkan karena admin "${
+                firestoreStatus.activeAdmin?.fullName || 'lain'
+              }" sedang aktif di perangkat lain.`
+            );
+            return;
+          } else if (!firestoreStatus.isLocked) {
+            sessionStorage.removeItem('pnk_admin_session');
+            localStorage.removeItem('pnk_active_admin_session_lock');
+            setAdminSession(null);
+            setLoginError('Sesi Administrator Anda telah berakhir. Silakan login kembali.');
+            return;
+          }
+        }
+        return;
+      } catch {}
+    }
+
     // Fallback: Check localStorage lock if server unreachable
     try {
       const raw = localStorage.getItem('pnk_active_admin_session_lock');
@@ -470,8 +511,33 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     }
   }, [adminSession?.token]);
 
-  // Listen to SSE real-time admin session broadcasts
+  // Listen to Firestore real-time session lock and SSE broadcasts
   useEffect(() => {
+    const unsubFirestore = subscribeToFirestoreSessionLock((status) => {
+      setActiveAdminLockInfo({
+        isLocked: status.isLocked,
+        activeAdmin: status.activeAdmin || null,
+      });
+
+      if (adminSession?.token) {
+        if (!status.isLocked) {
+          sessionStorage.removeItem('pnk_admin_session');
+          localStorage.removeItem('pnk_active_admin_session_lock');
+          setAdminSession(null);
+          setLoginError('Sesi Administrator Anda telah berakhir.');
+        } else if (status.activeToken && status.activeToken !== adminSession.token) {
+          sessionStorage.removeItem('pnk_admin_session');
+          localStorage.removeItem('pnk_active_admin_session_lock');
+          setAdminSession(null);
+          setLoginError(
+            `Sesi login Anda telah dialihkan karena Administrator "${
+              status.activeAdmin?.fullName || 'lain'
+            }" masuk dari perangkat lain.`
+          );
+        }
+      }
+    });
+
     const handleSseSession = (e: Event) => {
       const customEvent = e as CustomEvent;
       const detail = customEvent.detail;
@@ -503,6 +569,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
     window.addEventListener('pnk_admin_session_sse', handleSseSession);
     return () => {
+      unsubFirestore();
       window.removeEventListener('pnk_admin_session_sse', handleSseSession);
     };
   }, [adminSession?.token]);
@@ -552,7 +619,12 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         }
       } catch {}
 
-      // 2. Also keep local storage lock heartbeat updated for static/live web resilience
+      // 2. Also keep Firebase Firestore cloud lock heartbeat updated
+      try {
+        await heartbeatFirestore(adminSession.token);
+      } catch {}
+
+      // 3. Also keep local storage lock heartbeat updated for static/live web resilience
       try {
         const raw = localStorage.getItem('pnk_active_admin_session_lock');
         if (raw) {
@@ -566,6 +638,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     }, 5000);
 
     const handleBeforeUnload = () => {
+      logoutFirestore(adminSession.token).catch(() => {});
       if (navigator.sendBeacon && adminSession.token) {
         navigator.sendBeacon(
           '/api/auth/beacon-logout',
@@ -1216,6 +1289,52 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
     setIsLoggingIn(true);
 
+    const applySuccessfulSession = (sessionData: AdminSession) => {
+      setAdminSession(sessionData);
+      sessionStorage.setItem('pnk_admin_session', JSON.stringify(sessionData));
+      try {
+        localStorage.setItem(
+          'pnk_active_admin_session_lock',
+          JSON.stringify({
+            token: sessionData.token,
+            userId: sessionData.userId,
+            username: sessionData.username,
+            fullName: sessionData.fullName,
+            role: sessionData.role,
+            roleLevel: sessionData.roleLevel,
+            loginAt: sessionData.loginAt,
+            lastHeartbeat: Date.now(),
+          })
+        );
+      } catch {}
+      setLoginPassword('');
+      checkSessionStatus();
+      recordAudit({
+        actionType: 'LOGIN',
+        module: 'AUTENTIKASI',
+        targetId: sessionData.userId,
+        targetLabel: `Sesi Portal Admin · ${sessionData.fullName} (@${sessionData.username})`,
+        summary: `Login berhasil ke Panel Admin Kelurahan Panaikang`,
+        details: `Peran: ${sessionData.role}`,
+        severity: 'info',
+        overrideActor: {
+          username: sessionData.username,
+          fullName: sessionData.fullName,
+          jabatan: sessionData.role,
+          nip: sessionData.nip,
+          roleLevel: sessionData.roleLevel,
+        },
+      });
+      if (
+        Array.isArray(sessionData.allowedAdminTabs) &&
+        sessionData.allowedAdminTabs.length > 0 &&
+        !sessionData.allowedAdminTabs.includes(activeTab)
+      ) {
+        setActiveTab(sessionData.allowedAdminTabs[0]);
+      }
+    };
+
+    // 1. First attempt login via server API
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
@@ -1255,62 +1374,36 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
         // If server authenticated successfully
         if (res.ok && json.ok && json.session) {
-          const sessionData: AdminSession = json.session;
-          setAdminSession(sessionData);
-          sessionStorage.setItem('pnk_admin_session', JSON.stringify(sessionData));
-          try {
-            localStorage.setItem(
-              'pnk_active_admin_session_lock',
-              JSON.stringify({
-                token: sessionData.token,
-                userId: sessionData.userId,
-                username: sessionData.username,
-                fullName: sessionData.fullName,
-                role: sessionData.role,
-                roleLevel: sessionData.roleLevel,
-                loginAt: sessionData.loginAt,
-                lastHeartbeat: Date.now(),
-              })
-            );
-          } catch {}
-          setLoginPassword('');
-          checkSessionStatus();
-          recordAudit({
-            actionType: 'LOGIN',
-            module: 'AUTENTIKASI',
-            targetId: sessionData.userId,
-            targetLabel: `Sesi Portal Admin · ${sessionData.fullName} (@${sessionData.username})`,
-            summary: `Login berhasil ke Panel Admin Kelurahan Panaikang`,
-            details: `Peran: ${sessionData.role}`,
-            severity: 'info',
-            overrideActor: {
-              username: sessionData.username,
-              fullName: sessionData.fullName,
-              jabatan: sessionData.role,
-              nip: sessionData.nip,
-              roleLevel: sessionData.roleLevel,
-            },
-          });
-          if (
-            Array.isArray(sessionData.allowedAdminTabs) &&
-            sessionData.allowedAdminTabs.length > 0 &&
-            !sessionData.allowedAdminTabs.includes(activeTab)
-          ) {
-            setActiveTab(sessionData.allowedAdminTabs[0]);
-          }
+          applySuccessfulSession(json.session);
           return;
         }
-      } else {
-        setIsLoggingIn(false);
-        setLoginError('Respon server tidak valid. Silakan coba kembali.');
-        return;
       }
     } catch {
+      // Server unreachable, fallback directly to Firestore cloud auth
+    }
+
+    // 2. Resilient Firestore Cloud Authentication & Lock (works seamlessly on Vercel, static preview, or offline)
+    try {
+      const fsResult = await loginWithFirestore(cleanUser, cleanPass, adminUsers);
       setIsLoggingIn(false);
-      setLoginError(
-        'Gagal menghubungi server untuk memvalidasi sesi tunggal admin. Pastikan perangkat Anda terhubung ke jaringan internet.'
-      );
-      return;
+      if (!fsResult.ok) {
+        if (fsResult.isLocked) {
+          setActiveAdminLockInfo({
+            isLocked: true,
+            activeAdmin: fsResult.activeAdmin || null,
+          });
+        }
+        setLoginError(fsResult.error || 'Username/NIP atau kata sandi tidak valid.');
+        return;
+      }
+      if (fsResult.session) {
+        applySuccessfulSession(fsResult.session as AdminSession);
+        return;
+      }
+    } catch (fsErr) {
+      setIsLoggingIn(false);
+      console.error('[Auth] Firestore auth error:', fsErr);
+      setLoginError('Gagal memvalidasi login admin. Pastikan perangkat Anda terhubung ke jaringan internet.');
     }
   };
 
@@ -1318,32 +1411,49 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     e.preventDefault();
     setTakeoverError('');
     if (!takeoverPassword.trim()) {
-      setTakeoverError('Masukkan kata sandi master Lurah (panaikang2026).');
+      setTakeoverError('Masukkan kata sandi otoritas Master Lurah.');
       return;
     }
     setIsTakingOver(true);
+    let handled = false;
+
     try {
       const res = await fetch('/api/auth/force-logout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ masterPassword: takeoverPassword.trim() }),
       });
-      const json = await res.json().catch(() => ({}));
-      setIsTakingOver(false);
-      if (res.ok && json.ok) {
-        setShowTakeoverModal(false);
-        setTakeoverPassword('');
-        setActiveAdminLockInfo({ isLocked: false, activeAdmin: null });
-        setLoginError(
-          'Sesi admin sebelumnya di perangkat lain telah diputus paksa. Slot login sekarang terbuka. Silakan login kembali.'
-        );
-        checkSessionStatus();
-      } else {
-        setTakeoverError(json.error || 'Kata sandi master salah.');
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const json = await res.json().catch(() => ({}));
+        if (res.ok && json.ok) {
+          handled = true;
+        }
       }
-    } catch {
-      setIsTakingOver(false);
-      setTakeoverError('Gagal menghubungi server untuk memutus sesi.');
+    } catch {}
+
+    try {
+      const fsRes = await forceLogoutFirestore(takeoverPassword.trim());
+      if (fsRes.ok) {
+        handled = true;
+      } else if (!handled) {
+        setIsTakingOver(false);
+        setTakeoverError(fsRes.error || 'Kata sandi master salah.');
+        return;
+      }
+    } catch {}
+
+    setIsTakingOver(false);
+    if (handled) {
+      setShowTakeoverModal(false);
+      setTakeoverPassword('');
+      setActiveAdminLockInfo({ isLocked: false, activeAdmin: null });
+      setLoginError(
+        'Sesi admin sebelumnya di perangkat lain telah diputus paksa. Slot login sekarang terbuka. Silakan login kembali.'
+      );
+      checkSessionStatus();
+    } else {
+      setTakeoverError('Kata sandi master Lurah tidak sesuai.');
     }
   };
 
@@ -1355,9 +1465,14 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token }),
       });
-    } catch {
-      // ignore
-    }
+    } catch {}
+
+    try {
+      if (token) {
+        await logoutFirestore(token);
+      }
+    } catch {}
+
     try {
       const rawLock = localStorage.getItem('pnk_active_admin_session_lock');
       if (rawLock) {
@@ -3374,7 +3489,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                         type="password"
                         value={takeoverPassword}
                         onChange={(e) => setTakeoverPassword(e.target.value)}
-                        placeholder="Masukkan sandi (panaikang2026)"
+                        placeholder="Masukkan kata sandi otoritas Lurah"
                         className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:border-rose-600 focus:outline-none"
                       />
                     </div>
@@ -3400,13 +3515,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               </div>
             )}
 
-            <div className="mt-5 pt-4 border-t border-slate-100 text-center space-y-1.5">
+            <div className="mt-5 pt-4 border-t border-slate-100 text-center">
               <p className="text-[11px] text-slate-500 font-medium">
-                Akses terbatas khusus Pejabat Struktural & Operator Resmi Pemerintah Kelurahan
-                Panaikang.
-              </p>
-              <p className="text-[10px] text-slate-400">
-                Akun Master: <span className="font-mono text-slate-600 font-semibold">lurah</span> / <span className="font-mono text-slate-600 font-semibold">admin</span> · Sandi: <span className="font-mono text-slate-600 font-semibold">panaikang2026</span>
+                Akses terbatas khusus Pejabat Struktural & Operator Resmi Pemerintah Kelurahan Panaikang.
               </p>
             </div>
           </div>
