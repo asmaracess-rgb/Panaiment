@@ -1,6 +1,9 @@
 import {
   doc,
+  getDoc,
+  setDoc,
   deleteDoc,
+  onSnapshot,
   Unsubscribe,
 } from 'firebase/firestore';
 import { db } from './config';
@@ -24,47 +27,122 @@ export interface ActiveAdminSessionData {
 }
 
 const LOCK_DOC_REF = doc(db, 'admin_session_locks', 'active_lock');
+const LOCK_TIMEOUT_MS = 40000; // 40 seconds timeout for stale lock detection
 
 /**
- * Returns session lock status - multi-device access enabled, never locked.
- * Also automatically cleans up any stale lock document in Firestore.
+ * Reads the active single-admin occupancy lock from Firebase Firestore
  */
 export async function getFirestoreSessionStatus(): Promise<{
   isLocked: boolean;
-  activeAdmin: null;
-  activeToken: null;
+  activeAdmin: {
+    userId: string;
+    username: string;
+    fullName: string;
+    nip?: string;
+    role: string;
+    roleLevel?: string;
+    loginAt: string;
+  } | null;
+  activeToken: string | null;
 }> {
   try {
-    // Delete any stale single-admin lock so it never blocks any user
-    await deleteDoc(LOCK_DOC_REF);
-  } catch {}
-  return { isLocked: false, activeAdmin: null, activeToken: null };
+    const snap = await getDoc(LOCK_DOC_REF);
+    if (!snap.exists()) {
+      return { isLocked: false, activeAdmin: null, activeToken: null };
+    }
+    const data = snap.data() as ActiveAdminSessionData;
+    const now = Date.now();
+    const age = now - (data.lastHeartbeat || 0);
+
+    if (age > LOCK_TIMEOUT_MS) {
+      // Stale lock from closed window or lost connection
+      try {
+        await deleteDoc(LOCK_DOC_REF);
+      } catch {}
+      return { isLocked: false, activeAdmin: null, activeToken: null };
+    }
+
+    return {
+      isLocked: true,
+      activeAdmin: {
+        userId: data.userId,
+        username: data.username,
+        fullName: data.fullName,
+        nip: data.nip,
+        role: data.role,
+        roleLevel: data.roleLevel,
+        loginAt: data.loginAt,
+      },
+      activeToken: data.token,
+    };
+  } catch (err) {
+    console.warn('[Firestore Lock] Notice saat memeriksa status kunci sesi:', err);
+    return { isLocked: false, activeAdmin: null, activeToken: null };
+  }
 }
 
 /**
- * Realtime listener for session lock - always broadcasts unlocked for multi-device support
+ * Real-time listener for the single-admin occupancy lock in Firestore
  */
 export function subscribeToFirestoreSessionLock(
   onChange: (status: {
     isLocked: boolean;
-    activeAdmin: null;
-    activeToken: null;
+    activeAdmin: {
+      userId: string;
+      username: string;
+      fullName: string;
+      nip?: string;
+      role: string;
+      roleLevel?: string;
+      loginAt: string;
+    } | null;
+    activeToken: string | null;
   }) => void
 ): Unsubscribe {
-  // Always immediately notify that the system allows concurrent admin logins
-  onChange({ isLocked: false, activeAdmin: null, activeToken: null });
-  // Also clean up any lingering lock document
-  deleteDoc(LOCK_DOC_REF).catch(() => {});
-  return () => {};
+  return onSnapshot(
+    LOCK_DOC_REF,
+    (snap) => {
+      if (!snap.exists()) {
+        onChange({ isLocked: false, activeAdmin: null, activeToken: null });
+        return;
+      }
+      const data = snap.data() as ActiveAdminSessionData;
+      const now = Date.now();
+      const age = now - (data.lastHeartbeat || 0);
+
+      if (age > LOCK_TIMEOUT_MS) {
+        onChange({ isLocked: false, activeAdmin: null, activeToken: null });
+        return;
+      }
+
+      onChange({
+        isLocked: true,
+        activeAdmin: {
+          userId: data.userId,
+          username: data.username,
+          fullName: data.fullName,
+          nip: data.nip,
+          role: data.role,
+          roleLevel: data.roleLevel,
+          loginAt: data.loginAt,
+        },
+        activeToken: data.token,
+      });
+    },
+    (err) => {
+      console.warn('[Firestore Lock] Realtime listener notice:', err);
+    }
+  );
 }
 
 /**
- * Authenticates administrator credentials with support for multiple concurrent devices
+ * Authenticates administrator credentials and enforces strict single-admin occupancy
  */
 export async function loginWithFirestore(
   usernameInput: string,
   passwordInput: string,
-  registeredUsers?: AdminUserAccount[]
+  registeredUsers?: AdminUserAccount[],
+  forceTakeover = false
 ): Promise<{
   ok: boolean;
   error?: string;
@@ -76,12 +154,7 @@ export async function loginWithFirestore(
   const cleanNip = cleanUser.replace(/\s+/g, '');
   const cleanPass = (passwordInput || '').trim();
 
-  // Clean up any stale single-admin lock in Firestore
-  try {
-    await deleteDoc(LOCK_DOC_REF);
-  } catch {}
-
-  // Resolve admin users
+  // 1. Resolve user credentials
   const users = Array.isArray(registeredUsers) && registeredUsers.length > 0
     ? registeredUsers
     : INITIAL_ADMIN_USERS;
@@ -123,7 +196,22 @@ export async function loginWithFirestore(
     };
   }
 
-  // Generate robust multi-device admin session
+  // 2. Strict Single-Admin Live Check
+  const lockStatus = await getFirestoreSessionStatus();
+  if (lockStatus.isLocked && lockStatus.activeAdmin) {
+    const canForce = Boolean(forceTakeover) && isMaster;
+    if (!canForce) {
+      return {
+        ok: false,
+        isLocked: true,
+        activeAdmin: lockStatus.activeAdmin,
+        error: `Akses ditolak: Administrator "${lockStatus.activeAdmin.fullName}" (@${lockStatus.activeAdmin.username}) sedang aktif di perangkat lain sejak ${lockStatus.activeAdmin.loginAt}. Sistem Satu Data Panaikang hanya mengizinkan 1 admin online dalam satu waktu demi konsistensi data.`,
+      };
+    }
+    console.log(`[Firestore Lock] Master Lurah mengambil alih sesi tunggal dari ${lockStatus.activeAdmin.username}`);
+  }
+
+  // 3. Grant session and record lock
   const now = new Date();
   const timeStr = now.toLocaleDateString('id-ID', {
     day: '2-digit',
@@ -143,13 +231,19 @@ export async function loginWithFirestore(
     nip: matchedUser.nip,
     role: `${matchedUser.jabatan} · ${matchedUser.unitBidang}`,
     roleLevel: matchedUser.roleLevel,
-    isMasterLurah: Boolean(matchedUser.isMasterLurah || matchedUser.roleLevel === 'master_admin'),
+    isMasterLurah: isMaster,
     allowedAdminTabs: matchedUser.allowedAdminTabs,
     allowedServiceCategories: matchedUser.allowedServiceCategories,
     actionPermissions: matchedUser.actionPermissions,
     loginAt: timeStr,
     lastHeartbeat: Date.now(),
   };
+
+  try {
+    await setDoc(LOCK_DOC_REF, sessionData);
+  } catch (err) {
+    console.error('[Firestore Lock] Gagal menyimpan sesi admin di Firestore:', err);
+  }
 
   return {
     ok: true,
@@ -158,27 +252,54 @@ export async function loginWithFirestore(
 }
 
 /**
- * Heartbeat confirmation - always returns true to keep current device session active
+ * Renews the single-admin occupancy lock in Firestore
+ * Returns false if the session was taken over by another admin
  */
-export async function heartbeatFirestore(_token: string): Promise<boolean> {
-  return true;
+export async function heartbeatFirestore(token: string): Promise<boolean> {
+  try {
+    const snap = await getDoc(LOCK_DOC_REF);
+    if (!snap.exists()) return false;
+    const data = snap.data() as ActiveAdminSessionData;
+    if (data.token === token) {
+      await setDoc(LOCK_DOC_REF, { ...data, lastHeartbeat: Date.now() }, { merge: true });
+      return true;
+    }
+    return false;
+  } catch {
+    return true; // Keep local session alive during momentary network hiccups
+  }
 }
 
 /**
- * Releases session
+ * Releases the single-admin occupancy lock upon intentional logout
  */
-export async function logoutFirestore(_token?: string): Promise<void> {
+export async function logoutFirestore(token?: string): Promise<void> {
   try {
-    await deleteDoc(LOCK_DOC_REF);
-  } catch {}
+    const snap = await getDoc(LOCK_DOC_REF);
+    if (snap.exists()) {
+      const data = snap.data() as ActiveAdminSessionData;
+      if (!token || data.token === token) {
+        await deleteDoc(LOCK_DOC_REF);
+      }
+    }
+  } catch (err) {
+    console.warn('[Firestore Lock] Notice saat melepaskan kunci sesi:', err);
+  }
 }
 
 /**
- * Force unlock utility
+ * Force-releases stale or forgotten session for Master Lurah
  */
-export async function forceLogoutFirestore(_masterPassword?: string): Promise<{ ok: boolean; error?: string }> {
+export async function forceLogoutFirestore(masterPassword?: string): Promise<{ ok: boolean; error?: string }> {
+  const cleanPass = (masterPassword || '').trim();
+  const validPass = cleanPass === 'panaikang2026' || cleanPass === 'admin123' || cleanPass === 'makassar2026';
+  if (!validPass) {
+    return { ok: false, error: 'Kata sandi otoritas Master Lurah tidak sesuai.' };
+  }
   try {
     await deleteDoc(LOCK_DOC_REF);
-  } catch {}
-  return { ok: true };
+    return { ok: true };
+  } catch {
+    return { ok: false, error: 'Gagal memutus sesi admin di Firestore.' };
+  }
 }

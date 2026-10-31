@@ -48,6 +48,8 @@ import {
   subscribeToFirestoreDatabase,
   pushFullDatabaseToFirestore,
   seedInitialFirestoreIfEmpty,
+  pushProfileToFirestore,
+  subscribeToFirestoreProfile,
 } from './firebase/firestoreService';
 import {
   loadPersistedDatabase,
@@ -437,20 +439,22 @@ export default function App() {
       }
     );
 
-    // 3. Fetch server database snapshot as resilient backup
-    const syncFromServer = async () => {
-      try {
-        const res = await fetch('/api/data', { cache: 'no-store' });
-        if (!res.ok) return;
-        const payload = await res.json();
-        if (!mounted || !payload?.ok || !payload.data) return;
-        applyRemoteDatabase(payload.data as Partial<PersistedDatabase>);
-      } catch {}
-    };
+    // 2B. Dedicated Real-time Firestore Profile Subscription (guarantees profile identical everywhere)
+    const unsubscribeProfile = subscribeToFirestoreProfile((cloudProfile) => {
+      if (!mounted || !cloudProfile) return;
+      setKelurahanProfile((prev) => ({ ...prev, ...cloudProfile }));
+      stateRef.current.profile = { ...stateRef.current.profile, ...cloudProfile };
+      const local = loadPersistedDatabase();
+      if (local) {
+        savePersistedDatabase({
+          ...local,
+          profile: { ...local.profile, ...cloudProfile },
+          updatedAt: Date.now(),
+        });
+      }
+    });
 
-    syncFromServer();
-
-    // 4. Connect to Server-Sent Events (SSE) for instant live push whenever any admin updates data
+    // 3. Connect to Server-Sent Events (SSE) for instant live push whenever any admin updates data
     let es: EventSource | null = null;
     let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -508,18 +512,6 @@ export default function App() {
 
     initEventSource();
 
-    // Cross-device synchronization on window focus / tab visibility
-    const handleFocusOrVisible = () => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        syncFromServer();
-      }
-    };
-    window.addEventListener('focus', handleFocusOrVisible);
-    document.addEventListener('visibilitychange', handleFocusOrVisible);
-
-    // Continuous resilient gentle background poll (every 5 seconds) as fallback
-    const pollInterval = window.setInterval(syncFromServer, 5000);
-
     // Cross-tab synchronization listener
     const handleStorageUpdate = (e: StorageEvent) => {
       if ((e.key === 'pnk_smart_env_db_v3' || e.key === 'pnk_smart_env_db_backup_v3') && e.newValue) {
@@ -550,11 +542,9 @@ export default function App() {
     return () => {
       mounted = false;
       unsubscribeFirestore();
+      unsubscribeProfile();
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
       if (es) es.close();
-      window.clearInterval(pollInterval);
-      window.removeEventListener('focus', handleFocusOrVisible);
-      document.removeEventListener('visibilitychange', handleFocusOrVisible);
       window.removeEventListener('storage', handleStorageUpdate);
     };
   }, [applyRemoteDatabase]);
@@ -733,6 +723,9 @@ export default function App() {
     };
     setKelurahanProfile(nextProfile);
     commitPersistence({ profile: nextProfile });
+    pushProfileToFirestore(nextProfile).catch((err) => {
+      console.warn('[Firestore] Gagal update profil ke cloud:', err);
+    });
 
     try {
       const response = await fetch('/api/profile', {

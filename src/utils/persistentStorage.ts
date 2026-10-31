@@ -271,16 +271,16 @@ export function smartMergeDatabases(
         })
       : baseRw;
 
-  // 2. Resolve Profile
+  // 2. Resolve Profile - Prioritize Cloud Firestore Database so all devices always share the exact same profile data
   const baseProfile = localDb?.profile || INITIAL_KELURAHAN_PROFILE;
   const incProfile = incoming?.profile;
-  const sourceProfile = localIsNewer && localDb?.profile ? localDb.profile : (incProfile || baseProfile);
+  const sourceProfile = incProfile && incProfile.lurahName ? incProfile : (localDb?.profile || baseProfile);
 
   const resolvedOfficials = (
-    localIsNewer && Array.isArray(localDb?.profile?.officials)
-      ? localDb!.profile!.officials
-      : (Array.isArray(incProfile?.officials)
-          ? incProfile!.officials
+    Array.isArray(incProfile?.officials) && incProfile!.officials.length > 0
+      ? incProfile!.officials
+      : (Array.isArray(localDb?.profile?.officials)
+          ? localDb!.profile!.officials
           : (Array.isArray(baseProfile?.officials) ? baseProfile.officials : []))
   ).filter((o) => o && o.id && !deletedIds.has(o.id));
 

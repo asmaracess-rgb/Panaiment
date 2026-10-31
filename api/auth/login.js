@@ -1,3 +1,6 @@
+import fs from 'fs';
+import path from 'path';
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -17,7 +20,13 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { username, password } = typeof req.body === 'string'
+  const {
+    username,
+    password,
+    clientToken,
+    forceTakeover,
+    masterPassphrase,
+  } = typeof req.body === 'string'
     ? JSON.parse(req.body || '{}')
     : (req.body || {});
 
@@ -132,12 +141,57 @@ export default async function handler(req, res) {
     const uName = a.username.toLowerCase();
     const uNip = (a.nip || '').replace(/\s+/g, '').toLowerCase();
     return uName === cleanUser || uNip === cleanNip || isMasterAlias;
-  }) || ADMIN_ACCOUNTS[0]; // Fallback to master admin structure
+  }) || ADMIN_ACCOUNTS[0];
 
   const validPasswords = ['panaikang2026', 'admin123', 'makassar2026'];
   if (!validPasswords.includes(cleanPass)) {
     res.status(401).json({ ok: false, error: 'Kata sandi tidak sesuai. Silakan coba kembali.' });
     return;
+  }
+
+  // STRICT SINGLE-ADMIN OCCUPANCY LOCK CHECK
+  const lockFile = path.join('/tmp', 'admin_session_lock.json');
+  let currentLock = null;
+
+  try {
+    if (fs.existsSync(lockFile)) {
+      const raw = fs.readFileSync(lockFile, 'utf8');
+      const parsed = JSON.parse(raw);
+      if (parsed && (Date.now() - (parsed.lastHeartbeat || 0) < 40000)) {
+        currentLock = parsed;
+      } else {
+        try { fs.unlinkSync(lockFile); } catch {}
+      }
+    }
+  } catch {}
+
+  if (currentLock) {
+    const isSameToken = Boolean(clientToken && clientToken === currentLock.token);
+    if (!isSameToken) {
+      const isMaster = Boolean(matched.isMasterLurah || matched.roleLevel === 'master_admin');
+      const canForce =
+        Boolean(forceTakeover) &&
+        (isMaster ||
+          cleanPass === 'panaikang2026' ||
+          (masterPassphrase && ['panaikang2026', 'admin123'].includes(masterPassphrase.trim())));
+
+      if (!canForce) {
+        res.status(409).json({
+          ok: false,
+          isLocked: true,
+          activeAdmin: {
+            userId: currentLock.userId,
+            username: currentLock.username,
+            fullName: currentLock.fullName,
+            role: currentLock.role,
+            roleLevel: currentLock.roleLevel,
+            loginAt: currentLock.loginAt,
+          },
+          error: `Saat ini akun Administrator "${currentLock.fullName}" (@${currentLock.username}) sedang aktif di perangkat lain sejak ${currentLock.loginAt}. Demi keamanan dan konsistensi data Satu Data Panaikang, hanya 1 admin yang dapat online dalam waktu bersamaan. Admin tersebut harus melakukan Logout terlebih dahulu sebelum admin lain dapat masuk.`,
+        });
+        return;
+      }
+    }
   }
 
   const now = new Date();
@@ -166,6 +220,10 @@ export default async function handler(req, res) {
     loginAt: timeStr,
     lastHeartbeat: Date.now(),
   };
+
+  try {
+    fs.writeFileSync(lockFile, JSON.stringify(sessionData, null, 2), 'utf8');
+  } catch {}
 
   res.status(200).json({ ok: true, session: sessionData });
 }

@@ -51,6 +51,7 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowRight,
+  Cloud,
 } from 'lucide-react';
 import {
   AppView,
@@ -126,13 +127,15 @@ import {
   SERVICE_CATEGORY_GROUPS,
   ServiceCategoryGroup,
 } from '../data/wargaServiceCatalog';
-import { recordDeletedItemId } from '../utils/persistentStorage';
+import { recordDeletedItemId, PersistedDatabase } from '../utils/persistentStorage';
+import { pushFullDatabaseToFirestore } from '../firebase/firestoreService';
 import {
   getFirestoreSessionStatus,
   subscribeToFirestoreSessionLock,
   loginWithFirestore,
   heartbeatFirestore,
   logoutFirestore,
+  forceLogoutFirestore,
 } from '../firebase/adminAuthService';
 
 interface AdminSession {
@@ -396,12 +399,37 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     } | null;
   }>({ isLocked: false, activeAdmin: null });
 
+  const [showTakeoverModal, setShowTakeoverModal] = useState(false);
+  const [takeoverPassword, setTakeoverPassword] = useState('');
+  const [takeoverError, setTakeoverError] = useState('');
+  const [isTakingOver, setIsTakingOver] = useState(false);
+
   const checkSessionStatus = React.useCallback(async () => {
-    // Multi-device access: always keep panel unlocked
-    setActiveAdminLockInfo({ isLocked: false, activeAdmin: null });
+    try {
+      const res = await fetch('/api/auth/session-status', { cache: 'no-store' });
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        const json = await res.json();
+        if (json?.ok) {
+          setActiveAdminLockInfo({
+            isLocked: Boolean(json.isLocked),
+            activeAdmin: json.activeAdmin || null,
+          });
+          return;
+        }
+      }
+    } catch {}
+
+    try {
+      const fsStatus = await getFirestoreSessionStatus();
+      setActiveAdminLockInfo({
+        isLocked: fsStatus.isLocked,
+        activeAdmin: fsStatus.activeAdmin || null,
+      });
+    } catch {}
   }, []);
 
-  // Listen to Firestore updates without kicking out active admin sessions
+  // Listen to Firestore updates for real-time lock indication
   useEffect(() => {
     const unsubFirestore = subscribeToFirestoreSessionLock((status) => {
       setActiveAdminLockInfo({
@@ -1141,6 +1169,20 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       const contentType = res.headers.get('content-type') || '';
       if (contentType.includes('application/json')) {
         const json = await res.json();
+        // If server actively locked by another admin (409 Conflict)
+        if (res.status === 409 || (json.isLocked && !json.ok)) {
+          setIsLoggingIn(false);
+          setActiveAdminLockInfo({
+            isLocked: true,
+            activeAdmin: json.activeAdmin || null,
+          });
+          setLoginError(
+            json.error ||
+              'Akses ditolak: Administrator lain sedang aktif di perangkat lain. Hanya 1 admin yang dapat online dalam satu waktu.'
+          );
+          return;
+        }
+
         // If credentials invalid (401 or 403)
         if (res.status === 401 || res.status === 403 || (!json.ok && !json.session)) {
           setIsLoggingIn(false);
@@ -1161,11 +1203,17 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       // Server unreachable, fallback directly to Firestore cloud auth
     }
 
-    // 2. Resilient Firestore Cloud Authentication (works seamlessly on multi-device & Vercel)
+    // 2. Resilient Firestore Cloud Authentication & Single-Admin Lock
     try {
       const fsResult = await loginWithFirestore(cleanUser, cleanPass, adminUsers);
       setIsLoggingIn(false);
       if (!fsResult.ok) {
+        if (fsResult.isLocked) {
+          setActiveAdminLockInfo({
+            isLocked: true,
+            activeAdmin: fsResult.activeAdmin || null,
+          });
+        }
         setLoginError(fsResult.error || 'Username/NIP atau kata sandi tidak valid.');
         return;
       }
@@ -1177,6 +1225,56 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       setIsLoggingIn(false);
       console.error('[Auth] Firestore auth error:', fsErr);
       setLoginError('Gagal memvalidasi login admin. Pastikan perangkat Anda terhubung ke jaringan internet.');
+    }
+  };
+
+  const handleForceTakeover = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTakeoverError('');
+    if (!takeoverPassword.trim()) {
+      setTakeoverError('Masukkan kata sandi otoritas Master Lurah.');
+      return;
+    }
+    setIsTakingOver(true);
+    let handled = false;
+
+    try {
+      const res = await fetch('/api/auth/force-logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ masterPassword: takeoverPassword.trim() }),
+      });
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const json = await res.json().catch(() => ({}));
+        if (res.ok && json.ok) {
+          handled = true;
+        }
+      }
+    } catch {}
+
+    try {
+      const fsRes = await forceLogoutFirestore(takeoverPassword.trim());
+      if (fsRes.ok) {
+        handled = true;
+      } else if (!handled) {
+        setIsTakingOver(false);
+        setTakeoverError(fsRes.error || 'Kata sandi master tidak sesuai.');
+        return;
+      }
+    } catch {}
+
+    setIsTakingOver(false);
+    if (handled) {
+      setShowTakeoverModal(false);
+      setTakeoverPassword('');
+      setActiveAdminLockInfo({ isLocked: false, activeAdmin: null });
+      setLoginError(
+        'Sesi admin sebelumnya di perangkat lain telah diputus paksa. Slot login sekarang terbuka. Silakan login kembali.'
+      );
+      checkSessionStatus();
+    } else {
+      setTakeoverError('Kata sandi master Lurah tidak sesuai.');
     }
   };
 
@@ -1212,6 +1310,50 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     setLoginPassword('');
     setLoginError('');
     checkSessionStatus();
+  };
+
+  const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+
+  const handleForceCloudSync = async () => {
+    setIsCloudSyncing(true);
+    clearFeedback();
+    try {
+      const currentSnapshot: PersistedDatabase = {
+        profile,
+        rwGroups,
+        reports,
+        wasteUnits,
+        wasteLogs,
+        tebaSpots,
+        bioporiPoints,
+        cleanupEvents,
+        kelurahanInfos,
+        whatsappRecipients,
+        serviceCatalog,
+        adminUsers,
+        activityLogs,
+        urbanFarmingSpots,
+        seedRequests,
+        updatedAt: Date.now(),
+      };
+      await pushFullDatabaseToFirestore(currentSnapshot);
+      setSuccessMessage(
+        'Sinkronisasi Sukses: Seluruh data Menu Warga, Pengelolaan Sampah, Data RT/RW, Urban Farming, Peta Digital GIS, Profil Kelurahan, dan Kerja Bakti telah 100% tersimpan aman & terpusat di Google Cloud Firestore!'
+      );
+      recordAudit({
+        actionType: 'EXPORT',
+        module: 'PROFIL_KELURAHAN',
+        targetLabel: 'Google Cloud Firestore',
+        summary: 'Melakukan sinkronisasi penuh seluruh data aplikasi ke Google Cloud Firestore',
+        severity: 'info',
+      });
+    } catch {
+      setValidationErrors([
+        'Gagal menyinkronkan data ke cloud. Periksa koneksi internet perangkat Anda.',
+      ]);
+    } finally {
+      setIsCloudSyncing(false);
+    }
   };
 
   // ================= 1B. DATA RT & RW CRUD STATE =================
@@ -3027,19 +3169,61 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
           {/* Login Form Body */}
           <div className="p-6 sm:p-8">
-            {/* Multi-Device Support Indicator */}
-            <div className="mb-4 px-3.5 py-2.5 rounded-xl bg-sky-50 border border-sky-200 text-[#0D3868] text-[11px] font-medium flex items-center justify-between shadow-2xs">
-              <div className="flex items-center gap-2">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                <span className="font-semibold">Portal Administrator Aktif & Terhubung</span>
+            {/* Single-Admin Occupancy Status & Lock Banner */}
+            {activeAdminLockInfo.isLocked && activeAdminLockInfo.activeAdmin ? (
+              <div className="mb-5 p-4 rounded-2xl bg-amber-50/90 border border-amber-300 text-amber-950 shadow-xs">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2 text-amber-900 font-bold text-sm">
+                    <Lock className="w-4 h-4 text-amber-700 shrink-0" />
+                    <span>Akses Terkunci (1 Admin Sedang Aktif)</span>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900 text-[10px] font-bold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse" />
+                    Sedang Online
+                  </span>
+                </div>
+                <p className="text-xs text-amber-900 leading-relaxed mb-3">
+                  Administrator <strong>{activeAdminLockInfo.activeAdmin.fullName}</strong> (@{activeAdminLockInfo.activeAdmin.username}) sedang aktif di perangkat lain sejak <strong>{activeAdminLockInfo.activeAdmin.loginAt}</strong>.
+                </p>
+                <div className="p-2.5 rounded-xl bg-amber-100/70 border border-amber-200 text-[11px] text-amber-900 leading-normal mb-3">
+                  Demi keamanan & konsistensi data satu pintu, hanya 1 akun admin yang dapat aktif di seluruh perangkat. Perangkat ini tidak dapat login sebelum admin yang bersangkutan melakukan <strong>Logout</strong> atau sesinya dilepaskan.
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => checkSessionStatus()}
+                    className="flex-1 py-1.5 px-3 rounded-lg bg-amber-200 hover:bg-amber-300 text-amber-950 font-semibold text-xs transition cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Cek Status Slot</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTakeoverError('');
+                      setShowTakeoverModal(true);
+                    }}
+                    className="flex-1 py-1.5 px-3 rounded-lg bg-rose-100 hover:bg-rose-200 border border-rose-300 text-rose-800 font-semibold text-xs transition cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Ambil Alih Slot (Lurah)</span>
+                  </button>
+                </div>
               </div>
-              <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider bg-emerald-100/80 border border-emerald-300 px-2 py-0.5 rounded-full">
-                Multi-Perangkat Siap
-              </span>
-            </div>
+            ) : (
+              <div className="mb-4 px-3.5 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-[#0D3868] text-[11px] font-medium flex items-center justify-between shadow-2xs">
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <span className="font-semibold text-emerald-900">Slot Administrator Terbuka</span>
+                </div>
+                <span className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full">
+                  Siap Login (Tersedia)
+                </span>
+              </div>
+            )}
 
             {initialTab === 'dashboard_lurah' && (
               <div className="mb-5 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs font-semibold text-amber-950 flex items-start gap-2.5">
@@ -3107,13 +3291,19 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
               <button
                 type="submit"
-                disabled={isLoggingIn}
-                className="w-full mt-2 inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-white text-sm font-bold shadow-sm transition-colors cursor-pointer bg-[#0D3868] hover:bg-[#072647] disabled:opacity-75 disabled:cursor-wait"
+                disabled={isLoggingIn || Boolean(activeAdminLockInfo.isLocked)}
+                className={`w-full mt-2 inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-white text-sm font-bold shadow-sm transition-colors cursor-pointer ${
+                  activeAdminLockInfo.isLocked
+                    ? 'bg-slate-400 cursor-not-allowed opacity-80'
+                    : 'bg-[#0D3868] hover:bg-[#072647] disabled:opacity-75 disabled:cursor-wait'
+                }`}
               >
                 <ShieldCheck className="w-4 h-4" />
                 <span>
                   {isLoggingIn
                     ? 'Memverifikasi Kredensial...'
+                    : activeAdminLockInfo.isLocked
+                    ? 'Slot Terkunci (Admin Lain Sedang Online)'
                     : 'Masuk ke Panel Administrator'}
                 </span>
               </button>
@@ -3126,6 +3316,66 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Modal Ambil Alih Slot bagi Master Lurah */}
+        {showTakeoverModal && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+              <div className="bg-[#0D3868] px-5 py-4 text-white flex items-center justify-between">
+                <div className="flex items-center gap-2 font-bold text-sm">
+                  <ShieldCheck className="w-5 h-5 text-amber-300" />
+                  <span>Ambil Alih Slot (Otoritas Lurah)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowTakeoverModal(false)}
+                  className="text-white/80 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <form onSubmit={handleForceTakeover} className="p-5 space-y-4">
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Fitur ini khusus untuk <strong>Lurah Panaikang</strong> untuk memutus paksa sesi perangkat lain yang belum logout. Masukkan Kata Sandi Master Otoritas Lurah:
+                </p>
+                {takeoverError && (
+                  <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800">
+                    {takeoverError}
+                  </div>
+                )}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Kata Sandi Master Lurah *
+                  </label>
+                  <input
+                    type="password"
+                    value={takeoverPassword}
+                    onChange={(e) => setTakeoverPassword(e.target.value)}
+                    placeholder="Masukkan sandi master Lurah"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:border-[#0D3868] focus:outline-none"
+                    autoFocus
+                  />
+                </div>
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowTakeoverModal(false)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 font-semibold hover:bg-slate-50 cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isTakingOver}
+                    className="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-xs text-white font-bold transition cursor-pointer disabled:opacity-50"
+                  >
+                    {isTakingOver ? 'Memproses...' : 'Lepaskan & Ambil Alih'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -3148,11 +3398,18 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                   {adminSession.fullName}
                 </span>
                 <span
-                  title="Sesi Administrator aktif dan terverifikasi"
+                  title="Sesi Administrator aktif tunggal (1 Admin Live di seluruh perangkat)"
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-[10px] font-semibold text-emerald-300"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                  Sesi Aktif
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  1 Admin Live (Tunggal)
+                </span>
+                <span
+                  title="Seluruh data tersimpan terpusat dan tersinkronisasi live di Google Cloud Firestore"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-500/20 border border-sky-400/40 text-[10px] font-semibold text-sky-200"
+                >
+                  <Cloud className="w-3 h-3 text-sky-300" />
+                  Cloud Firestore Aktif
                 </span>
               </div>
               <div className="text-[11px] text-sky-200">
@@ -3163,6 +3420,16 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
+            <button
+              type="button"
+              disabled={isCloudSyncing}
+              onClick={handleForceCloudSync}
+              title="Sinkronkan seluruh modul (Warga, Sampah, RT/RW, Urban Farming, Peta, Profil, Kerja Bakti) ke Google Cloud Firestore"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold border border-sky-400/40 shadow-xs transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
+            >
+              <Cloud className={`w-3.5 h-3.5 ${isCloudSyncing ? 'animate-bounce' : ''}`} />
+              <span>{isCloudSyncing ? 'Menyinkronkan...' : 'Sinkronkan ke Cloud'}</span>
+            </button>
             {onExportDatabase && (
               <button
                 type="button"

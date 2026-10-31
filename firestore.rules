@@ -22,14 +22,13 @@ service cloud.firestore {
       allow write: if isValidId(rwId);
     }
 
-    // Citizen Reports: Public read, citizens create reports, admin updates/deletes
+    // Citizen Reports: Public read, citizen reporting, administrative verification
     match /citizen_reports/{reportId} {
       allow read: if true;
-      allow create: if isValidId(reportId) && request.resource.data.title is string;
-      allow update, delete: if isValidId(reportId);
+      allow write: if isValidId(reportId);
     }
 
-    // Bank Sampah Units & Logs
+    // Bank Sampah Units & Daily Weighing Logs
     match /waste_units/{unitId} {
       allow read: if true;
       allow write: if isValidId(unitId);
@@ -40,7 +39,7 @@ service cloud.firestore {
       allow write: if isValidId(logId);
     }
 
-    // Cleanup Events & Infos
+    // Cleanup Events & News Announcements
     match /cleanup_events/{eventId} {
       allow read: if true;
       allow write: if isValidId(eventId);
@@ -51,7 +50,7 @@ service cloud.firestore {
       allow write: if isValidId(infoId);
     }
 
-    // Environmental Spots
+    // Environmental Spots: Teba & Biopori
     match /teba_spots/{spotId} {
       allow read: if true;
       allow write: if isValidId(spotId);
@@ -62,19 +61,18 @@ service cloud.firestore {
       allow write: if isValidId(pointId);
     }
 
+    // Urban Farming Spots & Seed Distribution Requests
     match /urban_farming_spots/{spotId} {
       allow read: if true;
       allow write: if isValidId(spotId);
     }
 
-    // Seed Requests
     match /seed_requests/{requestId} {
       allow read: if true;
-      allow create: if isValidId(requestId) && request.resource.data.requesterName is string;
-      allow update, delete: if isValidId(requestId);
+      allow write: if isValidId(requestId);
     }
 
-    // Administrative Accounts & Logs
+    // Administrative Accounts, Activity Audit Logs & Live Session Locks
     match /admin_users/{userId} {
       allow read, write: if isValidId(userId);
     }
@@ -89,7 +87,18 @@ service cloud.firestore {
       allow write: if isValidId(lockId);
     }
 
-    // Full Application Realtime Sync Document
+    // SOP Citizen Service Catalog & WhatsApp Notification Numbers
+    match /service_catalog/{docId} {
+      allow read: if true;
+      allow write: if isValidId(docId);
+    }
+
+    match /whatsapp_recipients/{docId} {
+      allow read: if true;
+      allow write: if isValidId(docId);
+    }
+
+    // Full Centralized Application Cloud Realtime Sync Document
     match /panaikang_app_data/{docId} {
       allow read, write: if isValidId(docId);
     }
