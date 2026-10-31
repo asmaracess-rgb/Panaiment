@@ -1,9 +1,6 @@
 import {
   doc,
-  getDoc,
-  setDoc,
   deleteDoc,
-  onSnapshot,
   Unsubscribe,
 } from 'firebase/firestore';
 import { db } from './config';
@@ -27,116 +24,42 @@ export interface ActiveAdminSessionData {
 }
 
 const LOCK_DOC_REF = doc(db, 'admin_session_locks', 'active_lock');
-const LOCK_TIMEOUT_MS = 30000; // 30 seconds
 
 /**
- * Reads the active single-admin lock from Firebase Firestore
+ * Returns session lock status - multi-device access enabled, never locked.
+ * Also automatically cleans up any stale lock document in Firestore.
  */
 export async function getFirestoreSessionStatus(): Promise<{
   isLocked: boolean;
-  activeAdmin: {
-    userId: string;
-    username: string;
-    fullName: string;
-    nip?: string;
-    role: string;
-    roleLevel?: string;
-    loginAt: string;
-  } | null;
-  activeToken: string | null;
+  activeAdmin: null;
+  activeToken: null;
 }> {
   try {
-    const snap = await getDoc(LOCK_DOC_REF);
-    if (!snap.exists()) {
-      return { isLocked: false, activeAdmin: null, activeToken: null };
-    }
-    const data = snap.data() as ActiveAdminSessionData;
-    const now = Date.now();
-    const age = now - (data.lastHeartbeat || 0);
-
-    if (age > LOCK_TIMEOUT_MS) {
-      // Lock has expired due to closed window or lost connection
-      try {
-        await deleteDoc(LOCK_DOC_REF);
-      } catch {}
-      return { isLocked: false, activeAdmin: null, activeToken: null };
-    }
-
-    return {
-      isLocked: true,
-      activeAdmin: {
-        userId: data.userId,
-        username: data.username,
-        fullName: data.fullName,
-        nip: data.nip,
-        role: data.role,
-        roleLevel: data.roleLevel,
-        loginAt: data.loginAt,
-      },
-      activeToken: data.token,
-    };
-  } catch (err) {
-    console.warn('[Firestore Lock] Gagal memeriksa status lock:', err);
-    return { isLocked: false, activeAdmin: null, activeToken: null };
-  }
+    // Delete any stale single-admin lock so it never blocks any user
+    await deleteDoc(LOCK_DOC_REF);
+  } catch {}
+  return { isLocked: false, activeAdmin: null, activeToken: null };
 }
 
 /**
- * Subscribes to real-time changes of the single-admin occupancy lock in Firestore
+ * Realtime listener for session lock - always broadcasts unlocked for multi-device support
  */
 export function subscribeToFirestoreSessionLock(
   onChange: (status: {
     isLocked: boolean;
-    activeAdmin: {
-      userId: string;
-      username: string;
-      fullName: string;
-      nip?: string;
-      role: string;
-      roleLevel?: string;
-      loginAt: string;
-    } | null;
-    activeToken: string | null;
+    activeAdmin: null;
+    activeToken: null;
   }) => void
 ): Unsubscribe {
-  return onSnapshot(
-    LOCK_DOC_REF,
-    (snap) => {
-      if (!snap.exists()) {
-        onChange({ isLocked: false, activeAdmin: null, activeToken: null });
-        return;
-      }
-      const data = snap.data() as ActiveAdminSessionData;
-      const now = Date.now();
-      const age = now - (data.lastHeartbeat || 0);
-
-      if (age > LOCK_TIMEOUT_MS) {
-        onChange({ isLocked: false, activeAdmin: null, activeToken: null });
-        return;
-      }
-
-      onChange({
-        isLocked: true,
-        activeAdmin: {
-          userId: data.userId,
-          username: data.username,
-          fullName: data.fullName,
-          nip: data.nip,
-          role: data.role,
-          roleLevel: data.roleLevel,
-          loginAt: data.loginAt,
-        },
-        activeToken: data.token,
-      });
-    },
-    (err) => {
-      console.warn('[Firestore Lock] Realtime listener notice:', err);
-    }
-  );
+  // Always immediately notify that the system allows concurrent admin logins
+  onChange({ isLocked: false, activeAdmin: null, activeToken: null });
+  // Also clean up any lingering lock document
+  deleteDoc(LOCK_DOC_REF).catch(() => {});
+  return () => {};
 }
 
 /**
- * Authenticates user and acquires the single-live admin lock in Firestore
+ * Authenticates administrator credentials with support for multiple concurrent devices
  */
 export async function loginWithFirestore(
   usernameInput: string,
@@ -153,18 +76,12 @@ export async function loginWithFirestore(
   const cleanNip = cleanUser.replace(/\s+/g, '');
   const cleanPass = (passwordInput || '').trim();
 
-  // 1. Check if occupied by another admin
-  const lockStatus = await getFirestoreSessionStatus();
-  if (lockStatus.isLocked && lockStatus.activeAdmin) {
-    return {
-      ok: false,
-      isLocked: true,
-      activeAdmin: lockStatus.activeAdmin,
-      error: `Akses ditolak: Administrator "${lockStatus.activeAdmin.fullName}" (@${lockStatus.activeAdmin.username}) sedang aktif di perangkat lain. Hanya 1 admin yang dapat online dalam waktu bersamaan.`,
-    };
-  }
+  // Clean up any stale single-admin lock in Firestore
+  try {
+    await deleteDoc(LOCK_DOC_REF);
+  } catch {}
 
-  // 2. Resolve credentials
+  // Resolve admin users
   const users = Array.isArray(registeredUsers) && registeredUsers.length > 0
     ? registeredUsers
     : INITIAL_ADMIN_USERS;
@@ -199,7 +116,14 @@ export async function loginWithFirestore(
     };
   }
 
-  // 3. Create session lock in Firestore
+  if (matchedUser.isActive === false) {
+    return {
+      ok: false,
+      error: 'Akun Administrator ini sedang dinonaktifkan oleh Lurah Panaikang.',
+    };
+  }
+
+  // Generate robust multi-device admin session
   const now = new Date();
   const timeStr = now.toLocaleDateString('id-ID', {
     day: '2-digit',
@@ -227,12 +151,6 @@ export async function loginWithFirestore(
     lastHeartbeat: Date.now(),
   };
 
-  try {
-    await setDoc(LOCK_DOC_REF, sessionData);
-  } catch (err) {
-    console.error('[Firestore Lock] Gagal menyimpan lock sesi admin:', err);
-  }
-
   return {
     ok: true,
     session: sessionData,
@@ -240,52 +158,27 @@ export async function loginWithFirestore(
 }
 
 /**
- * Renews single-admin occupancy lock in Firestore
+ * Heartbeat confirmation - always returns true to keep current device session active
  */
-export async function heartbeatFirestore(token: string): Promise<boolean> {
-  try {
-    const snap = await getDoc(LOCK_DOC_REF);
-    if (!snap.exists()) return false;
-    const data = snap.data() as ActiveAdminSessionData;
-    if (data.token === token) {
-      await setDoc(LOCK_DOC_REF, { ...data, lastHeartbeat: Date.now() }, { merge: true });
-      return true;
-    }
-    return false;
-  } catch {
-    return false;
-  }
+export async function heartbeatFirestore(_token: string): Promise<boolean> {
+  return true;
 }
 
 /**
- * Releases single-admin lock on logout
+ * Releases session
  */
-export async function logoutFirestore(token?: string): Promise<void> {
-  try {
-    const snap = await getDoc(LOCK_DOC_REF);
-    if (snap.exists()) {
-      const data = snap.data() as ActiveAdminSessionData;
-      if (!token || data.token === token) {
-        await deleteDoc(LOCK_DOC_REF);
-      }
-    }
-  } catch (err) {
-    console.warn('[Firestore Lock] Gagal melepaskan lock:', err);
-  }
-}
-
-/**
- * Forces release of stale session for Master Lurah
- */
-export async function forceLogoutFirestore(masterPassword?: string): Promise<{ ok: boolean; error?: string }> {
-  const cleanPass = (masterPassword || '').trim();
-  if (cleanPass !== 'panaikang2026' && cleanPass !== 'admin123' && cleanPass !== 'makassar2026') {
-    return { ok: false, error: 'Kata sandi otoritas Master Lurah tidak sesuai.' };
-  }
+export async function logoutFirestore(_token?: string): Promise<void> {
   try {
     await deleteDoc(LOCK_DOC_REF);
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: 'Gagal memutus sesi admin di Firestore.' };
-  }
+  } catch {}
+}
+
+/**
+ * Force unlock utility
+ */
+export async function forceLogoutFirestore(_masterPassword?: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await deleteDoc(LOCK_DOC_REF);
+  } catch {}
+  return { ok: true };
 }

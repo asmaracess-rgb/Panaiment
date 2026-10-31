@@ -283,23 +283,9 @@ function getValidActiveAdminSession(): ActiveAdminSession | null {
 }
 
 function getPublicActiveAdminInfo() {
-  const session = getValidActiveAdminSession();
-  if (!session) {
-    return {
-      isLocked: false,
-      activeAdmin: null,
-    };
-  }
   return {
-    isLocked: true,
-    activeAdmin: {
-      userId: session.userId,
-      username: session.username,
-      fullName: session.fullName,
-      role: session.role,
-      roleLevel: session.roleLevel,
-      loginAt: session.loginAt,
-    },
+    isLocked: false,
+    activeAdmin: null,
   };
 }
 
@@ -550,47 +536,22 @@ async function startServer() {
     });
   });
 
-  // 0B. Query current Admin Session Lock status
-  app.get('/api/auth/session-status', (req, res) => {
+  // 0B. Query current Admin Session Lock status (Always returns unlocked for multi-device support)
+  app.get('/api/auth/session-status', (_req, res) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-    const clientToken =
-      (req.query.token as string | undefined) ||
-      (req.headers['x-admin-token'] as string | undefined) ||
-      '';
-    const session = getValidActiveAdminSession();
-    if (!session) {
-      res.json({
-        ok: true,
-        isLocked: false,
-        activeAdmin: null,
-        isCurrentTokenValid: false,
-      });
-      return;
-    }
-    const isSameToken = Boolean(clientToken && session.token === clientToken);
     res.json({
       ok: true,
-      isLocked: true,
-      activeAdmin: {
-        userId: session.userId,
-        username: session.username,
-        fullName: session.fullName,
-        role: session.role,
-        roleLevel: session.roleLevel,
-        loginAt: session.loginAt,
-      },
-      isCurrentTokenValid: isSameToken,
+      isLocked: false,
+      activeAdmin: null,
+      isCurrentTokenValid: true,
     });
   });
 
-  // 0C. Administrator Authentication with Strict Single-Live Admin Enforcement
+  // 0C. Administrator Authentication (Multi-device concurrent access)
   app.post('/api/auth/login', (req, res) => {
-    const { username, password, clientToken, forceTakeover, masterPassphrase } = req.body as {
+    const { username, password } = req.body as {
       username?: string;
       password?: string;
-      clientToken?: string;
-      forceTakeover?: boolean;
-      masterPassphrase?: string;
     };
     const cleanUser = (username || '').trim().toLowerCase();
     const cleanNip = cleanUser.replace(/\s+/g, '');
@@ -650,48 +611,6 @@ async function startServer() {
       return;
     }
 
-    // STRICT SINGLE-ADMIN LIVE LOCK CHECK (Encompasses all registered admins)
-    const currentSession = getValidActiveAdminSession();
-    if (currentSession) {
-      const headerToken = req.headers['x-admin-token'] as string | undefined;
-      const isSameSession =
-        (clientToken && clientToken === currentSession.token) ||
-        (headerToken && headerToken === currentSession.token);
-
-      if (!isSameSession) {
-        // Check if caller is authorized for emergency takeover / release
-        const canForce =
-          Boolean(forceTakeover) &&
-          (isMaster ||
-            cleanPass === 'panaikang2026' ||
-            (masterPassphrase && ['panaikang2026', 'admin123'].includes(masterPassphrase.trim())));
-
-        if (canForce) {
-          console.log(
-            `[Admin Lock] Otoritas Master (${cleanUser}) mengambil alih sesi tunggal dari ${currentSession.username}`
-          );
-          writePersistedAdminLock(null);
-          activeAdminSession = null;
-        } else {
-          // Reject login attempt: another admin is currently live
-          res.status(409).json({
-            ok: false,
-            isLocked: true,
-            activeAdmin: {
-              userId: currentSession.userId,
-              username: currentSession.username,
-              fullName: currentSession.fullName,
-              role: currentSession.role,
-              roleLevel: currentSession.roleLevel,
-              loginAt: currentSession.loginAt,
-            },
-            error: `Saat ini akun Administrator "${currentSession.fullName}" (@${currentSession.username}) sedang aktif di perangkat lain sejak ${currentSession.loginAt}. Demi keamanan dan konsistensi data Satu Data Panaikang, hanya 1 admin yang dapat online dalam waktu bersamaan. Admin tersebut harus melakukan Logout terlebih dahulu sebelum admin lain dapat masuk.`,
-          });
-          return;
-        }
-      }
-    }
-
     const loginTimeStr =
       new Date().toLocaleTimeString('id-ID', {
         hour: '2-digit',
@@ -713,9 +632,7 @@ async function startServer() {
       lastHeartbeat: Date.now(),
     };
 
-    writePersistedAdminLock(activeAdminSession);
     saveDatabase(db);
-    broadcastAdminSessionStatus();
 
     res.json({
       ok: true,
@@ -738,27 +655,9 @@ async function startServer() {
     });
   });
 
-  // 0D. Admin Heartbeat (renews single-admin occupancy lock while browser is active)
-  app.post('/api/auth/heartbeat', (req, res) => {
-    const { token } = req.body as { token?: string };
-    const headerToken = req.headers['x-admin-token'] as string | undefined;
-    const reqToken = token || headerToken;
-    const current = getValidActiveAdminSession();
-    if (!current) {
-      res.status(401).json({ ok: false, error: 'Tidak ada sesi admin yang aktif.' });
-      return;
-    }
-    if (reqToken && current.token === reqToken) {
-      current.lastHeartbeat = Date.now();
-      writePersistedAdminLock(current);
-      activeAdminSession = current;
-      res.json({ ok: true, active: true });
-      return;
-    }
-    res.status(401).json({
-      ok: false,
-      error: 'Sesi login admin Anda telah kedaluwarsa atau dialihkan ke perangkat lain.',
-    });
+  // 0D. Admin Heartbeat (always confirms active)
+  app.post('/api/auth/heartbeat', (_req, res) => {
+    res.json({ ok: true, active: true });
   });
 
   // 0E. Explicit Admin Logout (Immediately releases lock so another admin can login)

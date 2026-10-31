@@ -133,7 +133,6 @@ import {
   loginWithFirestore,
   heartbeatFirestore,
   logoutFirestore,
-  forceLogoutFirestore,
 } from '../firebase/adminAuthService';
 
 interface AdminSession {
@@ -397,174 +396,28 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     } | null;
   }>({ isLocked: false, activeAdmin: null });
 
-  const [showTakeoverModal, setShowTakeoverModal] = useState(false);
-  const [takeoverPassword, setTakeoverPassword] = useState('');
-  const [takeoverError, setTakeoverError] = useState('');
-  const [isTakingOver, setIsTakingOver] = useState(false);
-
   const checkSessionStatus = React.useCallback(async () => {
-    let handledByServer = false;
-    try {
-      const url = adminSession?.token
-        ? `/api/auth/session-status?token=${encodeURIComponent(adminSession.token)}`
-        : '/api/auth/session-status';
-      const res = await fetch(url, {
-        cache: 'no-store',
-        headers: adminSession?.token ? { 'x-admin-token': adminSession.token } : {},
-      });
-      const contentType = res.headers.get('content-type') || '';
-      if (res.ok && contentType.includes('application/json')) {
-        const json = await res.json();
-        if (json?.ok) {
-          handledByServer = true;
-          setActiveAdminLockInfo({
-            isLocked: Boolean(json.isLocked),
-            activeAdmin: json.activeAdmin || null,
-          });
+    // Multi-device access: always keep panel unlocked
+    setActiveAdminLockInfo({ isLocked: false, activeAdmin: null });
+  }, []);
 
-          // If client has an active session locally, verify whether it is still valid on server
-          if (adminSession?.token) {
-            if (json.isLocked && !json.isCurrentTokenValid) {
-              console.warn('[Admin Lock] Sesi tidak valid atau telah diambil alih di perangkat lain.');
-              sessionStorage.removeItem('pnk_admin_session');
-              localStorage.removeItem('pnk_active_admin_session_lock');
-              setAdminSession(null);
-              setLoginError(
-                `Sesi Administrator Anda telah dialihkan atau kedaluwarsa karena admin "${
-                  json.activeAdmin?.fullName || 'lain'
-                }" sedang aktif di perangkat lain.`
-              );
-              return;
-            } else if (!json.isLocked) {
-              console.warn('[Admin Lock] Lock di server telah dilepas/kedaluwarsa.');
-              sessionStorage.removeItem('pnk_admin_session');
-              localStorage.removeItem('pnk_active_admin_session_lock');
-              setAdminSession(null);
-              setLoginError('Sesi Administrator Anda telah berakhir. Silakan login kembali.');
-              return;
-            }
-          }
-          return;
-        }
-      }
-    } catch {}
-
-    // Resilient fallback to Firebase Firestore cloud lock (works seamlessly on Vercel/Static/Multi-device)
-    if (!handledByServer) {
-      try {
-        const firestoreStatus = await getFirestoreSessionStatus();
-        setActiveAdminLockInfo({
-          isLocked: firestoreStatus.isLocked,
-          activeAdmin: firestoreStatus.activeAdmin || null,
-        });
-        if (adminSession?.token) {
-          if (firestoreStatus.isLocked && firestoreStatus.activeToken !== adminSession.token) {
-            sessionStorage.removeItem('pnk_admin_session');
-            localStorage.removeItem('pnk_active_admin_session_lock');
-            setAdminSession(null);
-            setLoginError(
-              `Sesi Administrator Anda telah dialihkan karena admin "${
-                firestoreStatus.activeAdmin?.fullName || 'lain'
-              }" sedang aktif di perangkat lain.`
-            );
-            return;
-          } else if (!firestoreStatus.isLocked) {
-            sessionStorage.removeItem('pnk_admin_session');
-            localStorage.removeItem('pnk_active_admin_session_lock');
-            setAdminSession(null);
-            setLoginError('Sesi Administrator Anda telah berakhir. Silakan login kembali.');
-            return;
-          }
-        }
-        return;
-      } catch {}
-    }
-
-    // Fallback: Check localStorage lock if server unreachable
-    try {
-      const raw = localStorage.getItem('pnk_active_admin_session_lock');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        const now = Date.now();
-        if (parsed && now - (parsed.lastHeartbeat || 0) < 30000) {
-          const currentToken = adminSession?.token;
-          if (!currentToken || currentToken !== parsed.token) {
-            setActiveAdminLockInfo({
-              isLocked: true,
-              activeAdmin: {
-                username: parsed.username,
-                fullName: parsed.fullName,
-                role: parsed.role,
-                roleLevel: parsed.roleLevel,
-                loginAt: parsed.loginAt,
-              },
-            });
-            return;
-          }
-        } else {
-          localStorage.removeItem('pnk_active_admin_session_lock');
-        }
-      }
-      setActiveAdminLockInfo({ isLocked: false, activeAdmin: null });
-    } catch {
-      setActiveAdminLockInfo({ isLocked: false, activeAdmin: null });
-    }
-  }, [adminSession?.token]);
-
-  // Listen to Firestore real-time session lock and SSE broadcasts
+  // Listen to Firestore updates without kicking out active admin sessions
   useEffect(() => {
     const unsubFirestore = subscribeToFirestoreSessionLock((status) => {
       setActiveAdminLockInfo({
         isLocked: status.isLocked,
         activeAdmin: status.activeAdmin || null,
       });
-
-      if (adminSession?.token) {
-        if (!status.isLocked) {
-          sessionStorage.removeItem('pnk_admin_session');
-          localStorage.removeItem('pnk_active_admin_session_lock');
-          setAdminSession(null);
-          setLoginError('Sesi Administrator Anda telah berakhir.');
-        } else if (status.activeToken && status.activeToken !== adminSession.token) {
-          sessionStorage.removeItem('pnk_admin_session');
-          localStorage.removeItem('pnk_active_admin_session_lock');
-          setAdminSession(null);
-          setLoginError(
-            `Sesi login Anda telah dialihkan karena Administrator "${
-              status.activeAdmin?.fullName || 'lain'
-            }" masuk dari perangkat lain.`
-          );
-        }
-      }
     });
 
     const handleSseSession = (e: Event) => {
       const customEvent = e as CustomEvent;
       const detail = customEvent.detail;
       if (!detail) return;
-
       setActiveAdminLockInfo({
         isLocked: Boolean(detail.isLocked),
         activeAdmin: detail.activeAdmin || null,
       });
-
-      if (adminSession?.token) {
-        if (!detail.isLocked) {
-          sessionStorage.removeItem('pnk_admin_session');
-          localStorage.removeItem('pnk_active_admin_session_lock');
-          setAdminSession(null);
-          setLoginError('Sesi Administrator Anda telah berakhir.');
-        } else if (detail.activeToken && detail.activeToken !== adminSession.token) {
-          sessionStorage.removeItem('pnk_admin_session');
-          localStorage.removeItem('pnk_active_admin_session_lock');
-          setAdminSession(null);
-          setLoginError(
-            `Sesi login Anda telah dialihkan karena Administrator "${
-              detail.activeAdmin?.fullName || 'lain'
-            }" masuk dari perangkat lain.`
-          );
-        }
-      }
     };
 
     window.addEventListener('pnk_admin_session_sse', handleSseSession);
@@ -572,31 +425,19 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       unsubFirestore();
       window.removeEventListener('pnk_admin_session_sse', handleSseSession);
     };
-  }, [adminSession?.token]);
+  }, []);
 
   useEffect(() => {
     checkSessionStatus();
-    const interval = setInterval(checkSessionStatus, 4000);
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'pnk_active_admin_session_lock') {
-        checkSessionStatus();
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('storage', handleStorageChange);
-    };
   }, [checkSessionStatus]);
 
-  // Keep heartbeat active every 5 seconds while admin session is live; release on window close
+  // Keep heartbeat active while admin session is live
   useEffect(() => {
     if (!adminSession?.token) return;
 
     const heartbeatTimer = setInterval(async () => {
-      // 1. Ping server heartbeat if available
       try {
-        const res = await fetch('/api/auth/heartbeat', {
+        await fetch('/api/auth/heartbeat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -604,66 +445,17 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           },
           body: JSON.stringify({ token: adminSession.token }),
         });
-        const contentType = res.headers.get('content-type') || '';
-        if (res.status === 401 && contentType.includes('application/json')) {
-          const json = await res.json().catch(() => ({}));
-          console.warn('[Admin Lock] Sesi admin kedaluwarsa atau dialihkan:', json.error);
-          sessionStorage.removeItem('pnk_admin_session');
-          localStorage.removeItem('pnk_active_admin_session_lock');
-          setAdminSession(null);
-          setLoginError(
-            json.error || 'Sesi Administrator Anda telah kedaluwarsa atau dialihkan ke perangkat lain.'
-          );
-          checkSessionStatus();
-          return;
-        }
       } catch {}
 
-      // 2. Also keep Firebase Firestore cloud lock heartbeat updated
       try {
         await heartbeatFirestore(adminSession.token);
       } catch {}
-
-      // 3. Also keep local storage lock heartbeat updated for static/live web resilience
-      try {
-        const raw = localStorage.getItem('pnk_active_admin_session_lock');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed && parsed.token === adminSession.token) {
-            parsed.lastHeartbeat = Date.now();
-            localStorage.setItem('pnk_active_admin_session_lock', JSON.stringify(parsed));
-          }
-        }
-      } catch {}
-    }, 5000);
-
-    const handleBeforeUnload = () => {
-      logoutFirestore(adminSession.token).catch(() => {});
-      if (navigator.sendBeacon && adminSession.token) {
-        navigator.sendBeacon(
-          '/api/auth/beacon-logout',
-          JSON.stringify({ token: adminSession.token })
-        );
-      }
-      try {
-        const raw = localStorage.getItem('pnk_active_admin_session_lock');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed && parsed.token === adminSession.token) {
-            localStorage.removeItem('pnk_active_admin_session_lock');
-          }
-        }
-      } catch {}
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    window.addEventListener('pagehide', handleBeforeUnload);
+    }, 15000);
 
     return () => {
       clearInterval(heartbeatTimer);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      window.removeEventListener('pagehide', handleBeforeUnload);
     };
-  }, [adminSession?.token, checkSessionStatus]);
+  }, [adminSession?.token]);
 
   const currentAdminAccount = React.useMemo(() => {
     if (!adminSession) return null;
@@ -1349,23 +1141,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       const contentType = res.headers.get('content-type') || '';
       if (contentType.includes('application/json')) {
         const json = await res.json();
-        setIsLoggingIn(false);
-
-        // If server actively locked by another admin (409 Conflict)
-        if (res.status === 409 || (json.isLocked && !json.ok)) {
-          setActiveAdminLockInfo({
-            isLocked: true,
-            activeAdmin: json.activeAdmin || null,
-          });
-          setLoginError(
-            json.error ||
-              'Akses ditolak: Administrator lain sedang aktif di perangkat lain. Hanya 1 admin yang dapat online dalam waktu bersamaan.'
-          );
-          return;
-        }
-
         // If credentials invalid (401 or 403)
-        if (res.status === 401 || res.status === 403 || !json.ok) {
+        if (res.status === 401 || res.status === 403 || (!json.ok && !json.session)) {
+          setIsLoggingIn(false);
           setLoginError(
             json.error || 'Username/NIP atau kata sandi yang dimasukkan tidak valid.'
           );
@@ -1374,6 +1152,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
         // If server authenticated successfully
         if (res.ok && json.ok && json.session) {
+          setIsLoggingIn(false);
           applySuccessfulSession(json.session);
           return;
         }
@@ -1382,17 +1161,11 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       // Server unreachable, fallback directly to Firestore cloud auth
     }
 
-    // 2. Resilient Firestore Cloud Authentication & Lock (works seamlessly on Vercel, static preview, or offline)
+    // 2. Resilient Firestore Cloud Authentication (works seamlessly on multi-device & Vercel)
     try {
       const fsResult = await loginWithFirestore(cleanUser, cleanPass, adminUsers);
       setIsLoggingIn(false);
       if (!fsResult.ok) {
-        if (fsResult.isLocked) {
-          setActiveAdminLockInfo({
-            isLocked: true,
-            activeAdmin: fsResult.activeAdmin || null,
-          });
-        }
         setLoginError(fsResult.error || 'Username/NIP atau kata sandi tidak valid.');
         return;
       }
@@ -1404,56 +1177,6 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       setIsLoggingIn(false);
       console.error('[Auth] Firestore auth error:', fsErr);
       setLoginError('Gagal memvalidasi login admin. Pastikan perangkat Anda terhubung ke jaringan internet.');
-    }
-  };
-
-  const handleForceTakeover = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setTakeoverError('');
-    if (!takeoverPassword.trim()) {
-      setTakeoverError('Masukkan kata sandi otoritas Master Lurah.');
-      return;
-    }
-    setIsTakingOver(true);
-    let handled = false;
-
-    try {
-      const res = await fetch('/api/auth/force-logout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ masterPassword: takeoverPassword.trim() }),
-      });
-      const contentType = res.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
-        const json = await res.json().catch(() => ({}));
-        if (res.ok && json.ok) {
-          handled = true;
-        }
-      }
-    } catch {}
-
-    try {
-      const fsRes = await forceLogoutFirestore(takeoverPassword.trim());
-      if (fsRes.ok) {
-        handled = true;
-      } else if (!handled) {
-        setIsTakingOver(false);
-        setTakeoverError(fsRes.error || 'Kata sandi master salah.');
-        return;
-      }
-    } catch {}
-
-    setIsTakingOver(false);
-    if (handled) {
-      setShowTakeoverModal(false);
-      setTakeoverPassword('');
-      setActiveAdminLockInfo({ isLocked: false, activeAdmin: null });
-      setLoginError(
-        'Sesi admin sebelumnya di perangkat lain telah diputus paksa. Slot login sekarang terbuka. Silakan login kembali.'
-      );
-      checkSessionStatus();
-    } else {
-      setTakeoverError('Kata sandi master Lurah tidak sesuai.');
     }
   };
 
@@ -3304,67 +3027,19 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
           {/* Login Form Body */}
           <div className="p-6 sm:p-8">
-            {/* Live Single-Admin Lock Status Indicator */}
-            {activeAdminLockInfo.isLocked && activeAdminLockInfo.activeAdmin ? (
-              <div className="mb-5 p-4 rounded-2xl bg-amber-50 border border-amber-300 text-xs text-amber-950 shadow-xs space-y-3">
-                <div className="flex items-start gap-3">
-                  <Lock className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
-                  <div className="flex-1 min-w-0">
-                    <div className="font-bold text-amber-950 text-xs flex items-center justify-between">
-                      <span>Akses Terkunci (1 Admin Sedang Aktif)</span>
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-900 bg-amber-200 px-2 py-0.5 rounded-full border border-amber-300">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse" />
-                        Sedang Online
-                      </span>
-                    </div>
-                    <p className="mt-1.5 text-[11px] text-amber-900 leading-relaxed">
-                      Administrator <strong>{activeAdminLockInfo.activeAdmin.fullName}</strong> (@{activeAdminLockInfo.activeAdmin.username}) sedang aktif di perangkat lain sejak{' '}
-                      <span className="font-semibold">{activeAdminLockInfo.activeAdmin.loginAt}</span>.
-                    </p>
-                    <div className="mt-2 text-[10.5px] bg-amber-100/90 p-2.5 rounded-xl border border-amber-300/70 text-amber-950 font-medium leading-relaxed">
-                      Demi keamanan & konsistensi data satu pintu, hanya 1 akun admin yang dapat aktif di seluruh perangkat. Perangkat ini tidak dapat login sebelum admin yang bersangkutan melakukan <strong>Logout</strong> atau sesinya dilepaskan.
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-2 border-t border-amber-200/80 flex items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    onClick={() => checkSessionStatus()}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-200 hover:bg-amber-300 text-amber-950 text-[11px] font-semibold transition-colors cursor-pointer"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Cek Status Slot</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTakeoverError('');
-                      setTakeoverPassword('');
-                      setShowTakeoverModal(true);
-                    }}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-900 border border-rose-300 text-[11px] font-semibold transition-colors cursor-pointer"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5 text-rose-700" />
-                    <span>Ambil Alih Slot (Lurah)</span>
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="mb-4 px-3.5 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-medium flex items-center justify-between shadow-2xs">
-                <div className="flex items-center gap-2">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                  </span>
-                  <span className="font-semibold">Slot Administrator Terbuka (Siap Login)</span>
-                </div>
-                <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider bg-emerald-100/80 border border-emerald-300 px-2 py-0.5 rounded-full">
-                  Tersedia
+            {/* Multi-Device Support Indicator */}
+            <div className="mb-4 px-3.5 py-2.5 rounded-xl bg-sky-50 border border-sky-200 text-[#0D3868] text-[11px] font-medium flex items-center justify-between shadow-2xs">
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
+                <span className="font-semibold">Portal Administrator Aktif & Terhubung</span>
               </div>
-            )}
+              <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider bg-emerald-100/80 border border-emerald-300 px-2 py-0.5 rounded-full">
+                Multi-Perangkat Siap
+              </span>
+            </div>
 
             {initialTab === 'dashboard_lurah' && (
               <div className="mb-5 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs font-semibold text-amber-950 flex items-start gap-2.5">
@@ -3432,88 +3107,17 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
               <button
                 type="submit"
-                disabled={isLoggingIn || Boolean(activeAdminLockInfo.isLocked)}
-                className={`w-full mt-2 inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-white text-sm font-bold shadow-sm transition-colors cursor-pointer ${
-                  activeAdminLockInfo.isLocked
-                    ? 'bg-slate-400 cursor-not-allowed opacity-90'
-                    : 'bg-[#0D3868] hover:bg-[#072647]'
-                }`}
+                disabled={isLoggingIn}
+                className="w-full mt-2 inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-white text-sm font-bold shadow-sm transition-colors cursor-pointer bg-[#0D3868] hover:bg-[#072647] disabled:opacity-75 disabled:cursor-wait"
               >
                 <ShieldCheck className="w-4 h-4" />
                 <span>
                   {isLoggingIn
                     ? 'Memverifikasi Kredensial...'
-                    : activeAdminLockInfo.isLocked
-                    ? 'Slot Terkunci (Admin Lain Sedang Online)'
                     : 'Masuk ke Panel Administrator'}
                 </span>
               </button>
             </form>
-
-            {/* Emergency Takeover Modal for Lurah */}
-            {showTakeoverModal && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs">
-                <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <ShieldCheck className="w-5 h-5 text-rose-600" />
-                      <h3 className="font-bold text-sm text-slate-900">
-                        Ambil Alih Otoritas Sesi (Lurah)
-                      </h3>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowTakeoverModal(false)}
-                      className="p-1 rounded-lg text-slate-400 hover:text-slate-700 cursor-pointer"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <p className="text-xs text-slate-600 leading-relaxed mb-4">
-                    Jika admin di perangkat lain lupa logout atau perangkatnya tertinggal, Lurah Panaikang dapat memutuskan sesi tersebut secara paksa untuk membuka slot login.
-                  </p>
-
-                  {takeoverError && (
-                    <div className="mb-4 p-2.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-800">
-                      {takeoverError}
-                    </div>
-                  )}
-
-                  <form onSubmit={handleForceTakeover} className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Kata Sandi Master Lurah *
-                      </label>
-                      <input
-                        type="password"
-                        value={takeoverPassword}
-                        onChange={(e) => setTakeoverPassword(e.target.value)}
-                        placeholder="Masukkan kata sandi otoritas Lurah"
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:border-rose-600 focus:outline-none"
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-end gap-2 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => setShowTakeoverModal(false)}
-                        className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
-                      >
-                        Batal
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={isTakingOver}
-                        className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors cursor-pointer"
-                      >
-                        {isTakingOver ? 'Memutus Sesi...' : 'Putuskan Sesi & Buka Slot'}
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            )}
 
             <div className="mt-5 pt-4 border-t border-slate-100 text-center">
               <p className="text-[11px] text-slate-500 font-medium">
@@ -3544,11 +3148,11 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                   {adminSession.fullName}
                 </span>
                 <span
-                  title="Sesi tunggal aktif: Akses admin lain dikunci sampai Anda logout"
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-[10px] font-semibold text-emerald-300 cursor-help"
+                  title="Sesi Administrator aktif dan terverifikasi"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-[10px] font-semibold text-emerald-300"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  1 Admin Live
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  Sesi Aktif
                 </span>
               </div>
               <div className="text-[11px] text-sky-200">
