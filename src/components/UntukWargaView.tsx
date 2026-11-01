@@ -29,14 +29,25 @@ import {
   PhoneCall,
   Building2,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   LayoutGrid,
   Users,
   ExternalLink,
   Printer,
   ClipboardCheck,
   FolderOpen,
+  Folder,
   Smartphone,
   Globe,
+  Home,
+  Store,
+  Baby,
+  Heart,
+  Smile,
+  ShieldAlert,
+  GraduationCap,
+  FileCheck,
 } from 'lucide-react';
 import {
   CitizenReport,
@@ -199,6 +210,136 @@ function renderCategoryIcon(
   }
 }
 
+function renderSubItemSpecificIcon(
+  item: ServiceSubItem,
+  className = 'w-5 h-5'
+): React.ReactNode {
+  const lbl = (item.label + ' ' + (item.officialHeaderTitle || '')).toLowerCase();
+
+  if (lbl.includes('domisili') || lbl.includes('tinggal') || lbl.includes('pindah')) {
+    return <Home className={`${className} text-sky-600`} />;
+  }
+  if (
+    lbl.includes('usaha') ||
+    lbl.includes('sku') ||
+    lbl.includes('umkm') ||
+    lbl.includes('toko') ||
+    lbl.includes('industri')
+  ) {
+    return <Store className={`${className} text-amber-600`} />;
+  }
+  if (
+    lbl.includes('tidak mampu') ||
+    lbl.includes('sktm') ||
+    lbl.includes('bansos') ||
+    lbl.includes('bantuan') ||
+    lbl.includes('miskin') ||
+    lbl.includes('kurang mampu')
+  ) {
+    return <HeartHandshake className={`${className} text-emerald-600`} />;
+  }
+  if (lbl.includes('kematian') || lbl.includes('meninggal')) {
+    return <Heart className={`${className} text-rose-500`} />;
+  }
+  if (lbl.includes('kelahiran') || lbl.includes('lahir') || lbl.includes('anak') || lbl.includes('bayi')) {
+    return <Baby className={`${className} text-indigo-600`} />;
+  }
+  if (lbl.includes('nikah') || lbl.includes('menikah') || lbl.includes('perkawinan')) {
+    return <UserCheck className={`${className} text-cyan-600`} />;
+  }
+  if (
+    lbl.includes('sekolah') ||
+    lbl.includes('kuliah') ||
+    lbl.includes('beasiswa') ||
+    lbl.includes('pendidikan')
+  ) {
+    return <GraduationCap className={`${className} text-violet-600`} />;
+  }
+  if (
+    lbl.includes('ktp') ||
+    lbl.includes('kartu keluarga') ||
+    lbl.includes('kk') ||
+    lbl.includes('kependudukan')
+  ) {
+    return <UserCheck className={`${className} text-blue-600`} />;
+  }
+  if (
+    lbl.includes('sampah') ||
+    lbl.includes('kebersihan') ||
+    lbl.includes('pohon') ||
+    lbl.includes('drainase') ||
+    lbl.includes('lingkungan') ||
+    lbl.includes('taman')
+  ) {
+    return <Trees className={`${className} text-emerald-600`} />;
+  }
+  if (
+    lbl.includes('darurat') ||
+    lbl.includes('bencana') ||
+    lbl.includes('siren') ||
+    lbl.includes('laporan') ||
+    lbl.includes('pengaduan')
+  ) {
+    return <Siren className={`${className} text-red-600`} />;
+  }
+  if (lbl.includes('kehilangan') || lbl.includes('keamanan') || lbl.includes('konflik')) {
+    return <ShieldAlert className={`${className} text-amber-600`} />;
+  }
+  if (lbl.includes('pengantar')) {
+    return <FileCheck className={`${className} text-[#0277BD]`} />;
+  }
+  return <FileText className={`${className} text-[#0277BD]`} />;
+}
+
+function getSubItemSubtitle(item: ServiceSubItem): string {
+  const lbl = item.label.toLowerCase();
+  if (lbl.includes('pengantar rt/rw') || lbl.includes('pengantar ktp')) {
+    return 'Permohonan pengantar dari RT/RW setempat';
+  }
+  if (lbl.includes('domisili')) {
+    return 'Keterangan tempat tinggal warga di wilayah Panaikang';
+  }
+  if (lbl.includes('usaha') || lbl.includes('sku')) {
+    return 'Keterangan kepemilikan dan operasional usaha mikro/kecil';
+  }
+  if (lbl.includes('tidak mampu') || lbl.includes('sktm')) {
+    return 'Permohonan surat keterangan status ekonomi keluarga';
+  }
+  if (lbl.includes('belum menikah')) {
+    return 'Keterangan status perkawinan belum pernah menikah';
+  }
+  if (lbl.includes('kematian')) {
+    return 'Pelaporan dan keterangan peristiwa kematian warga';
+  }
+  if (lbl.includes('kelahiran')) {
+    return 'Pelaporan dan keterangan peristiwa kelahiran bayi';
+  }
+  if (lbl.includes('ahli waris')) {
+    return 'Pengurusan surat keterangan silsilah dan ahli waris';
+  }
+  if (lbl.includes('sekolah') || lbl.includes('beasiswa')) {
+    return 'Keterangan kelayakan pengajuan beasiswa & bantuan sekolah';
+  }
+  if (lbl.includes('pindah')) {
+    return 'Surat pengantar perpindahan domisili kependudukan';
+  }
+  if (lbl.includes('perubahan data') || lbl.includes('kartu keluarga')) {
+    return 'Pengantar pembaharuan elemen data kartu keluarga';
+  }
+  if (lbl.includes('drainase') || lbl.includes('genangan')) {
+    return 'Laporan perbaikan saluran drainase dan genangan air';
+  }
+  if (lbl.includes('sampah')) {
+    return 'Pelaporan penumpukan sampah liar dan pengangkutan armada';
+  }
+  if (item.placeholderNote) {
+    const clean = item.placeholderNote.replace(/^contoh:\s*/i, '').split(/[—.]/)[0].trim();
+    if (clean.length > 55) return clean.slice(0, 52) + '...';
+    return clean;
+  }
+  return item.processingUnit || item.officialHeaderTitle || 'Pelayanan administrasi kelurahan';
+}
+
 export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
   reports,
   wasteUnits,
@@ -224,6 +365,36 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
     useState<DetailedCategoryId>('administrasi_kependudukan');
   const [selectedSubItemId, setSelectedSubItemId] = useState<string>('adminduk-ktp-kk');
   const [hubSearchQuery, setHubSearchQuery] = useState<string>('');
+  const [hubCategoryFilter, setHubCategoryFilter] = useState<string>('semua');
+
+  // Accordion state for frameless category list:
+  // Starts with the first category opened, matching user's requested layout
+  const [expandedCategoryIds, setExpandedCategoryIds] = useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {};
+    if (catalogGroups.length > 0) {
+      init[catalogGroups[0].id] = true;
+    }
+    return init;
+  });
+
+  const toggleCategoryExpanded = (catId: string) => {
+    setExpandedCategoryIds((prev) => ({
+      ...prev,
+      [catId]: !prev[catId],
+    }));
+  };
+
+  const expandAllCategories = () => {
+    const all: Record<string, boolean> = {};
+    catalogGroups.forEach((c) => {
+      all[c.id] = true;
+    });
+    setExpandedCategoryIds(all);
+  };
+
+  const collapseAllCategories = () => {
+    setExpandedCategoryIds({});
+  };
 
   // Interactive checklist &specific fields for the selected sub-menu page
   const [checkedReqs, setCheckedReqs] = useState<Record<string, boolean>>({});
@@ -262,6 +433,36 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
   const currentSubItemObj =
     currentCategoryObj.items.find((i) => i.id === selectedSubItemId) ||
     currentCategoryObj.items[0];
+
+  // Flatten all sub-menu items for streamlined direct sub-menu display
+  const allSubMenuItems = catalogGroups.flatMap((group) =>
+    group.items.map((item) => ({
+      ...item,
+      categoryId: group.id,
+      categoryTitle: group.title,
+      categoryNumber: group.number,
+      categoryIconName: group.iconName,
+      accentBorder: group.accentBorder,
+      accentBg: group.accentBg,
+      iconBg: group.iconBg,
+    }))
+  );
+
+  const filteredHubSubItems = allSubMenuItems.filter((item) => {
+    const matchCat =
+      hubCategoryFilter === 'semua' || item.categoryId === hubCategoryFilter;
+    if (!matchCat) return false;
+    if (!hubSearchQuery.trim()) return true;
+    const q = hubSearchQuery.trim().toLowerCase();
+    return (
+      item.label.toLowerCase().includes(q) ||
+      item.documentCode.toLowerCase().includes(q) ||
+      item.categoryTitle.toLowerCase().includes(q) ||
+      (item.processingUnit && item.processingUnit.toLowerCase().includes(q)) ||
+      (item.officialHeaderTitle && item.officialHeaderTitle.toLowerCase().includes(q)) ||
+      item.requirements.some((r) => r.toLowerCase().includes(q))
+    );
+  });
 
   // WhatsApp connection states
   const activeRecipients =
@@ -526,30 +727,36 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
-  // Filter categories and sub-items on the Menu Hub when searching
-  const filteredCategoryGroups = catalogGroups.map((group) => {
-    if (!hubSearchQuery.trim()) return group;
-    const q = hubSearchQuery.toLowerCase();
-    const groupMatches =
-      group.title.toLowerCase().includes(q) || group.subtitle.toLowerCase().includes(q);
-    const matchingItems = group.items.filter(
-      (item) =>
-        item.label.toLowerCase().includes(q) ||
-        item.officialHeaderTitle.toLowerCase().includes(q)
-    );
-    if (groupMatches) return group;
-    return { ...group, items: matchingItems };
-  }).filter((g) => g.items.length > 0);
+  // Filter categories and sub-items on the Menu Hub
+  const displayedCategoryGroups = catalogGroups
+    .filter((group) => hubCategoryFilter === 'semua' || group.id === hubCategoryFilter)
+    .map((group) => {
+      if (!hubSearchQuery.trim()) return group;
+      const q = hubSearchQuery.trim().toLowerCase();
+      const groupMatches =
+        group.title.toLowerCase().includes(q) || group.subtitle.toLowerCase().includes(q);
+      const matchingItems = group.items.filter(
+        (item) =>
+          item.label.toLowerCase().includes(q) ||
+          item.documentCode.toLowerCase().includes(q) ||
+          (item.processingUnit && item.processingUnit.toLowerCase().includes(q)) ||
+          (item.officialHeaderTitle && item.officialHeaderTitle.toLowerCase().includes(q)) ||
+          item.requirements.some((r) => r.toLowerCase().includes(q))
+      );
+      if (groupMatches && matchingItems.length === 0) return group;
+      return { ...group, items: matchingItems };
+    })
+    .filter((g) => g.items.length > 0);
 
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8 space-y-6">
       {/* =====================================================================================
-          HALAMAN 1: MENU WARGA HUB (TAMPILAN SEDERHANA — KATEGORI HANYA TAMPIL SAAT MENU DIKLIK)
+          HALAMAN 1: MENU PENGURUSAN WARGA (LIST PER KATEGORI TANPA BINGKAI SESUAI CONTOH)
       ===================================================================================== */}
       {activePage === 'menu_hub' && (
         <div className="space-y-6">
-          {/* Top Banner & Menu Utama Pelayanan Digital Kelurahan */}
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
+          {/* Header Pelayanan Warga */}
+          <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xs overflow-hidden">
             <div className="bg-gradient-to-r from-[#0D3868] via-[#134B8A] to-[#0277BD] px-5 sm:px-8 py-6 text-white flex flex-col lg:flex-row lg:items-center justify-between gap-5">
               <div className="space-y-1.5">
                 <button
@@ -563,12 +770,12 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
                 <div className="text-xs font-bold tracking-wider uppercase text-amber-300">
                   🏛️ PELAYANAN DIGITAL KELURAHAN PANAIKANG
                 </div>
-                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-                  Menu Warga Kelurahan Panaikang
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white uppercase">
+                  MENU PENGURUSAN WARGA
                 </h1>
                 <p className="text-xs sm:text-sm text-sky-100 max-w-3xl leading-relaxed">
-                  Pilih salah satu menu layanan di bawah ini. Kategori beserta daftar sub-menu
-                  layanan hanya akan tampil setelah Anda memilih salah satu menu.
+                  Pilih kategori layanan di bawah ini. Klik pada nama kategori untuk menampilkan
+                  atau menyembunyikan daftar sub-kategori pengurusan dokumen warga secara langsung.
                 </p>
               </div>
 
@@ -608,147 +815,236 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
               </div>
             </div>
 
-            {/* Menu Utama 🏛️ PELAYANAN DIGITAL KELURAHAN (Tampilan Sederhana & Rapi) */}
-            <div className="p-5 sm:p-8 bg-slate-50/60">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-5">
-                <div className="flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-[#0D3868]" />
-                  <h2 className="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-[#0D3868]">
-                    🏛️ Pilih Menu Pelayanan Digital Kelurahan
-                  </h2>
+            {/* Filter Kategori & Pencarian Sub-Kategori */}
+            <div className="p-5 sm:p-6 bg-slate-50/70 border-b border-slate-200/80 space-y-4">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className="relative flex-1 max-w-lg">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={hubSearchQuery}
+                    onChange={(e) => setHubSearchQuery(e.target.value)}
+                    placeholder="Cari pengurusan surat (contoh: Domisili, SKU, KTP, SKTM, Kematian)..."
+                    className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-slate-200 bg-white text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0277BD]/30 focus:border-[#0277BD] transition-all"
+                  />
+                  {hubSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setHubSearchQuery('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
-                <span className="text-xs text-slate-500">
-                  Klik salah satu menu untuk menampilkan kategori & sub-menu layanan
-                </span>
+
+                <div className="flex items-center gap-2 self-start sm:self-center">
+                  <button
+                    type="button"
+                    onClick={expandAllCategories}
+                    className="text-xs font-bold text-[#0277BD] hover:text-[#0D3868] px-2.5 py-1.5 rounded-lg hover:bg-sky-50 transition-colors cursor-pointer"
+                  >
+                    Buka Semua
+                  </button>
+                  <span className="text-slate-300">|</span>
+                  <button
+                    type="button"
+                    onClick={collapseAllCategories}
+                    className="text-xs font-bold text-slate-500 hover:text-slate-800 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
+                    Tutup Semua
+                  </button>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-                {MAIN_WARGA_MENUS.map((menu) => {
-                  const isLontara = menu.id === 'lontara_plus';
-                  return isLontara ? (
-                    <a
-                      key={menu.id}
-                      href="https://lontaraplus.makassarkota.go.id"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group text-left p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-[#073763] to-[#0D3868] text-white border-2 border-amber-400 hover:border-amber-300 hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden"
-                    >
-                      <div className="absolute top-0 right-0 transform translate-x-3 -translate-y-3 w-16 h-16 bg-amber-400/10 rounded-full blur-xs pointer-events-none" />
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="w-11 h-11 rounded-xl bg-amber-400/20 border border-amber-400/40 text-amber-300 flex items-center justify-center text-2xl select-none transition-colors">
-                          {menu.emoji}
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 shrink-0">
-                          Super App <ExternalLink className="w-3 h-3" />
-                        </span>
-                      </div>
-                      <div className="mt-3.5">
-                        <div className="text-sm font-extrabold text-amber-300 group-hover:text-amber-200 leading-snug transition-colors flex items-center gap-1.5">
-                          <span>{menu.label}</span>
-                        </div>
-                        <div className="mt-1 text-xs text-sky-100 leading-relaxed font-medium">
-                          {menu.shortDesc}
-                        </div>
-                        <div className="mt-3 pt-2.5 border-t border-white/15 text-[11px] font-bold text-amber-300 flex items-center justify-between">
-                          <span>{menu.badgeText}</span>
-                          <span className="group-hover:translate-x-0.5 transition-transform">Buka Aplikasi ↗</span>
-                        </div>
-                      </div>
-                    </a>
-                  ) : (
+              {/* Category Filter Tabs */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1 no-scrollbar">
+                <button
+                  type="button"
+                  onClick={() => setHubCategoryFilter('semua')}
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border ${
+                    hubCategoryFilter === 'semua'
+                      ? 'bg-[#0D3868] text-white border-[#0D3868] shadow-xs'
+                      : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
+                  }`}
+                >
+                  <span>Semua Kategori</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      hubCategoryFilter === 'semua'
+                        ? 'bg-white/20 text-white'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    {allSubMenuItems.length}
+                  </span>
+                </button>
+
+                {catalogGroups.map((cat) => {
+                  const isSelected = hubCategoryFilter === cat.id;
+                  return (
                     <button
-                      key={menu.id}
+                      key={cat.id}
                       type="button"
-                      onClick={() => handleOpenMainMenuPage(menu)}
-                      className="group text-left p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-[#0277BD] hover:shadow-md transition-all cursor-pointer flex flex-col justify-between"
+                      onClick={() => {
+                        setHubCategoryFilter(cat.id);
+                        // Also automatically open this category
+                        setExpandedCategoryIds((prev) => ({ ...prev, [cat.id]: true }));
+                      }}
+                      className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border ${
+                        isSelected
+                          ? 'bg-[#0D3868] text-white border-[#0D3868] shadow-xs'
+                          : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
+                      }`}
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="w-11 h-11 rounded-xl bg-slate-100 group-hover:bg-sky-50 flex items-center justify-center text-2xl select-none transition-colors">
-                          {menu.emoji}
-                        </span>
-                        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-[#0277BD] group-hover:translate-x-0.5 transition-all shrink-0 mt-1" />
-                      </div>
-                      <div className="mt-3.5">
-                        <div className="text-sm font-extrabold text-[#0D3868] group-hover:text-[#0277BD] leading-snug transition-colors">
-                          {menu.label}
-                        </div>
-                        <div className="mt-1 text-xs text-slate-500 leading-relaxed line-clamp-2">
-                          {menu.shortDesc}
-                        </div>
-                        <div className="mt-3 pt-2.5 border-t border-slate-100 text-[11px] font-bold text-[#0277BD] flex items-center justify-between">
-                          <span>{menu.badgeText}</span>
-                          <span>Pilih Menu →</span>
-                        </div>
-                      </div>
+                      {renderCategoryIcon(cat.iconName, 'w-3 h-3')}
+                      <span>{cat.title}</span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                          isSelected
+                            ? 'bg-white/20 text-white'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {cat.items.length}
+                      </span>
                     </button>
                   );
                 })}
               </div>
+            </div>
 
-              {/* ================= BANNER FITUR RESMI APLIKASI LONTARA+ MAKASSAR ================= */}
-              <div className="mt-6 rounded-3xl border-2 border-[#0D3868]/20 bg-gradient-to-r from-[#073763] via-[#0D3868] to-[#012A4A] p-5 sm:p-7 text-white shadow-md relative overflow-hidden">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                  <div className="flex items-start gap-4 sm:gap-5">
-                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 text-slate-950 font-black text-2xl sm:text-3xl flex items-center justify-center shrink-0 shadow-xl ring-4 ring-white/10">
-                      L+
-                    </div>
-                    <div className="space-y-1.5">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-slate-950 text-[10px] sm:text-[11px] font-black uppercase tracking-wider">
-                          🏛️ Super App Pemkot Makassar
-                        </span>
-                        <span className="text-xs text-sky-200 font-medium">
-                          Layanan Online Terintegrasi Warga Makassar
-                        </span>
-                      </div>
-                      <h3 className="text-lg sm:text-xl font-extrabold text-white">
-                        Aplikasi Lontara+ (Lontara Plus)
-                      </h3>
-                      <div className="p-3 rounded-xl bg-amber-400/15 border border-amber-300/30 text-amber-200 text-xs sm:text-sm font-bold leading-relaxed">
-                        📢 "Laporan Keluhan dan pelayanan tingkat lanjut silahkan gunakan aplikasi Lontara+"
-                      </div>
-                      <p className="text-xs text-sky-100/90 max-w-2xl leading-relaxed pt-1">
-                        Aplikasi resmi terpusat Pemerintah Kota Makassar untuk seluruh layanan publik:
-                        pengaduan warga, keluhan lingkungan, perizinan, administrasi tingkat lanjut,
-                        hingga koordinasi langsung dengan OPD terkait se-Kota Makassar.
-                      </p>
-                    </div>
+            {/* List Per Kategori Tanpa Bingkai (Sesuai Lampiran Contoh User) */}
+            <div className="divide-y divide-slate-200/90 bg-white">
+              {displayedCategoryGroups.length === 0 ? (
+                <div className="text-center py-12 px-4 space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto text-xl">
+                    🔍
                   </div>
+                  <h3 className="text-sm font-bold text-slate-800">
+                    Tidak ditemukan pengurusan surat yang cocok
+                  </h3>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    Kata kunci "{hubSearchQuery}" tidak ditemukan pada kategori terpilih.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHubSearchQuery('');
+                      setHubCategoryFilter('semua');
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0D3868] text-white text-xs font-bold hover:bg-[#0277BD] transition-colors cursor-pointer"
+                  >
+                    Reset Pencarian
+                  </button>
+                </div>
+              ) : (
+                displayedCategoryGroups.map((group) => {
+                  const isExpanded = hubSearchQuery.trim()
+                    ? true
+                    : !!expandedCategoryIds[group.id];
 
-                  <div className="flex flex-wrap sm:flex-nowrap lg:flex-col xl:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
-                    <a
-                      href="https://lontaraplus.makassarkota.go.id"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs sm:text-sm font-extrabold shadow-md transition-all cursor-pointer hover:shadow-lg active:scale-95 text-center"
-                    >
-                      <Globe className="w-4 h-4" />
-                      <span>Buka Aplikasi Lontara+</span>
-                      <ExternalLink className="w-4 h-4" />
-                    </a>
-                    <a
-                      href="https://lontaraplus.go.id"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center gap-1.5 px-3.5 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/25 transition-colors text-center"
-                      title="Domain alternatif lontaraplus.go.id"
-                    >
-                      <span>Web Lontara+ (go.id)</span>
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
-                    <a
-                      href="https://play.google.com/store/apps/details?id=id.go.makassarkota.lontaraplus"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center gap-1.5 px-3.5 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/25 transition-colors text-center"
-                    >
-                      <Smartphone className="w-3.5 h-3.5" />
-                      <span>Play Store</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  </div>
+                  return (
+                    <div key={group.id} className="transition-all">
+                      {/* Baris Judul Kategori (Bisa Di-klik untuk Membuka / Menutup Sub-Kategori) */}
+                      <button
+                        type="button"
+                        onClick={() => toggleCategoryExpanded(group.id)}
+                        className={`w-full flex items-center justify-between px-5 sm:px-7 py-4.5 transition-colors cursor-pointer text-left select-none ${
+                          isExpanded
+                            ? 'bg-slate-50/80 hover:bg-slate-100/70 border-b border-slate-200/80'
+                            : 'hover:bg-slate-50/70'
+                        }`}
+                        title="Klik untuk melihat sub-kategori layanan"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-[#0D3868]/10 text-[#0D3868] flex items-center justify-center shrink-0">
+                            <Folder className="w-4 h-4 text-[#0277BD]" />
+                          </div>
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">
+                            <h2 className="text-xs sm:text-sm font-extrabold uppercase tracking-wide text-[#0D3868]">
+                              LAYANAN {group.title.toUpperCase()}
+                            </h2>
+                            <span className="text-[11px] text-slate-500 font-medium">
+                              ({group.items.length} Layanan Pengurusan)
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[11px] font-bold text-[#0277BD] bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-200/70 hidden sm:inline-block">
+                            {isExpanded ? 'Tutup' : 'Buka Sub-Kategori'}
+                          </span>
+                          {isExpanded ? (
+                            <ChevronUp className="w-5 h-5 text-[#0277BD]" />
+                          ) : (
+                            <ChevronDown className="w-5 h-5 text-slate-400" />
+                          )}
+                        </div>
+                      </button>
+
+                      {/* Daftar Sub-Kategori dalam Bentuk List Tanpa Bingkai (Sesuai Contoh) */}
+                      {isExpanded && (
+                        <div className="divide-y divide-slate-100 bg-white">
+                          {group.items.map((subItem, idx) => (
+                            <button
+                              key={subItem.id}
+                              type="button"
+                              onClick={() => handleOpenSubMenuPage(group.id, subItem)}
+                              className="w-full flex items-center justify-between py-3.5 px-5 sm:px-7 hover:bg-sky-50/40 transition-colors cursor-pointer text-left group"
+                            >
+                              <div className="flex items-center gap-3.5 min-w-0 flex-1 pr-3">
+                                <div className="w-8 h-8 rounded-lg bg-slate-50 group-hover:bg-white flex items-center justify-center shrink-0 transition-colors">
+                                  {renderSubItemSpecificIcon(subItem, 'w-5 h-5')}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="text-sm sm:text-base font-bold text-slate-800 group-hover:text-[#0277BD] transition-colors leading-snug">
+                                    {idx + 1}. {subItem.label}
+                                  </div>
+                                  <div className="text-xs text-slate-500 mt-0.5 leading-relaxed line-clamp-1">
+                                    {getSubItemSubtitle(subItem)}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2.5 shrink-0 ml-2">
+                                <span className="text-[11px] font-mono-num text-slate-400 hidden md:inline-block">
+                                  ⏱️ {subItem.estimation}
+                                </span>
+                                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#0277BD] group-hover:translate-x-1 transition-all" />
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Catatan Terintegrasi Aplikasi Lontara+ */}
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-sky-50 to-amber-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center shrink-0">
+                  L+
+                </div>
+                <div>
+                  <span className="font-bold text-[#0D3868]">Aplikasi Lontara+ Kota Makassar:</span>{' '}
+                  <span className="text-slate-600">
+                    Laporan keluhan tingkat lanjut dan koordinasi lintas-OPD dapat diajukan langsung melalui super app Lontara+.
+                  </span>
                 </div>
               </div>
+              <a
+                href="https://lontaraplus.makassarkota.go.id"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white hover:bg-amber-100 text-slate-800 font-bold border border-slate-200 shrink-0 cursor-pointer transition-colors"
+              >
+                <span>Buka Lontara+</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
             </div>
           </div>
         </div>
@@ -967,7 +1263,7 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0D3868] hover:bg-[#0277BD] text-white text-xs sm:text-sm font-extrabold transition-colors cursor-pointer shadow-xs"
               >
                 <ArrowLeft className="w-4 h-4" />
-                <span>Kembali ke Menu Warga</span>
+                <span>Kembali ke Daftar Sub-Menu</span>
               </button>
 
               <button

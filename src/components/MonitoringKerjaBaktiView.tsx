@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { CleanupEvent, AppView } from '../types';
 import { resolveImageUrl } from '../utils/resolveImageUrl';
+import { getRealtimeFullDateString } from '../utils/realtimeDate';
 
 interface MonitoringKerjaBaktiViewProps {
   cleanupEvents: CleanupEvent[];
@@ -45,7 +46,7 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
   // Add new scheduled cleanup state (scheduled events do NOT use photos)
   const [showAddForm, setShowAddForm] = useState(false);
   const [newTitle, setNewTitle] = useState('');
-  const [newDate, setNewDate] = useState('Sabtu, 17 Oktober 2026');
+  const [newDate, setNewDate] = useState(() => getRealtimeFullDateString());
   const [newRw, setNewRw] = useState('RW 01');
   const [newLocation, setNewLocation] = useState('');
   const [newTarget, setNewTarget] = useState<number>(80);

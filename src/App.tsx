@@ -61,6 +61,7 @@ import {
   getDeletedItemIds,
   PersistedDatabase,
 } from './utils/persistentStorage';
+import { getRealtimeDateTimeString, getRealtimeDateString } from './utils/realtimeDate';
 import { HomePortal } from './components/HomePortal';
 import { ProfilKelurahanView } from './components/ProfilKelurahanView';
 import { DataRtRwView } from './components/DataRtRwView';
@@ -760,13 +761,14 @@ export default function App() {
   ): string => {
     const nextNum = 149 + reports.length;
     const ticketCode = `PNK-2026-0${nextNum}`;
+    const nowTime = getRealtimeDateTimeString();
     const optimistic: CitizenReport = {
       ...newReportData,
       id: `rep-${Date.now()}`,
       ticketCode,
       status: 'Menunggu Verifikasi',
-      createdAt: '06 Okt 2026 · Baru Saja',
-      updatedAt: '06 Okt 2026 · Baru Saja',
+      createdAt: nowTime,
+      updatedAt: nowTime,
       assignedTeam: `Koordinator Kebersihan ${newReportData.rw}`,
       responseNote:
         'Laporan baru warga telah masuk dalam antrean verifikasi Dashboard Lurah Panaikang.',
@@ -816,8 +818,8 @@ export default function App() {
       mapX: typeof rep.mapX === 'number' ? rep.mapX : 50,
       mapY: typeof rep.mapY === 'number' ? rep.mapY : 48,
       coordinatesLabel: rep.coordinatesLabel || '-5.1379, 119.4470',
-      createdAt: '06 Okt 2026 · Baru Saja',
-      updatedAt: '06 Okt 2026 · Baru Saja',
+      createdAt: rep.createdAt || getRealtimeDateTimeString(),
+      updatedAt: getRealtimeDateTimeString(),
       assignedTeam: rep.assignedTeam || `Koordinator Kebersihan ${rep.rw || 'RW 02'}`,
       responseNote:
         rep.responseNote ||
@@ -859,7 +861,7 @@ export default function App() {
     const merged: CitizenReport = {
       ...existing,
       ...rep,
-      updatedAt: '06 Okt 2026 · Diperbarui',
+      updatedAt: getRealtimeDateTimeString(),
     };
     const errors: string[] = [];
     if (!merged.title || merged.title.trim().length < 5) {
@@ -920,7 +922,7 @@ export default function App() {
             status: newStatus,
             assignedTeam,
             responseNote,
-            updatedAt: '06 Okt 2026 · Diperbarui',
+            updatedAt: getRealtimeDateTimeString(),
           }
         : r
     );
@@ -968,7 +970,7 @@ export default function App() {
       activeHouseholds: Math.max(1, Number(unit.activeHouseholds) || 50),
       pickupSchedule: unit.pickupSchedule?.trim() || 'Senin, Rabu, Jumat · 06:30 WITA',
       imageUrl: unit.imageUrl?.trim() || '',
-      lastUpdated: '06 Okt 2026',
+      lastUpdated: getRealtimeDateString(),
     };
 
     const nextUnits = [...stateRef.current.wasteUnits, newUnit];
@@ -996,7 +998,7 @@ export default function App() {
         Number(unit.activeHouseholds ?? existing.activeHouseholds) || 1
       ),
       imageUrl: unit.imageUrl !== undefined ? unit.imageUrl : existing.imageUrl,
-      lastUpdated: '06 Okt 2026',
+      lastUpdated: getRealtimeDateString(),
     };
     const errors: string[] = [];
     if (!merged.unitName || merged.unitName.trim().length < 3) {
@@ -1040,7 +1042,7 @@ export default function App() {
     const targetUnit = stateRef.current.wasteUnits.find((u) => u.rw === rw);
     const newLog: WasteLogEntry = {
       id: `log-${Date.now()}`,
-      date: '06 Okt 2026 · Baru Saja',
+      date: getRealtimeDateTimeString(),
       rw,
       unitName: targetUnit ? targetUnit.unitName : `BSU ${rw}`,
       organikKg: org,
@@ -1057,7 +1059,7 @@ export default function App() {
             organikKg: u.organikKg + org,
             anorganikKg: u.anorganikKg + anorg,
             residuKg: u.residuKg + resKg,
-            lastUpdated: '06 Okt 2026',
+            lastUpdated: getRealtimeDateString(),
           }
         : u
     );
@@ -1436,7 +1438,7 @@ export default function App() {
         (cleanContent.length > 130 ? `${cleanContent.slice(0, 130)}...` : cleanContent),
       content: cleanContent,
       imageUrl: info.imageUrl!.trim(),
-      publishedAt: info.publishedAt?.trim() || '06 Okt 2026',
+      publishedAt: info.publishedAt?.trim() || getRealtimeDateString(),
       author: info.author?.trim() || 'Lurah Panaikang',
       instagramHandle: info.instagramHandle?.trim() || '@kelurahan.panaikang',
       instagramPostUrl:

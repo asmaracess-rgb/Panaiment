@@ -257,24 +257,69 @@ export function smartMergeDatabases(
   const incomingUpdatedAt = typeof incoming?.updatedAt === 'number' ? incoming.updatedAt : 0;
   const localIsNewer = localUpdatedAt > incomingUpdatedAt;
 
-  // 1. Resolve RW Groups (preserve custom edits or defaults)
-  const baseRw = localDb?.rwGroups || INITIAL_RW_GROUPS;
-  const incRw = incoming?.rwGroups;
-  const resolvedRwGroups =
-    Array.isArray(incRw) && incRw.length > 0
-      ? incRw.map((irw) => {
-          const matchingLocal = baseRw.find((lrw) => lrw.id === irw.id || lrw.rwCode === irw.rwCode);
-          if (matchingLocal && matchingLocal.phone && !irw.phone) {
-            return { ...irw, phone: matchingLocal.phone };
-          }
-          return irw;
-        })
-      : baseRw;
+  // 1. Resolve RW Groups (preserve custom admin inputs & RT lists with zero data loss)
+  const baseRw: RwGroup[] =
+    Array.isArray(localDb?.rwGroups) && localDb!.rwGroups.length > 0
+      ? localDb!.rwGroups
+      : INITIAL_RW_GROUPS;
+  const incRw: RwGroup[] | null =
+    Array.isArray(incoming?.rwGroups) && incoming!.rwGroups.length > 0
+      ? incoming!.rwGroups
+      : null;
+
+  let resolvedRwGroups: RwGroup[];
+
+  if (!incRw) {
+    resolvedRwGroups = baseRw;
+  } else if (localIsNewer && baseRw.some((r) => (r.rtList?.length || 0) > 0 || r.ketuaRwName)) {
+    // Local data is newer and has RT/RW data entered by admin; merge carefully
+    resolvedRwGroups = baseRw.map((lrw) => {
+      const matchingInc = incRw.find((irw) => irw.id === lrw.id || irw.rwCode === lrw.rwCode);
+      if (!matchingInc) return lrw;
+      const localRts = Array.isArray(lrw.rtList) ? lrw.rtList : [];
+      const incRts = Array.isArray(matchingInc.rtList) ? matchingInc.rtList : [];
+      const rtMap = new Map<string, typeof localRts[0]>();
+      incRts.forEach((rt) => rt && rt.id && rtMap.set(rt.id, rt));
+      localRts.forEach((rt) => rt && rt.id && rtMap.set(rt.id, rt));
+      return {
+        ...matchingInc,
+        ...lrw,
+        rtList: Array.from(rtMap.values()),
+      };
+    });
+    // Add any RW that only exists in incoming
+    incRw.forEach((irw) => {
+      if (!resolvedRwGroups.some((r) => r.id === irw.id || r.rwCode === irw.rwCode)) {
+        resolvedRwGroups.push(irw);
+      }
+    });
+  } else {
+    // Incoming data merge; protect local RTs if incoming RTs are empty
+    resolvedRwGroups = incRw.map((irw) => {
+      const matchingLocal = baseRw.find((lrw) => lrw.id === irw.id || lrw.rwCode === irw.rwCode);
+      if (!matchingLocal) return irw;
+      const localRts = Array.isArray(matchingLocal.rtList) ? matchingLocal.rtList : [];
+      const incRts = Array.isArray(irw.rtList) ? irw.rtList : [];
+      const rtMap = new Map<string, typeof localRts[0]>();
+      // Put local RTs first, then incoming RTs (so if incoming is empty, local RTs are preserved!)
+      localRts.forEach((rt) => rt && rt.id && rtMap.set(rt.id, rt));
+      incRts.forEach((rt) => rt && rt.id && rtMap.set(rt.id, rt));
+      return {
+        ...matchingLocal,
+        ...irw,
+        ketuaRwName: irw.ketuaRwName || matchingLocal.ketuaRwName || '',
+        rwName: irw.rwName || matchingLocal.rwName || irw.rwCode,
+        phone: irw.phone || matchingLocal.phone || '',
+        areaDescription: irw.areaDescription || matchingLocal.areaDescription || '',
+        rtList: Array.from(rtMap.values()),
+      };
+    });
+  }
 
   // 2. Resolve Profile - Prioritize Cloud Firestore Database so all devices always share the exact same profile data
   const baseProfile = localDb?.profile || INITIAL_KELURAHAN_PROFILE;
   const incProfile = incoming?.profile;
-  const sourceProfile = incProfile && incProfile.lurahName ? incProfile : (localDb?.profile || baseProfile);
+  const sourceProfile = incProfile && (incProfile.lurahName || incProfile.lurahPhotoUrl) ? incProfile : (localDb?.profile || baseProfile);
 
   const resolvedOfficials = (
     Array.isArray(incProfile?.officials) && incProfile!.officials.length > 0
@@ -290,6 +335,9 @@ export function smartMergeDatabases(
     officials: resolvedOfficials,
     lurahName: sourceProfile.lurahName || baseProfile.lurahName || INITIAL_KELURAHAN_PROFILE.lurahName,
     lurahNip: sourceProfile.lurahNip || baseProfile.lurahNip || INITIAL_KELURAHAN_PROFILE.lurahNip,
+    lurahPhotoUrl: sourceProfile.lurahPhotoUrl || incProfile?.lurahPhotoUrl || baseProfile.lurahPhotoUrl || '',
+    lurahRank: sourceProfile.lurahRank || baseProfile.lurahRank || '',
+    lurahPeriod: sourceProfile.lurahPeriod || baseProfile.lurahPeriod || '',
     lurahMessage: sourceProfile.lurahMessage || baseProfile.lurahMessage || INITIAL_KELURAHAN_PROFILE.lurahMessage,
     officeAddress: sourceProfile.officeAddress || baseProfile.officeAddress || INITIAL_KELURAHAN_PROFILE.officeAddress,
     phoneContact: sourceProfile.phoneContact || baseProfile.phoneContact || INITIAL_KELURAHAN_PROFILE.phoneContact,

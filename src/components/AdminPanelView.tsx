@@ -100,6 +100,7 @@ import {
 } from '../data/initialData';
 import { resolveImageUrl } from '../utils/resolveImageUrl';
 import { compressImageFile } from '../utils/compressImage';
+import { getRealtimeDateTimeString, getRealtimeDateString, getRealtimeFullDateString } from '../utils/realtimeDate';
 import {
   buildInterRecipientCoordinationMessage,
   buildReportWhatsAppMessage,
@@ -1452,7 +1453,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   }>({
     rw: 'RW 01',
     unitName: 'BSU Sipakatau Panaikang',
-    date: '06 Okt 2026',
+    date: getRealtimeDateString(),
     organikKg: 60,
     anorganikKg: 45,
     residuKg: 15,
@@ -1476,7 +1477,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   const [confirmDeleteCleanupId, setConfirmDeleteCleanupId] = useState<string | null>(null);
   const [cleanupForm, setCleanupForm] = useState<Partial<CleanupEvent>>({
     title: '',
-    date: 'Sabtu, 17 Oktober 2026',
+    date: getRealtimeFullDateString(),
     timeRange: '06:30 – 09:30 WITA',
     rw: 'RW 01',
     rtScope: 'Seluruh RT 01 – RT 05',
@@ -1500,7 +1501,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     summary: '',
     content: '',
     imageUrl: IMG_BANK_SAMPAH,
-    publishedAt: '06 Okt 2026',
+    publishedAt: getRealtimeDateString(),
     author: 'Lurah Panaikang',
     instagramHandle: '@kelurahan.panaikang',
     instagramPostUrl: 'https://www.instagram.com/kelurahan.panaikang/',
@@ -1555,7 +1556,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       summary: '',
       content: '',
       imageUrl: IMG_BANK_SAMPAH,
-      publishedAt: '06 Okt 2026',
+      publishedAt: getRealtimeDateString(),
       author:
         adminSession?.username === 'operator'
           ? 'Operator Satu Data Kelurahan'
@@ -2691,10 +2692,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     clearFeedback();
     const officerLabel =
       adminSession?.fullName || 'Petugas Administrator / Operator Kelurahan Panaikang';
-    const nowTime = '06 Okt 2026 · ' + new Date().toLocaleTimeString('id-ID', {
-      hour: '2-digit',
-      minute: '2-digit',
-    }) + ' WITA';
+    const nowTime = getRealtimeDateTimeString();
 
     if (action === 'verifikasi') {
       const res = await auditedOnUpdateReport(rep.id, {
@@ -2759,7 +2757,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       responseNote: 'Laporan telah diverifikasi oleh Administrator Kelurahan.',
       imageUrl: IMG_DRAINASE,
       verifiedBy: adminSession?.fullName || 'Administrator Kelurahan Panaikang',
-      verifiedAt: '06 Okt 2026',
+      verifiedAt: getRealtimeDateString(),
       completionPhotoUrl: '',
       followUpPhotos: [],
     });
@@ -2788,7 +2786,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     e.preventDefault();
     clearFeedback();
     setIsSubmitting(true);
-    const nowTime = '06 Okt 2026 · Diperbarui Petugas';
+    const nowTime = getRealtimeDateTimeString();
     const followUps = Array.isArray(reportForm.followUpPhotos)
       ? reportForm.followUpPhotos.filter(Boolean)
       : reportForm.completionPhotoUrl
@@ -2914,7 +2912,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     setLogForm({
       rw: defaultRw,
       unitName: defaultUnit,
-      date: '06 Okt 2026 · Baru Saja',
+      date: getRealtimeDateTimeString(),
       organikKg: 60,
       anorganikKg: 45,
       residuKg: 15,
@@ -3049,7 +3047,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     const isCompleted = initialStatus === 'Tuntas';
     setCleanupForm({
       title: '',
-      date: isCompleted ? 'Jumat, 02 Oktober 2026' : 'Sabtu, 17 Oktober 2026',
+      date: getRealtimeFullDateString(),
       timeRange: '06:30 – 09:30 WITA',
       rw: 'RW 01',
       rtScope: 'Seluruh RT',
@@ -5818,7 +5816,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                           reportForm.verifiedBy ||
                           adminSession?.fullName ||
                           'Petugas Operator Kelurahan',
-                        verifiedAt: reportForm.verifiedAt || '06 Okt 2026 · Diverifikasi Petugas',
+                        verifiedAt: reportForm.verifiedAt || `${getRealtimeDateTimeString()} · Diverifikasi Petugas`,
                         assignedTeam:
                           reportForm.assignedTeam ||
                           `Satgas Kebersihan & Koordinator ${reportForm.rw || 'RW'}`,
@@ -5848,8 +5846,8 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                           reportForm.verifiedBy ||
                           adminSession?.fullName ||
                           'Petugas Operator Kelurahan',
-                        verifiedAt: reportForm.verifiedAt || '06 Okt 2026 · Diverifikasi Petugas',
-                        completedAt: '06 Okt 2026 · Tuntas Dikerjakan',
+                        verifiedAt: reportForm.verifiedAt || `${getRealtimeDateTimeString()} · Diverifikasi Petugas`,
+                        completedAt: `${getRealtimeDateTimeString()} · Tuntas Dikerjakan`,
                         assignedTeam:
                           reportForm.assignedTeam ||
                           `Satgas Kebersihan & Koordinator ${reportForm.rw || 'RW'}`,

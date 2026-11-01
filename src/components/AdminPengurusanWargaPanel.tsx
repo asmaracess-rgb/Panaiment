@@ -47,6 +47,7 @@ import { compressImageFile } from '../utils/compressImage';
 import { buildWhatsAppUrl } from '../utils/whatsappHelper';
 import { buildOfficialKopSuratHtml } from '../utils/officialKopSurat';
 import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
+import { getRealtimeDateTimeString } from '../utils/realtimeDate';
 
 interface AdminPengurusanWargaPanelProps {
   reports: CitizenReport[];
@@ -433,10 +434,7 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
     setFeedbackMsg('');
     setErrorList([]);
     const inferred = inferReportServiceCategory(rep, catalog);
-    const nowTime =
-      '06 Okt 2026 · ' +
-      new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) +
-      ' WITA';
+    const nowTime = getRealtimeDateTimeString();
     const autoRegNo =
       rep.letterRegisterNumber || generateAutoLetterNumber(inferred.documentCode);
 
@@ -544,7 +542,7 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
     }
 
     setIsSaving(true);
-    const nowTime = '06 Okt 2026 · Diperbarui Admin';
+    const nowTime = getRealtimeDateTimeString();
     const composedTitle = `[${currentFormCategory.title} — ${currentFormSubItem.label}] a.n. ${formReporterName.trim()}`;
 
     const specificSummary = currentFormSubItem.specificFields
