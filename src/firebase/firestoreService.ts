@@ -351,8 +351,14 @@ export async function seedInitialFirestoreIfEmpty(
   const docRef = doc(db, APP_STORE_COLLECTION, FULL_DB_DOC_ID);
   try {
     const snap = await getDoc(docRef);
-    if (!snap.exists()) {
-      console.log('[Firestore] Database Firestore kosong, melakukan initial seeding seluruh modul ke Cloud...');
+    const existing = snap.data() as Partial<PersistedDatabase> | undefined;
+    const hasLegacyDemo = Boolean(
+      !snap.exists() ||
+      (existing?.profile?.lurahNip === '19880412 201010 1 002') ||
+      (Array.isArray(existing?.reports) && existing.reports.some((r) => r.id === 'rep-1'))
+    );
+    if (hasLegacyDemo) {
+      console.log('[Firestore] Mengosongkan data bawaan demo di Cloud Firestore untuk inisialisasi inputan administrator baru...');
       await pushFullDatabaseToFirestore(initialData);
     } else {
       // Ensure profile and granular collections are also synchronized

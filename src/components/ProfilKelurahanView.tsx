@@ -10,6 +10,7 @@ import {
   Target,
   Compass,
   Users,
+  User,
   Layers,
   Eye,
   ChevronRight,
@@ -119,29 +120,53 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
                   <span>DATA PIMPINAN LURAH PANAIKANG</span>
                 </div>
 
-                <div className="mt-3 p-5 rounded-xl bg-slate-50 border border-slate-200/90">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                      <div className="text-lg sm:text-xl font-extrabold text-slate-900">
-                        {profile.lurahName}
+                {profile.lurahName ? (
+                  <div className="mt-3 p-5 rounded-xl bg-slate-50 border border-slate-200/90">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <div className="text-lg sm:text-xl font-extrabold text-slate-900">
+                          {profile.lurahName}
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                          <span>Lurah Panaikang</span>
+                          {profile.lurahNip && (
+                            <>
+                              <span aria-hidden="true">·</span>
+                              <span className="font-mono-num">NIP. {profile.lurahNip}</span>
+                            </>
+                          )}
+                          {profile.lurahRank && (
+                            <>
+                              <span aria-hidden="true">·</span>
+                              <span>{profile.lurahRank}</span>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600">
-                        <span>Lurah Panaikang</span>
-                        <span aria-hidden="true">·</span>
-                        <span className="font-mono-num">NIP. {profile.lurahNip}</span>
-                        <span aria-hidden="true">·</span>
-                        <span>{profile.lurahRank}</span>
-                      </div>
+                      {profile.lurahPeriod && (
+                        <div className="text-xs font-mono-num font-semibold text-emerald-800">
+                          Masa Tugas: {profile.lurahPeriod}
+                        </div>
+                      )}
                     </div>
-                    <div className="text-xs font-mono-num font-semibold text-emerald-800">
-                      Masa Tugas: {profile.lurahPeriod}
-                    </div>
-                  </div>
 
-                  <p className="mt-4 pt-3 border-t border-slate-200/80 text-xs sm:text-sm italic text-slate-700 leading-relaxed">
-                    "{profile.lurahMessage}"
-                  </p>
-                </div>
+                    {profile.lurahMessage && (
+                      <p className="mt-4 pt-3 border-t border-slate-200/80 text-xs sm:text-sm italic text-slate-700 leading-relaxed">
+                        "{profile.lurahMessage}"
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="mt-3 p-6 text-center rounded-xl border border-dashed border-slate-200 bg-slate-50/70">
+                    <User className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                    <p className="text-xs font-semibold text-slate-700">
+                      Data Pejabat Lurah Belum Diinput
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-1 max-w-sm mx-auto">
+                      Administrator kelurahan dapat menginput nama Lurah, NIP, pangkat, sambutan, dan informasi profil lainnya melalui menu Profil Kelurahan di Panel Admin.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Perangkat Struktural Kelurahan */}
@@ -274,19 +299,19 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
                 <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
                   <div className="text-[11px] text-slate-500">Luas Wilayah</div>
                   <div className="text-sm font-extrabold text-[#0D3868] font-mono-num mt-0.5">
-                    {profile.areaKm2}
+                    {profile.areaKm2 || '-'}
                   </div>
                 </div>
                 <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
                   <div className="text-[11px] text-slate-500">Cakupan RT/RW</div>
                   <div className="text-sm font-extrabold text-[#0D3868] font-mono-num mt-0.5">
-                    {profile.totalRw} RW · {profile.totalRt} RT
+                    {profile.totalRw || 7} RW · {profile.totalRt || 0} RT
                   </div>
                 </div>
                 <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
                   <div className="text-[11px] text-slate-500">Penduduk</div>
                   <div className="text-xs font-extrabold text-[#0D3868] font-mono-num mt-0.5">
-                    {profile.totalPopulation.split(' ')[0]} Jiwa
+                    {profile.totalPopulation ? `${profile.totalPopulation.split(' ')[0]} Jiwa` : '-'}
                   </div>
                 </div>
               </div>
@@ -298,19 +323,19 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
                 </div>
                 <div>
                   <span className="font-semibold text-slate-800">Utara:</span>{' '}
-                  {profile.boundaries.utara}
+                  {profile.boundaries?.utara || '-'}
                 </div>
                 <div>
                   <span className="font-semibold text-slate-800">Selatan:</span>{' '}
-                  {profile.boundaries.selatan}
+                  {profile.boundaries?.selatan || '-'}
                 </div>
                 <div>
                   <span className="font-semibold text-slate-800">Timur:</span>{' '}
-                  {profile.boundaries.timur}
+                  {profile.boundaries?.timur || '-'}
                 </div>
                 <div>
                   <span className="font-semibold text-slate-800">Barat:</span>{' '}
-                  {profile.boundaries.barat}
+                  {profile.boundaries?.barat || '-'}
                 </div>
               </div>
             </div>
@@ -327,8 +352,8 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
                 <span>VISI KELURAHAN PANAIKANG</span>
               </div>
 
-              <blockquote className="mt-4 text-lg sm:text-xl font-extrabold leading-relaxed text-white text-balance">
-                "{profile.visi}"
+              <blockquote className="mt-4 text-base sm:text-lg font-extrabold leading-relaxed text-white text-balance">
+                {profile.visi ? `"${profile.visi}"` : 'Visi resmi kelurahan belum diinput oleh administrator.'}
               </blockquote>
             </div>
 
@@ -347,16 +372,28 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
               Langkah strategis pelaksanaan program Panaikang Smart Environment
             </p>
 
-            <div className="mt-5 divide-y divide-slate-100">
-              {profile.misi.map((item, index) => (
-                <div key={index} className="py-3.5 first:pt-0 last:pb-0 flex items-start gap-3.5">
-                  <span className="font-mono-num text-sm font-extrabold text-[#1C8237] shrink-0 mt-0.5">
-                    0{index + 1}.
-                  </span>
-                  <p className="text-sm text-slate-700 leading-relaxed">{item}</p>
-                </div>
-              ))}
-            </div>
+            {Array.isArray(profile.misi) && profile.misi.length > 0 ? (
+              <div className="mt-5 divide-y divide-slate-100">
+                {profile.misi.map((item, index) => (
+                  <div key={index} className="py-3.5 first:pt-0 last:pb-0 flex items-start gap-3.5">
+                    <span className="font-mono-num text-sm font-extrabold text-[#1C8237] shrink-0 mt-0.5">
+                      0{index + 1}.
+                    </span>
+                    <p className="text-sm text-slate-700 leading-relaxed">{item}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-5 p-6 text-center rounded-xl border border-dashed border-slate-200 bg-slate-50/70">
+                <Target className="w-7 h-7 text-slate-300 mx-auto mb-2" />
+                <p className="text-xs font-semibold text-slate-700">
+                  Belum ada butir misi yang terdaftar
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1 max-w-sm mx-auto">
+                  Butir misi pembangunan kelurahan dapat diinput mandiri oleh Administrator melalui tab Profil Kelurahan di Panel Admin.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

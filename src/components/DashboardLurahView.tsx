@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -115,6 +115,14 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
   const [editNote, setEditNote] = useState<string>(selectedReport?.responseNote || '');
   const [savedBanner, setSavedBanner] = useState(false);
 
+  useEffect(() => {
+    if (selectedReport) {
+      setEditStatus(selectedReport.status);
+      setEditTeam(selectedReport.assignedTeam || TEAM_OPTIONS[0]);
+      setEditNote(selectedReport.responseNote || '');
+    }
+  }, [selectedReport?.id]);
+
   const handleSelectRow = (rep: CitizenReport) => {
     setSelectedReportId(rep.id);
     setEditStatus(rep.status);
@@ -153,6 +161,25 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
 
   // Dynamically sync the current month (Okt 2026) with live reports state
   const chartData = useMemo(() => {
+    if (!INITIAL_MONTHLY_TRENDS || INITIAL_MONTHLY_TRENDS.length === 0) {
+      if (reports.length > 0) {
+        return [
+          {
+            month: 'Okt',
+            fullMonth: 'Oktober 2026 (Periode Berjalan)',
+            totalLaporan: reports.length,
+            selesai: completedCount,
+            proses: inProgressCount + waitingCount,
+            sampahLiar: reports.filter((r) => r.category.includes('Sampah')).length,
+            drainase: reports.filter((r) => r.category.includes('Drainase')).length,
+            pohonHijau: reports.filter((r) => r.category.includes('Pohon')).length,
+            fasum: reports.filter((r) => r.category.includes('Fasilitas')).length,
+            indeksKebersihan: 95,
+          },
+        ];
+      }
+      return [];
+    }
     const extraReports = Math.max(0, reports.length - 5);
     const liveSelesaiDiff = completedCount - 2;
     const updated = INITIAL_MONTHLY_TRENDS.map((item, idx) => {
@@ -169,11 +196,16 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
       return item;
     });
     return timeRange === '6m' ? updated.slice(-6) : updated;
-  }, [reports.length, completedCount, timeRange]);
+  }, [reports, completedCount, inProgressCount, waitingCount, timeRange]);
 
-  const janTotal = INITIAL_MONTHLY_TRENDS[0].totalLaporan;
-  const currentOktTotal = chartData[chartData.length - 1].totalLaporan;
-  const dropPercentage = Math.round(((janTotal - currentOktTotal) / janTotal) * 100);
+  const firstTrend = chartData[0];
+  const latestTrend = chartData.length > 0 ? chartData[chartData.length - 1] : undefined;
+  const janTotal = INITIAL_MONTHLY_TRENDS?.[0]?.totalLaporan ?? (firstTrend?.totalLaporan ?? 0);
+  const currentOktTotal = latestTrend?.totalLaporan ?? 0;
+  const dropPercentage =
+    janTotal > 0
+      ? Math.round(((janTotal - currentOktTotal) / janTotal) * 100)
+      : 0;
 
   const filteredReports = reports.filter((r) => {
     const matchStatus = statusFilter === 'Semua' || r.status === statusFilter;
@@ -592,58 +624,68 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 text-xs">
-                    {filteredReports.map((rep) => {
-                      const isSelected = selectedReport?.id === rep.id;
-                      return (
-                        <tr
-                          key={rep.id}
-                          onClick={() => handleSelectRow(rep)}
-                          className={`cursor-pointer transition-colors ${
-                            isSelected ? 'bg-emerald-50/70' : 'hover:bg-slate-50'
-                          }`}
-                        >
-                          <td className="py-3.5 px-4 align-top whitespace-nowrap">
-                            <div className="font-mono-num font-bold text-[#0D3868]">
-                              {rep.ticketCode}
-                            </div>
-                            <div className="text-[11px] text-slate-500 font-mono-num mt-0.5">
-                              {rep.createdAt.split('·')[0]}
-                            </div>
-                          </td>
-                          <td className="py-3.5 px-4 align-top">
-                            <div className="font-semibold text-slate-900 line-clamp-1">
-                              {rep.title}
-                            </div>
-                            <div className="text-slate-500 mt-0.5 line-clamp-1">
-                              {rep.locationName}
-                            </div>
-                          </td>
-                          <td className="py-3.5 px-4 align-top whitespace-nowrap font-semibold text-slate-700">
-                            {rep.rw} · {rep.rt}
-                          </td>
-                          <td className="py-3.5 px-4 align-top whitespace-nowrap">
-                            {rep.status === 'Selesai' && (
-                              <span className="inline-flex items-center gap-1 font-semibold text-emerald-700">
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>Selesai</span>
-                              </span>
-                            )}
-                            {rep.status === 'Sedang Ditangani' && (
-                              <span className="inline-flex items-center gap-1 font-semibold text-sky-700">
-                                <Clock className="w-3.5 h-3.5" />
-                                <span>Ditangani</span>
-                              </span>
-                            )}
-                            {rep.status === 'Menunggu Verifikasi' && (
-                              <span className="inline-flex items-center gap-1 font-semibold text-amber-700">
-                                <AlertCircle className="w-3.5 h-3.5" />
-                                <span>Verifikasi</span>
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {filteredReports.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="py-10 text-center text-slate-400 bg-slate-50/40">
+                          <AlertCircle className="w-6 h-6 mx-auto mb-1 text-slate-300" />
+                          <p className="font-semibold text-slate-600">Belum ada laporan pengaduan warga</p>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Laporan dari warga atau input admin akan tampil di sini</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredReports.map((rep) => {
+                        const isSelected = selectedReport?.id === rep.id;
+                        return (
+                          <tr
+                            key={rep.id}
+                            onClick={() => handleSelectRow(rep)}
+                            className={`cursor-pointer transition-colors ${
+                              isSelected ? 'bg-emerald-50/70' : 'hover:bg-slate-50'
+                            }`}
+                          >
+                            <td className="py-3.5 px-4 align-top whitespace-nowrap">
+                              <div className="font-mono-num font-bold text-[#0D3868]">
+                                {rep.ticketCode}
+                              </div>
+                              <div className="text-[11px] text-slate-500 font-mono-num mt-0.5">
+                                {rep.createdAt.split('·')[0]}
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4 align-top">
+                              <div className="font-semibold text-slate-900 line-clamp-1">
+                                {rep.title}
+                              </div>
+                              <div className="text-slate-500 mt-0.5 line-clamp-1">
+                                {rep.locationName}
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4 align-top whitespace-nowrap font-semibold text-slate-700">
+                              {rep.rw} · {rep.rt}
+                            </td>
+                            <td className="py-3.5 px-4 align-top whitespace-nowrap">
+                              {rep.status === 'Selesai' && (
+                                <span className="inline-flex items-center gap-1 font-semibold text-emerald-700">
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>Selesai</span>
+                                </span>
+                              )}
+                              {rep.status === 'Sedang Ditangani' && (
+                                <span className="inline-flex items-center gap-1 font-semibold text-sky-700">
+                                  <Clock className="w-3.5 h-3.5" />
+                                  <span>Ditangani</span>
+                                </span>
+                              )}
+                              {rep.status === 'Menunggu Verifikasi' && (
+                                <span className="inline-flex items-center gap-1 font-semibold text-amber-700">
+                                  <AlertCircle className="w-3.5 h-3.5" />
+                                  <span>Verifikasi</span>
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -753,7 +795,15 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
                     </button>
                   </form>
                 </div>
-              ) : null}
+              ) : (
+                <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-8 h-full flex flex-col items-center justify-center text-center">
+                  <SlidersHorizontal className="w-10 h-10 text-slate-300 mb-2" />
+                  <div className="text-sm font-bold text-slate-700">Panel Disposisi & Instruksi Lurah</div>
+                  <p className="text-xs text-slate-500 mt-1 max-w-xs leading-relaxed">
+                    Belum ada laporan pengaduan warga yang dipilih untuk didisposisikan kepada Satgas.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -838,134 +888,144 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
             <div className="mt-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
               {/* Chart Canvas (8 cols) */}
               <div className="lg:col-span-8 h-[310px] sm:h-[340px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  {chartType === 'tren' ? (
-                    <AreaChart
-                      data={chartData}
-                      margin={{ top: 10, right: 16, left: -12, bottom: 0 }}
-                    >
-                      <defs>
-                        <linearGradient id="gradTotal" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#0284C7" stopOpacity={0.28} />
-                          <stop offset="95%" stopColor="#0284C7" stopOpacity={0.02} />
-                        </linearGradient>
-                        <linearGradient id="gradSelesai" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#16A34A" stopOpacity={0.32} />
-                          <stop offset="95%" stopColor="#16A34A" stopOpacity={0.02} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
-                      <XAxis
-                        dataKey="month"
-                        tick={{ fill: '#475569', fontSize: 12, fontWeight: 600 }}
-                        axisLine={{ stroke: '#CBD5E1' }}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        tick={{ fill: '#475569', fontSize: 12 }}
-                        axisLine={false}
-                        tickLine={false}
-                        unit=" lap"
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: '#FFFFFF',
-                          borderColor: '#CBD5E1',
-                          borderRadius: '12px',
-                          fontSize: '12px',
-                          boxShadow: '0 8px 20px -4px rgba(15, 23, 42, 0.1)',
-                        }}
-                        labelFormatter={(_, payload) =>
-                          payload?.[0]?.payload?.fullMonth || ''
-                        }
-                      />
-                      <Legend
-                        wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }}
-                        iconType="circle"
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="totalLaporan"
-                        name="Total Laporan Warga"
-                        stroke="#0284C7"
-                        strokeWidth={2.5}
-                        fillOpacity={1}
-                        fill="url(#gradTotal)"
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="selesai"
-                        name="Laporan Selesai Ditangani"
-                        stroke="#16A34A"
-                        strokeWidth={2.5}
-                        fillOpacity={1}
-                        fill="url(#gradSelesai)"
-                      />
-                    </AreaChart>
-                  ) : (
-                    <BarChart
-                      data={chartData}
-                      margin={{ top: 10, right: 16, left: -12, bottom: 0 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
-                      <XAxis
-                        dataKey="month"
-                        tick={{ fill: '#475569', fontSize: 12, fontWeight: 600 }}
-                        axisLine={{ stroke: '#CBD5E1' }}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        tick={{ fill: '#475569', fontSize: 12 }}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: '#FFFFFF',
-                          borderColor: '#CBD5E1',
-                          borderRadius: '12px',
-                          fontSize: '12px',
-                          boxShadow: '0 8px 20px -4px rgba(15, 23, 42, 0.1)',
-                        }}
-                        labelFormatter={(_, payload) =>
-                          payload?.[0]?.payload?.fullMonth || ''
-                        }
-                      />
-                      <Legend
-                        wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }}
-                        iconType="circle"
-                      />
-                      <Bar
-                        dataKey="sampahLiar"
-                        name="Sampah Liar & TPS"
-                        stackId="a"
-                        fill="#EF6C00"
-                        radius={[0, 0, 0, 0]}
-                      />
-                      <Bar
-                        dataKey="drainase"
-                        name="Drainase & Genangan"
-                        stackId="a"
-                        fill="#0284C7"
-                        radius={[0, 0, 0, 0]}
-                      />
-                      <Bar
-                        dataKey="pohonHijau"
-                        name="Pohon & Ruang Hijau"
-                        stackId="a"
-                        fill="#2E7D32"
-                        radius={[0, 0, 0, 0]}
-                      />
-                      <Bar
-                        dataKey="fasum"
-                        name="Ketertiban & Fasum"
-                        stackId="a"
-                        fill="#5E35B1"
-                        radius={[4, 4, 0, 0]}
-                      />
-                    </BarChart>
-                  )}
-                </ResponsiveContainer>
+                {chartData.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-200 rounded-2xl text-center bg-slate-50/50">
+                    <BarChart3 className="w-10 h-10 text-slate-300 mb-2" />
+                    <p className="text-sm font-bold text-slate-700">Belum Ada Data Grafik Tren Bulanan</p>
+                    <p className="text-xs text-slate-500 max-w-sm mt-1">
+                      Grafik tren dan kategori akan terbentuk otomatis setelah administrator menginput laporan warga atau data rekapitulasi bulanan kelurahan.
+                    </p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    {chartType === 'tren' ? (
+                      <AreaChart
+                        data={chartData}
+                        margin={{ top: 10, right: 16, left: -12, bottom: 0 }}
+                      >
+                        <defs>
+                          <linearGradient id="gradTotal" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#0284C7" stopOpacity={0.28} />
+                            <stop offset="95%" stopColor="#0284C7" stopOpacity={0.02} />
+                          </linearGradient>
+                          <linearGradient id="gradSelesai" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#16A34A" stopOpacity={0.32} />
+                            <stop offset="95%" stopColor="#16A34A" stopOpacity={0.02} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
+                        <XAxis
+                          dataKey="month"
+                          tick={{ fill: '#475569', fontSize: 12, fontWeight: 600 }}
+                          axisLine={{ stroke: '#CBD5E1' }}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          tick={{ fill: '#475569', fontSize: 12 }}
+                          axisLine={false}
+                          tickLine={false}
+                          unit=" lap"
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: '#FFFFFF',
+                            borderColor: '#CBD5E1',
+                            borderRadius: '12px',
+                            fontSize: '12px',
+                            boxShadow: '0 8px 20px -4px rgba(15, 23, 42, 0.1)',
+                          }}
+                          labelFormatter={(_, payload) =>
+                            payload?.[0]?.payload?.fullMonth || ''
+                          }
+                        />
+                        <Legend
+                          wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }}
+                          iconType="circle"
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="totalLaporan"
+                          name="Total Laporan Warga"
+                          stroke="#0284C7"
+                          strokeWidth={2.5}
+                          fillOpacity={1}
+                          fill="url(#gradTotal)"
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="selesai"
+                          name="Laporan Selesai Ditangani"
+                          stroke="#16A34A"
+                          strokeWidth={2.5}
+                          fillOpacity={1}
+                          fill="url(#gradSelesai)"
+                        />
+                      </AreaChart>
+                    ) : (
+                      <BarChart
+                        data={chartData}
+                        margin={{ top: 10, right: 16, left: -12, bottom: 0 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
+                        <XAxis
+                          dataKey="month"
+                          tick={{ fill: '#475569', fontSize: 12, fontWeight: 600 }}
+                          axisLine={{ stroke: '#CBD5E1' }}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          tick={{ fill: '#475569', fontSize: 12 }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: '#FFFFFF',
+                            borderColor: '#CBD5E1',
+                            borderRadius: '12px',
+                            fontSize: '12px',
+                            boxShadow: '0 8px 20px -4px rgba(15, 23, 42, 0.1)',
+                          }}
+                          labelFormatter={(_, payload) =>
+                            payload?.[0]?.payload?.fullMonth || ''
+                          }
+                        />
+                        <Legend
+                          wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }}
+                          iconType="circle"
+                        />
+                        <Bar
+                          dataKey="sampahLiar"
+                          name="Sampah Liar & TPS"
+                          stackId="a"
+                          fill="#EF6C00"
+                          radius={[0, 0, 0, 0]}
+                        />
+                        <Bar
+                          dataKey="drainase"
+                          name="Drainase & Genangan"
+                          stackId="a"
+                          fill="#0284C7"
+                          radius={[0, 0, 0, 0]}
+                        />
+                        <Bar
+                          dataKey="pohonHijau"
+                          name="Pohon & Ruang Hijau"
+                          stackId="a"
+                          fill="#2E7D32"
+                          radius={[0, 0, 0, 0]}
+                        />
+                        <Bar
+                          dataKey="fasum"
+                          name="Ketertiban & Fasum"
+                          stackId="a"
+                          fill="#5E35B1"
+                          radius={[4, 4, 0, 0]}
+                        />
+                      </BarChart>
+                    )}
+                  </ResponsiveContainer>
+                )}
               </div>
 
               {/* Executive Insight Summary Panel (4 cols) */}
@@ -976,45 +1036,54 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
                     <span>Analisis Tren Kebersihan Wilayah</span>
                   </div>
                   <div className="mt-1.5 text-2xl font-extrabold text-[#0D3868] font-mono-num">
-                    -{dropPercentage}% Keluhan Lingkungan
+                    {dropPercentage > 0 ? `-${dropPercentage}%` : `${dropPercentage}%`} Keluhan Lingkungan
                   </div>
                   <p className="mt-1 text-xs text-slate-600 leading-relaxed">
-                    Volume laporan masalah lingkungan warga turun dari{' '}
-                    <span className="font-mono-num font-semibold text-slate-900">
-                      {janTotal} laporan
-                    </span>{' '}
-                    pada Januari menjadi{' '}
-                    <span className="font-mono-num font-semibold text-slate-900">
-                      {currentOktTotal} laporan
-                    </span>{' '}
-                    pada Oktober 2026.
+                    {janTotal > 0 ? (
+                      <>
+                        Volume laporan masalah lingkungan warga tercatat{' '}
+                        <span className="font-mono-num font-semibold text-slate-900">
+                          {janTotal} laporan
+                        </span>{' '}
+                        pada awal periode dan{' '}
+                        <span className="font-mono-num font-semibold text-slate-900">
+                          {currentOktTotal} laporan
+                        </span>{' '}
+                        pada periode berjalan.
+                      </>
+                    ) : (
+                      <>
+                        Belum ada riwayat laporan periode sebelumnya. Volume laporan aktif saat ini tercatat{' '}
+                        <span className="font-mono-num font-semibold text-slate-900">
+                          {currentOktTotal} laporan
+                        </span>.
+                      </>
+                    )}
                   </p>
                 </div>
 
                 <div className="pt-3 border-t border-slate-100 space-y-2.5 text-xs">
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Indeks Kebersihan Jan 2026:</span>
-                    <span className="font-mono-num font-semibold text-slate-700">76 / 100</span>
+                    <span className="text-slate-500">Indeks Kebersihan Periode Awal:</span>
+                    <span className="font-mono-num font-semibold text-slate-700">{janTotal > 0 ? '76 / 100' : '-'}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Indeks Kebersihan Okt 2026:</span>
+                    <span className="text-slate-500">Indeks Kebersihan Saat Ini:</span>
                     <span className="font-mono-num font-bold text-emerald-700">
-                      95 / 100 (+19 poin)
+                      {janTotal > 0 ? '95 / 100 (+19 poin)' : '100 / 100'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Penurunan Titik Sampah Liar:</span>
+                    <span className="text-slate-500">Penanganan Titik Sampah:</span>
                     <span className="font-mono-num font-semibold text-sky-700">
-                      20 → 5 titik/bln
+                      {totalReports} laporan tercatat
                     </span>
                   </div>
                 </div>
 
                 <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-600 leading-relaxed">
                   <span className="font-semibold text-slate-900">Catatan Evaluasi Lurah: </span>
-                  Penurunan signifikan terjadi sejak pengaktifan 6 Bank Sampah Unit (BSU) RW dan
-                  jadwal penjemputan motor sampah Tangkasaki pagi-sore di koridor Jl. Urip Sumoharjo
-                  & Jl. Sukaria.
+                  Kinerja lingkungan dan evaluasi wilayah terkoordinasi langsung dengan Bank Sampah Unit (BSU) RW, motor sampah Tangkasaki, dan Satgas Drainase/Kebersihan Kelurahan Panaikang.
                 </div>
               </div>
             </div>
@@ -1033,40 +1102,50 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
             </p>
 
             <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-4">
-              {wasteUnits.map((u) => {
-                const totalRwKg = u.organikKg + u.anorganikKg + u.residuKg;
-                const cleanRatio = Math.round(((u.organikKg + u.anorganikKg) / totalRwKg) * 100);
-                return (
-                  <div
-                    key={u.id}
-                    className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between text-xs text-slate-500">
-                        <span className="font-bold text-[#0D3868] text-sm">{u.rw}</span>
-                        <span className="font-mono-num font-semibold text-emerald-700">
-                          {cleanRatio}% Terpilah
-                        </span>
+              {wasteUnits.length === 0 ? (
+                <div className="col-span-full p-8 rounded-xl border border-dashed border-slate-300 bg-slate-50 text-center">
+                  <FileSpreadsheet className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                  <p className="text-sm font-semibold text-slate-700">Belum Ada Data Bank Sampah Unit RW</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Silakan input data Bank Sampah Unit melalui Panel Admin &gt; Pengelolaan Sampah.
+                  </p>
+                </div>
+              ) : (
+                wasteUnits.map((u) => {
+                  const totalRwKg = u.organikKg + u.anorganikKg + u.residuKg;
+                  const cleanRatio = totalRwKg > 0 ? Math.round(((u.organikKg + u.anorganikKg) / totalRwKg) * 100) : 0;
+                  return (
+                    <div
+                      key={u.id}
+                      className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between text-xs text-slate-500">
+                          <span className="font-bold text-[#0D3868] text-sm">{u.rw}</span>
+                          <span className="font-mono-num font-semibold text-emerald-700">
+                            {cleanRatio}% Terpilah
+                          </span>
+                        </div>
+                        <div className="mt-1 text-sm font-semibold text-slate-900">{u.unitName}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{u.locationLabel}</div>
                       </div>
-                      <div className="mt-1 text-sm font-semibold text-slate-900">{u.unitName}</div>
-                      <div className="text-xs text-slate-500 mt-0.5">{u.locationLabel}</div>
-                    </div>
 
-                    <div className="mt-4">
-                      <div className="w-full h-2 rounded-full bg-slate-200 overflow-hidden flex">
-                        <div
-                          className="bg-emerald-600 h-full"
-                          style={{ width: `${cleanRatio}%` }}
-                        />
-                      </div>
-                      <div className="mt-2 flex items-center justify-between text-xs text-slate-600 font-mono-num">
-                        <span>{u.activeHouseholds} KK Aktif</span>
-                        <span>Total {totalRwKg} kg</span>
+                      <div className="mt-4">
+                        <div className="w-full h-2 rounded-full bg-slate-200 overflow-hidden flex">
+                          <div
+                            className="bg-emerald-600 h-full"
+                            style={{ width: `${cleanRatio}%` }}
+                          />
+                        </div>
+                        <div className="mt-2 flex items-center justify-between text-xs text-slate-600 font-mono-num">
+                          <span>{u.activeHouseholds} KK Aktif</span>
+                          <span>Total {totalRwKg} kg</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
         </div>

@@ -75,11 +75,11 @@ export interface PersistedDatabase {
 }
 
 // Multi-tier storage keys to guarantee zero data loss across GitHub sync & Vercel builds
-const STORAGE_KEY = 'pnk_smart_env_db_v3';
-const BACKUP_KEY = 'pnk_smart_env_db_backup_v3';
-const JOURNAL_REPORTS_KEY = 'pnk_smart_env_user_reports_v1';
-const JOURNAL_LOGS_KEY = 'pnk_smart_env_user_logs_v1';
-const DELETED_IDS_KEY = 'pnk_smart_env_deleted_ids_v1';
+const STORAGE_KEY = 'pnk_smart_env_db_v4';
+const BACKUP_KEY = 'pnk_smart_env_db_backup_v4';
+const JOURNAL_REPORTS_KEY = 'pnk_smart_env_user_reports_v2';
+const JOURNAL_LOGS_KEY = 'pnk_smart_env_user_logs_v2';
+const DELETED_IDS_KEY = 'pnk_smart_env_deleted_ids_v2';
 
 // Initial IDs to distinguish default sample data from actual citizen & admin input
 const INITIAL_REPORT_IDS = new Set(INITIAL_REPORTS.map((r) => r.id));

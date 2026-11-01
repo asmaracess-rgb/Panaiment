@@ -209,11 +209,19 @@ export const MonthlyArchivePdfPanel: React.FC<MonthlyArchivePdfPanelProps> = ({
               onChange={(e) => handlePeriodChange(e.target.value)}
               className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-semibold text-slate-900 focus:border-[#0D3868] focus:outline-none"
             >
-              {[...INITIAL_MONTHLY_TRENDS].reverse().map((m) => (
-                <option key={m.month} value={m.month}>
-                  {m.fullMonth}
-                </option>
-              ))}
+              {INITIAL_MONTHLY_TRENDS && INITIAL_MONTHLY_TRENDS.length > 0 ? (
+                [...INITIAL_MONTHLY_TRENDS].reverse().map((m) => (
+                  <option key={m.month} value={m.month}>
+                    {m.fullMonth}
+                  </option>
+                ))
+              ) : (
+                <>
+                  <option value="Okt">Oktober 2026 (Periode Berjalan)</option>
+                  <option value="Sep">September 2026</option>
+                  <option value="Agu">Agustus 2026</option>
+                </>
+              )}
               <option value="ALL_2026">
                 Rekapitulasi Tahunan (Januari – Oktober 2026)
               </option>

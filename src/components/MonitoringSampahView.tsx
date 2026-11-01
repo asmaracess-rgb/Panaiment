@@ -333,24 +333,25 @@ export const MonitoringSampahView: React.FC<MonitoringSampahViewProps> = ({
             </div>
           </div>
 
-          {/* 6 Waste Bank Unit Cards */}
+          {/* Waste Bank Unit Cards */}
           <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base sm:text-lg font-bold text-[#0D3868]">
                 Daftar Bank Sampah Unit (BSU) RW Aktif
               </h2>
               <span className="text-xs font-semibold text-slate-500 font-mono-num">
-                6 Unit Terdaftar
+                {wasteUnits.length} Unit Terdaftar
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {wasteUnits.map((u) => {
-                return (
-                  <div
-                    key={u.id}
-                    className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs flex flex-col justify-between hover:border-amber-300 transition-colors"
-                  >
+            {wasteUnits.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {wasteUnits.map((u) => {
+                  return (
+                    <div
+                      key={u.id}
+                      className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs flex flex-col justify-between hover:border-amber-300 transition-colors"
+                    >
                     <div>
                       {u.imageUrl ? (
                         <div className="relative h-44 w-full bg-slate-100 overflow-hidden border-b border-slate-100">
@@ -451,6 +452,15 @@ export const MonitoringSampahView: React.FC<MonitoringSampahViewProps> = ({
                 );
               })}
             </div>
+          ) : (
+              <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-8 text-center space-y-2">
+                <Recycle className="w-10 h-10 text-slate-300 mx-auto" />
+                <h3 className="text-sm font-bold text-slate-700">Belum Ada Bank Sampah Unit (BSU) Terdaftar</h3>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  Data unit bank sampah di setiap RW dapat ditambahkan oleh Administrator melalui Panel Admin (Menu Bank Sampah).
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Interactive Tools: Layanan Penimbangan BSU & Kalkulator Simulasi Tabungan */}

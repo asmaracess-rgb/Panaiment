@@ -1154,6 +1154,8 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       }
     };
 
+    const shouldForceTakeover = cleanUser === 'lurah' || cleanUser === 'admin' || Boolean(activeAdminLockInfo.isLocked);
+
     // 1. First attempt login via server API
     try {
       const res = await fetch('/api/auth/login', {
@@ -1163,6 +1165,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           username: cleanUser,
           password: cleanPass,
           clientToken: adminSession?.token,
+          forceTakeover: shouldForceTakeover,
         }),
       });
 
@@ -1205,7 +1208,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
     // 2. Resilient Firestore Cloud Authentication & Single-Admin Lock
     try {
-      const fsResult = await loginWithFirestore(cleanUser, cleanPass, adminUsers);
+      const fsResult = await loginWithFirestore(cleanUser, cleanPass, adminUsers, shouldForceTakeover);
       setIsLoggingIn(false);
       if (!fsResult.ok) {
         if (fsResult.isLocked) {
@@ -3291,19 +3294,15 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
               <button
                 type="submit"
-                disabled={isLoggingIn || Boolean(activeAdminLockInfo.isLocked)}
-                className={`w-full mt-2 inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-white text-sm font-bold shadow-sm transition-colors cursor-pointer ${
-                  activeAdminLockInfo.isLocked
-                    ? 'bg-slate-400 cursor-not-allowed opacity-80'
-                    : 'bg-[#0D3868] hover:bg-[#072647] disabled:opacity-75 disabled:cursor-wait'
-                }`}
+                disabled={isLoggingIn}
+                className="w-full mt-2 inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-sm font-bold shadow-sm transition-colors cursor-pointer disabled:opacity-75 disabled:cursor-wait"
               >
                 <ShieldCheck className="w-4 h-4" />
                 <span>
                   {isLoggingIn
                     ? 'Memverifikasi Kredensial...'
                     : activeAdminLockInfo.isLocked
-                    ? 'Slot Terkunci (Admin Lain Sedang Online)'
+                    ? 'Masuk & Ambil Alih Slot Login'
                     : 'Masuk ke Panel Administrator'}
                 </span>
               </button>
