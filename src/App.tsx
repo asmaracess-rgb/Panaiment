@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { CheckCircle2, Clock, AlertCircle, X } from 'lucide-react';
+import { CheckCircle2, Clock, AlertCircle, X, Lock } from 'lucide-react';
 import {
   AppView,
   CitizenReport,
@@ -1880,13 +1880,6 @@ export default function App() {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => handleNavigate('admin')}
-            className="px-2.5 py-1.5 text-[11px] font-bold text-[#0D3868] bg-slate-100 border border-slate-200 rounded-lg hover:bg-slate-200 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-          >
-            Admin Panel
-          </button>
-          <button
-            type="button"
             onClick={() => handleNavigate('warga')}
             className="px-3 py-1.5 text-[11px] font-bold text-white bg-[#1C8237] rounded-lg hover:bg-[#146329] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
@@ -2061,9 +2054,20 @@ export default function App() {
       {/* Global Footer (Visible on inner views, HomePortal includes its own footer) */}
       {activeView !== 'beranda' && (
         <footer className="mt-auto border-t border-slate-200 bg-white py-3.5 px-4 text-center">
-          <p className="text-[11px] sm:text-xs text-slate-500 font-medium tracking-wide">
-            Develope by @asmaracess
-          </p>
+          <div className="flex flex-col items-center justify-center gap-1">
+            <p className="text-[11px] sm:text-xs text-slate-500 font-medium tracking-wide">
+              Develope by @asmaracess
+            </p>
+            <button
+              type="button"
+              onClick={() => handleNavigate('admin')}
+              className="inline-flex items-center gap-1.5 text-[10px] text-slate-400 hover:text-[#0D3868] transition-colors cursor-pointer"
+              title="Akses Sistem Internal"
+            >
+              <Lock className="w-2.5 h-2.5" />
+              <span>Akses Sistem Internal</span>
+            </button>
+          </div>
         </footer>
       )}
 

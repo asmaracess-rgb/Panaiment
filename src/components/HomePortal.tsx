@@ -18,6 +18,7 @@ import {
   Sprout,
   Leaf,
   Building2,
+  Lock,
 } from 'lucide-react';
 import {
   AppView,
@@ -1379,8 +1380,19 @@ export const HomePortal: React.FC<HomePortalProps> = ({
             {/* Bottom Credit Line */}
             <div className="mx-auto max-w-5xl mt-6 pt-4 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-sky-200/70">
               <div>© {new Date().getFullYear()} Kelurahan Panaikang · Kota Makassar</div>
-              <div className="font-medium tracking-wide text-sky-100">
-                Develope by @asmaracess
+              <div className="flex flex-col items-center sm:items-end gap-1">
+                <span className="font-medium tracking-wide text-sky-100">
+                  Develope by @asmaracess
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('admin')}
+                  className="inline-flex items-center gap-1.5 text-[10px] text-sky-300/80 hover:text-white transition-colors cursor-pointer"
+                  title="Akses Sistem Internal"
+                >
+                  <Lock className="w-2.5 h-2.5" />
+                  <span>Akses Sistem Internal</span>
+                </button>
               </div>
             </div>
           </div>
