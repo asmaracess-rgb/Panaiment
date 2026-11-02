@@ -58,6 +58,7 @@ export interface CitizenReport {
   officialHeaderTitle?: string;
   processingUnit?: string;
   applicantNik?: string;
+  citizenAddress?: string;
   specificFieldsData?: Record<string, string>;
   letterRegisterNumber?: string;
   signedByOfficer?: string;

@@ -839,6 +839,7 @@ export default function App() {
       officialHeaderTitle: rep.officialHeaderTitle,
       processingUnit: rep.processingUnit,
       applicantNik: rep.applicantNik,
+      citizenAddress: rep.citizenAddress,
       specificFieldsData: rep.specificFieldsData,
       letterRegisterNumber: rep.letterRegisterNumber,
       signedByOfficer: rep.signedByOfficer,

@@ -1384,6 +1384,27 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     householdsCount: 120,
   });
 
+  const [adminExpandedRwIds, setAdminExpandedRwIds] = useState<Record<string, boolean>>({});
+
+  const toggleAdminRwDetail = (rwId: string) => {
+    setAdminExpandedRwIds((prev) => ({
+      ...prev,
+      [rwId]: !prev[rwId],
+    }));
+  };
+
+  const expandAllAdminRw = () => {
+    const all: Record<string, boolean> = {};
+    rwGroups.forEach((rw) => {
+      all[rw.id] = true;
+    });
+    setAdminExpandedRwIds(all);
+  };
+
+  const collapseAllAdminRw = () => {
+    setAdminExpandedRwIds({});
+  };
+
   // ================= 2. LAPORAN WARGA & WHATSAPP RECIPIENT CRUD STATE =================
   const [showWaForm, setShowWaForm] = useState(false);
   const [editingWaId, setEditingWaId] = useState<string | null>(null);
@@ -2424,6 +2445,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   const openAddRtForm = (rw: RwGroup) => {
     clearFeedback();
     setActiveRwForRt(rw.id);
+    setAdminExpandedRwIds((prev) => ({ ...prev, [rw.id]: true }));
     setEditingRtId(null);
     const nextRtNum = String((rw.rtList?.length || 0) + 1).padStart(2, '0');
     setRtForm({
@@ -2439,6 +2461,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   const openEditRtForm = (rw: RwGroup, rt: RtItem) => {
     clearFeedback();
     setActiveRwForRt(rw.id);
+    setAdminExpandedRwIds((prev) => ({ ...prev, [rw.id]: true }));
     setEditingRtId(rt.id);
     setRtForm({ ...rt });
   };
@@ -6193,8 +6216,13 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                       <td className="py-3.5 px-4">
                         <div className="font-bold text-slate-900">{rep.title}</div>
                         <div className="text-slate-500 mt-0.5">
-                          {rep.category} · {rep.locationName}
+                          {rep.category} · {rep.citizenAddress || rep.locationName}
                         </div>
+                        {rep.applicantNik && (
+                          <div className="text-[11px] font-mono-num text-slate-600 mt-0.5">
+                            NIK: {rep.applicantNik}
+                          </div>
+                        )}
                         {/* Distribusi & Koordinasi WA Langsung Antar Semua Nomor Penerima Terdaftar */}
                         {whatsappRecipients.filter((r) => r.isActive).length > 0 && (
                           <div className="mt-2 pt-2 border-t border-slate-100 space-y-1.5">
@@ -7820,18 +7848,51 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             </form>
           )}
 
+          {/* Header Bar: Daftar RW se-Kelurahan Panaikang */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#1C8237]" />
+                <h3 className="text-sm sm:text-base font-extrabold text-[#0D3868]">
+                  Daftar Wilayah Rukun Warga (RW) se-Kelurahan Panaikang ({rwGroups.length} RW)
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Tampilan awal disederhanakan hanya daftar RW. Klik <strong>"Lihat Detail RT"</strong> pada setiap bilah RW untuk melihat atau mengelola RT.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={expandAllAdminRw}
+                className="px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 cursor-pointer"
+              >
+                Buka Semua RT
+              </button>
+              <button
+                type="button"
+                onClick={collapseAllAdminRw}
+                className="px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 cursor-pointer"
+              >
+                Tutup Semua RT
+              </button>
+            </div>
+          </div>
+
           {/* Daftar RW beserta Pembagian RT di Masing-Masing RW */}
-          <div className="space-y-6">
-            {rwGroups.map((rw) => (
+          <div className="space-y-4">
+            {rwGroups.map((rw) => {
+              const isRwExpanded = !!adminExpandedRwIds[rw.id] || activeRwForRt === rw.id;
+              return (
               <div
                 key={rw.id}
-                className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs"
+                className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs hover:border-[#0277BD]/50 transition-all"
               >
                 {/* Header RW */}
                 <div className="bg-[#0D3868] text-white px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="px-2.5 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-xs font-extrabold">
+                      <span className="px-2.5 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-xs font-extrabold font-mono-num">
                         {rw.rwCode}
                       </span>
                       <h3 className="text-sm sm:text-base font-bold text-white">
@@ -7846,6 +7907,23 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => toggleAdminRwDetail(rw.id)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all shadow-xs cursor-pointer ${
+                        isRwExpanded
+                          ? 'bg-amber-400 hover:bg-amber-300 text-slate-950 ring-2 ring-white/30'
+                          : 'bg-white hover:bg-sky-50 text-[#0D3868]'
+                      }`}
+                    >
+                      <Layers className="w-3.5 h-3.5 text-[#0277BD]" />
+                      <span>{isRwExpanded ? 'Tutup RT' : `Lihat Detail RT (${rw.rtList?.length || 0} RT)`}</span>
+                      {isRwExpanded ? (
+                        <ChevronUp className="w-3.5 h-3.5 ml-0.5" />
+                      ) : (
+                        <ChevronDown className="w-3.5 h-3.5 ml-0.5" />
+                      )}
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
@@ -7923,6 +8001,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     )}
                   </div>
                 </div>
+
+                {isRwExpanded && (
+                  <div className="border-t border-slate-200">
 
                 {/* Form Tambah / Edit RT khusus di dalam RW ini */}
                 {activeRwForRt === rw.id && (
@@ -8182,8 +8263,11 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                   </table>
                 </div>
               </div>
-            ))}
+            )}
           </div>
+        );
+      })}
+    </div>
         </div>
       )}
 

@@ -1,53 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
-  Send,
+  ArrowLeft,
   Search,
   MapPin,
-  ThumbsUp,
   CheckCircle2,
   Clock,
   AlertCircle,
-  Truck,
-  ArrowLeft,
-  FileCheck2,
-  Camera,
-  ShieldCheck,
-  X,
-  MessageCircle,
   Upload,
   Copy,
   Check,
-  Lock,
   FileText,
   UserCheck,
-  Briefcase,
-  HeartHandshake,
-  Siren,
-  Trees,
-  Calendar,
-  Megaphone,
-  PhoneCall,
-  Building2,
-  ChevronRight,
-  ChevronDown,
-  ChevronUp,
-  LayoutGrid,
-  Users,
   ExternalLink,
   Printer,
-  ClipboardCheck,
-  FolderOpen,
-  Folder,
-  Smartphone,
-  Globe,
+  ChevronRight,
+  Eye,
+  Send,
+  X,
+  Phone,
   Home,
-  Store,
-  Baby,
-  Heart,
-  Smile,
-  ShieldAlert,
-  GraduationCap,
-  FileCheck,
+  ShieldCheck,
+  Building2,
+  Calendar,
+  Layers,
+  Sparkles,
 } from 'lucide-react';
 import {
   CitizenReport,
@@ -63,14 +39,9 @@ import {
   CleanupEvent,
 } from '../types';
 import {
-  IMG_DRAINASE,
-  IMG_BANK_SAMPAH,
-  IMG_KERJA_BAKTI,
-  INITIAL_WHATSAPP_RECIPIENTS,
-  INITIAL_KELURAHAN_PROFILE,
-  INITIAL_KELURAHAN_INFOS,
-} from '../data/initialData';
-import {
+  OFFICIAL_13_WARGA_SERVICES,
+  REPORT_COMPLAINT_CATEGORIES,
+  OfficialWargaService,
   MAIN_WARGA_MENUS,
   SERVICE_CATEGORY_GROUPS,
   MainWargaMenuId,
@@ -79,14 +50,8 @@ import {
   ServiceCategoryGroup,
   MainMenuCardConfig,
 } from '../data/wargaServiceCatalog';
-import { resolveImageUrl } from '../utils/resolveImageUrl';
 import { compressImageFile } from '../utils/compressImage';
-import {
-  buildReportWhatsAppMessage,
-  buildWhatsAppUrl,
-  getPreferredWhatsAppRecipient,
-  triggerWhatsAppRedirect,
-} from '../utils/whatsappHelper';
+import { getRealtimeDateTimeString } from '../utils/realtimeDate';
 
 export {
   MAIN_WARGA_MENUS,
@@ -98,9 +63,15 @@ export {
   type MainMenuCardConfig,
 };
 
+const LONTARA_LOGO_URL = '/assets/aistudio/198184-removebg-preview_e45b7839.png';
+const LONTARA_PLUS_URL = 'https://lontaraplus.makassarkota.go.id';
+
+const DEFAULT_RW_LIST = ['RW 01', 'RW 02', 'RW 03', 'RW 04', 'RW 05', 'RW 06', 'RW 07'];
+const DEFAULT_RT_LIST = ['RT 01', 'RT 02', 'RT 03', 'RT 04', 'RT 05'];
+
 interface UntukWargaViewProps {
   reports: CitizenReport[];
-  wasteUnits: WasteBankUnit[];
+  wasteUnits?: WasteBankUnit[];
   rwGroups?: RwGroup[];
   whatsappRecipients?: WhatsAppRecipient[];
   kelurahanProfile?: KelurahanProfile;
@@ -124,2577 +95,1762 @@ interface UntukWargaViewProps {
   onNavigate: (view: AppView) => void;
 }
 
-type WargaPageMode =
-  | 'menu_hub'
-  | 'category_page'
-  | 'sub_menu_page'
-  | 'cek_status_page'
-  | 'pengumuman_page'
-  | 'hubungi_page';
-
-const DEFAULT_RW_OPTIONS = ['RW 01', 'RW 02', 'RW 03', 'RW 04', 'RW 05', 'RW 06', 'RW 07'];
-const DEFAULT_RT_OPTIONS = ['RT 01', 'RT 02', 'RT 03', 'RT 04', 'RT 05'];
-const CATEGORY_OPTIONS: ReportCategory[] = [
-  'Sampah Liar & TPS',
-  'Drainase & Genangan',
-  'Pohon & Ruang Hijau',
-  'Ketertiban & Fasum',
-];
-
-const LANDMARK_PRESETS: Record<string, { label: string; x: number; y: number; coords: string }> = {
-  'RW 01': {
-    label: 'JL. ASPOL TELLO BARU BLOK B3/1',
-    x: 24,
-    y: 47,
-    coords: '-5.1388, 119.4408',
-  },
-  'RW 02': {
-    label: 'JL. BILAWAIYAH NO 22',
-    x: 50,
-    y: 45,
-    coords: '-5.1379, 119.4470',
-  },
-  'RW 03': {
-    label: 'JL. H. KALLA II CAMPAGAYA NO 12',
-    x: 57,
-    y: 35,
-    coords: '-5.1355, 119.4485',
-  },
-  'RW 04': {
-    label: 'JL. ANGKASA BELAKANG PALDAM NO 10',
-    x: 37,
-    y: 64,
-    coords: '-5.1415, 119.4432',
-  },
-  'RW 05': {
-    label: 'JL. ANGKASA III NO 16',
-    x: 65,
-    y: 67,
-    coords: '-5.1422, 119.4496',
-  },
-  'RW 06': {
-    label: 'JL. URIP SUMOHARJO NO 35 A KM 5',
-    x: 73,
-    y: 34,
-    coords: '-5.1345, 119.4515',
-  },
-  'RW 07': {
-    label: 'JL. KESADARAN IV NO 9',
-    x: 62,
-    y: 52,
-    coords: '-5.1395, 119.4502',
-  },
-};
-
-function renderCategoryIcon(
-  iconName: ServiceCategoryGroup['iconName'],
-  className = 'w-5 h-5'
-): React.ReactNode {
-  switch (iconName) {
-    case 'UserCheck':
-      return <UserCheck className={className} />;
-    case 'FileText':
-      return <FileText className={className} />;
-    case 'Briefcase':
-      return <Briefcase className={className} />;
-    case 'Trees':
-      return <Trees className={className} />;
-    case 'HeartHandshake':
-      return <HeartHandshake className={className} />;
-    case 'Users':
-      return <Users className={className} />;
-    case 'Siren':
-      return <Siren className={className} />;
-    default:
-      return <FileText className={className} />;
-  }
-}
-
-function renderSubItemSpecificIcon(
-  item: ServiceSubItem,
-  className = 'w-5 h-5'
-): React.ReactNode {
-  const lbl = (item.label + ' ' + (item.officialHeaderTitle || '')).toLowerCase();
-
-  if (lbl.includes('domisili') || lbl.includes('tinggal') || lbl.includes('pindah')) {
-    return <Home className={`${className} text-sky-600`} />;
-  }
-  if (
-    lbl.includes('usaha') ||
-    lbl.includes('sku') ||
-    lbl.includes('umkm') ||
-    lbl.includes('toko') ||
-    lbl.includes('industri')
-  ) {
-    return <Store className={`${className} text-amber-600`} />;
-  }
-  if (
-    lbl.includes('tidak mampu') ||
-    lbl.includes('sktm') ||
-    lbl.includes('bansos') ||
-    lbl.includes('bantuan') ||
-    lbl.includes('miskin') ||
-    lbl.includes('kurang mampu')
-  ) {
-    return <HeartHandshake className={`${className} text-emerald-600`} />;
-  }
-  if (lbl.includes('kematian') || lbl.includes('meninggal')) {
-    return <Heart className={`${className} text-rose-500`} />;
-  }
-  if (lbl.includes('kelahiran') || lbl.includes('lahir') || lbl.includes('anak') || lbl.includes('bayi')) {
-    return <Baby className={`${className} text-indigo-600`} />;
-  }
-  if (lbl.includes('nikah') || lbl.includes('menikah') || lbl.includes('perkawinan')) {
-    return <UserCheck className={`${className} text-cyan-600`} />;
-  }
-  if (
-    lbl.includes('sekolah') ||
-    lbl.includes('kuliah') ||
-    lbl.includes('beasiswa') ||
-    lbl.includes('pendidikan')
-  ) {
-    return <GraduationCap className={`${className} text-violet-600`} />;
-  }
-  if (
-    lbl.includes('ktp') ||
-    lbl.includes('kartu keluarga') ||
-    lbl.includes('kk') ||
-    lbl.includes('kependudukan')
-  ) {
-    return <UserCheck className={`${className} text-blue-600`} />;
-  }
-  if (
-    lbl.includes('sampah') ||
-    lbl.includes('kebersihan') ||
-    lbl.includes('pohon') ||
-    lbl.includes('drainase') ||
-    lbl.includes('lingkungan') ||
-    lbl.includes('taman')
-  ) {
-    return <Trees className={`${className} text-emerald-600`} />;
-  }
-  if (
-    lbl.includes('darurat') ||
-    lbl.includes('bencana') ||
-    lbl.includes('siren') ||
-    lbl.includes('laporan') ||
-    lbl.includes('pengaduan')
-  ) {
-    return <Siren className={`${className} text-red-600`} />;
-  }
-  if (lbl.includes('kehilangan') || lbl.includes('keamanan') || lbl.includes('konflik')) {
-    return <ShieldAlert className={`${className} text-amber-600`} />;
-  }
-  if (lbl.includes('pengantar')) {
-    return <FileCheck className={`${className} text-[#0277BD]`} />;
-  }
-  return <FileText className={`${className} text-[#0277BD]`} />;
-}
-
-function getSubItemSubtitle(item: ServiceSubItem): string {
-  const lbl = item.label.toLowerCase();
-  if (lbl.includes('pengantar rt/rw') || lbl.includes('pengantar ktp')) {
-    return 'Permohonan pengantar dari RT/RW setempat';
-  }
-  if (lbl.includes('domisili')) {
-    return 'Keterangan tempat tinggal warga di wilayah Panaikang';
-  }
-  if (lbl.includes('usaha') || lbl.includes('sku')) {
-    return 'Keterangan kepemilikan dan operasional usaha mikro/kecil';
-  }
-  if (lbl.includes('tidak mampu') || lbl.includes('sktm')) {
-    return 'Permohonan surat keterangan status ekonomi keluarga';
-  }
-  if (lbl.includes('belum menikah')) {
-    return 'Keterangan status perkawinan belum pernah menikah';
-  }
-  if (lbl.includes('kematian')) {
-    return 'Pelaporan dan keterangan peristiwa kematian warga';
-  }
-  if (lbl.includes('kelahiran')) {
-    return 'Pelaporan dan keterangan peristiwa kelahiran bayi';
-  }
-  if (lbl.includes('ahli waris')) {
-    return 'Pengurusan surat keterangan silsilah dan ahli waris';
-  }
-  if (lbl.includes('sekolah') || lbl.includes('beasiswa')) {
-    return 'Keterangan kelayakan pengajuan beasiswa & bantuan sekolah';
-  }
-  if (lbl.includes('pindah')) {
-    return 'Surat pengantar perpindahan domisili kependudukan';
-  }
-  if (lbl.includes('perubahan data') || lbl.includes('kartu keluarga')) {
-    return 'Pengantar pembaharuan elemen data kartu keluarga';
-  }
-  if (lbl.includes('drainase') || lbl.includes('genangan')) {
-    return 'Laporan perbaikan saluran drainase dan genangan air';
-  }
-  if (lbl.includes('sampah')) {
-    return 'Pelaporan penumpukan sampah liar dan pengangkutan armada';
-  }
-  if (item.placeholderNote) {
-    const clean = item.placeholderNote.replace(/^contoh:\s*/i, '').split(/[—.]/)[0].trim();
-    if (clean.length > 55) return clean.slice(0, 52) + '...';
-    return clean;
-  }
-  return item.processingUnit || item.officialHeaderTitle || 'Pelayanan administrasi kelurahan';
-}
+type SectionKey = 'home' | 'aduan' | 'admin';
+type AduanTab = 'new' | 'track' | 'list' | 'success';
+type AdminTab = 'catalog' | 'detail' | 'apply' | 'success';
 
 export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
   reports,
-  wasteUnits,
   rwGroups = [],
-  whatsappRecipients = INITIAL_WHATSAPP_RECIPIENTS,
-  kelurahanProfile = INITIAL_KELURAHAN_PROFILE,
-  kelurahanInfos = INITIAL_KELURAHAN_INFOS,
-  cleanupEvents = [],
-  serviceCatalog = SERVICE_CATEGORY_GROUPS,
   onAddReport,
   onUpvoteReport,
   onNavigate,
 }) => {
-  const catalogGroups =
-    Array.isArray(serviceCatalog) && serviceCatalog.length > 0
-      ? serviceCatalog
-      : SERVICE_CATEGORY_GROUPS;
+  // Navigation section state (matches prototype)
+  const [section, setSection] = useState<SectionKey>('home');
+  const [aduanPage, setAduanPage] = useState<AduanTab>('new');
+  const [adminPage, setAdminPage] = useState<AdminTab>('catalog');
 
-  // Multi-page navigation state: starts on 'menu_hub' so sub-menus open on a NEW page!
-  const [activePage, setActivePage] = useState<WargaPageMode>('menu_hub');
-  const [activeMainMenu, setActiveMainMenu] = useState<MainWargaMenuId>('buat_surat');
-  const [selectedCategoryId, setSelectedCategoryId] =
-    useState<DetailedCategoryId>('administrasi_kependudukan');
-  const [selectedSubItemId, setSelectedSubItemId] = useState<string>('adminduk-ktp-kk');
-  const [hubSearchQuery, setHubSearchQuery] = useState<string>('');
-  const [hubCategoryFilter, setHubCategoryFilter] = useState<string>('semua');
+  // Selected administrative service
+  const [selectedService, setSelectedService] = useState<OfficialWargaService | null>(null);
+  const [checkedDocs, setCheckedDocs] = useState<Record<number, boolean>>({});
 
-  // Accordion state for frameless category list:
-  // Starts with the first category opened, matching user's requested layout
-  const [expandedCategoryIds, setExpandedCategoryIds] = useState<Record<string, boolean>>(() => {
-    const init: Record<string, boolean> = {};
-    if (catalogGroups.length > 0) {
-      init[catalogGroups[0].id] = true;
-    }
-    return init;
+  // Laporan Pengaduan Form State
+  const [aduanForm, setAduanForm] = useState({
+    title: '',
+    category: REPORT_COMPLAINT_CATEGORIES[0],
+    urgency: 'Normal' as ReportUrgency,
+    rw: 'RW 01',
+    rt: 'RT 01',
+    location: '',
+    description: '',
+    reporterName: '',
+    reporterPhone: '',
+    isAnonymous: false,
+    consent: false,
+    photoDataUrl: '',
   });
-
-  const toggleCategoryExpanded = (catId: string) => {
-    setExpandedCategoryIds((prev) => ({
-      ...prev,
-      [catId]: !prev[catId],
-    }));
-  };
-
-  const expandAllCategories = () => {
-    const all: Record<string, boolean> = {};
-    catalogGroups.forEach((c) => {
-      all[c.id] = true;
-    });
-    setExpandedCategoryIds(all);
-  };
-
-  const collapseAllCategories = () => {
-    setExpandedCategoryIds({});
-  };
-
-  // Interactive checklist &specific fields for the selected sub-menu page
-  const [checkedReqs, setCheckedReqs] = useState<Record<string, boolean>>({});
-  const [specificFieldValues, setSpecificFieldValues] = useState<Record<string, string>>({});
-  const [showDraftPreview, setShowDraftPreview] = useState<boolean>(false);
-
-  // Filter & Search for Cek Status Pengajuan page
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterCategory, setFilterCategory] = useState<string>('Semua');
-  const [filterStatus, setFilterStatus] = useState<'Semua' | ReportStatus>('Semua');
-  const [lightboxImage, setLightboxImage] = useState<{
-    url: string;
-    caption: string;
-    ticketCode: string;
-  } | null>(null);
-
-  // Form states
-  const [reporterName, setReporterName] = useState('');
-  const [applicantNik, setApplicantNik] = useState('');
-  const [reporterPhone, setReporterPhone] = useState('');
-  const [rw, setRw] = useState('RW 02');
-  const [rt, setRt] = useState('RT 01');
-  const [locationName, setLocationName] = useState(
-    'Koridor Jl. Urip Sumoharjo / Seberang Kampus UMI'
-  );
-  const [urgency, setUrgency] = useState<ReportUrgency>('Normal');
-  const [customTitle, setCustomTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [selectedPhoto, setSelectedPhoto] = useState<string>(IMG_DRAINASE);
-  const [formError, setFormError] = useState('');
-  const [submittedTicket, setSubmittedTicket] = useState<string | null>(null);
-
-  // Selected Category & SubItem Objects
-  const currentCategoryObj =
-    catalogGroups.find((c) => c.id === selectedCategoryId) || catalogGroups[0];
-  const currentSubItemObj =
-    currentCategoryObj.items.find((i) => i.id === selectedSubItemId) ||
-    currentCategoryObj.items[0];
-
-  // Flatten all sub-menu items for streamlined direct sub-menu display
-  const allSubMenuItems = catalogGroups.flatMap((group) =>
-    group.items.map((item) => ({
-      ...item,
-      categoryId: group.id,
-      categoryTitle: group.title,
-      categoryNumber: group.number,
-      categoryIconName: group.iconName,
-      accentBorder: group.accentBorder,
-      accentBg: group.accentBg,
-      iconBg: group.iconBg,
-    }))
-  );
-
-  const filteredHubSubItems = allSubMenuItems.filter((item) => {
-    const matchCat =
-      hubCategoryFilter === 'semua' || item.categoryId === hubCategoryFilter;
-    if (!matchCat) return false;
-    if (!hubSearchQuery.trim()) return true;
-    const q = hubSearchQuery.trim().toLowerCase();
-    return (
-      item.label.toLowerCase().includes(q) ||
-      item.documentCode.toLowerCase().includes(q) ||
-      item.categoryTitle.toLowerCase().includes(q) ||
-      (item.processingUnit && item.processingUnit.toLowerCase().includes(q)) ||
-      (item.officialHeaderTitle && item.officialHeaderTitle.toLowerCase().includes(q)) ||
-      item.requirements.some((r) => r.toLowerCase().includes(q))
-    );
-  });
-
-  // WhatsApp connection states
-  const activeRecipients =
-    whatsappRecipients.filter((r) => r.isActive).length > 0
-      ? whatsappRecipients.filter((r) => r.isActive)
-      : whatsappRecipients;
-  const preferredRecipient = getPreferredWhatsAppRecipient(whatsappRecipients, rw);
-  const [selectedWaRecipientId, setSelectedWaRecipientId] = useState<string>(
-    preferredRecipient?.id || ''
-  );
-  const [autoSendWhatsApp, setAutoSendWhatsApp] = useState<boolean>(true);
-  const [copiedWaText, setCopiedWaText] = useState<boolean>(false);
-  const [lastSubmittedReport, setLastSubmittedReport] = useState<{
+  const [isCompressingPhoto, setIsCompressingPhoto] = useState(false);
+  const [lastSubmittedAduan, setLastSubmittedAduan] = useState<{
     ticketCode: string;
     title: string;
-    description: string;
-    category: ReportCategory;
-    urgency: ReportUrgency;
-    rw: string;
-    rt: string;
-    locationName: string;
-    coordinatesLabel: string;
-    reporterName: string;
-    reporterPhone: string;
-    recipientId: string;
+    category: string;
+    location: string;
   } | null>(null);
 
-  useEffect(() => {
-    if (
-      !selectedWaRecipientId ||
-      !activeRecipients.some((r) => r.id === selectedWaRecipientId)
-    ) {
-      const fallback = getPreferredWhatsAppRecipient(whatsappRecipients, rw);
-      if (fallback) {
-        setSelectedWaRecipientId(fallback.id);
-      }
-    }
-  }, [whatsappRecipients, activeRecipients, selectedWaRecipientId, rw]);
+  // Lacak Laporan State
+  const [searchTicketQuery, setSearchTicketQuery] = useState('');
+  const [searchTicketResult, setSearchTicketResult] = useState<CitizenReport | null>(null);
+  const [hasSearchedTicket, setHasSearchedTicket] = useState(false);
+  const [copiedTicket, setCopiedTicket] = useState<string | null>(null);
 
-  const scrollToTopSmooth = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  // Daftar Laporan Filter
+  const [listSearchQuery, setListSearchQuery] = useState('');
+  const [listStatusFilter, setListStatusFilter] = useState<string>('Semua');
+
+  // Administrasi Catalog Search
+  const [serviceSearchQuery, setServiceSearchQuery] = useState('');
+
+  // Formulir Permohonan Surat State
+  const [applyForm, setApplyForm] = useState({
+    name: '',
+    nik: '',
+    contact: '',
+    rw: 'RW 01',
+    rt: 'RT 01',
+    address: '',
+    notes: '',
+    consent: false,
+  });
+  const [lastSubmittedAdmin, setLastSubmittedAdmin] = useState<{
+    ticketCode: string;
+    serviceName: string;
+    applicantName: string;
+  } | null>(null);
+
+  // Available RT list dynamically based on chosen RW
+  const currentRwObj = useMemo(() => {
+    return rwGroups.find((g) => g.rwCode === aduanForm.rw);
+  }, [rwGroups, aduanForm.rw]);
+
+  const currentApplyRwObj = useMemo(() => {
+    return rwGroups.find((g) => g.rwCode === applyForm.rw);
+  }, [rwGroups, applyForm.rw]);
+
+  const availableRtsForAduan = currentRwObj?.rtList?.map((r) => r.rtCode) || DEFAULT_RT_LIST;
+  const availableRtsForApply = currentApplyRwObj?.rtList?.map((r) => r.rtCode) || DEFAULT_RT_LIST;
+
+  // Checklist counts for selected service
+  const doneCheckedCount = useMemo(() => {
+    return Object.values(checkedDocs).filter(Boolean).length;
+  }, [checkedDocs]);
+
+  // Copy helper
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedTicket(text);
+    setTimeout(() => setCopiedTicket(null), 2500);
   };
 
-  // Return to Menu Warga Hub
-  const handleBackToMenuWarga = () => {
-    setActivePage('menu_hub');
-    setSubmittedTicket(null);
-    setFormError('');
-    scrollToTopSmooth();
-  };
-
-  // Open a Main Menu (from the 10-item 🏛️ PELAYANAN DIGITAL KELURAHAN) on a NEW page
-  const handleOpenMainMenuPage = (menu: MainMenuCardConfig) => {
-    setActiveMainMenu(menu.id);
-    setSubmittedTicket(null);
-    setFormError('');
-    if (menu.id === 'cek_status') {
-      setActivePage('cek_status_page');
-    } else if (menu.id === 'pengumuman') {
-      setActivePage('pengumuman_page');
-    } else if (menu.id === 'hubungi_kelurahan') {
-      setActivePage('hubungi_page');
-    } else if (menu.defaultCategory) {
-      const targetGroup = catalogGroups.find((g) => g.id === menu.defaultCategory);
-      if (targetGroup && targetGroup.items.length > 0) {
-        setSelectedCategoryId(targetGroup.id);
-        setSelectedSubItemId(targetGroup.items[0].id);
-        setUrgency(targetGroup.items[0].defaultUrgency);
-      }
-      setActivePage('category_page');
-    }
-    scrollToTopSmooth();
-  };
-
-  // Open a Category Page on a NEW page
-  const handleOpenCategoryPage = (group: ServiceCategoryGroup) => {
-    setSelectedCategoryId(group.id);
-    setActiveMainMenu(group.linkedMainMenu);
-    if (group.items.length > 0) {
-      setSelectedSubItemId(group.items[0].id);
-      setUrgency(group.items[0].defaultUrgency);
-    }
-    setSubmittedTicket(null);
-    setFormError('');
-    setActivePage('category_page');
-    scrollToTopSmooth();
-  };
-
-  // Open a specific Sub-Menu directly on its own NEW page
-  const handleOpenSubMenuPage = (catId: DetailedCategoryId, subItem: ServiceSubItem) => {
-    const catGroup = catalogGroups.find((c) => c.id === catId);
-    setSelectedCategoryId(catId);
-    setSelectedSubItemId(subItem.id);
-    setUrgency(subItem.defaultUrgency);
-    setSubmittedTicket(null);
-    setFormError('');
-    setCheckedReqs({});
-    const initialSpecific: Record<string, string> = {};
-    subItem.specificFields.forEach((f) => {
-      if (f.type === 'select' && f.options && f.options.length > 0) {
-        initialSpecific[f.key] = f.options[0];
-      } else {
-        initialSpecific[f.key] = '';
-      }
-    });
-    setSpecificFieldValues(initialSpecific);
-    if (catGroup) {
-      setActiveMainMenu(catGroup.linkedMainMenu);
-    }
-    setActivePage('sub_menu_page');
-    scrollToTopSmooth();
-  };
-
-  const RW_OPTIONS =
-    rwGroups.length > 0 ? rwGroups.map((g) => g.rwCode) : DEFAULT_RW_OPTIONS;
-  const selectedRwGroup = rwGroups.find((g) => g.rwCode === rw);
-  const RT_OPTIONS =
-    selectedRwGroup && Array.isArray(selectedRwGroup.rtList) && selectedRwGroup.rtList.length > 0
-      ? selectedRwGroup.rtList.map((item) => item.rtCode)
-      : DEFAULT_RT_OPTIONS;
-
-  const selectedWaRecipient =
-    activeRecipients.find((r) => r.id === selectedWaRecipientId) || preferredRecipient;
-
-  const handleRwChange = (newRw: string) => {
-    setRw(newRw);
-    const rwObj = rwGroups.find((g) => g.rwCode === newRw);
-    const firstRt = rwObj?.rtList?.[0];
-    if (firstRt) {
-      setRt(firstRt.rtCode);
-      setLocationName(firstRt.areaDescription || rwObj?.areaDescription || '');
-    } else if (rwObj?.areaDescription) {
-      setRt('RT 01');
-      setLocationName(rwObj.areaDescription);
-    } else if (LANDMARK_PRESETS[newRw]) {
-      setRt('RT 01');
-      setLocationName(LANDMARK_PRESETS[newRw].label);
-    }
-    const rwSpecificRecipient = activeRecipients.find((r) => r.rwScope === newRw);
-    if (rwSpecificRecipient) {
-      setSelectedWaRecipientId(rwSpecificRecipient.id);
-    }
-  };
-
-  const handleRtChange = (newRt: string) => {
-    setRt(newRt);
-    const rwObj = rwGroups.find((g) => g.rwCode === rw);
-    const rtObj = rwObj?.rtList?.find((item) => item.rtCode === newRt);
-    if (rtObj?.areaDescription) {
-      setLocationName(rtObj.areaDescription);
-    }
-  };
-
-  const handleCitizenPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !file.type.startsWith('image/')) return;
-    try {
-      const compressed = await compressImageFile(file);
-      setSelectedPhoto(compressed);
-    } catch {
-      // ignore
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  // Submit Aduan Handler
+  const handleAduanSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!reporterName.trim() || !description.trim() || !locationName.trim()) {
-      setFormError(
-        'Mohon lengkapi Nama Lengkap Pemohon/Pelapor, Alamat/Lokasi, dan Keperluan/Rincian Pengajuan.'
-      );
+    if (!aduanForm.title.trim() || !aduanForm.description.trim()) {
+      alert('Mohon isi Judul laporan dan Uraian permasalahan.');
       return;
     }
-    setFormError('');
-    const preset = LANDMARK_PRESETS[rw] || LANDMARK_PRESETS['RW 02'];
-    const composedTitle = customTitle.trim()
-      ? `[${currentCategoryObj.title} — ${currentSubItemObj.label}] ${customTitle.trim()}`
-      : `${currentSubItemObj.label} (${currentCategoryObj.title})`;
+    if (!aduanForm.consent) {
+      alert('Mohon centang konfirmasi pernyataan itikad baik.');
+      return;
+    }
 
-    const specificDetailsSummary = currentSubItemObj.specificFields
-      .map((field) => {
-        const val = specificFieldValues[field.key]?.trim();
-        return val ? `${field.label}: ${val}` : null;
-      })
-      .filter(Boolean)
-      .join(' | ');
+    // Map Category to ReportCategory
+    let repCategory: ReportCategory = 'Ketertiban & Fasum';
+    if (aduanForm.category.toLowerCase().includes('sampah')) {
+      repCategory = 'Sampah Liar & TPS';
+    } else if (aduanForm.category.toLowerCase().includes('drainase') || aduanForm.category.toLowerCase().includes('jalan')) {
+      repCategory = 'Drainase & Genangan';
+    } else if (aduanForm.category.toLowerCase().includes('pohon') || aduanForm.category.toLowerCase().includes('lingkungan')) {
+      repCategory = 'Pohon & Ruang Hijau';
+    }
 
-    const baseParts = [
-      `Layanan: ${currentCategoryObj.title} › ${currentSubItemObj.label}`,
-      applicantNik.trim() ? `NIK/KK: ${applicantNik.trim()}` : null,
-      specificDetailsSummary || null,
-    ].filter(Boolean);
+    const reporterDisplay = aduanForm.isAnonymous
+      ? 'Warga Anonim'
+      : aduanForm.reporterName.trim() || 'Warga Kelurahan Panaikang';
+    const contactDisplay = aduanForm.isAnonymous ? '' : aduanForm.reporterPhone.trim();
 
-    const composedDescription = `${baseParts.join(' | ')} — ${description.trim()}`;
-
-    const cleanPayload = {
-      title: composedTitle,
-      description: composedDescription,
-      category: currentSubItemObj.reportCategory,
-      urgency,
-      reporterName: reporterName.trim(),
-      reporterPhone: reporterPhone.trim() || '0812-xxxx-xxxx',
-      rw,
-      rt,
-      locationName: locationName.trim(),
-      mapX: preset.x + Math.floor(Math.random() * 6 - 3),
-      mapY: preset.y + Math.floor(Math.random() * 6 - 3),
-      coordinatesLabel: preset.coords,
-      imageUrl: selectedPhoto,
-      serviceCategoryId: currentCategoryObj.id,
-      serviceCategoryTitle: currentCategoryObj.title,
-      serviceSubItemId: currentSubItemObj.id,
-      serviceSubItemLabel: currentSubItemObj.label,
-      documentCode: currentSubItemObj.documentCode,
-      officialHeaderTitle: currentSubItemObj.officialHeaderTitle,
-      processingUnit: currentSubItemObj.processingUnit,
-      applicantNik: applicantNik.trim() || undefined,
-      specificFieldsData: { ...specificFieldValues },
-    };
-    const ticket = onAddReport(cleanPayload);
-    const submittedData = {
-      ...cleanPayload,
-      ticketCode: ticket,
-      recipientId: selectedWaRecipient?.id || '',
-    };
-    setSubmittedTicket(ticket);
-    setLastSubmittedReport(submittedData);
-    setCustomTitle('');
-    setDescription('');
-
-    fetch('/api/reports/dispatch-whatsapp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ticketCode: ticket,
-        report: submittedData,
-      }),
-    }).catch(() => {
-      // Offline / local fallback handled seamlessly
+    const createdTicket = onAddReport({
+      title: aduanForm.title.trim(),
+      description: aduanForm.description.trim(),
+      category: repCategory,
+      urgency: aduanForm.urgency,
+      reporterName: reporterDisplay,
+      reporterPhone: contactDisplay,
+      rw: aduanForm.rw,
+      rt: aduanForm.rt,
+      locationName: aduanForm.location.trim()
+        ? `${aduanForm.location.trim()} (${aduanForm.rw} / ${aduanForm.rt})`
+        : `Wilayah ${aduanForm.rw} / ${aduanForm.rt}, Kelurahan Panaikang`,
+      mapX: 50,
+      mapY: 50,
+      coordinatesLabel: '-5.1388, 119.4475',
+      imageUrl: aduanForm.photoDataUrl || '',
+      serviceCategoryTitle: 'Laporan dan Pengaduan Warga',
+      serviceSubItemLabel: aduanForm.category,
     });
 
-    if (autoSendWhatsApp && selectedWaRecipient) {
-      const waMessage = buildReportWhatsAppMessage(
-        submittedData,
-        null,
-        activeRecipients
-      );
-      const waUrl = buildWhatsAppUrl(selectedWaRecipient.phoneNumber, waMessage);
-      triggerWhatsAppRedirect(waUrl);
+    setLastSubmittedAduan({
+      ticketCode: createdTicket,
+      title: aduanForm.title.trim(),
+      category: aduanForm.category,
+      location: aduanForm.location.trim() || `${aduanForm.rw} / ${aduanForm.rt}`,
+    });
+
+    // Reset Form
+    setAduanForm({
+      title: '',
+      category: REPORT_COMPLAINT_CATEGORIES[0],
+      urgency: 'Normal',
+      rw: 'RW 01',
+      rt: 'RT 01',
+      location: '',
+      description: '',
+      reporterName: '',
+      reporterPhone: '',
+      isAnonymous: false,
+      consent: false,
+      photoDataUrl: '',
+    });
+
+    setAduanPage('success');
+  };
+
+  // Submit Administrasi Surat Handler
+  const handleApplySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedService) return;
+    if (!applyForm.name.trim() || !applyForm.address.trim()) {
+      alert('Mohon isi Nama pemohon dan Alamat domisili.');
+      return;
+    }
+    if (!applyForm.consent) {
+      alert('Mohon centang persetujuan keabsahan data.');
+      return;
+    }
+
+    const createdTicket = onAddReport({
+      title: `${selectedService.name} — ${applyForm.name.trim()}`,
+      description: `Permohonan surat resmi kelurahan: ${selectedService.name} (Kode: ${selectedService.code}).\nAlamat: ${applyForm.address.trim()}.\nCatatan Pemohon: ${applyForm.notes.trim() || 'Tidak ada catatan tambahan.'}`,
+      category: 'Ketertiban & Fasum',
+      urgency: 'Normal',
+      reporterName: applyForm.name.trim(),
+      reporterPhone: applyForm.contact.trim() || '0813-xxxx-xxxx',
+      rw: applyForm.rw,
+      rt: applyForm.rt,
+      locationName: `${applyForm.address.trim()} (${applyForm.rw} / ${applyForm.rt})`,
+      mapX: 50,
+      mapY: 50,
+      coordinatesLabel: '-5.1388, 119.4475',
+      imageUrl: '',
+      serviceCategoryId: 'surat_keterangan',
+      serviceCategoryTitle: 'Layanan Administrasi Warga',
+      serviceSubItemId: selectedService.code,
+      serviceSubItemLabel: selectedService.name,
+      documentCode: selectedService.code,
+      officialHeaderTitle: selectedService.name.toUpperCase(),
+      processingUnit: selectedService.processingUnit || 'Seksi Pelayanan Umum & Loket Kelurahan',
+      applicantNik: applyForm.nik.trim(),
+      citizenAddress: applyForm.address.trim(),
+    });
+
+    setLastSubmittedAdmin({
+      ticketCode: createdTicket,
+      serviceName: selectedService.name,
+      applicantName: applyForm.name.trim(),
+    });
+
+    setApplyForm({
+      name: '',
+      nik: '',
+      contact: '',
+      rw: 'RW 01',
+      rt: 'RT 01',
+      address: '',
+      notes: '',
+      consent: false,
+    });
+
+    setAdminPage('success');
+  };
+
+  // Handle Photo File Upload
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setIsCompressingPhoto(true);
+      const compressed = await compressImageFile(file, 900, 0.75);
+      setAduanForm((prev) => ({ ...prev, photoDataUrl: compressed }));
+    } catch {
+      alert('Gagal memproses gambar foto. Coba gunakan foto lain.');
+    } finally {
+      setIsCompressingPhoto(false);
     }
   };
 
-  const filteredReports = reports.filter((r) => {
-    const matchesSearch =
-      r.ticketCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.reporterName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.locationName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.rw.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = filterCategory === 'Semua' || r.category === filterCategory;
-    const matchesStatus = filterStatus === 'Semua' || r.status === filterStatus;
-    return matchesSearch && matchesCategory && matchesStatus;
-  });
+  // Ticket Search
+  const handleSearchTicket = (e: React.FormEvent) => {
+    e.preventDefault();
+    const query = searchTicketQuery.trim().toUpperCase();
+    if (!query) return;
+    setHasSearchedTicket(true);
+    const found = reports.find(
+      (r) =>
+        r.ticketCode.toUpperCase() === query ||
+        r.id.toUpperCase() === query ||
+        r.ticketCode.toUpperCase().includes(query)
+    );
+    setSearchTicketResult(found || null);
+  };
 
-  // Filter categories and sub-items on the Menu Hub
-  const displayedCategoryGroups = catalogGroups
-    .filter((group) => hubCategoryFilter === 'semua' || group.id === hubCategoryFilter)
-    .map((group) => {
-      if (!hubSearchQuery.trim()) return group;
-      const q = hubSearchQuery.trim().toLowerCase();
-      const groupMatches =
-        group.title.toLowerCase().includes(q) || group.subtitle.toLowerCase().includes(q);
-      const matchingItems = group.items.filter(
-        (item) =>
-          item.label.toLowerCase().includes(q) ||
-          item.documentCode.toLowerCase().includes(q) ||
-          (item.processingUnit && item.processingUnit.toLowerCase().includes(q)) ||
-          (item.officialHeaderTitle && item.officialHeaderTitle.toLowerCase().includes(q)) ||
-          item.requirements.some((r) => r.toLowerCase().includes(q))
-      );
-      if (groupMatches && matchingItems.length === 0) return group;
-      return { ...group, items: matchingItems };
-    })
-    .filter((g) => g.items.length > 0);
+  // Filtered Catalog
+  const filteredServices = useMemo(() => {
+    if (!serviceSearchQuery.trim()) return OFFICIAL_13_WARGA_SERVICES;
+    const q = serviceSearchQuery.toLowerCase();
+    return OFFICIAL_13_WARGA_SERVICES.filter(
+      (s) => s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q)
+    );
+  }, [serviceSearchQuery]);
+
+  // Filtered Reports for List View
+  const filteredReportsList = useMemo(() => {
+    const q = listSearchQuery.trim().toLowerCase();
+    return reports.filter((r) => {
+      const matchSearch =
+        !q ||
+        r.ticketCode.toLowerCase().includes(q) ||
+        r.title.toLowerCase().includes(q) ||
+        r.locationName.toLowerCase().includes(q) ||
+        r.description.toLowerCase().includes(q);
+      const matchStatus = listStatusFilter === 'Semua' || r.status === listStatusFilter;
+      return matchSearch && matchStatus;
+    });
+  }, [reports, listSearchQuery, listStatusFilter]);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8 space-y-6">
-      {/* =====================================================================================
-          HALAMAN 1: MENU PENGURUSAN WARGA (LIST PER KATEGORI TANPA BINGKAI SESUAI CONTOH)
-      ===================================================================================== */}
-      {activePage === 'menu_hub' && (
-        <div className="space-y-6">
-          {/* Header Pelayanan Warga */}
-          <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xs overflow-hidden">
-            <div className="bg-gradient-to-r from-[#0D3868] via-[#134B8A] to-[#0277BD] px-5 sm:px-8 py-6 text-white flex flex-col lg:flex-row lg:items-center justify-between gap-5">
-              <div className="space-y-1.5">
-                <button
-                  type="button"
-                  onClick={() => onNavigate('beranda')}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-sky-200 hover:text-white mb-1 cursor-pointer transition-colors"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  <span>Kembali ke Halaman Utama Portal</span>
-                </button>
-                <div className="text-xs font-bold tracking-wider uppercase text-amber-300">
-                  🏛️ PELAYANAN DIGITAL KELURAHAN PANAIKANG
-                </div>
-                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white uppercase">
-                  MENU PENGURUSAN WARGA
-                </h1>
-                <p className="text-xs sm:text-sm text-sky-100 max-w-3xl leading-relaxed">
-                  Pilih kategori layanan di bawah ini. Klik pada nama kategori untuk menampilkan
-                  atau menyembunyikan daftar sub-kategori pengurusan dokumen warga secara langsung.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                <a
-                  href="https://lontaraplus.makassarkota.go.id"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black shadow-xs transition-colors cursor-pointer"
-                  title="Laporan Keluhan dan pelayanan tingkat lanjut silahkan gunakan aplikasi Lontara+"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span>Aplikasi Lontara+ ↗</span>
-                </a>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActivePage('cek_status_page');
-                    scrollToTopSmooth();
-                  }}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold border border-emerald-400/40 shadow-xs transition-colors cursor-pointer"
-                >
-                  <Search className="w-4 h-4" />
-                  <span>🔎 Cek Status Pengajuan ({reports.length})</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActivePage('hubungi_page');
-                    scrollToTopSmooth();
-                  }}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-extrabold border border-white/25 transition-colors cursor-pointer"
-                >
-                  <PhoneCall className="w-4 h-4" />
-                  <span>📞 Hubungi Kelurahan</span>
-                </button>
-              </div>
+    <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8 font-sans">
+      {/* =========================================================================
+          SLIM & COMPACT TOP BANNER (Dirampingkan agar tidak menutupi menu di mobile)
+      ========================================================================= */}
+      <div className="bg-gradient-to-r from-[#0D3868] via-[#114984] to-[#0277BD] rounded-2xl p-4 sm:p-5 text-white shadow-sm mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-full bg-white/15 border border-white/20 text-sky-200 text-[10px] font-black tracking-wider uppercase">
+                Portal Pelayanan Publik
+              </span>
+              <span className="text-[11px] text-sky-100 font-medium">· Kelurahan Panaikang</span>
             </div>
+            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">
+              Layanan Warga
+            </h1>
+            <p className="text-xs text-sky-100 max-w-xl leading-snug">
+              Pengaduan masalah lingkungan dan 13 layanan administrasi surat resmi kelurahan.
+            </p>
+          </div>
 
-            {/* Filter Kategori & Pencarian Sub-Kategori */}
-            <div className="p-5 sm:p-6 bg-slate-50/70 border-b border-slate-200/80 space-y-4">
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                <div className="relative flex-1 max-w-lg">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    type="text"
-                    value={hubSearchQuery}
-                    onChange={(e) => setHubSearchQuery(e.target.value)}
-                    placeholder="Cari pengurusan surat (contoh: Domisili, SKU, KTP, SKTM, Kematian)..."
-                    className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-slate-200 bg-white text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0277BD]/30 focus:border-[#0277BD] transition-all"
-                  />
-                  {hubSearchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => setHubSearchQuery('')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
+          <div className="flex items-center gap-2 shrink-0 pt-1 sm:pt-0">
+            {/* Lontara+ Quick Access Button */}
+            <a
+              href={LONTARA_PLUS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-900 text-xs font-bold shadow-xs transition cursor-pointer border border-amber-300"
+              title="Lontara+ Super App Makassar"
+            >
+              <img
+                src={LONTARA_LOGO_URL}
+                alt="Lontara+"
+                className="h-4 sm:h-5 object-contain"
+              />
+              <span className="text-[11px] text-slate-800">Lontara+</span>
+              <ExternalLink className="w-3 h-3 text-slate-500" />
+            </a>
 
-                <div className="flex items-center gap-2 self-start sm:self-center">
-                  <button
-                    type="button"
-                    onClick={expandAllCategories}
-                    className="text-xs font-bold text-[#0277BD] hover:text-[#0D3868] px-2.5 py-1.5 rounded-lg hover:bg-sky-50 transition-colors cursor-pointer"
-                  >
-                    Buka Semua
-                  </button>
-                  <span className="text-slate-300">|</span>
-                  <button
-                    type="button"
-                    onClick={collapseAllCategories}
-                    className="text-xs font-bold text-slate-500 hover:text-slate-800 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-                  >
-                    Tutup Semua
-                  </button>
-                </div>
+            <div className="flex items-center gap-1.5">
+              <div className="bg-white/10 px-2.5 py-1 rounded-xl border border-white/20 text-center">
+                <span className="text-xs font-black text-amber-300 font-mono-num">13</span>
+                <span className="text-[10px] text-sky-100 ml-1 font-semibold">Surat</span>
               </div>
-
-              {/* Category Filter Tabs */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1 no-scrollbar">
-                <button
-                  type="button"
-                  onClick={() => setHubCategoryFilter('semua')}
-                  className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border ${
-                    hubCategoryFilter === 'semua'
-                      ? 'bg-[#0D3868] text-white border-[#0D3868] shadow-xs'
-                      : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
-                  }`}
-                >
-                  <span>Semua Kategori</span>
-                  <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                      hubCategoryFilter === 'semua'
-                        ? 'bg-white/20 text-white'
-                        : 'bg-slate-100 text-slate-600'
-                    }`}
-                  >
-                    {allSubMenuItems.length}
-                  </span>
-                </button>
-
-                {catalogGroups.map((cat) => {
-                  const isSelected = hubCategoryFilter === cat.id;
-                  return (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => {
-                        setHubCategoryFilter(cat.id);
-                        // Also automatically open this category
-                        setExpandedCategoryIds((prev) => ({ ...prev, [cat.id]: true }));
-                      }}
-                      className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border ${
-                        isSelected
-                          ? 'bg-[#0D3868] text-white border-[#0D3868] shadow-xs'
-                          : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
-                      }`}
-                    >
-                      {renderCategoryIcon(cat.iconName, 'w-3 h-3')}
-                      <span>{cat.title}</span>
-                      <span
-                        className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                          isSelected
-                            ? 'bg-white/20 text-white'
-                            : 'bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        {cat.items.length}
-                      </span>
-                    </button>
-                  );
-                })}
+              <div className="bg-white/10 px-2.5 py-1 rounded-xl border border-white/20 text-center">
+                <span className="text-xs font-black text-emerald-300 font-mono-num">{reports.length}</span>
+                <span className="text-[10px] text-sky-100 ml-1 font-semibold">Laporan</span>
               </div>
-            </div>
-
-            {/* List Per Kategori Tanpa Bingkai (Sesuai Lampiran Contoh User) */}
-            <div className="divide-y divide-slate-200/90 bg-white">
-              {displayedCategoryGroups.length === 0 ? (
-                <div className="text-center py-12 px-4 space-y-3">
-                  <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto text-xl">
-                    🔍
-                  </div>
-                  <h3 className="text-sm font-bold text-slate-800">
-                    Tidak ditemukan pengurusan surat yang cocok
-                  </h3>
-                  <p className="text-xs text-slate-500 max-w-md mx-auto">
-                    Kata kunci "{hubSearchQuery}" tidak ditemukan pada kategori terpilih.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setHubSearchQuery('');
-                      setHubCategoryFilter('semua');
-                    }}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0D3868] text-white text-xs font-bold hover:bg-[#0277BD] transition-colors cursor-pointer"
-                  >
-                    Reset Pencarian
-                  </button>
-                </div>
-              ) : (
-                displayedCategoryGroups.map((group) => {
-                  const isExpanded = hubSearchQuery.trim()
-                    ? true
-                    : !!expandedCategoryIds[group.id];
-
-                  return (
-                    <div key={group.id} className="transition-all">
-                      {/* Baris Judul Kategori (Bisa Di-klik untuk Membuka / Menutup Sub-Kategori) */}
-                      <button
-                        type="button"
-                        onClick={() => toggleCategoryExpanded(group.id)}
-                        className={`w-full flex items-center justify-between px-5 sm:px-7 py-4.5 transition-colors cursor-pointer text-left select-none ${
-                          isExpanded
-                            ? 'bg-slate-50/80 hover:bg-slate-100/70 border-b border-slate-200/80'
-                            : 'hover:bg-slate-50/70'
-                        }`}
-                        title="Klik untuk melihat sub-kategori layanan"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-[#0D3868]/10 text-[#0D3868] flex items-center justify-center shrink-0">
-                            <Folder className="w-4 h-4 text-[#0277BD]" />
-                          </div>
-                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">
-                            <h2 className="text-xs sm:text-sm font-extrabold uppercase tracking-wide text-[#0D3868]">
-                              LAYANAN {group.title.toUpperCase()}
-                            </h2>
-                            <span className="text-[11px] text-slate-500 font-medium">
-                              ({group.items.length} Layanan Pengurusan)
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-[11px] font-bold text-[#0277BD] bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-200/70 hidden sm:inline-block">
-                            {isExpanded ? 'Tutup' : 'Buka Sub-Kategori'}
-                          </span>
-                          {isExpanded ? (
-                            <ChevronUp className="w-5 h-5 text-[#0277BD]" />
-                          ) : (
-                            <ChevronDown className="w-5 h-5 text-slate-400" />
-                          )}
-                        </div>
-                      </button>
-
-                      {/* Daftar Sub-Kategori dalam Bentuk List Tanpa Bingkai (Sesuai Contoh) */}
-                      {isExpanded && (
-                        <div className="divide-y divide-slate-100 bg-white">
-                          {group.items.map((subItem, idx) => (
-                            <button
-                              key={subItem.id}
-                              type="button"
-                              onClick={() => handleOpenSubMenuPage(group.id, subItem)}
-                              className="w-full flex items-center justify-between py-3.5 px-5 sm:px-7 hover:bg-sky-50/40 transition-colors cursor-pointer text-left group"
-                            >
-                              <div className="flex items-center gap-3.5 min-w-0 flex-1 pr-3">
-                                <div className="w-8 h-8 rounded-lg bg-slate-50 group-hover:bg-white flex items-center justify-center shrink-0 transition-colors">
-                                  {renderSubItemSpecificIcon(subItem, 'w-5 h-5')}
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="text-sm sm:text-base font-bold text-slate-800 group-hover:text-[#0277BD] transition-colors leading-snug">
-                                    {idx + 1}. {subItem.label}
-                                  </div>
-                                  <div className="text-xs text-slate-500 mt-0.5 leading-relaxed line-clamp-1">
-                                    {getSubItemSubtitle(subItem)}
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-2.5 shrink-0 ml-2">
-                                <span className="text-[11px] font-mono-num text-slate-400 hidden md:inline-block">
-                                  ⏱️ {subItem.estimation}
-                                </span>
-                                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#0277BD] group-hover:translate-x-1 transition-all" />
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            {/* Catatan Terintegrasi Aplikasi Lontara+ */}
-            <div className="p-4 sm:p-5 bg-gradient-to-r from-sky-50 to-amber-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center shrink-0">
-                  L+
-                </div>
-                <div>
-                  <span className="font-bold text-[#0D3868]">Aplikasi Lontara+ Kota Makassar:</span>{' '}
-                  <span className="text-slate-600">
-                    Laporan keluhan tingkat lanjut dan koordinasi lintas-OPD dapat diajukan langsung melalui super app Lontara+.
-                  </span>
-                </div>
-              </div>
-              <a
-                href="https://lontaraplus.makassarkota.go.id"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white hover:bg-amber-100 text-slate-800 font-bold border border-slate-200 shrink-0 cursor-pointer transition-colors"
-              >
-                <span>Buka Lontara+</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
             </div>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* =====================================================================================
-          HALAMAN 2: HALAMAN KATEGORI LAYANAN (TAMPIL HANYA APABILA SALAH SATU MENU DIKLIK)
-      ===================================================================================== */}
-      {activePage === 'category_page' && (
-        <div className="space-y-6">
-          {/* Top Navigation Bar with Back to Menu Warga Button */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 shadow-xs">
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={handleBackToMenuWarga}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0D3868] hover:bg-[#0277BD] text-white text-xs sm:text-sm font-extrabold transition-colors cursor-pointer shadow-xs"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span>Kembali ke Menu Warga</span>
-              </button>
-              <div className="text-xs text-slate-500 hidden sm:flex items-center gap-1.5">
-                <span>Menu Warga</span>
-                <span aria-hidden="true">/</span>
-                <span className="font-bold text-[#0D3868]">
-                  Kategori {currentCategoryObj.number}: {currentCategoryObj.title}
-                </span>
+      {/* Breadcrumb & Mobile Tab Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500 mb-4 px-1">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            type="button"
+            onClick={() => onNavigate('beranda')}
+            className="hover:text-[#0D3868] font-semibold flex items-center gap-1 cursor-pointer"
+          >
+            <Home className="w-3.5 h-3.5" />
+            <span>Beranda</span>
+          </button>
+          <span>/</span>
+          <button
+            type="button"
+            onClick={() => {
+              setSection('home');
+            }}
+            className={`font-semibold cursor-pointer ${
+              section === 'home' ? 'text-[#0D3868] font-extrabold' : 'hover:text-[#0D3868]'
+            }`}
+          >
+            Menu Warga
+          </button>
+          {section === 'aduan' && (
+            <>
+              <span>/</span>
+              <span className="text-[#0D3868] font-extrabold">1. Laporan & Pengaduan Warga</span>
+            </>
+          )}
+          {section === 'admin' && (
+            <>
+              <span>/</span>
+              <span className="text-[#0D3868] font-extrabold">2. Layanan Administrasi Warga</span>
+              {selectedService && (
+                <>
+                  <span>/</span>
+                  <span className="text-[#0277BD] font-bold">{selectedService.code}</span>
+                </>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Mobile Fast Switcher Tabs (Hanya Tampil di Layar Kecil untuk menghemat ruang vertikal) */}
+        <div className="lg:hidden flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+          <button
+            type="button"
+            onClick={() => setSection('home')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+              section === 'home'
+                ? 'bg-[#0D3868] text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            Menu Warga
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSection('aduan');
+              setAduanPage('new');
+            }}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+              section === 'aduan'
+                ? 'bg-[#0277BD] text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            1. Laporan Warga
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSection('admin');
+              setAdminPage('catalog');
+              setSelectedService(null);
+            }}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+              section === 'admin'
+                ? 'bg-[#1C8237] text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            2. 13 Layanan Surat
+          </button>
+        </div>
+      </div>
+
+      {/* =========================================================================
+          MAIN 2-COLUMN SHELL: SIDEBAR (DESKTOP ONLY) + CONTENT
+      ========================================================================= */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* ================= LEFT SIDEBAR NAVIGATION (Desktop Only, tanpa widget yang dicoret) ================= */}
+        <aside className="hidden lg:block lg:col-span-3 bg-white rounded-2xl border border-slate-200 p-3.5 shadow-xs sticky top-4">
+          <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 px-3 py-1.5">
+            Menu Utama
+          </div>
+
+          <div className="space-y-1">
+            <button
+              type="button"
+              onClick={() => onNavigate('beranda')}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-[#0D3868] transition cursor-pointer text-left"
+            >
+              <div className="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600">
+                <Home className="w-3.5 h-3.5" />
               </div>
-            </div>
+              <span>Beranda Portal</span>
+            </button>
 
+            <button
+              type="button"
+              onClick={() => setSection('home')}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-extrabold transition cursor-pointer text-left ${
+                section === 'home'
+                  ? 'bg-sky-50 text-[#0D3868] border border-sky-200'
+                  : 'text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <div
+                  className={`w-6 h-6 rounded-lg flex items-center justify-center ${
+                    section === 'home' ? 'bg-[#0D3868] text-white' : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                </div>
+                <span>Menu Warga</span>
+              </div>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+            </button>
+
+            {/* Sub-Menu 1 */}
             <button
               type="button"
               onClick={() => {
-                setActivePage('cek_status_page');
-                scrollToTopSmooth();
+                setSection('aduan');
+                setAduanPage('new');
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold cursor-pointer"
+              className={`w-full flex items-center gap-2 pl-6 pr-3 py-2 rounded-xl text-xs transition cursor-pointer text-left ${
+                section === 'aduan'
+                  ? 'bg-[#0277BD]/10 text-[#0277BD] font-bold border-l-4 border-[#0277BD]'
+                  : 'text-slate-600 hover:bg-slate-50'
+              }`}
             >
-              <Search className="w-3.5 h-3.5" />
-              <span>Cek Status Pengajuan</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-[#0277BD]" />
+              <span className="line-clamp-1">1. Laporan & Pengaduan Warga</span>
             </button>
-          </div>
 
-          {/* Quick Switcher Antar 7 Kategori Layanan */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-4">
-            <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 mb-2.5">
-              Pilih Kategori Layanan Warga:
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {catalogGroups.map((cat) => {
-                const isSelected = cat.id === currentCategoryObj.id;
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => handleOpenCategoryPage(cat)}
-                    className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
-                      isSelected
-                        ? 'bg-[#0D3868] text-white border-[#0D3868] shadow-xs'
-                        : 'bg-slate-50 hover:bg-sky-50 text-slate-700 border-slate-200'
-                    }`}
-                  >
-                    {renderCategoryIcon(cat.iconName, 'w-3.5 h-3.5')}
-                    <span>
-                      {cat.number}. {cat.title}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Category Hero Header */}
-          <div
-            className={`rounded-3xl border ${currentCategoryObj.accentBorder} ${currentCategoryObj.accentBg} p-6 sm:p-7 flex flex-col md:flex-row md:items-center justify-between gap-4`}
-          >
-            <div className="flex items-start gap-4">
-              <div
-                className={`w-14 h-14 rounded-2xl ${currentCategoryObj.iconBg} flex items-center justify-center shrink-0 shadow-sm`}
-              >
-                {renderCategoryIcon(currentCategoryObj.iconName, 'w-7 h-7')}
-              </div>
-              <div>
-                <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Kategori Layanan {currentCategoryObj.number} · Kelurahan Panaikang
-                </div>
-                <h1 className="mt-0.5 text-xl sm:text-2xl font-extrabold text-[#0D3868]">
-                  {currentCategoryObj.title}
-                </h1>
-                <p className="mt-1 text-xs sm:text-sm text-slate-600 max-w-2xl leading-relaxed">
-                  {currentCategoryObj.subtitle}
-                </p>
-              </div>
-            </div>
-            <div className="text-xs font-bold text-[#0D3868] bg-white px-4 py-2.5 rounded-xl border border-slate-200 self-start md:self-center shrink-0">
-              Total {currentCategoryObj.items.length} Sub-Menu Tersedia
-            </div>
-          </div>
-
-          {/* Callout Link Aplikasi Lontara+ Kota Makassar */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-amber-950">
-            <div className="flex items-start sm:items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 font-black text-sm flex items-center justify-center shrink-0 shadow-xs">
-                L+
-              </div>
-              <div className="space-y-0.5">
-                <div className="text-xs sm:text-sm font-extrabold text-amber-950">
-                  Laporan Keluhan dan pelayanan tingkat lanjut silahkan gunakan aplikasi Lontara+
-                </div>
-                <div className="text-xs text-amber-900/80">
-                  Super App Pemkot Makassar terhubung langsung ke seluruh OPD, dinas teknis, dan layanan kedaruratan se-Kota Makassar.
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <a
-                href="https://lontaraplus.makassarkota.go.id"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition-colors shadow-xs"
-              >
-                <span>Buka Lontara+</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-            </div>
-          </div>
-
-          {/* Grid Cards of Sub-Menus in this Category */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {currentCategoryObj.items.map((item, idx) => (
-              <div
-                key={item.id}
-                className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col justify-between hover:border-[#0277BD] hover:shadow-md transition-all"
-              >
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-2.5">
-                      <span className="w-7 h-7 rounded-lg bg-[#0D3868] text-white font-mono-num text-xs font-extrabold flex items-center justify-center shrink-0">
-                        {idx + 1}
-                      </span>
-                      <div>
-                        <div className="text-[11px] font-mono-num text-slate-500">
-                          Kode: {item.documentCode}
-                        </div>
-                        <h3 className="text-base font-extrabold text-[#0D3868] leading-snug">
-                          {item.label}
-                        </h3>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="text-xs text-slate-600 flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-[#0277BD] shrink-0" />
-                    <span>Estimasi:</span>
-                    <strong className="text-slate-800">{item.estimation}</strong>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70">
-                    <div className="text-[11px] font-bold text-slate-700 mb-1.5">
-                      Persyaratan Utama:
-                    </div>
-                    <ul className="space-y-1">
-                      {item.requirements.map((req) => (
-                        <li
-                          key={req}
-                          className="text-xs text-slate-600 flex items-start gap-1.5 leading-snug"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                          <span>{req}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                  <span className="text-[11px] text-slate-500 truncate">{item.processingUnit}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenSubMenuPage(currentCategoryObj.id, item)}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0D3868] hover:bg-[#0277BD] text-white text-xs font-extrabold transition-colors cursor-pointer shrink-0"
-                  >
-                    <span>Pilih & Buka Halaman Baru</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Bottom Back Button */}
-          <div className="pt-2 flex items-center justify-between">
+            {/* Sub-Menu 2 */}
             <button
               type="button"
-              onClick={handleBackToMenuWarga}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-[#0D3868] border border-slate-300 text-xs sm:text-sm font-extrabold transition-colors cursor-pointer"
+              onClick={() => {
+                setSection('admin');
+                setAdminPage('catalog');
+                setSelectedService(null);
+              }}
+              className={`w-full flex items-center gap-2 pl-6 pr-3 py-2 rounded-xl text-xs transition cursor-pointer text-left ${
+                section === 'admin'
+                  ? 'bg-[#1C8237]/10 text-[#1C8237] font-bold border-l-4 border-[#1C8237]'
+                  : 'text-slate-600 hover:bg-slate-50'
+              }`}
             >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Kembali ke Menu Warga</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-[#1C8237]" />
+              <span className="line-clamp-1">2. Layanan Administrasi Warga</span>
             </button>
           </div>
-        </div>
-      )}
+        </aside>
 
-      {/* =====================================================================================
-          HALAMAN 3: HALAMAN BARU SUB-MENU TERPILIH (LENGKAP DENGAN SOP, FORM SPESIFIK & DRAF)
-      ===================================================================================== */}
-      {activePage === 'sub_menu_page' && (
-        <div className="space-y-6">
-          {/* Top Bar: Prominent "Kembali ke Menu Warga" Button */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 shadow-xs">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <button
-                type="button"
-                onClick={handleBackToMenuWarga}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0D3868] hover:bg-[#0277BD] text-white text-xs sm:text-sm font-extrabold transition-colors cursor-pointer shadow-xs"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span>Kembali ke Daftar Sub-Menu</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setActivePage('category_page');
-                  scrollToTopSmooth();
-                }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
-              >
-                <LayoutGrid className="w-3.5 h-3.5" />
-                <span>Sub-Menu {currentCategoryObj.title}</span>
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2 text-xs text-slate-500">
-              <span>Kategori {currentCategoryObj.number}</span>
-              <span aria-hidden="true">·</span>
-              <span className="font-mono-num font-bold text-[#0277BD]">
-                {currentSubItemObj.documentCode}
-              </span>
-            </div>
-          </div>
-
-          {/* Dedicated Sub-Menu Page Banner */}
-          <div className="bg-gradient-to-r from-[#0D3868] via-[#134B8A] to-[#0277BD] rounded-3xl p-6 sm:p-7 text-white flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-white/15 border border-white/25 flex items-center justify-center shrink-0">
-                {renderCategoryIcon(currentCategoryObj.iconName, 'w-6 h-6 text-amber-300')}
-              </div>
-              <div>
-                <div className="text-xs font-bold uppercase tracking-wider text-amber-300">
-                  {currentCategoryObj.number}. {currentCategoryObj.title} ·{' '}
-                  {currentSubItemObj.processingUnit}
-                </div>
-                <h1 className="mt-1 text-xl sm:text-2xl font-extrabold text-white">
-                  {currentSubItemObj.label}
-                </h1>
-                <p className="mt-1 text-xs sm:text-sm text-sky-100">
-                  {currentSubItemObj.officialHeaderTitle} — Estimasi Pelayanan:{' '}
-                  <strong className="text-white">{currentSubItemObj.estimation}</strong>
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => setShowDraftPreview((prev) => !prev)}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-extrabold transition-colors cursor-pointer"
-              >
-                <Printer className="w-4 h-4" />
-                <span>
-                  {showDraftPreview ? 'Sembunyikan Pratinjau Surat' : 'Pratinjau & Cetak Draf Surat'}
-                </span>
-              </button>
-            </div>
-          </div>
-
-          {/* Main 2-Column Layout for the Selected Sub-Menu Page */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* LEFT COLUMN (5 Cols): Checklist Persyaratan Interaktif, Alur SOP & Pilih Sub-Menu Sebidang */}
-            <div className="lg:col-span-5 space-y-5">
-              {/* Interactive Requirements Checklist Card */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
-                <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                  <div className="flex items-center gap-2">
-                    <ClipboardCheck className="w-4 h-4 text-[#0277BD]" />
-                    <h2 className="text-sm font-extrabold text-[#0D3868]">
-                      Checklist Persyaratan Dokumen
-                    </h2>
+        {/* ================= RIGHT MAIN CONTENT AREA ================= */}
+        <section className="lg:col-span-9 bg-white rounded-2xl border border-slate-200 p-5 sm:p-7 shadow-xs min-h-[620px]">
+          {/* =========================================================================
+              VIEW 1: MENU UTAMA WARGA (HUB: 2 SUB-MENU KARTU BESAR)
+          ========================================================================= */}
+          {section === 'home' && (
+            <div className="space-y-6">
+              {/* Header section */}
+              <div className="pb-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <div className="text-xs font-black tracking-wider text-[#0277BD] uppercase">
+                    LAYANAN WARGA
                   </div>
-                  <span className="text-[11px] font-bold text-emerald-700">
-                    Gratis / Tanpa Biaya
-                  </span>
-                </div>
-
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  Centang dokumen pendukung yang telah Anda siapkan untuk pengajuan{' '}
-                  <strong>{currentSubItemObj.label}</strong>:
-                </p>
-
-                <div className="space-y-2">
-                  {currentSubItemObj.requirements.map((req, idx) => {
-                    const isChecked = Boolean(checkedReqs[req]);
-                    return (
-                      <label
-                        key={idx}
-                        className={`flex items-start gap-2.5 p-3 rounded-xl border text-xs cursor-pointer transition-colors ${
-                          isChecked
-                            ? 'bg-emerald-50/70 border-emerald-300 text-emerald-950 font-semibold'
-                            : 'bg-slate-50 border-slate-200/80 text-slate-700 hover:bg-slate-100/80'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={(e) =>
-                            setCheckedReqs((prev) => ({ ...prev, [req]: e.target.checked }))
-                          }
-                          className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500"
-                        />
-                        <span className="leading-snug">{req}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-
-                {/* 3-Step SOP */}
-                <div className="pt-3 border-t border-slate-100 space-y-2">
-                  <div className="text-xs font-extrabold text-[#0D3868]">
-                    Alur Standar Operasional Prosedur (SOP):
-                  </div>
-                  <ol className="space-y-2">
-                    {currentSubItemObj.sopSteps.map((step, sIdx) => (
-                      <li
-                        key={sIdx}
-                        className="flex items-start gap-2.5 text-xs text-slate-600 leading-relaxed"
-                      >
-                        <span className="w-5 h-5 rounded-full bg-sky-100 text-[#0D3868] font-mono-num text-[11px] font-extrabold flex items-center justify-center shrink-0 mt-0.5">
-                          {sIdx + 1}
-                        </span>
-                        <span>{step}</span>
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-
-                {/* Internal WhatsApp Privacy Notice */}
-                <div className="pt-3 border-t border-slate-100 flex items-start gap-2.5 text-[11px] text-slate-600">
-                  <Lock className="w-4 h-4 text-[#128C7E] shrink-0 mt-0.5" />
-                  <p className="leading-relaxed">
-                    Terintegrasi otomatis dengan{' '}
-                    <strong>{activeRecipients.length} nomor WhatsApp penerima resmi</strong> di
-                    Kelurahan Panaikang. Nomor telepon penerima hanya ditampilkan di Halaman Admin.
+                  <h2 className="text-2xl font-extrabold text-[#0D3868] mt-0.5">
+                    Menu Warga
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl">
+                    Pilih layanan yang ingin Anda gunakan. Akses pengaduan permasalahan lingkungan serta layanan administrasi pengurusan surat resmi dalam satu tempat.
                   </p>
                 </div>
+                <span className="inline-flex items-center px-3 py-1 rounded-full bg-sky-100 text-[#0D3868] text-xs font-bold self-start">
+                  ◉ Layanan Terpadu
+                </span>
               </div>
 
-              {/* Quick Sub-Menu Switcher within same Category */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-500">
-                    Sub-Menu Lain di {currentCategoryObj.title}
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={handleBackToMenuWarga}
-                    className="text-xs font-bold text-[#0277BD] hover:underline cursor-pointer"
-                  >
-                    Semua Kategori
-                  </button>
+              {/* 2 Main Cards (Exact Prototype Layout) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {/* Feature Card 1: Laporan & Pengaduan Warga */}
+                <article className="rounded-2xl border-2 border-slate-200 hover:border-[#0277BD] p-6 bg-white hover:shadow-lg transition-all flex flex-col justify-between group">
+                  <div className="space-y-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-sky-50 border border-sky-200 flex items-center justify-center text-2xl group-hover:scale-105 transition-transform">
+                      📝
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black tracking-wider uppercase text-[#0277BD] bg-sky-50 px-2 py-0.5 rounded-md border border-sky-100">
+                        Sub-Menu 1
+                      </span>
+                      <h3 className="text-lg font-extrabold text-[#0D3868] mt-1.5">
+                        1. Laporan dan Pengaduan Warga
+                      </h3>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Sampaikan masalah lingkungan, keluhan pelayanan, atau kebutuhan tindak lanjut.
+                      Dilengkapi nomor tiket otomatis, formulir terintegrasi, dan fitur pelacakan status penanganan.
+                    </p>
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-500 font-mono-num">
+                      {reports.length} Laporan terdata
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSection('aduan');
+                        setAduanPage('new');
+                      }}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0277BD] hover:bg-[#0D3868] text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                    >
+                      <span>Buka Menu →</span>
+                    </button>
+                  </div>
+                </article>
+
+                {/* Feature Card 2: Layanan Administrasi Warga */}
+                <article className="rounded-2xl border-2 border-slate-200 hover:border-[#1C8237] p-6 bg-white hover:shadow-lg transition-all flex flex-col justify-between group">
+                  <div className="space-y-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-2xl group-hover:scale-105 transition-transform">
+                      📄
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black tracking-wider uppercase text-[#1C8237] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                        Sub-Menu 2
+                      </span>
+                      <h3 className="text-lg font-extrabold text-[#0D3868] mt-1.5">
+                        2. Layanan Administrasi Warga
+                      </h3>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Pilih pengurusan surat resmi kelurahan, periksa checklist persyaratan dokumen,
+                      tandai berkas yang sudah siap, cetak lembar checklist, dan ajukan permohonan secara online.
+                    </p>
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-500 font-mono-num">
+                      13 Layanan resmi
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSection('admin');
+                        setAdminPage('catalog');
+                        setSelectedService(null);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                    >
+                      <span>Buka Menu →</span>
+                    </button>
+                  </div>
+                </article>
+              </div>
+
+              {/* Ringkasan Layanan Info Panel */}
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5 space-y-4">
+                <h3 className="text-sm font-extrabold text-[#0D3868]">
+                  Ringkasan Pelayanan Warga
+                </h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200">
+                    <div className="text-xl font-extrabold text-[#0277BD] font-mono-num">13</div>
+                    <div className="text-[11px] text-slate-500 font-medium">Jenis Pengurusan Surat</div>
+                  </div>
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200">
+                    <div className="text-xl font-extrabold text-emerald-600 font-mono-num">{reports.length}</div>
+                    <div className="text-[11px] text-slate-500 font-medium">Laporan Tercatat</div>
+                  </div>
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200">
+                    <div className="text-xl font-extrabold text-purple-600 font-mono-num">2</div>
+                    <div className="text-[11px] text-slate-500 font-medium">Sub-Menu Utama Warga</div>
+                  </div>
                 </div>
-                <div className="space-y-1.5">
-                  {currentCategoryObj.items.map((item, idx) => {
-                    const isCurrent = item.id === currentSubItemObj.id;
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => handleOpenSubMenuPage(currentCategoryObj.id, item)}
-                        className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-between gap-2 ${
-                          isCurrent
-                            ? 'bg-[#0D3868] text-white'
-                            : 'bg-slate-50 hover:bg-sky-50 text-slate-700 border border-slate-200/70'
-                        }`}
-                      >
-                        <span className="truncate">
-                          {idx + 1}. {item.label}
-                        </span>
-                        <ChevronRight className="w-3.5 h-3.5 shrink-0 opacity-75" />
-                      </button>
-                    );
-                  })}
+
+                <div className="p-3.5 rounded-xl bg-sky-50 border border-sky-200 text-xs text-sky-900 leading-relaxed flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-[#0277BD] shrink-0 mt-0.5" />
+                  <div>
+                    <strong>Koneksi Administrator:</strong> Seluruh permohonan surat dan laporan warga yang diajukan melalui portal ini langsung tersimpan ke basis data resmi kelurahan dan diproses oleh administrator serta Lurah Panaikang.
+                  </div>
                 </div>
               </div>
             </div>
+          )}
 
-            {/* RIGHT COLUMN (7 Cols): Formulir Spesifik Sub-Menu + Pratinjau Draf Resmi */}
-            <div className="lg:col-span-7 space-y-6">
-              {/* Interactive Official Draft Preview (Collapsible / Printable) */}
-              {showDraftPreview && (
-                <div className="bg-white rounded-2xl border-2 border-[#0D3868] p-6 space-y-4 shadow-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200">
-                    <div className="text-xs font-extrabold uppercase tracking-wider text-[#0D3868]">
-                      Pratinjau Draf Dokumen / Bukti Registrasi Kelurahan
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => window.print()}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#0D3868] hover:bg-[#0277BD] text-white text-xs font-bold cursor-pointer"
-                    >
-                      <Printer className="w-3.5 h-3.5" />
-                      <span>Cetak / Simpan PDF</span>
-                    </button>
+          {/* =========================================================================
+              VIEW 2: SUB-MENU 1 — LAPORAN DAN PENGADUAN WARGA
+          ========================================================================= */}
+          {section === 'aduan' && (
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="pb-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-black tracking-wider text-[#0277BD] uppercase">
+                    SUB-MENU 1 · PENGADUAN LINGKUNGAN & PELAYANAN
                   </div>
+                  <h2 className="text-2xl font-extrabold text-[#0D3868] mt-0.5">
+                    Laporan dan Pengaduan Warga
+                  </h2>
+                  <p className="text-xs text-slate-600 mt-1">
+                    Laporkan permasalahan lingkungan atau keluhan pelayanan, lalu gunakan nomor tiket resmi untuk melacak perkembangan penanganan.
+                  </p>
+                </div>
 
-                  <div className="p-5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 space-y-3 font-serif">
-                    <div className="text-center border-b-2 border-slate-800 pb-3">
-                      <div className="text-xs font-bold uppercase tracking-widest">
-                        PEMERINTAH KOTA MAKASSAR · KECAMATAN PANAKKUKANG
+                <button
+                  type="button"
+                  onClick={() => setSection('home')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer self-start sm:self-center"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Kembali ke Menu Warga</span>
+                </button>
+              </div>
+
+              {/* Sub-Tabs: Buat Laporan | Lacak Laporan | Daftar Laporan */}
+              <div className="flex flex-wrap items-center gap-2 pb-2">
+                <button
+                  type="button"
+                  onClick={() => setAduanPage('new')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    aduanPage === 'new'
+                      ? 'bg-[#0277BD] text-white shadow-xs'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  ＋ Buat Laporan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAduanPage('track')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    aduanPage === 'track'
+                      ? 'bg-[#0277BD] text-white shadow-xs'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  ⌕ Lacak Laporan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAduanPage('list')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    aduanPage === 'list'
+                      ? 'bg-[#0277BD] text-white shadow-xs'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  ☷ Daftar Laporan ({reports.length})
+                </button>
+              </div>
+
+              {/* TAB 1: FORMULIR BUAT LAPORAN */}
+              {aduanPage === 'new' && (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                  {/* Left: Form Card */}
+                  <form
+                    onSubmit={handleAduanSubmit}
+                    className="lg:col-span-8 rounded-2xl border border-slate-200 p-5 sm:p-6 bg-white space-y-4"
+                  >
+                    <h3 className="text-sm font-extrabold text-[#0D3868] pb-2 border-b border-slate-100">
+                      Formulir Laporan Warga
+                    </h3>
+
+                    {/* Judul Laporan */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Judul Laporan *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        maxLength={120}
+                        value={aduanForm.title}
+                        onChange={(e) => setAduanForm({ ...aduanForm, title: e.target.value })}
+                        placeholder="Contoh: Drainase tersumbat di Jalan Kesadaran RW 02..."
+                        className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-xs focus:border-[#0277BD] focus:outline-none"
+                      />
+                    </div>
+
+                    {/* Kategori & Urgensi */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Kategori Permasalahan *
+                        </label>
+                        <select
+                          value={aduanForm.category}
+                          onChange={(e) => setAduanForm({ ...aduanForm, category: e.target.value })}
+                          className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs focus:border-[#0277BD] focus:outline-none bg-white"
+                        >
+                          {REPORT_COMPLAINT_CATEGORIES.map((cat) => (
+                            <option key={cat} value={cat}>
+                              {cat}
+                            </option>
+                          ))}
+                        </select>
                       </div>
-                      <div className="text-base font-extrabold uppercase">
-                        KELURAHAN PANAIKANG
-                      </div>
-                      <div className="text-[11px] text-slate-600 font-sans">
-                        {kelurahanProfile.officeAddress} · Telp: {kelurahanProfile.phoneContact}
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Tingkat Urgensi *
+                        </label>
+                        <select
+                          value={aduanForm.urgency}
+                          onChange={(e) =>
+                            setAduanForm({ ...aduanForm, urgency: e.target.value as ReportUrgency })
+                          }
+                          className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs focus:border-[#0277BD] focus:outline-none bg-white"
+                        >
+                          <option value="Normal">Normal</option>
+                          <option value="Tinggi">Perlu Perhatian (Tinggi)</option>
+                          <option value="Darurat">Mendesak (Darurat)</option>
+                        </select>
                       </div>
                     </div>
 
-                    <div className="text-center pt-1">
-                      <div className="text-xs font-bold underline uppercase">
-                        {currentSubItemObj.officialHeaderTitle}
+                    {/* RW & RT Selection */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Wilayah RW *
+                        </label>
+                        <select
+                          value={aduanForm.rw}
+                          onChange={(e) =>
+                            setAduanForm({ ...aduanForm, rw: e.target.value, rt: 'RT 01' })
+                          }
+                          className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-mono-num bg-white"
+                        >
+                          {DEFAULT_RW_LIST.map((rw) => (
+                            <option key={rw} value={rw}>
+                              {rw}
+                            </option>
+                          ))}
+                        </select>
                       </div>
-                      <div className="text-[11px] font-mono-num text-slate-600 font-sans mt-0.5">
-                        Nomor Registrasi: {submittedTicket || 'REG-ONLINE'} /{' '}
-                        {currentSubItemObj.documentCode} / {new Date().getFullYear()}
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Unit RT *
+                        </label>
+                        <select
+                          value={aduanForm.rt}
+                          onChange={(e) => setAduanForm({ ...aduanForm, rt: e.target.value })}
+                          className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-mono-num bg-white"
+                        >
+                          {availableRtsForAduan.map((rt) => (
+                            <option key={rt} value={rt}>
+                              {rt}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
 
-                    <div className="text-xs space-y-1.5 font-sans pt-2">
-                      <div className="grid grid-cols-3 gap-2">
-                        <span className="text-slate-500">Nama Pemohon / Pelapor</span>
-                        <span className="col-span-2 font-bold">
-                          : {reporterName || '[Nama Lengkap Pemohon]'}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        <span className="text-slate-500">NIK / Nomor KK</span>
-                        <span className="col-span-2 font-mono-num">
-                          : {applicantNik || '[16 Digit NIK / KK]'}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        <span className="text-slate-500">Alamat / Wilayah RT-RW</span>
-                        <span className="col-span-2">
-                          : {locationName} ({rt} / {rw})
-                        </span>
-                      </div>
-                      {currentSubItemObj.specificFields.map((f) => (
-                        <div key={f.key} className="grid grid-cols-3 gap-2">
-                          <span className="text-slate-500">{f.label}</span>
-                          <span className="col-span-2 font-semibold">
-                            : {specificFieldValues[f.key] || '-'}
+                    {/* Lokasi Kejadian */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Lokasi Kejadian / Alamat Spesifik *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={aduanForm.location}
+                        onChange={(e) => setAduanForm({ ...aduanForm, location: e.target.value })}
+                        placeholder="Nama jalan, lorong, nomor rumah, atau patokan lokasi terdekat"
+                        className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-xs focus:border-[#0277BD] focus:outline-none"
+                      />
+                    </div>
+
+                    {/* Uraian Permasalahan */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Uraian Permasalahan *
+                      </label>
+                      <textarea
+                        required
+                        rows={4}
+                        maxLength={1500}
+                        value={aduanForm.description}
+                        onChange={(e) => setAduanForm({ ...aduanForm, description: e.target.value })}
+                        placeholder="Jelaskan secara rinci apa yang terjadi, sejak kapan masalah berlangsung, dan dampaknya bagi warga sekitar..."
+                        className="w-full rounded-xl border border-slate-300 p-3 text-xs focus:border-[#0277BD] focus:outline-none"
+                      />
+                    </div>
+
+                    {/* Upload Foto Pendukung */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Foto Pendukung <span className="text-slate-400 font-normal">(opsional)</span>
+                      </label>
+                      <div className="flex items-center gap-3">
+                        <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-700 cursor-pointer">
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>Pilih Foto dari Perangkat</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handlePhotoUpload}
+                            className="hidden"
+                          />
+                        </label>
+                        {isCompressingPhoto && (
+                          <span className="text-xs text-sky-600 animate-pulse">
+                            Mengompres foto...
                           </span>
-                        </div>
-                      ))}
-                      <div className="grid grid-cols-3 gap-2">
-                        <span className="text-slate-500">Rincian Keperluan</span>
-                        <span className="col-span-2">
-                          : {description || currentSubItemObj.placeholderNote}
-                        </span>
+                        )}
+                        {aduanForm.photoDataUrl && (
+                          <div className="flex items-center gap-2">
+                            <img
+                              src={aduanForm.photoDataUrl}
+                              alt="Preview"
+                              className="w-10 h-10 object-cover rounded-lg border border-slate-200"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setAduanForm({ ...aduanForm, photoDataUrl: '' })}
+                              className="text-xs text-red-600 hover:underline cursor-pointer"
+                            >
+                              Hapus Foto
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
 
-                    <div className="pt-4 flex justify-between items-end text-[11px] font-sans border-t border-slate-200">
-                      <div className="text-slate-500">
-                        Unit Pelaksana: <strong>{currentSubItemObj.processingUnit}</strong>
-                      </div>
-                      <div className="text-right">
-                        <div>Makassar, {new Date().toLocaleDateString('id-ID')}</div>
-                        <div className="font-bold text-slate-800 mt-4">
-                          {kelurahanProfile.lurahName}
+                    {/* Identitas Pelapor */}
+                    {!aduanForm.isAnonymous && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2 border-t border-slate-100">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">
+                            Nama Pelapor <span className="text-slate-400 font-normal">(opsional)</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={aduanForm.reporterName}
+                            onChange={(e) =>
+                              setAduanForm({ ...aduanForm, reporterName: e.target.value })
+                            }
+                            placeholder="Nama Anda"
+                            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs"
+                          />
                         </div>
-                        <div className="text-[10px] text-slate-500">Lurah Panaikang</div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">
+                            Nomor Kontak / WhatsApp <span className="text-slate-400 font-normal">(opsional)</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={aduanForm.reporterPhone}
+                            onChange={(e) =>
+                              setAduanForm({ ...aduanForm, reporterPhone: e.target.value })
+                            }
+                            placeholder="0812-xxxx-xxxx"
+                            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-mono-num"
+                          />
+                        </div>
                       </div>
+                    )}
+
+                    {/* Checkbox Anonim */}
+                    <label className="flex items-center gap-2.5 text-xs text-slate-700 cursor-pointer pt-1">
+                      <input
+                        type="checkbox"
+                        checked={aduanForm.isAnonymous}
+                        onChange={(e) =>
+                          setAduanForm({ ...aduanForm, isAnonymous: e.target.checked })
+                        }
+                        className="rounded text-[#0277BD] focus:ring-sky-500 w-4 h-4"
+                      />
+                      <span>Kirim secara anonim (nama dan kontak tidak dicantumkan ke publik).</span>
+                    </label>
+
+                    {/* Checkbox Pernyataan */}
+                    <label className="flex items-start gap-2.5 text-xs text-slate-700 cursor-pointer bg-slate-50 p-3 rounded-xl border border-slate-200">
+                      <input
+                        type="checkbox"
+                        required
+                        checked={aduanForm.consent}
+                        onChange={(e) =>
+                          setAduanForm({ ...aduanForm, consent: e.target.checked })
+                        }
+                        className="rounded text-[#0277BD] focus:ring-sky-500 w-4 h-4 mt-0.5"
+                      />
+                      <span>
+                        Saya menyampaikan laporan ini dengan itikad baik dan informasi yang benar sejauh yang saya ketahui. *
+                      </span>
+                    </label>
+
+                    {/* Submit Button */}
+                    <div className="pt-2">
+                      <button
+                        type="submit"
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-[#0277BD] hover:bg-[#0D3868] text-white text-xs font-extrabold shadow-sm transition cursor-pointer"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Kirim Laporan Pengaduan →</span>
+                      </button>
+                    </div>
+                  </form>
+
+                  {/* Right: Info & Steps */}
+                  <div className="lg:col-span-4 space-y-4">
+                    <div className="rounded-2xl border border-slate-200 p-5 bg-white space-y-3">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-[#0D3868]">
+                        Alur Penanganan Laporan
+                      </h4>
+                      <div className="space-y-3 text-xs">
+                        <div className="flex gap-2.5">
+                          <span className="w-6 h-6 rounded-full bg-sky-100 text-[#0277BD] font-black flex items-center justify-center shrink-0">1</span>
+                          <div>
+                            <strong className="block text-slate-800">Laporan Diterima</strong>
+                            <p className="text-[11px] text-slate-500">Sistem otomatis menerbitkan nomor tiket resmi pelacakan.</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2.5">
+                          <span className="w-6 h-6 rounded-full bg-sky-100 text-[#0277BD] font-black flex items-center justify-center shrink-0">2</span>
+                          <div>
+                            <strong className="block text-slate-800">Verifikasi Petugas</strong>
+                            <p className="text-[11px] text-slate-500">Petugas kelurahan memeriksa keabsahan laporan & lokasi kejadian.</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2.5">
+                          <span className="w-6 h-6 rounded-full bg-sky-100 text-[#0277BD] font-black flex items-center justify-center shrink-0">3</span>
+                          <div>
+                            <strong className="block text-slate-800">Dalam Penanganan</strong>
+                            <p className="text-[11px] text-slate-500">Laporan ditindaklanjuti oleh tim satgas atau dikoordinasikan ke dinas teknis.</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2.5">
+                          <span className="w-6 h-6 rounded-full bg-emerald-100 text-[#1C8237] font-black flex items-center justify-center shrink-0">4</span>
+                          <div>
+                            <strong className="block text-slate-800">Selesai Ditangani</strong>
+                            <p className="text-[11px] text-slate-500">Status diperbarui dan hasil penanganan diarsipkan pada Satu Data.</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-950 space-y-2">
+                      <div className="font-extrabold flex items-center gap-1.5 text-amber-900">
+                        <AlertCircle className="w-4 h-4 text-amber-700" />
+                        <span>Kedaruratan & Keluhan Lanjutan</span>
+                      </div>
+                      <p className="text-[11px] leading-relaxed">
+                        Laporan Keluhan dan pelayanan tingkat lanjut silahkan gunakan aplikasi Lontara+. Untuk keadaan darurat langsung, hubungi Call Center 112 Kota Makassar.
+                      </p>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Formulir Pengajuan / Laporan Spesifik Sub-Menu */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-7">
-                <div className="pb-4 border-b border-slate-100">
-                  <div className="text-xs font-extrabold uppercase tracking-wider text-[#0277BD]">
-                    Formulir Pengajuan & Pelayanan Digital Warga
+              {/* TAB 2: SUKSES KIRIM LAPORAN */}
+              {aduanPage === 'success' && lastSubmittedAduan && (
+                <div className="max-w-xl mx-auto rounded-2xl border-2 border-emerald-300 bg-white p-6 sm:p-8 text-center space-y-5 shadow-sm">
+                  <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 mx-auto flex items-center justify-center text-2xl font-black">
+                    ✓
                   </div>
-                  <h2 className="mt-1 text-lg sm:text-xl font-extrabold text-[#0D3868]">
-                    {currentSubItemObj.label}
-                  </h2>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    Bidang: <strong>{currentCategoryObj.title}</strong> · Kode Layanan:{' '}
-                    <span className="font-mono-num">{currentSubItemObj.documentCode}</span>
-                  </p>
-                </div>
+                  <div>
+                    <h3 className="text-xl font-extrabold text-[#0D3868]">
+                      Laporan Anda Berhasil Tercatat
+                    </h3>
+                    <p className="text-xs text-slate-600 mt-1">
+                      Laporan telah masuk ke sistem Satu Data Kelurahan Panaikang. Simpan nomor tiket di bawah ini untuk memantau status tindak lanjut.
+                    </p>
+                  </div>
 
-                {/* Notice Link Lontara+ */}
-                <div className="mt-4 p-3.5 rounded-xl bg-amber-50 border border-amber-300/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                  <div className="flex items-start sm:items-center gap-2.5 text-amber-950">
-                    <span className="w-6 h-6 rounded-md bg-amber-400 text-slate-950 font-black text-[11px] flex items-center justify-center shrink-0">
-                      L+
+                  <div className="p-4 rounded-xl bg-sky-50 border border-sky-200 space-y-1">
+                    <span className="text-[10px] uppercase font-black tracking-widest text-[#0277BD]">
+                      Nomor Tiket Laporan Resmi
                     </span>
-                    <div>
-                      <span className="font-bold text-amber-950 block">
-                        Laporan Keluhan dan pelayanan tingkat lanjut silahkan gunakan aplikasi Lontara+
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-2xl font-black text-[#0D3868] font-mono-num tracking-wide">
+                        {lastSubmittedAduan.ticketCode}
                       </span>
-                      <span className="text-amber-800 text-[11px] block mt-0.5">
-                        Aplikasi resmi Pemkot Makassar untuk penanganan keluhan warga langsung oleh dinas terkait.
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(lastSubmittedAduan.ticketCode)}
+                        className="p-1 rounded-md text-slate-500 hover:text-slate-800 cursor-pointer"
+                        title="Salin Nomor Tiket"
+                      >
+                        {copiedTicket === lastSubmittedAduan.ticketCode ? (
+                          <Check className="w-4 h-4 text-emerald-600" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                    <span className="text-[11px] text-slate-500">
+                      Status Awal: <strong>Menunggu Verifikasi</strong>
+                    </span>
+                  </div>
+
+                  <div className="text-left text-xs bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                    <div className="font-bold text-slate-800">{lastSubmittedAduan.title}</div>
+                    <div className="text-slate-500 mt-0.5">
+                      Kategori: {lastSubmittedAduan.category} · Lokasi: {lastSubmittedAduan.location}
                     </div>
                   </div>
-                  <a
-                    href="https://lontaraplus.makassarkota.go.id"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition-colors shrink-0 shadow-xs"
-                  >
-                    <span>Buka Lontara+</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
+
+                  <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchTicketQuery(lastSubmittedAduan.ticketCode);
+                        setAduanPage('track');
+                        const found = reports.find((r) => r.ticketCode === lastSubmittedAduan.ticketCode);
+                        setSearchTicketResult(found || null);
+                        setHasSearchedTicket(true);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-[#0277BD] hover:bg-[#0D3868] text-white text-xs font-bold cursor-pointer"
+                    >
+                      Lacak Laporan Ini Sekarang
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAduanPage('new')}
+                      className="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+                    >
+                      Buat Laporan Lain
+                    </button>
+                  </div>
                 </div>
+              )}
 
-                {submittedTicket && (
-                  <div className="mt-5 p-4 sm:p-5 rounded-2xl bg-emerald-50 border-2 border-emerald-300 text-emerald-950 space-y-3.5">
-                    <div className="flex items-start gap-3">
-                      <FileCheck2 className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
-                      <div className="flex-1">
-                        <div className="text-sm font-extrabold text-emerald-900">
-                          Pengajuan "{currentSubItemObj.label}" Berhasil Tersimpan!
-                        </div>
-                        <p className="mt-1 text-xs text-emerald-800 leading-relaxed">
-                          Nomor Tiket Layanan Anda:{' '}
-                          <span className="font-mono-num font-bold underline">
-                            {submittedTicket}
-                          </span>
-                          . Pengajuan telah masuk ke Dashboard Petugas Kelurahan Panaikang dan
-                          diteruskan otomatis ke seluruh ({activeRecipients.length}) nomor WhatsApp
-                          penerima terdaftar di halaman Administrator.
-                        </p>
+              {/* TAB 3: LACAK LAPORAN */}
+              {aduanPage === 'track' && (
+                <div className="max-w-2xl mx-auto space-y-5">
+                  <div className="rounded-2xl border border-slate-200 p-5 bg-white space-y-4">
+                    <h3 className="text-sm font-extrabold text-[#0D3868]">
+                      Pencarian & Pelacakan Nomor Tiket
+                    </h3>
+                    <form onSubmit={handleSearchTicket} className="flex gap-2">
+                      <input
+                        type="text"
+                        required
+                        value={searchTicketQuery}
+                        onChange={(e) => setSearchTicketQuery(e.target.value)}
+                        placeholder="Contoh: PAN-2026-12345 atau ADM-2026-0001..."
+                        className="flex-1 rounded-xl border border-slate-300 px-3.5 py-2 text-xs font-mono-num uppercase focus:border-[#0277BD] focus:outline-none"
+                      />
+                      <button
+                        type="submit"
+                        className="px-4 py-2 rounded-xl bg-[#0277BD] hover:bg-[#0D3868] text-white text-xs font-bold cursor-pointer"
+                      >
+                        Cari Laporan
+                      </button>
+                    </form>
+                    <p className="text-[11px] text-slate-500">
+                      Masukkan nomor tiket laporan atau permohonan surat yang telah diterbitkan sistem.
+                    </p>
+                  </div>
 
-                        {lastSubmittedReport && (
-                          <div className="mt-3 p-3.5 rounded-xl bg-white border border-emerald-200 flex flex-wrap items-center justify-between gap-2.5">
-                            <div className="flex items-center gap-2 text-xs text-slate-700">
-                              <div className="w-7 h-7 rounded-lg bg-[#25D366]/15 text-[#128C7E] flex items-center justify-center shrink-0">
-                                <MessageCircle className="w-4 h-4" />
+                  {hasSearchedTicket && (
+                    <div>
+                      {searchTicketResult ? (
+                        <div className="rounded-2xl border border-slate-200 p-5 bg-white space-y-4 shadow-xs">
+                          <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
+                            <div>
+                              <span className="text-xs font-mono-num font-black text-[#0277BD]">
+                                {searchTicketResult.ticketCode}
+                              </span>
+                              <h4 className="text-base font-extrabold text-[#0D3868] mt-0.5">
+                                {searchTicketResult.title}
+                              </h4>
+                              <div className="text-xs text-slate-500 mt-0.5">
+                                Kategori: {searchTicketResult.category} · {searchTicketResult.rw} / {searchTicketResult.rt}
                               </div>
-                              <span>
-                                Terdistribusi otomatis ke{' '}
-                                <strong>{activeRecipients.length} Nomor Penerima Terdaftar</strong>
+                            </div>
+                            <span
+                              className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                searchTicketResult.status === 'Selesai'
+                                  ? 'bg-emerald-100 text-[#1C8237]'
+                                  : searchTicketResult.status === 'Sedang Ditangani'
+                                  ? 'bg-sky-100 text-[#0277BD]'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}
+                            >
+                              {searchTicketResult.status}
+                            </span>
+                          </div>
+
+                          <div className="text-xs text-slate-700 leading-relaxed bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                            {searchTicketResult.description}
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-600">
+                            <div>
+                              <strong>Pelapor:</strong> {searchTicketResult.reporterName}
+                            </div>
+                            <div>
+                              <strong>Waktu Pengajuan:</strong> {searchTicketResult.createdAt}
+                            </div>
+                            <div>
+                              <strong>Lokasi:</strong> {searchTicketResult.locationName}
+                            </div>
+                            <div>
+                              <strong>Tim Ditugaskan:</strong> {searchTicketResult.assignedTeam || 'Menunggu penugasan'}
+                            </div>
+                          </div>
+
+                          {searchTicketResult.responseNote && (
+                            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-950 space-y-1">
+                              <strong>Tindak Lanjut Petugas:</strong>
+                              <p>{searchTicketResult.responseNote}</p>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-slate-500 text-xs bg-white">
+                          Nomor tiket <strong>"{searchTicketQuery}"</strong> tidak ditemukan dalam basis data sistem. Pastikan nomor tiket ditulis dengan benar.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 4: DAFTAR LAPORAN WARGA */}
+              {aduanPage === 'list' && (
+                <div className="space-y-4">
+                  {/* Filter Toolbar */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={listSearchQuery}
+                        onChange={(e) => setListSearchQuery(e.target.value)}
+                        placeholder="Cari nomor tiket, judul, atau lokasi..."
+                        className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs focus:border-[#0277BD] focus:outline-none"
+                      />
+                    </div>
+                    <select
+                      value={listStatusFilter}
+                      onChange={(e) => setListStatusFilter(e.target.value)}
+                      className="rounded-xl border border-slate-300 px-3 py-2 text-xs bg-white focus:border-[#0277BD] focus:outline-none"
+                    >
+                      <option value="Semua">Semua Status</option>
+                      <option value="Menunggu Verifikasi">Menunggu Verifikasi</option>
+                      <option value="Sedang Ditangani">Sedang Ditangani</option>
+                      <option value="Selesai">Selesai</option>
+                    </select>
+                  </div>
+
+                  {/* List Cards */}
+                  <div className="space-y-3">
+                    {filteredReportsList.length === 0 ? (
+                      <div className="p-8 rounded-2xl border border-dashed border-slate-300 text-center text-xs text-slate-500">
+                        Tidak ada laporan warga yang sesuai dengan pencarian atau filter.
+                      </div>
+                    ) : (
+                      filteredReportsList.map((r) => (
+                        <article
+                          key={r.id}
+                          className="rounded-2xl border border-slate-200 p-4 sm:p-5 bg-white hover:border-[#0277BD]/60 hover:shadow-xs transition space-y-3"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-mono-num font-black text-[#0277BD]">
+                                  {r.ticketCode}
+                                </span>
+                                <span className="text-slate-300">·</span>
+                                <span className="text-[11px] text-slate-500">{r.category}</span>
+                              </div>
+                              <h4 className="text-sm font-extrabold text-[#0D3868] mt-0.5">
+                                {r.title}
+                              </h4>
+                            </div>
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                                r.status === 'Selesai'
+                                  ? 'bg-emerald-100 text-[#1C8237]'
+                                  : r.status === 'Sedang Ditangani'
+                                  ? 'bg-sky-100 text-[#0277BD]'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}
+                            >
+                              {r.status}
+                            </span>
+                          </div>
+
+                          <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                            {r.description}
+                          </p>
+
+                          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-[11px] text-slate-500">
+                            <div className="flex items-center gap-3">
+                              <span className="flex items-center gap-1">
+                                <MapPin className="w-3 h-3 text-emerald-600" />
+                                <span>{r.locationName}</span>
+                              </span>
+                              <span>·</span>
+                              <span className="flex items-center gap-1 font-mono-num">
+                                <Clock className="w-3 h-3 text-slate-400" />
+                                <span>{r.createdAt}</span>
                               </span>
                             </div>
 
                             <button
                               type="button"
-                              onClick={() => {
-                                const msg = buildReportWhatsAppMessage(
-                                  lastSubmittedReport,
-                                  null,
-                                  activeRecipients
-                                );
-                                navigator.clipboard?.writeText(msg);
-                                setCopiedWaText(true);
-                                window.setTimeout(() => setCopiedWaText(false), 2500);
-                              }}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer"
+                              onClick={() => onUpvoteReport(r.id)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-sky-50 text-slate-700 hover:text-[#0277BD] font-bold cursor-pointer transition"
+                              title="Dukung penanganan laporan ini"
                             >
-                              {copiedWaText ? (
-                                <>
-                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                  <span>Bukti Pengajuan Tersalin</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Copy className="w-3.5 h-3.5" />
-                                  <span>Salin Bukti Pengajuan</span>
-                                </>
-                              )}
+                              <span>👍</span>
+                              <span className="font-mono-num">{r.upvotes}</span>
                             </button>
                           </div>
-                        )}
-
-                        <div className="mt-3 flex flex-wrap items-center gap-2.5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setActivePage('cek_status_page');
-                              scrollToTopSmooth();
-                            }}
-                            className="px-3.5 py-1.5 rounded-lg bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-800 transition-colors cursor-pointer"
-                          >
-                            🔎 Cek Status Pengajuan
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleBackToMenuWarga}
-                            className="px-3.5 py-1.5 rounded-lg bg-white border border-emerald-300 text-emerald-800 text-xs font-semibold hover:bg-emerald-100 transition-colors cursor-pointer"
-                          >
-                            ← Kembali ke Menu Warga
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {formError && (
-                  <div className="mt-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs font-medium text-red-800">
-                    {formError}
-                  </div>
-                )}
-
-                <form onSubmit={handleSubmit} className="mt-5 space-y-4">
-                  {/* Identitas Pemohon / Pelapor */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                        Nama Lengkap Pemohon / Pelapor *
-                      </label>
-                      <input
-                        type="text"
-                        value={reporterName}
-                        onChange={(e) => setReporterName(e.target.value)}
-                        placeholder="Contoh: Muh. Rizal Dg. Sikki"
-                        className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-[#0277BD] focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                        NIK / Nomor KK
-                      </label>
-                      <input
-                        type="text"
-                        value={applicantNik}
-                        onChange={(e) => setApplicantNik(e.target.value)}
-                        placeholder="16 digit NIK / KK"
-                        className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-[#0277BD] focus:outline-none font-mono-num"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                        Nomor WhatsApp Aktif *
-                      </label>
-                      <input
-                        type="tel"
-                        value={reporterPhone}
-                        onChange={(e) => setReporterPhone(e.target.value)}
-                        placeholder="Contoh: 0812-4210-xxxx"
-                        className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-[#0277BD] focus:outline-none font-mono-num"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Wilayah RW / RT / Alamat */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                        Wilayah RW *
-                      </label>
-                      <select
-                        value={rw}
-                        onChange={(e) => handleRwChange(e.target.value)}
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm text-slate-900 bg-white focus:border-[#0277BD] focus:outline-none"
-                      >
-                        {RW_OPTIONS.map((item) => (
-                          <option key={item} value={item}>
-                            {item}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                        Wilayah RT *
-                      </label>
-                      <select
-                        value={rt}
-                        onChange={(e) => handleRtChange(e.target.value)}
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm text-slate-900 bg-white focus:border-[#0277BD] focus:outline-none"
-                      >
-                        {RT_OPTIONS.map((item) => (
-                          <option key={item} value={item}>
-                            {item}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="col-span-2">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                        Alamat Domisili / Lokasi di Kelurahan Panaikang *
-                      </label>
-                      <input
-                        type="text"
-                        value={locationName}
-                        onChange={(e) => setLocationName(e.target.value)}
-                        placeholder="Contoh: Jl. Urip Sumoharjo / Jl. Sukaria Lr. 2"
-                        className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-[#0277BD] focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  {/* KOLOM INPUT SPESIFIK SESUAI SUB-MENU YANG DIPILIH */}
-                  {currentSubItemObj.specificFields.length > 0 && (
-                    <div className="p-4 rounded-2xl bg-sky-50/60 border border-sky-200/80 space-y-3.5">
-                      <div className="text-xs font-extrabold uppercase tracking-wider text-[#0D3868]">
-                        Data Khusus Layanan: {currentSubItemObj.label}
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                        {currentSubItemObj.specificFields.map((field) => (
-                          <div key={field.key}>
-                            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                              {field.label}
-                            </label>
-                            {field.type === 'select' && field.options ? (
-                              <select
-                                value={specificFieldValues[field.key] || field.options[0]}
-                                onChange={(e) =>
-                                  setSpecificFieldValues((prev) => ({
-                                    ...prev,
-                                    [field.key]: e.target.value,
-                                  }))
-                                }
-                                className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm text-slate-900 bg-white focus:border-[#0277BD] focus:outline-none"
-                              >
-                                {field.options.map((opt) => (
-                                  <option key={opt} value={opt}>
-                                    {opt}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <input
-                                type="text"
-                                value={specificFieldValues[field.key] || ''}
-                                onChange={(e) =>
-                                  setSpecificFieldValues((prev) => ({
-                                    ...prev,
-                                    [field.key]: e.target.value,
-                                  }))
-                                }
-                                placeholder={field.placeholder}
-                                className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 bg-white focus:border-[#0277BD] focus:outline-none"
-                              />
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      Rincian Keperluan Surat / Kronologi Lengkap *
-                    </label>
-                    <textarea
-                      rows={3}
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      placeholder={currentSubItemObj.placeholderNote}
-                      className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-[#0277BD] focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                        Tingkat Prioritas Layanan
-                      </label>
-                      <div className="flex items-center gap-2">
-                        {(['Normal', 'Tinggi', 'Darurat'] as ReportUrgency[]).map((level) => (
-                          <button
-                            key={level}
-                            type="button"
-                            onClick={() => setUrgency(level)}
-                            className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold border transition-colors cursor-pointer ${
-                              urgency === level
-                                ? 'bg-[#0D3868] text-white border-[#0D3868]'
-                                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                            }`}
-                          >
-                            {level}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                        Lampiran Foto / Dokumen Pengantar
-                      </label>
-                      <div className="flex items-center gap-1.5">
-                        {[
-                          { label: 'Lokasi/Drainase', url: IMG_DRAINASE },
-                          { label: 'Lingkungan', url: IMG_BANK_SAMPAH },
-                          { label: 'Berkas/Warga', url: IMG_KERJA_BAKTI },
-                        ].map((item) => (
-                          <button
-                            key={item.label}
-                            type="button"
-                            onClick={() => setSelectedPhoto(item.url)}
-                            className={`flex-1 py-2 px-2 rounded-xl text-[11px] font-semibold border transition-colors whitespace-nowrap cursor-pointer ${
-                              selectedPhoto === item.url
-                                ? 'bg-sky-50 text-[#0277BD] border-[#0277BD]'
-                                : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                            }`}
-                          >
-                            {item.label}
-                          </button>
-                        ))}
-                        <label className="inline-flex items-center justify-center gap-1 py-2 px-2.5 rounded-xl text-xs font-bold border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 cursor-pointer whitespace-nowrap">
-                          <Upload className="w-3.5 h-3.5" />
-                          <span>Unggah</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleCitizenPhotoUpload}
-                            className="hidden"
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Distribusi Otomatis ke Seluruh Nomor WhatsApp Terdaftar */}
-                  <div className="p-4 rounded-2xl bg-[#25D366]/10 border border-[#128C7E]/30">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                      <div className="flex items-start gap-2.5">
-                        <div className="w-8 h-8 rounded-xl bg-[#128C7E] text-white flex items-center justify-center shrink-0 mt-0.5">
-                          <MessageCircle className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <div className="text-xs sm:text-sm font-extrabold text-[#075E54]">
-                            Terhubung Otomatis ke WhatsApp Pelayanan Kelurahan
-                          </div>
-                          <p className="text-[11px] text-slate-600 leading-relaxed mt-0.5">
-                            Pengajuan ini otomatis dikirim ke seluruh ({activeRecipients.length})
-                            nomor WhatsApp penerima terdaftar di Halaman Admin tanpa menampilkan
-                            nomor di halaman warga.
-                          </p>
-                        </div>
-                      </div>
-                      <label className="inline-flex items-center gap-2 text-xs font-bold text-[#075E54] bg-white px-3 py-1.5 rounded-xl border border-emerald-300 cursor-pointer self-start sm:self-auto shrink-0">
-                        <input
-                          type="checkbox"
-                          checked={autoSendWhatsApp}
-                          onChange={(e) => setAutoSendWhatsApp(e.target.checked)}
-                          className="rounded text-[#128C7E] focus:ring-[#128C7E]"
-                        />
-                        <span>Kirim Otomatis via WA</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="pt-2 flex flex-wrap items-center justify-between gap-3">
-                    <button
-                      type="submit"
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[#128C7E] hover:bg-[#075E54] text-white text-sm font-bold shadow-xs transition-colors cursor-pointer"
-                    >
-                      <Send className="w-4 h-4" />
-                      <span>Kirim Pengajuan ({currentSubItemObj.label})</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleBackToMenuWarga}
-                      className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer"
-                    >
-                      <ArrowLeft className="w-3.5 h-3.5" />
-                      <span>Kembali ke Menu Warga</span>
-                    </button>
-                  </div>
-                </form>
-              </div>
-
-              {/* Contextual Info when on Masalah Lingkungan Sub-Menu */}
-              {selectedCategoryId === 'masalah_lingkungan' && (
-                <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                    <h3 className="text-sm sm:text-base font-extrabold text-[#0D3868] flex items-center gap-2">
-                      <Truck className="w-4 h-4 text-[#1C8237]" />
-                      <span>Jadwal Armada Kebersihan & Bank Sampah RW</span>
-                    </h3>
-                    <button
-                      type="button"
-                      onClick={() => onNavigate('sampah')}
-                      className="text-xs font-bold text-[#0277BD] hover:underline cursor-pointer"
-                    >
-                      Monitoring Bank Sampah →
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {wasteUnits.slice(0, 4).map((unit) => (
-                      <div
-                        key={unit.id}
-                        className="p-3 rounded-xl border border-slate-200 bg-slate-50/60 space-y-1"
-                      >
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-extrabold text-[#0D3868]">{unit.rw}</span>
-                          <span className="font-semibold text-emerald-700">
-                            {unit.activeHouseholds} KK Aktif
-                          </span>
-                        </div>
-                        <div className="text-xs font-bold text-slate-900">{unit.unitName}</div>
-                        <div className="text-[11px] text-slate-600">
-                          Jadwal: <strong>{unit.pickupSchedule}</strong>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Contextual Info when on Sosial Kemasyarakatan Sub-Menu */}
-              {selectedCategoryId === 'sosial_kemasyarakatan' && (
-                <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                    <h3 className="text-sm sm:text-base font-extrabold text-[#0D3868] flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-purple-700" />
-                      <span>Agenda Kegiatan Kemasyarakatan & Kerja Bakti</span>
-                    </h3>
-                    <button
-                      type="button"
-                      onClick={() => onNavigate('kerjabakti')}
-                      className="text-xs font-bold text-[#0277BD] hover:underline cursor-pointer"
-                    >
-                      Lihat Kerja Bakti →
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {cleanupEvents.slice(0, 4).map((ev) => (
-                      <div
-                        key={ev.id}
-                        className="p-3 rounded-xl border border-slate-200 bg-slate-50/60 space-y-1"
-                      >
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="font-bold text-[#0D3868]">
-                            {ev.rw} · {ev.rtScope}
-                          </span>
-                          <span className="font-semibold text-emerald-700">{ev.status}</span>
-                        </div>
-                        <div className="text-xs font-extrabold text-slate-900 line-clamp-1">
-                          {ev.title}
-                        </div>
-                        <div className="text-[11px] text-slate-600">
-                          {ev.date} · {ev.timeRange}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* =====================================================================================
-          HALAMAN 4: HALAMAN BARU 🔎 CEK STATUS PENGAJUAN & TINDAK LANJUT
-      ===================================================================================== */}
-      {activePage === 'cek_status_page' && (
-        <div className="space-y-6">
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 shadow-xs">
-            <button
-              type="button"
-              onClick={handleBackToMenuWarga}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0D3868] hover:bg-[#0277BD] text-white text-xs sm:text-sm font-extrabold transition-colors cursor-pointer"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Kembali ke Menu Warga</span>
-            </button>
-            <span className="text-xs font-bold text-slate-500">
-              Menu Warga / Cek Status Pengajuan ({reports.length} Tiket)
-            </span>
-          </div>
-
-          <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
-              <div>
-                <h2 className="text-lg sm:text-xl font-extrabold text-[#0D3868]">
-                  🔎 Cek Status Pengajuan Surat & Laporan Warga
-                </h2>
-                <p className="text-xs sm:text-sm text-slate-600">
-                  Lacak progres verifikasi berkas surat pengantar, pelayanan administrasi, maupun
-                  tindak lanjut pengaduan lingkungan Anda menggunakan Nomor Tiket atau Nama.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={handleBackToMenuWarga}
-                className="self-start sm:self-auto px-3.5 py-2 rounded-xl bg-[#0D3868] text-white text-xs font-bold hover:bg-[#0277BD] transition-colors cursor-pointer"
-              >
-                + Pilih Layanan Baru di Menu Warga
-              </button>
-            </div>
-
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Cari nomor tiket (mis. PNK-2026-0148), nama pemohon, jenis surat, atau RW..."
-                  className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 focus:border-[#0277BD] focus:outline-none"
-                />
-              </div>
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
-                {(['Semua', 'Menunggu Verifikasi', 'Sedang Ditangani', 'Selesai'] as const).map(
-                  (st) => (
-                    <button
-                      key={st}
-                      type="button"
-                      onClick={() => setFilterStatus(st)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
-                        filterStatus === st
-                          ? 'bg-[#0277BD] text-white'
-                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                      }`}
-                    >
-                      {st}
-                    </button>
-                  )
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1.5 overflow-x-auto pt-2 border-t border-slate-100">
-              <span className="text-xs font-semibold text-slate-500 mr-1 whitespace-nowrap">
-                Filter Kelompok:
-              </span>
-              {['Semua', ...CATEGORY_OPTIONS].map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setFilterCategory(cat)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
-                    filterCategory === cat
-                      ? 'bg-[#0D3868] text-white'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            {filteredReports.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center text-slate-500 text-sm">
-                Tidak ditemukan data pengajuan atau laporan yang sesuai dengan kata kunci pencarian.
-              </div>
-            ) : (
-              filteredReports.map((rep) => {
-                const isVerified =
-                  rep.status === 'Sedang Ditangani' ||
-                  rep.status === 'Selesai' ||
-                  Boolean(rep.verifiedBy);
-                const isInProgress =
-                  rep.status === 'Sedang Ditangani' || rep.status === 'Selesai';
-                const isCompleted = rep.status === 'Selesai';
-
-                const officerPhotos =
-                  Array.isArray(rep.followUpPhotos) && rep.followUpPhotos.length > 0
-                    ? rep.followUpPhotos
-                    : rep.completionPhotoUrl
-                    ? [rep.completionPhotoUrl]
-                    : [];
-
-                return (
-                  <div
-                    key={rep.id}
-                    className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-4 shadow-xs"
-                  >
-                    <div className="flex flex-col md:flex-row gap-4 justify-between">
-                      <div className="space-y-1.5 flex-1">
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                          <span className="font-mono-num font-bold text-[#0D3868]">
-                            {rep.ticketCode}
-                          </span>
-                          <span aria-hidden="true">·</span>
-                          <span className="font-medium text-slate-700">{rep.category}</span>
-                          <span aria-hidden="true">·</span>
-                          <span>
-                            {rep.rw} / {rep.rt}
-                          </span>
-                          <span aria-hidden="true">·</span>
-                          <span className="font-mono-num">{rep.createdAt}</span>
-                          <span aria-hidden="true">·</span>
-                          <span className="inline-flex items-center gap-1 font-bold">
-                            {rep.status === 'Selesai' && (
-                              <>
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                <span className="text-emerald-700">Selesai Diproses Petugas</span>
-                              </>
-                            )}
-                            {rep.status === 'Sedang Ditangani' && (
-                              <>
-                                <Clock className="w-3.5 h-3.5 text-sky-600" />
-                                <span className="text-sky-700">Diverifikasi & Sedang Diproses</span>
-                              </>
-                            )}
-                            {rep.status === 'Menunggu Verifikasi' && (
-                              <>
-                                <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                                <span className="text-amber-700">
-                                  Menunggu Verifikasi Admin/Operator
-                                </span>
-                              </>
-                            )}
-                          </span>
-                        </div>
-
-                        <h3 className="text-base sm:text-lg font-extrabold text-[#0D3868]">
-                          {rep.title}
-                        </h3>
-                        <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                          {rep.description}
-                        </p>
-
-                        <div className="pt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
-                          <span className="inline-flex items-center gap-1 font-medium text-slate-800">
-                            <MapPin className="w-3.5 h-3.5 text-[#0277BD]" />
-                            {rep.locationName}
-                          </span>
-                          <span aria-hidden="true">·</span>
-                          <span>Pemohon / Pelapor: {rep.reporterName}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex md:flex-col items-center md:items-end justify-between gap-2 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => onUpvoteReport(rep.id)}
-                          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-sky-50 hover:border-sky-300 text-xs font-semibold text-slate-800 transition-colors cursor-pointer"
-                        >
-                          <ThumbsUp className="w-3.5 h-3.5 text-[#0277BD]" />
-                          <span>Dukung Prioritas</span>
-                          <span className="font-mono-num font-bold text-[#0277BD]">
-                            {rep.upvotes}
-                          </span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => onNavigate('peta')}
-                          className="text-xs font-semibold text-[#0277BD] hover:underline cursor-pointer"
-                        >
-                          Lihat Titik di Peta →
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* 3-Step Visual Progress Tracker */}
-                    <div className="pt-3 border-t border-slate-100">
-                      <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 mb-2.5 flex items-center gap-1.5">
-                        <ShieldCheck className="w-3.5 h-3.5 text-[#1C8237]" />
-                        <span>Alur Status Pengajuan & Tindak Lanjut Petugas Kelurahan</span>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                        <div
-                          className={`p-3 rounded-xl border text-xs ${
-                            isVerified
-                              ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
-                              : 'bg-amber-50/60 border-amber-200 text-amber-950'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between font-bold">
-                            <span>1. Verifikasi Berkas / Laporan</span>
-                            {isVerified ? (
-                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                            ) : (
-                              <Clock className="w-4 h-4 text-amber-600" />
-                            )}
-                          </div>
-                          <div className="mt-1 text-[11px] text-slate-600">
-                            {isVerified
-                              ? `Diverifikasi oleh: ${rep.verifiedBy || 'Admin Kelurahan'}`
-                              : 'Menunggu pemeriksaan petugas loket / operator'}
-                          </div>
-                        </div>
-
-                        <div
-                          className={`p-3 rounded-xl border text-xs ${
-                            isInProgress
-                              ? 'bg-sky-50/70 border-sky-200 text-sky-950'
-                              : 'bg-slate-50 border-slate-200 text-slate-500'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between font-bold">
-                            <span>2. Pemrosesan & Tindak Lanjut</span>
-                            {isInProgress ? (
-                              <CheckCircle2 className="w-4 h-4 text-[#0277BD]" />
-                            ) : (
-                              <Clock className="w-4 h-4 text-slate-400" />
-                            )}
-                          </div>
-                          <div className="mt-1 text-[11px]">
-                            Unit Pelaksana: <strong>{rep.assignedTeam}</strong>
-                          </div>
-                        </div>
-
-                        <div
-                          className={`p-3 rounded-xl border text-xs ${
-                            isCompleted
-                              ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
-                              : 'bg-slate-50 border-slate-200 text-slate-500'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between font-bold">
-                            <span>3. Penyelesaian Layanan</span>
-                            {isCompleted ? (
-                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                            ) : (
-                              <Clock className="w-4 h-4 text-slate-400" />
-                            )}
-                          </div>
-                          <div className="mt-1 text-[11px]">
-                            {isCompleted
-                              ? `Tuntas pada: ${rep.completedAt || rep.updatedAt}`
-                              : 'Menunggu penyelesaian akhir'}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Catatan Tindak Lanjut & Dokumentasi */}
-                    <div className="pt-3 border-t border-slate-100 flex flex-col lg:flex-row gap-4 justify-between bg-slate-50/70 -mx-5 sm:-mx-6 -mb-5 sm:-mb-6 p-4 sm:p-5 rounded-b-2xl">
-                      <div className="space-y-1.5 flex-1">
-                        <div className="text-xs font-bold text-slate-800">
-                          Keterangan Tindak Lanjut Petugas ({rep.assignedTeam}):
-                        </div>
-                        <p className="text-xs text-slate-600 leading-relaxed">{rep.responseNote}</p>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-3 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setLightboxImage({
-                              url: resolveImageUrl(rep.imageUrl),
-                              caption: `Lampiran Pengajuan/Laporan: ${rep.title}`,
-                              ticketCode: rep.ticketCode,
-                            })
-                          }
-                          className="group relative w-20 h-16 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 shrink-0 cursor-pointer"
-                        >
-                          <img
-                            src={resolveImageUrl(rep.imageUrl)}
-                            alt={rep.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                          />
-                          <span className="absolute bottom-0 inset-x-0 bg-slate-900/75 text-white text-[9px] font-semibold py-0.5 text-center">
-                            Lampiran
-                          </span>
-                        </button>
-
-                        {officerPhotos.map((photoUrl, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() =>
-                              setLightboxImage({
-                                url: resolveImageUrl(photoUrl),
-                                caption: `Dokumentasi Tindak Lanjut Petugas (#${idx + 1}) — ${rep.title}`,
-                                ticketCode: rep.ticketCode,
-                              })
-                            }
-                            className="group relative w-20 h-16 rounded-xl overflow-hidden border-2 border-emerald-400 bg-emerald-50 shrink-0 cursor-pointer"
-                          >
-                            <img
-                              src={resolveImageUrl(photoUrl)}
-                              alt={`Bukti Tindak Lanjut ${idx + 1}`}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                            />
-                            <span className="absolute bottom-0 inset-x-0 bg-emerald-900/85 text-white text-[9px] font-bold py-0.5 text-center flex items-center justify-center gap-0.5">
-                              <Camera className="w-2.5 h-2.5" />
-                              <span>Bukti #{idx + 1}</span>
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-
-          <div className="pt-2">
-            <button
-              type="button"
-              onClick={handleBackToMenuWarga}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-[#0D3868] border border-slate-300 text-xs sm:text-sm font-extrabold transition-colors cursor-pointer"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Kembali ke Menu Warga</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* =====================================================================================
-          HALAMAN 5: HALAMAN BARU 📢 PENGUMUMAN KELURAHAN
-      ===================================================================================== */}
-      {activePage === 'pengumuman_page' && (
-        <div className="space-y-6">
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 shadow-xs">
-            <button
-              type="button"
-              onClick={handleBackToMenuWarga}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0D3868] hover:bg-[#0277BD] text-white text-xs sm:text-sm font-extrabold transition-colors cursor-pointer"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Kembali ke Menu Warga</span>
-            </button>
-            <span className="text-xs font-bold text-slate-500">
-              Menu Warga / Pengumuman Resmi Kelurahan Panaikang
-            </span>
-          </div>
-
-          <div className="bg-white rounded-2xl border border-slate-200 p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
-              <div>
-                <h2 className="text-lg sm:text-xl font-extrabold text-[#0D3868] flex items-center gap-2">
-                  <Megaphone className="w-5 h-5 text-[#0277BD]" />
-                  <span>📢 Pengumuman Resmi & Informasi Layanan Kelurahan Panaikang</span>
-                </h2>
-                <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-                  Informasi resmi pelayanan kependudukan, jadwal program bantuan pemerintah,
-                  pemberdayaan UMKM, dan kegiatan warga Kelurahan Panaikang.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-4 rounded-2xl bg-sky-50/70 border border-sky-200">
-                <div className="text-xs font-extrabold uppercase tracking-wider text-[#0277BD]">
-                  Jam Pelayanan Loket Surat
-                </div>
-                <div className="mt-1 text-sm font-extrabold text-[#0D3868]">
-                  {kelurahanProfile.serviceHours}
-                </div>
-                <p className="mt-1 text-xs text-slate-600">
-                  Pelayanan surat pengantar KTP/KK, SKTM, SKU, domisili, dan pengantar nikah tidak
-                  dipungut biaya (Gratis).
-                </p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200">
-                <div className="text-xs font-extrabold uppercase tracking-wider text-emerald-800">
-                  Pendataan UMKM & Bantuan Sosial
-                </div>
-                <div className="mt-1 text-sm font-extrabold text-emerald-950">
-                  Terbuka bagi Warga RW 01 – RW 07
-                </div>
-                <p className="mt-1 text-xs text-slate-600">
-                  Pelaku usaha mikro dan warga prasejahtera dapat mengajukan pendataan langsung
-                  melalui Menu Pelayanan Usaha & Bantuan Sosial.
-                </p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200">
-                <div className="text-xs font-extrabold uppercase tracking-wider text-amber-800">
-                  Posko Pengaduan & Mediasi Warga
-                </div>
-                <div className="mt-1 text-sm font-extrabold text-amber-950">
-                  Sinergi Lurah, RT/RW & Tiga Pilar
-                </div>
-                <p className="mt-1 text-xs text-slate-600">
-                  Layanan pengaduan lingkungan, banjir, lampu jalan, hingga fasilitasi mediasi warga
-                  ditindaklanjuti secara terukur.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-5">
-              {kelurahanInfos.slice(0, 6).map((info) => (
-                <div
-                  key={info.id}
-                  className="rounded-2xl border border-slate-200 bg-white overflow-hidden flex flex-col justify-between shadow-xs"
-                >
-                  <div>
-                    <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-xs">
-                      <span className="font-bold text-[#0D3868]">{info.category}</span>
-                      <span className="text-slate-500 font-mono-num">{info.publishedAt}</span>
-                    </div>
-                    <div className="p-4 space-y-2">
-                      <h3 className="text-sm font-extrabold text-slate-900 line-clamp-2">
-                        {info.title}
-                      </h3>
-                      <p className="text-xs text-slate-600 line-clamp-4 leading-relaxed">
-                        {info.summary || info.content}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="px-4 py-2.5 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between text-[11px] font-bold">
-                    <span className="text-slate-500">{info.author}</span>
-                    {info.instagramPostUrl && (
-                      <a
-                        href={info.instagramPostUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[#E1306C] hover:underline inline-flex items-center gap-1"
-                      >
-                        <span>Buka IG</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
+                        </article>
+                      ))
                     )}
                   </div>
                 </div>
-              ))}
+              )}
             </div>
-          </div>
+          )}
 
-          <div className="pt-2">
-            <button
-              type="button"
-              onClick={handleBackToMenuWarga}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-[#0D3868] border border-slate-300 text-xs sm:text-sm font-extrabold transition-colors cursor-pointer"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Kembali ke Menu Warga</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* =====================================================================================
-          HALAMAN 6: HALAMAN BARU 📞 HUBUNGI KELURAHAN
-      ===================================================================================== */}
-      {activePage === 'hubungi_page' && (
-        <div className="space-y-6">
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 shadow-xs">
-            <button
-              type="button"
-              onClick={handleBackToMenuWarga}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0D3868] hover:bg-[#0277BD] text-white text-xs sm:text-sm font-extrabold transition-colors cursor-pointer"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Kembali ke Menu Warga</span>
-            </button>
-            <span className="text-xs font-bold text-slate-500">
-              Menu Warga / Hubungi Kelurahan Panaikang
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-6 space-y-5">
-              <div className="border-b border-slate-100 pb-4">
-                <h2 className="text-lg sm:text-xl font-extrabold text-[#0D3868]">
-                  📞 Hubungi Kantor Kelurahan Panaikang
-                </h2>
-                <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-                  Informasi alamat kantor, jam pelayanan loket administrasi, dan saluran komunikasi
-                  resmi Pemerintah Kelurahan Panaikang.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                    Alamat Kantor Kelurahan
-                  </div>
-                  <div className="text-sm font-extrabold text-slate-900">
-                    {kelurahanProfile.officeAddress}
-                  </div>
-                  <div className="text-xs text-slate-600">
-                    Kec. {kelurahanProfile.subDistrict}, {kelurahanProfile.city}{' '}
-                    {kelurahanProfile.postalCode}
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                    Jam Operasional Pelayanan
-                  </div>
-                  <div className="text-sm font-extrabold text-[#0D3868]">
-                    {kelurahanProfile.serviceHours}
-                  </div>
-                  <div className="text-xs text-emerald-700 font-semibold">
-                    Pengajuan Digital & Pengaduan Online Buka 24 Jam
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                    Telepon & Pos-el Resmi
-                  </div>
-                  <div className="text-sm font-extrabold text-slate-900 font-mono-num">
-                    {kelurahanProfile.phoneContact}
-                  </div>
-                  <div className="text-xs text-[#0277BD] font-semibold">
-                    {kelurahanProfile.emailContact}
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                    Pejabat Pelayanan Kelurahan
-                  </div>
-                  <div className="text-sm font-extrabold text-slate-900">
-                    Lurah: {kelurahanProfile.lurahName}
-                  </div>
-                  <div className="text-xs text-slate-600">
-                    Seklur: {kelurahanProfile.sekretarisName}
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-[#25D366]/10 border border-[#128C7E]/30 space-y-2">
-                <div className="flex items-center gap-2 text-xs sm:text-sm font-extrabold text-[#075E54]">
-                  <Lock className="w-4 h-4 text-[#128C7E]" />
-                  <span>
-                    Sistem Distribusi Pesan WhatsApp Terpadu ({activeRecipients.length} Penerima
-                    Aktif)
-                  </span>
-                </div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  Seluruh pengajuan surat dan laporan warga yang dikirim melalui Menu Warga akan
-                  diteruskan secara otomatis ke seluruh nomor WhatsApp perangkat kelurahan yang
-                  terdaftar di halaman Administrator agar segera ditindaklanjuti.
-                </p>
-              </div>
-
-              {/* Lontara+ Channel */}
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-400/40 space-y-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-xs sm:text-sm font-extrabold text-amber-950">
-                    <span className="w-6 h-6 rounded-md bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center shrink-0">
-                      L+
-                    </span>
-                    <span>Aplikasi Lontara+ Kota Makassar</span>
-                  </div>
-                  <a
-                    href="https://lontaraplus.makassarkota.go.id"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-colors shrink-0"
-                  >
-                    <span>Buka Lontara+</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-                <p className="text-xs text-amber-950/90 font-medium leading-relaxed">
-                  "Laporan Keluhan dan pelayanan tingkat lanjut silahkan gunakan aplikasi Lontara+"
-                </p>
-                <p className="text-[11px] text-slate-600 leading-relaxed">
-                  Super App Pemerintah Kota Makassar untuk seluruh pengaduan warga, kedaruratan, dan integrasi OPD se-Makassar.
-                </p>
-              </div>
-            </div>
-
-            <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          {/* =========================================================================
+              VIEW 3: SUB-MENU 2 — LAYANAN ADMINISTRASI WARGA (13 LAYANAN RESMI)
+          ========================================================================= */}
+          {section === 'admin' && (
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="pb-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-base font-extrabold text-[#0D3868]">
-                    Direktori Wilayah RW Kelurahan Panaikang
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Koordinasi pengantar RT/RW sebelum pengesahan kelurahan
+                  <div className="text-xs font-black tracking-wider text-[#1C8237] uppercase">
+                    SUB-MENU 2 · 13 JENIS LAYANAN ADMINISTRASI SURAT
+                  </div>
+                  <h2 className="text-2xl font-extrabold text-[#0D3868] mt-0.5">
+                    Layanan Administrasi Warga
+                  </h2>
+                  <p className="text-xs text-slate-600 mt-1">
+                    Pilih jenis pengurusan surat resmi kelurahan untuk melihat checklist persyaratan dokumen, menandai berkas, dan mengajukan permohonan.
                   </p>
                 </div>
+
                 <button
                   type="button"
-                  onClick={() => onNavigate('rtrw')}
-                  className="text-xs font-bold text-[#0277BD] hover:underline cursor-pointer"
+                  onClick={() => setSection('home')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer self-start sm:self-center"
                 >
-                  Data Lengkap RT/RW →
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Kembali ke Menu Warga</span>
                 </button>
               </div>
 
-              <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
-                {rwGroups.map((group) => (
-                  <div
-                    key={group.id}
-                    className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 flex items-center justify-between gap-3"
-                  >
-                    <div>
-                      <div className="text-xs font-extrabold text-[#0D3868]">
-                        {group.rwCode} — {group.ketuaRwName}
-                      </div>
-                      <div className="text-[11px] text-slate-600">{group.areaDescription}</div>
-                    </div>
-                    <span className="text-[11px] font-bold text-slate-700 shrink-0">
-                      {group.rtList?.length || 0} RT
+              {/* ADMIN VIEW 1: CATALOG OF 13 SERVICES */}
+              {adminPage === 'catalog' && (
+                <div className="space-y-5">
+                  {/* Search Bar */}
+                  <div className="relative">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={serviceSearchQuery}
+                      onChange={(e) => setServiceSearchQuery(e.target.value)}
+                      placeholder="Cari nama layanan administrasi yang ingin diurus..."
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:border-[#0277BD] focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Grid of 13 Services (No redundant numbering in display) */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {filteredServices.map((srv) => (
+                      <button
+                        key={srv.code}
+                        type="button"
+                        onClick={() => {
+                          setSelectedService(srv);
+                          setCheckedDocs({});
+                          setAdminPage('detail');
+                        }}
+                        className="rounded-2xl border border-slate-200 hover:border-[#0277BD] p-4 sm:p-5 bg-white hover:shadow-md transition text-left cursor-pointer flex flex-col justify-between group"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100">
+                            <span className="text-xs font-extrabold text-[#0277BD] font-mono-num bg-sky-50 px-2 py-0.5 rounded-md border border-sky-100">
+                              {srv.code}
+                            </span>
+                            <span className="text-[11px] font-semibold text-slate-500">
+                              {srv.req.length} Persyaratan
+                            </span>
+                          </div>
+
+                          <h3 className="text-sm font-extrabold text-[#0D3868] mt-2.5 group-hover:text-[#0277BD] transition-colors leading-snug">
+                            {srv.name}
+                          </h3>
+
+                          <p className="text-xs text-slate-500 mt-1.5 line-clamp-2">
+                            {srv.note}
+                          </p>
+                        </div>
+
+                        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-[#0277BD] font-bold">
+                          <span>Periksa Berkas & Detail</span>
+                          <span className="group-hover:translate-x-1 transition-transform">→</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Catatan Umum */}
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 leading-relaxed">
+                    <strong>Catatan Umum Pelayanan:</strong> Persyaratan dokumen di atas disusun berdasarkan standar pelayanan resmi Kelurahan Panaikang. Untuk dokumen tambahan atau situasi khusus, petugas loket kelurahan siap membantu verifikasi berkas Anda.
+                  </div>
+                </div>
+              )}
+
+              {/* ADMIN VIEW 2: DETAIL CHECKLIST FOR SELECTED SERVICE */}
+              {adminPage === 'detail' && selectedService && (
+                <div className="space-y-6">
+                  {/* Top Action Header */}
+                  <div className="flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setAdminPage('catalog')}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-[#0D3868] cursor-pointer"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      <span>← Kembali ke Daftar Layanan</span>
+                    </button>
+
+                    <span className="text-xs font-mono-num font-bold text-sky-700 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200">
+                      Kode: {selectedService.code}
                     </span>
                   </div>
-                ))}
-              </div>
-            </div>
-          </div>
 
-          <div className="pt-2">
-            <button
-              type="button"
-              onClick={handleBackToMenuWarga}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-[#0D3868] border border-slate-300 text-xs sm:text-sm font-extrabold transition-colors cursor-pointer"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Kembali ke Menu Warga</span>
-            </button>
-          </div>
-        </div>
-      )}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                    {/* Left: Checklist Card */}
+                    <div className="lg:col-span-8 rounded-2xl border border-slate-200 p-5 sm:p-6 bg-white space-y-4">
+                      <div>
+                        <h3 className="text-base sm:text-lg font-extrabold text-[#0D3868]">
+                          {selectedService.name}
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Periksa persyaratan di bawah ini dan centang berkas yang sudah siap.
+                        </p>
+                      </div>
 
-      {/* Lightbox Modal for Report & Officer Follow-Up Photos */}
-      {lightboxImage && (
-        <div
-          className="fixed inset-0 z-50 bg-slate-900/80 flex items-center justify-center p-4"
-          onClick={() => setLightboxImage(null)}
-        >
-          <div
-            className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden border border-slate-200 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
-              <div>
-                <span className="text-xs font-mono-num font-bold text-[#0277BD]">
-                  {lightboxImage.ticketCode}
-                </span>
-                <h4 className="text-sm font-bold text-slate-900">{lightboxImage.caption}</h4>
-              </div>
-              <button
-                type="button"
-                onClick={() => setLightboxImage(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
+                      {/* Progress Bar */}
+                      <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
+                        <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                          <span>Kelengkapan Berkas Pemohon:</span>
+                          <span className="font-mono-num text-[#0277BD]">
+                            {doneCheckedCount} dari {selectedService.req.length} berkas siap
+                          </span>
+                        </div>
+                        <div className="h-2 rounded-full bg-slate-200 overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-[#0277BD] to-[#1C8237] transition-all duration-300"
+                            style={{
+                              width: `${(doneCheckedCount / selectedService.req.length) * 100}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Checklist Items */}
+                      <div className="space-y-2.5 pt-2">
+                        {selectedService.req.map((reqText, idx) => {
+                          const isDone = !!checkedDocs[idx];
+                          return (
+                            <label
+                              key={idx}
+                              className={`flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
+                                isDone
+                                  ? 'bg-emerald-50/80 border-emerald-300 text-emerald-950'
+                                  : 'bg-white border-slate-200 hover:border-slate-300 text-slate-800'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isDone}
+                                onChange={(e) =>
+                                  setCheckedDocs({ ...checkedDocs, [idx]: e.target.checked })
+                                }
+                                className="w-4 h-4 rounded text-[#1C8237] focus:ring-emerald-500 mt-0.5 cursor-pointer"
+                              />
+                              <div className="flex-1 text-xs leading-relaxed">
+                                <span className="font-bold mr-1">{idx + 1}.</span>
+                                <span className={isDone ? 'font-semibold' : ''}>{reqText}</span>
+                              </div>
+                              {isDone && (
+                                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                              )}
+                            </label>
+                          );
+                        })}
+                      </div>
+
+                      {/* Actions: Cetak Checklist & Ajukan Permohonan */}
+                      <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                        <button
+                          type="button"
+                          onClick={() => window.print()}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 cursor-pointer transition"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          <span>Cetak Checklist</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setAdminPage('apply')}
+                          className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#0277BD] hover:bg-[#0D3868] text-white text-xs font-extrabold shadow-sm cursor-pointer transition"
+                        >
+                          <span>Ajukan Permohonan Ini →</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Right: Steps & Note Card */}
+                    <div className="lg:col-span-4 space-y-4">
+                      <div className="rounded-2xl border border-slate-200 p-5 bg-slate-50 space-y-3">
+                        <h4 className="text-xs font-black uppercase tracking-wider text-[#0D3868]">
+                          Ringkasan & Petunjuk
+                        </h4>
+                        <div className="text-xs text-slate-700 bg-white p-3 rounded-xl border border-slate-200 leading-relaxed">
+                          {selectedService.note}
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          Unit Pelaksana:{' '}
+                          <strong>{selectedService.processingUnit || 'Loket Pelayanan Kelurahan'}</strong>
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl border border-slate-200 p-5 bg-white space-y-3 text-xs">
+                        <h4 className="text-xs font-black uppercase tracking-wider text-[#0D3868]">
+                          Langkah Pengurusan
+                        </h4>
+                        <div className="space-y-2.5">
+                          <div className="flex gap-2">
+                            <span className="w-5 h-5 rounded-full bg-sky-100 text-[#0277BD] font-bold flex items-center justify-center shrink-0">1</span>
+                            <span>Siapkan seluruh dokumen sesuai checklist di samping.</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <span className="w-5 h-5 rounded-full bg-sky-100 text-[#0277BD] font-bold flex items-center justify-center shrink-0">2</span>
+                            <span>Ajukan formulir permohonan melalui tombol online ini.</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <span className="w-5 h-5 rounded-full bg-sky-100 text-[#0277BD] font-bold flex items-center justify-center shrink-0">3</span>
+                            <span>Simpan nomor tiket permohonan untuk verifikasi berkas.</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center shrink-0">4</span>
+                            <span>Petugas memproses dan mengesahkan dokumen surat resmi.</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ADMIN VIEW 3: FORMULIR AJUKAN PERMOHONAN */}
+              {adminPage === 'apply' && selectedService && (
+                <div className="max-w-2xl mx-auto space-y-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setAdminPage('detail')}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-[#0D3868] cursor-pointer"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      <span>← Kembali ke Persyaratan Dokumen</span>
+                    </button>
+                  </div>
+
+                  <form
+                    onSubmit={handleApplySubmit}
+                    className="rounded-2xl border border-slate-200 p-6 bg-white space-y-4 shadow-xs"
+                  >
+                    <div className="pb-3 border-b border-slate-100">
+                      <span className="text-[10px] uppercase font-black tracking-wider text-[#0277BD] bg-sky-50 px-2 py-0.5 rounded-md border border-sky-100">
+                        Formulir Permohonan Surat Online
+                      </span>
+                      <h3 className="text-base sm:text-lg font-extrabold text-[#0D3868] mt-1">
+                        {selectedService.name}
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Lengkapi identitas pemohon sesuai data KTP. Data akan diverifikasi langsung oleh petugas loket Kelurahan Panaikang.
+                      </p>
+                    </div>
+
+                    {/* Nama Pemohon */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Nama Pemohon (Sesuai KTP) *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={applyForm.name}
+                        onChange={(e) => setApplyForm({ ...applyForm, name: e.target.value })}
+                        placeholder="Nama lengkap pemohon"
+                        className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-xs focus:border-[#0277BD] focus:outline-none"
+                      />
+                    </div>
+
+                    {/* NIK & Kontak */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Nomor Induk Kependudukan (NIK)
+                        </label>
+                        <input
+                          type="text"
+                          maxLength={16}
+                          value={applyForm.nik}
+                          onChange={(e) => setApplyForm({ ...applyForm, nik: e.target.value })}
+                          placeholder="7371xxxxxxxxxxxx"
+                          className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs font-mono-num"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Nomor WhatsApp / HP Aktif *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={applyForm.contact}
+                          onChange={(e) => setApplyForm({ ...applyForm, contact: e.target.value })}
+                          placeholder="0812-xxxx-xxxx"
+                          className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs font-mono-num"
+                        />
+                      </div>
+                    </div>
+
+                    {/* RW & RT Domisili */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Wilayah RW Domisili *
+                        </label>
+                        <select
+                          value={applyForm.rw}
+                          onChange={(e) =>
+                            setApplyForm({ ...applyForm, rw: e.target.value, rt: 'RT 01' })
+                          }
+                          className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-mono-num bg-white"
+                        >
+                          {DEFAULT_RW_LIST.map((rw) => (
+                            <option key={rw} value={rw}>
+                              {rw}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Unit RT Domisili *
+                        </label>
+                        <select
+                          value={applyForm.rt}
+                          onChange={(e) => setApplyForm({ ...applyForm, rt: e.target.value })}
+                          className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-mono-num bg-white"
+                        >
+                          {availableRtsForApply.map((rt) => (
+                            <option key={rt} value={rt}>
+                              {rt}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Alamat Pemohon */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Alamat Domisili Pemohon *
+                      </label>
+                      <textarea
+                        required
+                        rows={2}
+                        value={applyForm.address}
+                        onChange={(e) => setApplyForm({ ...applyForm, address: e.target.value })}
+                        placeholder="Alamat lengkap tempat tinggal pemohon di Kelurahan Panaikang"
+                        className="w-full rounded-xl border border-slate-300 p-3 text-xs focus:border-[#0277BD] focus:outline-none"
+                      />
+                    </div>
+
+                    {/* Keterangan Tambahan */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Keterangan Tambahan / Keperluan <span className="text-slate-400 font-normal">(opsional)</span>
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={applyForm.notes}
+                        onChange={(e) => setApplyForm({ ...applyForm, notes: e.target.value })}
+                        placeholder="Misal: Keperluan untuk melamar pekerjaan / pendaftaran anak / kredit usaha..."
+                        className="w-full rounded-xl border border-slate-300 p-3 text-xs focus:border-[#0277BD] focus:outline-none"
+                      />
+                    </div>
+
+                    {/* Pernyataan Integritas */}
+                    <label className="flex items-start gap-2.5 text-xs text-slate-700 cursor-pointer bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                      <input
+                        type="checkbox"
+                        required
+                        checked={applyForm.consent}
+                        onChange={(e) => setApplyForm({ ...applyForm, consent: e.target.checked })}
+                        className="rounded text-[#0277BD] focus:ring-sky-500 w-4 h-4 mt-0.5"
+                      />
+                      <span>
+                        Saya memastikan data yang diisi benar dan memahami bahwa berkas fisik persyaratan akan diverifikasi oleh petugas kelurahan saat pengesahan dokumen. *
+                      </span>
+                    </label>
+
+                    {/* Submit Button */}
+                    <div className="pt-2">
+                      <button
+                        type="submit"
+                        className="w-full inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-[#0277BD] hover:bg-[#0D3868] text-white text-xs font-extrabold shadow-sm transition cursor-pointer"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Kirim Permohonan Surat Resmi →</span>
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {/* ADMIN VIEW 4: SUKSES AJUKAN PERMOHONAN */}
+              {adminPage === 'success' && lastSubmittedAdmin && (
+                <div className="max-w-xl mx-auto rounded-2xl border-2 border-emerald-300 bg-white p-6 sm:p-8 text-center space-y-5 shadow-sm">
+                  <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 mx-auto flex items-center justify-center text-2xl font-black">
+                    ✓
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-extrabold text-[#0D3868]">
+                      Permohonan Surat Berhasil Diajukan
+                    </h3>
+                    <p className="text-xs text-slate-600 mt-1">
+                      Permohonan dokumen <strong>{lastSubmittedAdmin.serviceName}</strong> atas nama <strong>{lastSubmittedAdmin.applicantName}</strong> telah tercatat pada loket digital kelurahan.
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-sky-50 border border-sky-200 space-y-1">
+                    <span className="text-[10px] uppercase font-black tracking-widest text-[#0277BD]">
+                      Nomor Permohonan Dokumen
+                    </span>
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-2xl font-black text-[#0D3868] font-mono-num tracking-wide">
+                        {lastSubmittedAdmin.ticketCode}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(lastSubmittedAdmin.ticketCode)}
+                        className="p-1 rounded-md text-slate-500 hover:text-slate-800 cursor-pointer"
+                        title="Salin Nomor Tiket"
+                      >
+                        {copiedTicket === lastSubmittedAdmin.ticketCode ? (
+                          <Check className="w-4 h-4 text-emerald-600" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                    <span className="text-[11px] text-slate-500">
+                      Tersambung ke Administrator Kelurahan Panaikang
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSection('aduan');
+                        setAduanPage('track');
+                        setSearchTicketQuery(lastSubmittedAdmin.ticketCode);
+                        const found = reports.find((r) => r.ticketCode === lastSubmittedAdmin.ticketCode);
+                        setSearchTicketResult(found || null);
+                        setHasSearchedTicket(true);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-[#0277BD] hover:bg-[#0D3868] text-white text-xs font-bold cursor-pointer"
+                    >
+                      Lacak Status Permohonan Ini
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdminPage('catalog');
+                        setSelectedService(null);
+                      }}
+                      className="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+                    >
+                      Kembali ke Daftar Layanan
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="bg-slate-950 flex items-center justify-center max-h-[70vh] overflow-hidden">
-              <img
-                src={lightboxImage.url}
-                alt={lightboxImage.caption}
-                className="w-full h-auto max-h-[70vh] object-contain"
-              />
-            </div>
-          </div>
-        </div>
-      )}
+          )}
+        </section>
+      </div>
     </div>
   );
 };

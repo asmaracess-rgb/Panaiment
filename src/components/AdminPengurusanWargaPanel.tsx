@@ -41,6 +41,8 @@ import {
   DetailedCategoryId,
   ServiceCategoryGroup,
   ServiceSubItem,
+  OFFICIAL_13_WARGA_SERVICES,
+  REPORT_COMPLAINT_CATEGORIES,
 } from '../data/wargaServiceCatalog';
 import { IMG_DRAINASE, IMG_BANK_SAMPAH, IMG_KERJA_BAKTI, IG_POST_6 } from '../data/initialData';
 import { compressImageFile } from '../utils/compressImage';
@@ -107,7 +109,50 @@ export function inferReportServiceCategory(
   documentCode: string;
   officialHeaderTitle: string;
   processingUnit: string;
+  isOfficial13Service?: boolean;
+  isCitizenComplaint?: boolean;
 } {
+  // 1. Direct match with 13 official citizen services (PM-01 s/d SL-13)
+  const official13Match = OFFICIAL_13_WARGA_SERVICES.find(
+    (s) =>
+      s.code === rep.documentCode ||
+      s.code === rep.serviceSubItemId ||
+      (rep.title && rep.title.toLowerCase().includes(s.name.toLowerCase())) ||
+      (rep.serviceSubItemLabel && rep.serviceSubItemLabel.toLowerCase().includes(s.name.toLowerCase()))
+  );
+  if (official13Match) {
+    return {
+      categoryId: 'surat_keterangan',
+      categoryTitle: '13 Layanan Administrasi Surat',
+      subItemId: official13Match.code,
+      subItemLabel: `${official13Match.code} — ${official13Match.name}`,
+      documentCode: official13Match.code,
+      officialHeaderTitle: official13Match.name.toUpperCase(),
+      processingUnit: official13Match.processingUnit || 'Seksi Pelayanan Umum & Loket Kelurahan',
+      isOfficial13Service: true,
+      isCitizenComplaint: false,
+    };
+  }
+
+  // 2. Direct match with Laporan & Pengaduan Warga (Sub-Menu 1)
+  if (
+    rep.serviceCategoryTitle === 'Laporan dan Pengaduan Warga' ||
+    (rep.category && REPORT_COMPLAINT_CATEGORIES.includes(rep.category))
+  ) {
+    return {
+      categoryId: 'pengaduan_permasalahan_warga',
+      categoryTitle: 'Laporan dan Pengaduan Warga',
+      subItemId: rep.serviceSubItemId || 'aduan-warga',
+      subItemLabel: rep.serviceSubItemLabel || rep.category,
+      documentCode: rep.documentCode || 'ADUAN-WARGA',
+      officialHeaderTitle: 'LAPORAN DAN PENGADUAN PERMASALAHAN WARGA',
+      processingUnit: 'Satgas & Tim Reaksi Cepat Kelurahan Panaikang',
+      isOfficial13Service: false,
+      isCitizenComplaint: true,
+    };
+  }
+
+  // 3. Match from structured metadata if present
   if (rep.serviceCategoryId && rep.serviceSubItemId) {
     const foundCat = catalog.find((c) => c.id === rep.serviceCategoryId);
     const foundSub = foundCat?.items.find((i) => i.id === rep.serviceSubItemId);
@@ -124,7 +169,7 @@ export function inferReportServiceCategory(
     }
   }
 
-  // Match from title or description if created prior to structured metadata
+  // 4. Match from title or description
   const combined = `${rep.title} ${rep.description}`.toLowerCase();
   for (const cat of catalog) {
     for (const sub of cat.items) {
@@ -142,7 +187,7 @@ export function inferReportServiceCategory(
     }
   }
 
-  // Fallback for environmental reports
+  // 5. Fallback for environmental reports
   const envCat = catalog.find((c) => c.id === 'masalah_lingkungan') || catalog[0];
   let envSub = envCat.items[0];
   if (rep.category === 'Sampah Liar & TPS') {
@@ -203,6 +248,8 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
   };
 
   const [subMode, setSubMode] = useState<'submissions' | 'catalog_config'>('submissions');
+  const [wargaGroupFilter, setWargaGroupFilter] = useState<'ALL' | '13_SURAT' | 'ADUAN_WARGA'>('ALL');
+  const [officialCodeFilter, setOfficialCodeFilter] = useState<string>('ALL');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<'ALL' | DetailedCategoryId>(
     'ALL'
   );
@@ -302,14 +349,54 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
     return map;
   }, [enrichedReports, catalog]);
 
+  // Quick counts for Menu Warga Groups
+  const total13SuratCount = useMemo(() => {
+    return enrichedReports.filter(
+      (r) => r.isOfficial13Service || r.categoryId === 'surat_keterangan' || !!r.report.documentCode
+    ).length;
+  }, [enrichedReports]);
+
+  const totalAduanCount = useMemo(() => {
+    return enrichedReports.filter(
+      (r) =>
+        r.isCitizenComplaint ||
+        r.categoryId === 'pengaduan_permasalahan_warga' ||
+        r.report.serviceCategoryTitle === 'Laporan dan Pengaduan Warga'
+    ).length;
+  }, [enrichedReports]);
+
   // Filtered submissions
-  const allowedCategoryIdSet = useMemo(() => new Set(catalog.map((c) => c.id)), [catalog]);
+  const allowedCategoryIdSet = useMemo(
+    () => new Set([...catalog.map((c) => c.id), 'surat_keterangan', 'pengaduan_permasalahan_warga']),
+    [catalog]
+  );
 
   const filteredSubmissions = useMemo(() => {
     return enrichedReports.filter((item) => {
       if (!allowedCategoryIdSet.has(item.categoryId)) {
         return false;
       }
+      if (wargaGroupFilter === '13_SURAT') {
+        const isSurat =
+          item.isOfficial13Service ||
+          item.categoryId === 'surat_keterangan' ||
+          !!item.report.documentCode;
+        if (!isSurat) return false;
+        if (
+          officialCodeFilter !== 'ALL' &&
+          item.documentCode !== officialCodeFilter &&
+          item.subItemId !== officialCodeFilter
+        ) {
+          return false;
+        }
+      } else if (wargaGroupFilter === 'ADUAN_WARGA') {
+        const isAduan =
+          item.isCitizenComplaint ||
+          item.categoryId === 'pengaduan_permasalahan_warga' ||
+          item.report.serviceCategoryTitle === 'Laporan dan Pengaduan Warga';
+        if (!isAduan) return false;
+      }
+
       if (selectedCategoryFilter !== 'ALL' && item.categoryId !== selectedCategoryFilter) {
         return false;
       }
@@ -327,6 +414,8 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
           r.title.toLowerCase().includes(q) ||
           r.reporterName.toLowerCase().includes(q) ||
           (r.applicantNik || '').toLowerCase().includes(q) ||
+          (r.citizenAddress || '').toLowerCase().includes(q) ||
+          (r.locationName || '').toLowerCase().includes(q) ||
           (r.letterRegisterNumber || '').toLowerCase().includes(q) ||
           item.subItemLabel.toLowerCase().includes(q) ||
           item.categoryTitle.toLowerCase().includes(q) ||
@@ -337,6 +426,9 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
     });
   }, [
     enrichedReports,
+    allowedCategoryIdSet,
+    wargaGroupFilter,
+    officialCodeFilter,
     selectedCategoryFilter,
     selectedSubItemFilter,
     statusFilter,
@@ -591,6 +683,7 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
       officialHeaderTitle: currentFormSubItem.officialHeaderTitle,
       processingUnit: currentFormSubItem.processingUnit,
       applicantNik: formApplicantNik.trim() || undefined,
+      citizenAddress: formLocationName.trim(),
       specificFieldsData: { ...formSpecificFields },
       letterRegisterNumber: formLetterNumber.trim() || undefined,
       signedByOfficer: formSignedBy.trim() || undefined,
@@ -813,47 +906,187 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
           </div>
         </div>
 
-        {/* 10 Menu Utama Reference Strip */}
-        <div className="px-5 sm:px-7 py-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2 overflow-x-auto">
-          <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#0D3868] whitespace-nowrap mr-1 flex items-center gap-1">
-            <Building2 className="w-3.5 h-3.5" />
-            <span>Pintasan 10 Menu Utama:</span>
-          </span>
-          {MAIN_WARGA_MENUS.filter((m) => m.defaultCategory).map((menu) => {
-            const isSelected = selectedCategoryFilter === menu.defaultCategory;
-            return (
-              <button
-                key={menu.id}
-                type="button"
-                onClick={() => {
-                  setSubMode('submissions');
-                  if (menu.defaultCategory) {
-                    setSelectedCategoryFilter(menu.defaultCategory);
-                    setSelectedSubItemFilter('ALL');
-                  }
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap border transition-colors cursor-pointer flex items-center gap-1.5 ${
-                  isSelected
-                    ? 'bg-[#0D3868] text-white border-[#0D3868]'
-                    : 'bg-white hover:bg-sky-50 text-slate-700 border-slate-200'
-                }`}
-              >
-                <span>{menu.emoji}</span>
-                <span>{menu.label}</span>
-              </button>
-            );
-          })}
-          {selectedCategoryFilter !== 'ALL' && (
+        {/* SINKRONISASI DENGAN STRUKTUR BARU MENU WARGA */}
+        <div className="px-5 sm:px-7 py-3 bg-slate-50 border-b border-slate-200 space-y-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#0D3868] whitespace-nowrap mr-1 flex items-center gap-1">
+              <Building2 className="w-3.5 h-3.5" />
+              <span>Menu Warga:</span>
+            </span>
+
+            {/* Tab Filter 1: Semua Data */}
             <button
               type="button"
               onClick={() => {
+                setSubMode('submissions');
+                setWargaGroupFilter('ALL');
+                setOfficialCodeFilter('ALL');
                 setSelectedCategoryFilter('ALL');
                 setSelectedSubItemFilter('ALL');
               }}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-200 hover:bg-slate-300 text-slate-800 whitespace-nowrap cursor-pointer"
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap border transition-colors cursor-pointer flex items-center gap-1.5 ${
+                wargaGroupFilter === 'ALL' && selectedCategoryFilter === 'ALL'
+                  ? 'bg-[#0D3868] text-white border-[#0D3868] shadow-xs'
+                  : 'bg-white hover:bg-sky-50 text-slate-700 border-slate-200'
+              }`}
             >
-              Tampilkan Semua Bidang
+              <span>Semua Data</span>
+              <span className="px-1.5 py-0.2 rounded-full bg-slate-200/80 text-slate-800 text-[10px] font-mono-num">
+                {reports.length}
+              </span>
             </button>
+
+            {/* Tab Filter 2: 13 Layanan Administrasi Surat (Sub-Menu 2) */}
+            <button
+              type="button"
+              onClick={() => {
+                setSubMode('submissions');
+                setWargaGroupFilter('13_SURAT');
+                setSelectedCategoryFilter('ALL');
+                setSelectedSubItemFilter('ALL');
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap border transition-colors cursor-pointer flex items-center gap-1.5 ${
+                wargaGroupFilter === '13_SURAT'
+                  ? 'bg-[#1C8237] text-white border-[#1C8237] shadow-xs'
+                  : 'bg-white hover:bg-emerald-50 text-slate-700 border-slate-200'
+              }`}
+            >
+              <span>📄 2. Layanan Administrasi Warga (13 Surat)</span>
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono-num ${
+                  wargaGroupFilter === '13_SURAT'
+                    ? 'bg-emerald-800 text-white'
+                    : 'bg-emerald-100 text-emerald-800'
+                }`}
+              >
+                {total13SuratCount}
+              </span>
+            </button>
+
+            {/* Tab Filter 3: Laporan & Pengaduan Warga (Sub-Menu 1) */}
+            <button
+              type="button"
+              onClick={() => {
+                setSubMode('submissions');
+                setWargaGroupFilter('ADUAN_WARGA');
+                setSelectedCategoryFilter('ALL');
+                setSelectedSubItemFilter('ALL');
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap border transition-colors cursor-pointer flex items-center gap-1.5 ${
+                wargaGroupFilter === 'ADUAN_WARGA'
+                  ? 'bg-[#0277BD] text-white border-[#0277BD] shadow-xs'
+                  : 'bg-white hover:bg-sky-50 text-slate-700 border-slate-200'
+              }`}
+            >
+              <span>📝 1. Laporan & Pengaduan Warga</span>
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono-num ${
+                  wargaGroupFilter === 'ADUAN_WARGA'
+                    ? 'bg-sky-800 text-white'
+                    : 'bg-sky-100 text-sky-800'
+                }`}
+              >
+                {totalAduanCount}
+              </span>
+            </button>
+
+            {/* Quick Button to Clear */}
+            {(wargaGroupFilter !== 'ALL' || officialCodeFilter !== 'ALL') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setWargaGroupFilter('ALL');
+                  setOfficialCodeFilter('ALL');
+                  setSelectedCategoryFilter('ALL');
+                  setSelectedSubItemFilter('ALL');
+                }}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-200 hover:bg-slate-300 text-slate-700 whitespace-nowrap cursor-pointer"
+              >
+                Reset Filter
+              </button>
+            )}
+          </div>
+
+          {/* Sub-Filter: 13 Jenis Layanan Surat Resmi (PM-01 s/d SL-13) */}
+          {wargaGroupFilter === '13_SURAT' && (
+            <div className="pt-2 border-t border-slate-200/80 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 whitespace-nowrap mr-1">
+                Pilih Jenis Surat:
+              </span>
+              <button
+                type="button"
+                onClick={() => setOfficialCodeFilter('ALL')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap cursor-pointer transition ${
+                  officialCodeFilter === 'ALL'
+                    ? 'bg-[#1C8237] text-white'
+                    : 'bg-white border border-slate-200 text-slate-700 hover:bg-emerald-50'
+                }`}
+              >
+                Semua (13 Surat)
+              </button>
+              {OFFICIAL_13_WARGA_SERVICES.map((srv) => {
+                const isCurrent = officialCodeFilter === srv.code;
+                const matchCount = enrichedReports.filter(
+                  (r) => r.documentCode === srv.code || r.subItemId === srv.code
+                ).length;
+                return (
+                  <button
+                    key={srv.code}
+                    type="button"
+                    onClick={() => setOfficialCodeFilter(srv.code)}
+                    title={srv.name}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap cursor-pointer transition flex items-center gap-1 ${
+                      isCurrent
+                        ? 'bg-[#1C8237] text-white'
+                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-emerald-50'
+                    }`}
+                  >
+                    <span>{srv.code}</span>
+                    <span className="text-[10px] opacity-80 truncate max-w-[140px] sm:max-w-[200px]">
+                      {srv.name}
+                    </span>
+                    {matchCount > 0 && (
+                      <span
+                        className={`px-1 rounded-full text-[9px] font-mono-num ${
+                          isCurrent ? 'bg-white text-emerald-900' : 'bg-emerald-100 text-emerald-800'
+                        }`}
+                      >
+                        {matchCount}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Sub-Filter: Kategori Laporan & Pengaduan Warga */}
+          {wargaGroupFilter === 'ADUAN_WARGA' && (
+            <div className="pt-2 border-t border-slate-200/80 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+              <span className="text-[10px] font-black uppercase tracking-wider text-sky-800 whitespace-nowrap mr-1">
+                Kategori Masalah:
+              </span>
+              {REPORT_COMPLAINT_CATEGORIES.map((catName) => {
+                const isCurrent = searchQuery === catName;
+                return (
+                  <button
+                    key={catName}
+                    type="button"
+                    onClick={() => {
+                      if (isCurrent) setSearchQuery('');
+                      else setSearchQuery(catName);
+                    }}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap cursor-pointer transition ${
+                      isCurrent
+                        ? 'bg-[#0277BD] text-white'
+                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-sky-50'
+                    }`}
+                  >
+                    {catName}
+                  </button>
+                );
+              })}
+            </div>
           )}
         </div>
       </div>
@@ -1107,6 +1340,43 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
                 >
                   <X className="w-5 h-5" />
                 </button>
+              </div>
+
+              {/* Pilihan Cepat: 13 Layanan Administrasi Resmi Kelurahan (Sesuai Menu Warga) */}
+              <div className="p-3.5 rounded-xl bg-emerald-50/80 border border-emerald-200 space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <span className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
+                    <span>📄</span>
+                    <span>Pilihan Cepat: 13 Layanan Administrasi Surat Resmi (PM-01 s/d SL-13)</span>
+                  </span>
+                  <span className="text-[10px] text-emerald-700 font-medium">
+                    Klik untuk mengisi otomatis kategori & kode surat
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                  {OFFICIAL_13_WARGA_SERVICES.map((srv) => (
+                    <button
+                      key={srv.code}
+                      type="button"
+                      onClick={() => {
+                        setFormCategoryId('surat_keterangan');
+                        setFormSubItemId(srv.code);
+                        setFormLetterNumber(generateAutoLetterNumber(srv.code));
+                        setFormAssignedTeam(srv.processingUnit || 'Seksi Pelayanan Umum & Loket');
+                        if (!formDescription || formDescription.startsWith('Permohonan surat resmi')) {
+                          setFormDescription(`Permohonan surat resmi kelurahan: ${srv.name} (${srv.code}).`);
+                        }
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap cursor-pointer transition ${
+                        formSubItemId === srv.code
+                          ? 'bg-[#1C8237] text-white shadow-xs'
+                          : 'bg-white hover:bg-emerald-100 text-slate-700 border border-emerald-200'
+                      }`}
+                    >
+                      {srv.code} · {srv.name}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Step 1: Pilih Bidang (7 Kategori) & Sub-Menu (44 Layanan) */}
@@ -1500,8 +1770,16 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
                           <span className="font-mono-num">WA: {rep.reporterPhone}</span>
                           <span aria-hidden="true">·</span>
                           <span>
-                            Wilayah: <strong>{rep.rw} / {rep.rt}</strong> ({rep.locationName})
+                            Wilayah: <strong>{rep.rw} / {rep.rt}</strong>
                           </span>
+                          {(rep.citizenAddress || rep.locationName) && (
+                            <>
+                              <span aria-hidden="true">·</span>
+                              <span>
+                                Alamat: {rep.citizenAddress || rep.locationName}
+                              </span>
+                            </>
+                          )}
                         </div>
 
                         {/* Specific Sub-Menu Fields if present */}

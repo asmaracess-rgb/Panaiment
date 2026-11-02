@@ -22,6 +22,214 @@ export type DetailedCategoryId =
   | 'sosial_kemasyarakatan'
   | 'pengaduan_permasalahan_warga';
 
+export interface OfficialWargaService {
+  n: number;
+  name: string;
+  code: string;
+  req: string[];
+  note: string;
+  processingUnit?: string;
+}
+
+export const OFFICIAL_13_WARGA_SERVICES: OfficialWargaService[] = [
+  {
+    n: 1,
+    name: 'Permohonan Pindah Masuk Penduduk',
+    code: 'PM-01',
+    req: [
+      'Pengantar RT dan RW',
+      'Pelunasan PBB tahun berjalan',
+      'Fotokopi KTP dan KK pemohon',
+      'Surat pindah dari daerah asal',
+      'Fotokopi surat nikah',
+    ],
+    note: 'Konfirmasikan format surat pindah dan dokumen tambahan kepada petugas loket.',
+    processingUnit: 'Seksi Pemerintahan & Loket Kependudukan',
+  },
+  {
+    n: 2,
+    name: 'Permohonan Pindah Keluar Penduduk',
+    code: 'PK-02',
+    req: [
+      'Pengantar RT dan RW',
+      'Pelunasan PBB tahun berjalan',
+      'Fotokopi KTP dan KK pemohon',
+      'Surat pindah dari daerah asal/tujuan sesuai ketentuan',
+      'Fotokopi surat nikah',
+    ],
+    note: 'Konfirmasikan format surat pindah dan dokumen tambahan kepada petugas loket.',
+    processingUnit: 'Seksi Pemerintahan & Loket Kependudukan',
+  },
+  {
+    n: 3,
+    name: 'Permohonan Surat Kelahiran',
+    code: 'SK-03',
+    req: [
+      'Pengantar RT dan RW',
+      'Pelunasan PBB tahun berjalan',
+      'Fotokopi KTP dan KK pemohon',
+      'Surat keterangan kelahiran dari rumah sakit/bidan',
+      'Fotokopi surat nikah',
+      'Fotokopi ijazah terakhir (jika diminta)',
+    ],
+    note: 'Pastikan surat kelahiran dari faskes asli/fotokopi legalisir dibawa saat verifikasi.',
+    processingUnit: 'Seksi Pemerintahan & Loket Pelayanan',
+  },
+  {
+    n: 4,
+    name: 'Permohonan Surat Kematian',
+    code: 'SK-04',
+    req: [
+      'Pengantar RT dan RW',
+      'Pelunasan PBB tahun berjalan',
+      'Fotokopi KTP dan KK pemohon serta pelapor',
+      'Surat pernyataan bermeterai dari keluarga apabila tidak memiliki surat kematian dari rumah sakit',
+    ],
+    note: 'Tanyakan kepada petugas apakah akta atau surat keterangan tambahan diperlukan.',
+    processingUnit: 'Seksi Pemerintahan & Pelayanan Umum',
+  },
+  {
+    n: 5,
+    name: 'Surat Keterangan Domisili Sementara',
+    code: 'DK-05',
+    req: [
+      'Pengantar RT dan RW',
+      'Pelunasan PBB tahun berjalan',
+      'Fotokopi KTP dan KK pemohon/KK penjamin',
+      'Surat pernyataan permohonan bermeterai, diketahui RT dan RW',
+      'Foto 3×4 latar merah',
+    ],
+    note: 'Koreksi: Pas foto 3×4 latar merah (1 lembar). Berkas diverifikasi oleh petugas loket.',
+    processingUnit: 'Seksi Pemerintahan & Ketentraman Ketertiban',
+  },
+  {
+    n: 6,
+    name: 'Surat Keterangan Catatan Kepolisian (SKCK)',
+    code: 'SK-06',
+    req: [
+      'Pengantar RT dan RW',
+      'Pelunasan PBB tahun berjalan',
+      'Fotokopi KTP dan KK pemohon',
+      'Surat pernyataan tidak pernah dipidana dan tidak menyalahgunakan obat terlarang, bermeterai',
+    ],
+    note: 'Penerbitan SKCK fisik dilakukan di Polsek/Polrestabes; surat ini adalah pengantar resmi kelurahan.',
+    processingUnit: 'Seksi Ketentraman, Ketertiban & Pelayanan Umum',
+  },
+  {
+    n: 7,
+    name: 'Surat Keterangan Domisili Usaha',
+    code: 'DU-07',
+    req: [
+      'Pengantar RT dan RW',
+      'Pelunasan PBB tahun berjalan',
+      'Fotokopi KTP dan KK pemohon',
+      'Fotokopi alas hak/sertifikat atau dokumen tempat usaha',
+      'Fotokopi akta pendirian usaha dari notaris (jika badan usaha)',
+      'Surat pernyataan jika bangunan bukan atas nama pemohon, dilampiri KTP pemilik',
+    ],
+    note: 'Dokumen dapat berbeda sesuai bentuk usaha (perorangan/badan) dan status tempat usaha.',
+    processingUnit: 'Seksi Ekonomi, Pembangunan & Pemberdayaan Masyarakat',
+  },
+  {
+    n: 8,
+    name: 'Surat Keterangan Usaha',
+    code: 'SU-08',
+    req: [
+      'Pengantar RT dan RW',
+      'Pelunasan PBB tahun berjalan',
+      'Fotokopi KTP dan KK pemohon',
+      'Surat pernyataan pemohon bermeterai',
+      'Pas foto pemohon 3×4 sebanyak 1 lembar',
+      'Foto pemohon sedang berdiri di lokasi usaha (ukuran 3R)',
+    ],
+    note: 'Konfirmasikan apakah diperlukan dokumen tambahan sesuai jenis usaha/kegiatan mikro.',
+    processingUnit: 'Seksi Ekonomi, Pembangunan & UMKM',
+  },
+  {
+    n: 9,
+    name: 'Surat Keterangan Usaha (Tambahan)',
+    code: 'SU-09',
+    req: [
+      'Pengantar RT dan RW',
+      'Pelunasan PBB tahun berjalan',
+      'Surat pernyataan pemohon bermeterai',
+      'Fotokopi KTP dan KK pemohon',
+    ],
+    note: 'Pastikan jenis surat tambahan yang dimaksud dengan petugas loket kelurahan.',
+    processingUnit: 'Seksi Ekonomi & Pembangunan',
+  },
+  {
+    n: 10,
+    name: 'Surat Keterangan Belum Menikah',
+    code: 'BM-10',
+    req: [
+      'Pengantar RT dan RW',
+      'Pelunasan PBB tahun berjalan',
+      'Fotokopi KTP dan KK pemohon',
+      'Surat pernyataan belum menikah bermeterai, diketahui imam dan RT/RW/orang tua',
+      'Foto 3×4 kedua calon pasangan (sesuai ketentuan)',
+    ],
+    note: 'Konfirmasikan format surat pernyataan dan ketentuan pas foto kepada petugas loket.',
+    processingUnit: 'Seksi Pelayanan Umum & Kesejahteraan Sosial',
+  },
+  {
+    n: 11,
+    name: 'Surat Pengantar Nikah',
+    code: 'PN-11',
+    req: [
+      'Pengantar RT dan RW',
+      'Pelunasan PBB tahun berjalan',
+      'Fotokopi KTP dan KK pemohon',
+      'Surat pernyataan belum menikah bermeterai, diketahui imam dan RT/RW/orang tua',
+      'Foto 3×4 kedua calon pasangan (sesuai ketentuan)',
+    ],
+    note: 'Persyaratan administrasi pernikahan diteruskan ke KUA Panakkukang sesuai ketentuan.',
+    processingUnit: 'Seksi Pelayanan Umum & Kesejahteraan Sosial',
+  },
+  {
+    n: 12,
+    name: 'Persyaratan Ahli Waris',
+    code: 'AW-12',
+    req: [
+      'Pengantar RT dan RW',
+      'Fotokopi KTP dan KK',
+      'Fotokopi akta kelahiran',
+      'Fotokopi surat nikah',
+      'Surat keterangan kematian',
+      'Surat pernyataan ahli waris bermeterai (Rp10.000)',
+      'Akta kematian (jika ada)',
+      'Foto saat tanda tangan bersama',
+    ],
+    note: 'Koreksi: Butir ke-8 adalah foto saat seluruh ahli waris tanda tangan bersama.',
+    processingUnit: 'Seksi Pemerintahan & Pelayanan Umum',
+  },
+  {
+    n: 13,
+    name: 'Surat Keterangan Lainnya',
+    code: 'SL-13',
+    req: [
+      'Pengantar RT dan RW',
+      'Pelunasan PBB tahun berjalan',
+      'Fotokopi KTP dan KK pemohon',
+      'Surat pernyataan yang bersangkutan diketahui RT/RW/orang tua',
+    ],
+    note: 'Persyaratan disesuaikan dengan jenis surat yang diminta; tanyakan kepada petugas loket.',
+    processingUnit: 'Seksi Pelayanan Umum',
+  },
+];
+
+export const REPORT_COMPLAINT_CATEGORIES = [
+  'Infrastruktur jalan/drainase',
+  'Sampah dan kebersihan',
+  'Lampu jalan/penerangan',
+  'Keamanan dan ketertiban',
+  'Bantuan sosial',
+  'Administrasi pelayanan',
+  'Gangguan lingkungan',
+  'Fasilitas umum',
+  'Lainnya',
+];
+
 export interface SubMenuSpecificField {
   key: string;
   label: string;
