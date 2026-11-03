@@ -658,5 +658,23 @@ export interface SupplyRequestItem {
   verificationNotes?: string;
 }
 
+export type SiskamlingDay =
+  | 'Senin'
+  | 'Selasa'
+  | 'Rabu'
+  | 'Kamis'
+  | 'Jumat'
+  | 'Sabtu'
+  | 'Minggu';
+
+export interface SiskamlingRwSchedule {
+  rw: string; // e.g. 'RW 1' s/d 'RW 7'
+  rwName?: string;
+  poskoLocation?: string;
+  schedules: Record<SiskamlingDay, string[]>; // list of officer names for each day
+  notes?: string;
+}
+
+
 
 

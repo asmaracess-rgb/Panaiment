@@ -22,6 +22,7 @@ import {
   AdminActivityLog,
   UrbanFarmingSpot,
   SeedRequestItem,
+  SiskamlingRwSchedule,
 } from './types';
 import {
   INITIAL_REPORTS,
@@ -39,6 +40,7 @@ import {
   INITIAL_URBAN_FARMING_SPOTS,
   INITIAL_SEED_REQUESTS,
 } from './data/initialData';
+import { INITIAL_SISKAMLING_SCHEDULES } from './data/siskamlingData';
 import {
   SERVICE_CATEGORY_GROUPS,
   ServiceCategoryGroup,
@@ -131,6 +133,12 @@ export default function App() {
       ? initialPersisted.kelurahanInfos
       : INITIAL_KELURAHAN_INFOS;
     return source.filter((i) => i && i.id && !deleted.has(i.id));
+  });
+
+  const [siskamlingSchedules, setSiskamlingSchedules] = useState<SiskamlingRwSchedule[]>(() => {
+    return Array.isArray(initialPersisted?.siskamlingSchedules) && initialPersisted.siskamlingSchedules.length > 0
+      ? initialPersisted.siskamlingSchedules
+      : INITIAL_SISKAMLING_SCHEDULES;
   });
 
   const [rwGroups, setRwGroups] = useState<RwGroup[]>(
@@ -355,6 +363,7 @@ export default function App() {
     if (merged.activityLogs) setActivityLogs(merged.activityLogs);
     if (merged.urbanFarmingSpots) setUrbanFarmingSpots(merged.urbanFarmingSpots);
     if (merged.seedRequests) setSeedRequests(merged.seedRequests);
+    if (merged.siskamlingSchedules) setSiskamlingSchedules(merged.siskamlingSchedules);
     setTebaSpots(merged.tebaSpots ?? []);
     setBioporiPoints(merged.bioporiPoints ?? []);
 
@@ -745,6 +754,16 @@ export default function App() {
     return { ok: true };
   };
 
+
+  const handleSaveSiskamlingSchedules = useCallback(
+    async (updated: SiskamlingRwSchedule[]): Promise<{ ok: boolean; errors?: string[] }> => {
+      setSiskamlingSchedules(updated);
+      commitPersistence({ siskamlingSchedules: updated });
+      return { ok: true };
+    },
+    [commitPersistence]
+  );
+
   // 2. Citizen Reports CRUD
   const handleAddReport = (
     newReportData: Omit<
@@ -759,8 +778,26 @@ export default function App() {
       | 'responseNote'
     >
   ): string => {
-    const nextNum = 149 + reports.length;
-    const ticketCode = `PNK-2026-0${nextNum}`;
+    const isDoc = Boolean(
+      newReportData.documentCode ||
+      newReportData.applicantNik ||
+      newReportData.letterRegisterNumber ||
+      newReportData.serviceCategoryId === 'surat_keterangan' ||
+      (newReportData.serviceCategoryTitle && newReportData.serviceCategoryTitle.toLowerCase().includes('administrasi')) ||
+      (newReportData.serviceSubItemId && (newReportData.serviceSubItemId.startsWith('PM-') || newReportData.serviceSubItemId.startsWith('SL-')))
+    );
+    const prefix = isDoc ? 'SRT-2026-' : 'ADU-2026-';
+    let maxSeq = 0;
+    for (const r of stateRef.current.reports) {
+      if (!r.ticketCode) continue;
+      if (r.ticketCode.startsWith(prefix)) {
+        const numPart = parseInt(r.ticketCode.slice(prefix.length), 10);
+        if (!isNaN(numPart) && numPart > maxSeq) {
+          maxSeq = numPart;
+        }
+      }
+    }
+    const ticketCode = `${prefix}${String(maxSeq + 1).padStart(4, '0')}`;
     const nowTime = getRealtimeDateTimeString();
     const optimistic: CitizenReport = {
       ...newReportData,
@@ -801,10 +838,29 @@ export default function App() {
       return { ok: false, errors };
     }
 
-    const nextNum = 149 + stateRef.current.reports.length;
+    const isDoc = Boolean(
+      rep.documentCode ||
+      rep.applicantNik ||
+      rep.letterRegisterNumber ||
+      rep.serviceCategoryId === 'surat_keterangan' ||
+      (rep.serviceCategoryTitle && rep.serviceCategoryTitle.toLowerCase().includes('administrasi')) ||
+      (rep.serviceSubItemId && (rep.serviceSubItemId.startsWith('PM-') || rep.serviceSubItemId.startsWith('SL-')))
+    );
+    const prefix = isDoc ? 'SRT-2026-' : 'ADU-2026-';
+    let maxSeq = 0;
+    for (const r of stateRef.current.reports) {
+      if (!r.ticketCode) continue;
+      if (r.ticketCode.startsWith(prefix)) {
+        const numPart = parseInt(r.ticketCode.slice(prefix.length), 10);
+        if (!isNaN(numPart) && numPart > maxSeq) {
+          maxSeq = numPart;
+        }
+      }
+    }
+    const generatedTicketCode = `${prefix}${String(maxSeq + 1).padStart(4, '0')}`;
     const newReport: CitizenReport = {
       id: `rep-${Date.now()}`,
-      ticketCode: rep.ticketCode || `PNK-2026-0${nextNum}`,
+      ticketCode: rep.ticketCode || generatedTicketCode,
       title: rep.title!.trim(),
       description: rep.description!.trim(),
       category: rep.category || 'Sampah Liar & TPS',
@@ -1915,7 +1971,11 @@ export default function App() {
         )}
 
         {activeView === 'rtrw' && (
-          <DataRtRwView rwGroups={rwGroups} onNavigate={handleNavigate} />
+          <DataRtRwView
+            rwGroups={rwGroups}
+            siskamlingSchedules={siskamlingSchedules}
+            onNavigate={handleNavigate}
+          />
         )}
 
         {activeView === 'warga' && (
@@ -1953,6 +2013,7 @@ export default function App() {
             reports={reports}
             wasteUnits={wasteUnits}
             cleanupEvents={cleanupEvents}
+            rwGroups={rwGroups}
             onUpdateReportStatus={handleUpdateReportStatus}
             onNavigate={handleNavigate}
             profile={kelurahanProfile}
@@ -2046,6 +2107,8 @@ export default function App() {
             onCreateBioporiPoint={handleAdminCreateBioporiPoint}
             onUpdateBioporiPoint={handleAdminUpdateBioporiPoint}
             onDeleteBioporiPoint={handleAdminDeleteBioporiPoint}
+            siskamlingSchedules={siskamlingSchedules}
+            onSaveSiskamlingSchedules={handleSaveSiskamlingSchedules}
             onExportDatabase={handleExportDatabase}
             onImportDatabase={handleImportDatabase}
           />

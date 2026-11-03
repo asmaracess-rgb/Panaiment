@@ -1188,7 +1188,7 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
                         required
                         value={searchTicketQuery}
                         onChange={(e) => setSearchTicketQuery(e.target.value)}
-                        placeholder="Contoh: PAN-2026-12345 atau ADM-2026-0001..."
+                        placeholder="Contoh: ADU-2026-0001 atau SRT-2026-0001..."
                         className="flex-1 rounded-xl border border-slate-300 px-3.5 py-2 text-xs font-mono-num uppercase focus:border-[#0277BD] focus:outline-none"
                       />
                       <button

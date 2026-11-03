@@ -368,7 +368,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                 Data RT dan RW
               </h3>
               <p className="mt-1 text-[10px] sm:text-[11px] font-medium text-sky-100 leading-tight max-w-[175px] line-clamp-2">
-                Nama RW & daftar RT yang terbagi di tiap wilayah RW.
+                Nama RW, daftar RT, & jadwal siskamling lingkungan.
               </p>
             </div>
 

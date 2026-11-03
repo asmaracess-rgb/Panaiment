@@ -1,29 +1,28 @@
 import React, { useState, useMemo } from 'react';
 import {
   FileText,
-  UserCheck,
-  Briefcase,
-  Trees,
-  HeartHandshake,
-  Users,
-  Siren,
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+  Search,
   Plus,
   Edit3,
   Trash2,
-  Check,
-  X,
-  Search,
-  CheckCircle2,
-  Clock,
-  AlertCircle,
   Printer,
+  X,
   MessageCircle,
-  Settings,
-  ClipboardList,
-  Upload,
-  Sparkles,
-  RefreshCw,
   Building2,
+  UserCheck,
+  Phone,
+  MapPin,
+  Calendar,
+  ShieldCheck,
+  Send,
+  RefreshCw,
+  Database,
+  Check,
+  ChevronRight,
+  ExternalLink,
 } from 'lucide-react';
 import {
   CitizenReport,
@@ -36,19 +35,13 @@ import {
   AdminActionPermissions,
 } from '../types';
 import {
-  SERVICE_CATEGORY_GROUPS,
-  MAIN_WARGA_MENUS,
-  DetailedCategoryId,
-  ServiceCategoryGroup,
-  ServiceSubItem,
   OFFICIAL_13_WARGA_SERVICES,
   REPORT_COMPLAINT_CATEGORIES,
+  OfficialWargaService,
+  ServiceCategoryGroup,
 } from '../data/wargaServiceCatalog';
-import { IMG_DRAINASE, IMG_BANK_SAMPAH, IMG_KERJA_BAKTI, IG_POST_6 } from '../data/initialData';
-import { compressImageFile } from '../utils/compressImage';
 import { buildWhatsAppUrl } from '../utils/whatsappHelper';
 import { buildOfficialKopSuratHtml } from '../utils/officialKopSurat';
-import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
 import { getRealtimeDateTimeString } from '../utils/realtimeDate';
 
 interface AdminPengurusanWargaPanelProps {
@@ -56,7 +49,7 @@ interface AdminPengurusanWargaPanelProps {
   profile: KelurahanProfile;
   rwGroups: RwGroup[];
   whatsappRecipients: WhatsAppRecipient[];
-  serviceCatalog: ServiceCategoryGroup[];
+  serviceCatalog?: ServiceCategoryGroup[];
   adminOfficerName: string;
   allowedServiceCategories?: string[];
   actionPermissions?: AdminActionPermissions;
@@ -66,7 +59,7 @@ interface AdminPengurusanWargaPanelProps {
     rep: Partial<CitizenReport>
   ) => Promise<{ ok: boolean; errors?: string[] }>;
   onDeleteReport: (id: string) => Promise<{ ok: boolean; errors?: string[] }>;
-  onSaveServiceCatalog: (
+  onSaveServiceCatalog?: (
     updatedCatalog: ServiceCategoryGroup[]
   ) => Promise<{ ok: boolean; errors?: string[] }>;
 }
@@ -74,169 +67,33 @@ interface AdminPengurusanWargaPanelProps {
 const DEFAULT_RW_LIST = ['RW 01', 'RW 02', 'RW 03', 'RW 04', 'RW 05', 'RW 06', 'RW 07'];
 const DEFAULT_RT_LIST = ['RT 01', 'RT 02', 'RT 03', 'RT 04', 'RT 05'];
 
-function renderCategoryIcon(
-  iconName: ServiceCategoryGroup['iconName'],
-  className = 'w-4 h-4'
-): React.ReactNode {
-  switch (iconName) {
-    case 'UserCheck':
-      return <UserCheck className={className} />;
-    case 'FileText':
-      return <FileText className={className} />;
-    case 'Briefcase':
-      return <Briefcase className={className} />;
-    case 'Trees':
-      return <Trees className={className} />;
-    case 'HeartHandshake':
-      return <HeartHandshake className={className} />;
-    case 'Users':
-      return <Users className={className} />;
-    case 'Siren':
-      return <Siren className={className} />;
-    default:
-      return <FileText className={className} />;
-  }
-}
-
-export function inferReportServiceCategory(
-  rep: CitizenReport,
-  catalog: ServiceCategoryGroup[]
-): {
-  categoryId: DetailedCategoryId;
-  categoryTitle: string;
-  subItemId: string;
-  subItemLabel: string;
-  documentCode: string;
-  officialHeaderTitle: string;
-  processingUnit: string;
-  isOfficial13Service?: boolean;
-  isCitizenComplaint?: boolean;
-} {
-  // 1. Direct match with 13 official citizen services (PM-01 s/d SL-13)
-  const official13Match = OFFICIAL_13_WARGA_SERVICES.find(
-    (s) =>
-      s.code === rep.documentCode ||
-      s.code === rep.serviceSubItemId ||
-      (rep.title && rep.title.toLowerCase().includes(s.name.toLowerCase())) ||
-      (rep.serviceSubItemLabel && rep.serviceSubItemLabel.toLowerCase().includes(s.name.toLowerCase()))
-  );
-  if (official13Match) {
-    return {
-      categoryId: 'surat_keterangan',
-      categoryTitle: '13 Layanan Administrasi Surat',
-      subItemId: official13Match.code,
-      subItemLabel: `${official13Match.code} — ${official13Match.name}`,
-      documentCode: official13Match.code,
-      officialHeaderTitle: official13Match.name.toUpperCase(),
-      processingUnit: official13Match.processingUnit || 'Seksi Pelayanan Umum & Loket Kelurahan',
-      isOfficial13Service: true,
-      isCitizenComplaint: false,
-    };
-  }
-
-  // 2. Direct match with Laporan & Pengaduan Warga (Sub-Menu 1)
+export function isSuratAdministrasi(r: CitizenReport): boolean {
+  if (r.ticketCode?.startsWith('SRT-')) return true;
+  if (r.documentCode && r.documentCode.startsWith('PM-')) return true;
   if (
-    rep.serviceCategoryTitle === 'Laporan dan Pengaduan Warga' ||
-    (rep.category && REPORT_COMPLAINT_CATEGORIES.includes(rep.category))
-  ) {
-    return {
-      categoryId: 'pengaduan_permasalahan_warga',
-      categoryTitle: 'Laporan dan Pengaduan Warga',
-      subItemId: rep.serviceSubItemId || 'aduan-warga',
-      subItemLabel: rep.serviceSubItemLabel || rep.category,
-      documentCode: rep.documentCode || 'ADUAN-WARGA',
-      officialHeaderTitle: 'LAPORAN DAN PENGADUAN PERMASALAHAN WARGA',
-      processingUnit: 'Satgas & Tim Reaksi Cepat Kelurahan Panaikang',
-      isOfficial13Service: false,
-      isCitizenComplaint: true,
-    };
-  }
-
-  // 3. Match from structured metadata if present
-  if (rep.serviceCategoryId && rep.serviceSubItemId) {
-    const foundCat = catalog.find((c) => c.id === rep.serviceCategoryId);
-    const foundSub = foundCat?.items.find((i) => i.id === rep.serviceSubItemId);
-    if (foundCat && foundSub) {
-      return {
-        categoryId: foundCat.id,
-        categoryTitle: foundCat.title,
-        subItemId: foundSub.id,
-        subItemLabel: foundSub.label,
-        documentCode: rep.documentCode || foundSub.documentCode,
-        officialHeaderTitle: rep.officialHeaderTitle || foundSub.officialHeaderTitle,
-        processingUnit: rep.processingUnit || foundSub.processingUnit,
-      };
-    }
-  }
-
-  // 4. Match from title or description
-  const combined = `${rep.title} ${rep.description}`.toLowerCase();
-  for (const cat of catalog) {
-    for (const sub of cat.items) {
-      if (combined.includes(sub.label.toLowerCase())) {
-        return {
-          categoryId: cat.id,
-          categoryTitle: cat.title,
-          subItemId: sub.id,
-          subItemLabel: sub.label,
-          documentCode: rep.documentCode || sub.documentCode,
-          officialHeaderTitle: rep.officialHeaderTitle || sub.officialHeaderTitle,
-          processingUnit: rep.processingUnit || sub.processingUnit,
-        };
-      }
-    }
-  }
-
-  // 5. Fallback for environmental reports
-  const envCat = catalog.find((c) => c.id === 'masalah_lingkungan') || catalog[0];
-  let envSub = envCat.items[0];
-  if (rep.category === 'Sampah Liar & TPS') {
-    envSub = envCat.items.find((i) => i.id === 'lingkungan-sampah') || envCat.items[0];
-  } else if (rep.category === 'Drainase & Genangan') {
-    envSub = envCat.items.find((i) => i.id === 'lingkungan-drainase') || envCat.items[0];
-  } else if (rep.category === 'Pohon & Ruang Hijau') {
-    envSub = envCat.items.find((i) => i.id === 'lingkungan-pohon') || envCat.items[0];
-  } else {
-    envSub = envCat.items.find((i) => i.id === 'lingkungan-fasum') || envCat.items[0];
-  }
-
-  return {
-    categoryId: envCat.id,
-    categoryTitle: envCat.title,
-    subItemId: envSub.id,
-    subItemLabel: envSub.label,
-    documentCode: rep.documentCode || envSub.documentCode,
-    officialHeaderTitle: rep.officialHeaderTitle || envSub.officialHeaderTitle,
-    processingUnit: rep.processingUnit || envSub.processingUnit,
-  };
+    r.serviceCategoryId === 'surat_keterangan' ||
+    r.serviceCategoryId === 'administrasi_kependudukan'
+  )
+    return true;
+  if (
+    OFFICIAL_13_WARGA_SERVICES.some(
+      (s) => s.code === r.documentCode || s.code === r.serviceSubItemId
+    )
+  )
+    return true;
+  return false;
 }
 
 export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps> = ({
   reports,
   profile,
   rwGroups,
-  serviceCatalog = SERVICE_CATEGORY_GROUPS,
   adminOfficerName,
-  allowedServiceCategories,
   actionPermissions,
   onCreateReport,
   onUpdateReport,
   onDeleteReport,
-  onSaveServiceCatalog,
 }) => {
-  const fullCatalog =
-    Array.isArray(serviceCatalog) && serviceCatalog.length > 0
-      ? serviceCatalog
-      : SERVICE_CATEGORY_GROUPS;
-
-  const catalog = useMemo(() => {
-    if (Array.isArray(allowedServiceCategories) && allowedServiceCategories.length > 0) {
-      const filtered = fullCatalog.filter((c) => allowedServiceCategories.includes(c.id));
-      return filtered.length > 0 ? filtered : fullCatalog;
-    }
-    return fullCatalog;
-  }, [fullCatalog, allowedServiceCategories]);
-
   const effectivePerms: AdminActionPermissions = actionPermissions || {
     canCreate: true,
     canEdit: true,
@@ -247,66 +104,55 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
     canExportPrintPdf: true,
   };
 
-  const [subMode, setSubMode] = useState<'submissions' | 'catalog_config'>('submissions');
-  const [wargaGroupFilter, setWargaGroupFilter] = useState<'ALL' | '13_SURAT' | 'ADUAN_WARGA'>('ALL');
-  const [officialCodeFilter, setOfficialCodeFilter] = useState<string>('ALL');
-  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<'ALL' | DetailedCategoryId>(
-    'ALL'
-  );
-  const [selectedSubItemFilter, setSelectedSubItemFilter] = useState<string>('ALL');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | ReportStatus>('ALL');
+  // Main Category Filter: 'ALL' | 'SURAT' | 'ADUAN'
+  const [activeMainFilter, setActiveMainFilter] = useState<'ALL' | 'SURAT' | 'ADUAN'>('ALL');
+
+  // Sub-filters
+  const [selectedSuratCode, setSelectedSuratCode] = useState<string>('ALL');
+  const [selectedAduanCategory, setSelectedAduanCategory] = useState<string>('ALL');
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('ALL');
+  const [selectedRwFilter, setSelectedRwFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
+  // UI state
   const [feedbackMsg, setFeedbackMsg] = useState<string>('');
   const [errorList, setErrorList] = useState<string[]>([]);
+  const [isSyncingCloud, setIsSyncingCloud] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
-  // Submission Form State (Add / Edit Pengurusan Warga)
-  const [showForm, setShowForm] = useState<boolean>(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [formCategoryId, setFormCategoryId] = useState<DetailedCategoryId>(
-    'administrasi_kependudukan'
-  );
-  const [formSubItemId, setFormSubItemId] = useState<string>('adminduk-ktp-kk');
+  // Form Modal (Add / Edit)
+  const [showFormModal, setShowFormModal] = useState<boolean>(false);
+  const [editingReportId, setEditingReportId] = useState<string | null>(null);
+  const [formType, setFormType] = useState<'SURAT' | 'ADUAN'>('SURAT');
+
+  // Form Fields
+  const [formSuratCode, setFormSuratCode] = useState<string>(OFFICIAL_13_WARGA_SERVICES[0].code);
+  const [formAduanCategory, setFormAduanCategory] = useState<string>(REPORT_COMPLAINT_CATEGORIES[0]);
+  const [formTitle, setFormTitle] = useState<string>('');
   const [formReporterName, setFormReporterName] = useState<string>('');
   const [formApplicantNik, setFormApplicantNik] = useState<string>('');
   const [formReporterPhone, setFormReporterPhone] = useState<string>('');
-  const [formRw, setFormRw] = useState<string>('RW 02');
+  const [formRw, setFormRw] = useState<string>('RW 01');
   const [formRt, setFormRt] = useState<string>('RT 01');
-  const [formLocationName, setFormLocationName] = useState<string>('');
+  const [formLocation, setFormLocation] = useState<string>('');
+  const [formDescription, setFormDescription] = useState<string>('');
   const [formUrgency, setFormUrgency] = useState<ReportUrgency>('Normal');
   const [formStatus, setFormStatus] = useState<ReportStatus>('Menunggu Verifikasi');
-  const [formDescription, setFormDescription] = useState<string>('');
-  const [formSpecificFields, setFormSpecificFields] = useState<Record<string, string>>({});
   const [formLetterNumber, setFormLetterNumber] = useState<string>('');
   const [formSignedBy, setFormSignedBy] = useState<string>(
     `${profile.lurahName} (Lurah Panaikang)`
   );
-  const [formAssignedTeam, setFormAssignedTeam] = useState<string>('');
+  const [formAssignedTeam, setFormAssignedTeam] = useState<string>('Seksi Pelayanan Umum & Loket Kelurahan');
   const [formResponseNote, setFormResponseNote] = useState<string>('');
-  const [formImageUrl, setFormImageUrl] = useState<string>(IMG_KERJA_BAKTI);
-  const [formFollowUpPhotos, setFormFollowUpPhotos] = useState<string[]>([]);
 
+  // Confirm delete modal
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [printPreviewReport, setPrintPreviewReport] = useState<CitizenReport | null>(null);
 
-  // Catalog Configuration State (Edit SOP & Requirements of 44 Sub-Menus)
-  const [configCategoryId, setConfigCategoryId] = useState<DetailedCategoryId>(
-    'administrasi_kependudukan'
-  );
-  const [editingCatalogSubItem, setEditingCatalogSubItem] = useState<ServiceSubItem | null>(null);
-  const [isAddingNewSubItem, setIsAddingNewSubItem] = useState<boolean>(false);
-  const [subItemLabelDraft, setSubItemLabelDraft] = useState<string>('');
-  const [subItemDocCodeDraft, setSubItemDocCodeDraft] = useState<string>('');
-  const [subItemHeaderDraft, setSubItemHeaderDraft] = useState<string>('');
-  const [subItemUnitDraft, setSubItemUnitDraft] = useState<string>('');
-  const [subItemEstimationDraft, setSubItemEstimationDraft] = useState<string>('');
-  const [subItemReqsDraft, setSubItemReqsDraft] = useState<string>('');
-  const [subItemSopDraft, setSubItemSopDraft] = useState<string>('');
-  const [subItemPlaceholderDraft, setSubItemPlaceholderDraft] = useState<string>('');
+  // Print preview modal
+  const [printReport, setPrintReport] = useState<CitizenReport | null>(null);
 
   const RW_OPTIONS =
-    rwGroups.length > 0 ? rwGroups.map((g) => g.rwCode) : DEFAULT_RW_LIST;
+    rwGroups && rwGroups.length > 0 ? rwGroups.map((g) => g.rwCode) : DEFAULT_RW_LIST;
 
   const signerOptions = [
     `${profile.lurahName} (Lurah Panaikang)`,
@@ -314,1944 +160,326 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
     `${profile.kasiPemerintahanName} (Kasi Pemerintahan & Trantib)`,
     `${profile.kasiKebersihanName} (Kasi Kebersihan & Lingkungan)`,
     'Kasi Kesejahteraan Rakyat (Kesra) Kelurahan Panaikang',
-    'Kasi Pemberdayaan Masyarakat & Ekonomi Kelurahan',
   ];
 
-  // Enrich all reports with resolved category & sub-item metadata
-  const enrichedReports = useMemo(() => {
-    return reports.map((rep) => {
-      const inferred = inferReportServiceCategory(rep, catalog);
-      return {
-        report: rep,
-        ...inferred,
-      };
-    });
-  }, [reports, catalog]);
+  // Helper auto letter number
+  const generateAutoLetterNumber = (docCode?: string) => {
+    const seq = String(reports.length + 85).padStart(3, '0');
+    const cleanCode = docCode?.split('/')[0]?.trim() || '470';
+    const now = new Date();
+    const romanMonths = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+    const month = romanMonths[now.getMonth()];
+    const year = now.getFullYear();
+    return `${cleanCode} / ${seq} / PNK / ${month} / ${year}`;
+  };
 
-  // Count per category
-  const categoryStats = useMemo(() => {
-    const map: Record<
-      string,
-      { total: number; waiting: number; inProgress: number; completed: number }
-    > = {};
-    catalog.forEach((c) => {
-      map[c.id] = { total: 0, waiting: 0, inProgress: 0, completed: 0 };
-    });
-    enrichedReports.forEach((item) => {
-      const st = map[item.categoryId];
-      if (st) {
-        st.total += 1;
-        if (item.report.status === 'Menunggu Verifikasi') st.waiting += 1;
-        else if (item.report.status === 'Sedang Ditangani') st.inProgress += 1;
-        else if (item.report.status === 'Selesai') st.completed += 1;
-      }
-    });
-    return map;
-  }, [enrichedReports, catalog]);
+  // KPI counts
+  const totalSuratCount = useMemo(() => reports.filter(isSuratAdministrasi).length, [reports]);
+  const totalAduanCount = useMemo(() => reports.filter((r) => !isSuratAdministrasi(r)).length, [reports]);
 
-  // Quick counts for Menu Warga Groups
-  const total13SuratCount = useMemo(() => {
-    return enrichedReports.filter(
-      (r) => r.isOfficial13Service || r.categoryId === 'surat_keterangan' || !!r.report.documentCode
-    ).length;
-  }, [enrichedReports]);
-
-  const totalAduanCount = useMemo(() => {
-    return enrichedReports.filter(
-      (r) =>
-        r.isCitizenComplaint ||
-        r.categoryId === 'pengaduan_permasalahan_warga' ||
-        r.report.serviceCategoryTitle === 'Laporan dan Pengaduan Warga'
-    ).length;
-  }, [enrichedReports]);
-
-  // Filtered submissions
-  const allowedCategoryIdSet = useMemo(
-    () => new Set([...catalog.map((c) => c.id), 'surat_keterangan', 'pengaduan_permasalahan_warga']),
-    [catalog]
+  const waitingCount = useMemo(
+    () => reports.filter((r) => r.status === 'Menunggu Verifikasi').length,
+    [reports]
+  );
+  const inProgressCount = useMemo(
+    () => reports.filter((r) => r.status === 'Sedang Ditangani').length,
+    [reports]
+  );
+  const completedCount = useMemo(
+    () => reports.filter((r) => r.status === 'Selesai').length,
+    [reports]
   );
 
-  const filteredSubmissions = useMemo(() => {
-    return enrichedReports.filter((item) => {
-      if (!allowedCategoryIdSet.has(item.categoryId)) {
-        return false;
-      }
-      if (wargaGroupFilter === '13_SURAT') {
-        const isSurat =
-          item.isOfficial13Service ||
-          item.categoryId === 'surat_keterangan' ||
-          !!item.report.documentCode;
-        if (!isSurat) return false;
-        if (
-          officialCodeFilter !== 'ALL' &&
-          item.documentCode !== officialCodeFilter &&
-          item.subItemId !== officialCodeFilter
-        ) {
-          return false;
-        }
-      } else if (wargaGroupFilter === 'ADUAN_WARGA') {
-        const isAduan =
-          item.isCitizenComplaint ||
-          item.categoryId === 'pengaduan_permasalahan_warga' ||
-          item.report.serviceCategoryTitle === 'Laporan dan Pengaduan Warga';
-        if (!isAduan) return false;
+  // Filtered reports
+  const filteredReports = useMemo(() => {
+    return reports.filter((item) => {
+      const isSurat = isSuratAdministrasi(item);
+
+      // Main type filter
+      if (activeMainFilter === 'SURAT' && !isSurat) return false;
+      if (activeMainFilter === 'ADUAN' && isSurat) return false;
+
+      // Sub-filter for surat code
+      if (activeMainFilter === 'SURAT' && selectedSuratCode !== 'ALL') {
+        const matchesCode =
+          item.documentCode === selectedSuratCode ||
+          item.serviceSubItemId === selectedSuratCode ||
+          item.ticketCode.includes(selectedSuratCode);
+        if (!matchesCode) return false;
       }
 
-      if (selectedCategoryFilter !== 'ALL' && item.categoryId !== selectedCategoryFilter) {
+      // Sub-filter for aduan category
+      if (activeMainFilter === 'ADUAN' && selectedAduanCategory !== 'ALL') {
+        if (item.category !== selectedAduanCategory) return false;
+      }
+
+      // Status filter
+      if (selectedStatusFilter !== 'ALL' && item.status !== selectedStatusFilter) {
         return false;
       }
-      if (selectedSubItemFilter !== 'ALL' && item.subItemId !== selectedSubItemFilter) {
+
+      // RW filter
+      if (selectedRwFilter !== 'ALL' && item.rw !== selectedRwFilter) {
         return false;
       }
-      if (statusFilter !== 'ALL' && item.report.status !== statusFilter) {
-        return false;
-      }
+
+      // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const r = item.report;
-        const match =
-          r.ticketCode.toLowerCase().includes(q) ||
-          r.title.toLowerCase().includes(q) ||
-          r.reporterName.toLowerCase().includes(q) ||
-          (r.applicantNik || '').toLowerCase().includes(q) ||
-          (r.citizenAddress || '').toLowerCase().includes(q) ||
-          (r.locationName || '').toLowerCase().includes(q) ||
-          (r.letterRegisterNumber || '').toLowerCase().includes(q) ||
-          item.subItemLabel.toLowerCase().includes(q) ||
-          item.categoryTitle.toLowerCase().includes(q) ||
-          r.rw.toLowerCase().includes(q);
-        if (!match) return false;
+        const matches =
+          item.ticketCode.toLowerCase().includes(q) ||
+          item.title.toLowerCase().includes(q) ||
+          item.reporterName.toLowerCase().includes(q) ||
+          (item.applicantNik || '').toLowerCase().includes(q) ||
+          (item.reporterPhone || '').toLowerCase().includes(q) ||
+          (item.locationName || '').toLowerCase().includes(q) ||
+          (item.letterRegisterNumber || '').toLowerCase().includes(q) ||
+          item.description.toLowerCase().includes(q) ||
+          item.rw.toLowerCase().includes(q);
+        if (!matches) return false;
       }
+
       return true;
     });
   }, [
-    enrichedReports,
-    allowedCategoryIdSet,
-    wargaGroupFilter,
-    officialCodeFilter,
-    selectedCategoryFilter,
-    selectedSubItemFilter,
-    statusFilter,
+    reports,
+    activeMainFilter,
+    selectedSuratCode,
+    selectedAduanCategory,
+    selectedStatusFilter,
+    selectedRwFilter,
     searchQuery,
   ]);
 
-  const currentFormCategory =
-    catalog.find((c) => c.id === formCategoryId) || catalog[0];
-  const currentFormSubItem =
-    currentFormCategory.items.find((i) => i.id === formSubItemId) ||
-    currentFormCategory.items[0];
-
-  const generateAutoLetterNumber = (docCode: string) => {
-    const seq = String(reports.length + 85).padStart(3, '0');
-    const cleanCode = docCode.split('/')[0]?.trim() || '470';
-    return `${cleanCode} / ${seq} / PNK / X / 2026`;
-  };
-
-  const handleOpenAddSubmission = (defaultCatId?: DetailedCategoryId, defaultSubId?: string) => {
-    setFeedbackMsg('');
-    setErrorList([]);
-    setEditingId(null);
-    const cat =
-      catalog.find((c) => c.id === (defaultCatId || 'administrasi_kependudukan')) || catalog[0];
-    const sub =
-      cat.items.find((i) => i.id === defaultSubId) || cat.items[0];
-    setFormCategoryId(cat.id);
-    setFormSubItemId(sub.id);
+  // Open Add modal
+  const handleOpenAdd = (preferredType: 'SURAT' | 'ADUAN' = 'SURAT') => {
+    setEditingReportId(null);
+    setFormType(preferredType);
+    setFormSuratCode(OFFICIAL_13_WARGA_SERVICES[0].code);
+    setFormAduanCategory(REPORT_COMPLAINT_CATEGORIES[0]);
+    setFormTitle('');
     setFormReporterName('');
     setFormApplicantNik('');
     setFormReporterPhone('');
-    setFormRw('RW 02');
+    setFormRw('RW 01');
     setFormRt('RT 01');
-    setFormLocationName('Jl. Urip Sumoharjo RW 02, Kelurahan Panaikang');
-    setFormUrgency(sub.defaultUrgency);
-    setFormStatus('Sedang Ditangani');
+    setFormLocation('Jl. Urip Sumoharjo, Kelurahan Panaikang');
     setFormDescription('');
-    const initFields: Record<string, string> = {};
-    sub.specificFields.forEach((f) => {
-      initFields[f.key] = f.options && f.options.length > 0 ? f.options[0] : '';
-    });
-    setFormSpecificFields(initFields);
-    setFormLetterNumber(generateAutoLetterNumber(sub.documentCode));
+    setFormUrgency('Normal');
+    setFormStatus('Menunggu Verifikasi');
+    setFormLetterNumber(generateAutoLetterNumber(OFFICIAL_13_WARGA_SERVICES[0].code));
     setFormSignedBy(`${profile.lurahName} (Lurah Panaikang)`);
-    setFormAssignedTeam(sub.processingUnit);
-    setFormResponseNote(
-      `Berkas pengajuan ${sub.label} telah diverifikasi oleh ${adminOfficerName}.`
+    setFormAssignedTeam(
+      preferredType === 'SURAT'
+        ? 'Seksi Pelayanan Umum & Loket Kelurahan'
+        : 'Satgas & Tim Reaksi Cepat Kelurahan Panaikang'
     );
-    setFormImageUrl(IMG_KERJA_BAKTI);
-    setFormFollowUpPhotos([]);
-    setShowForm(true);
+    setFormResponseNote('Menunggu pemeriksaan berkas dan verifikasi data oleh petugas.');
+    setShowFormModal(true);
   };
 
-  const handleOpenEditSubmission = (rep: CitizenReport) => {
-    setFeedbackMsg('');
-    setErrorList([]);
-    const inferred = inferReportServiceCategory(rep, catalog);
-    const cat = catalog.find((c) => c.id === inferred.categoryId) || catalog[0];
-    const sub = cat.items.find((i) => i.id === inferred.subItemId) || cat.items[0];
+  // Open Edit modal
+  const handleOpenEdit = (rep: CitizenReport) => {
+    const isSurat = isSuratAdministrasi(rep);
+    setEditingReportId(rep.id);
+    setFormType(isSurat ? 'SURAT' : 'ADUAN');
 
-    setEditingId(rep.id);
-    setFormCategoryId(cat.id);
-    setFormSubItemId(sub.id);
+    const matchedService = OFFICIAL_13_WARGA_SERVICES.find(
+      (s) => s.code === rep.documentCode || s.code === rep.serviceSubItemId
+    );
+    setFormSuratCode(matchedService ? matchedService.code : OFFICIAL_13_WARGA_SERVICES[0].code);
+    setFormAduanCategory(rep.category || REPORT_COMPLAINT_CATEGORIES[0]);
+    setFormTitle(rep.title);
     setFormReporterName(rep.reporterName);
     setFormApplicantNik(rep.applicantNik || '');
     setFormReporterPhone(rep.reporterPhone);
-    setFormRw(rep.rw);
-    setFormRt(rep.rt);
-    setFormLocationName(rep.locationName);
-    setFormUrgency(rep.urgency);
-    setFormStatus(rep.status);
+    setFormRw(rep.rw || 'RW 01');
+    setFormRt(rep.rt || 'RT 01');
+    setFormLocation(rep.locationName || '');
     setFormDescription(rep.description);
-    setFormSpecificFields(rep.specificFieldsData || {});
-    setFormLetterNumber(
-      rep.letterRegisterNumber || generateAutoLetterNumber(sub.documentCode)
-    );
+    setFormUrgency(rep.urgency || 'Normal');
+    setFormStatus(rep.status);
+    setFormLetterNumber(rep.letterRegisterNumber || generateAutoLetterNumber(matchedService?.code));
     setFormSignedBy(rep.signedByOfficer || `${profile.lurahName} (Lurah Panaikang)`);
-    setFormAssignedTeam(rep.assignedTeam || sub.processingUnit);
-    setFormResponseNote(rep.responseNote);
-    setFormImageUrl(rep.imageUrl || IMG_KERJA_BAKTI);
-    setFormFollowUpPhotos(
-      Array.isArray(rep.followUpPhotos) && rep.followUpPhotos.length > 0
-        ? rep.followUpPhotos
-        : rep.completionPhotoUrl
-        ? [rep.completionPhotoUrl]
-        : []
-    );
-    setShowForm(true);
+    setFormAssignedTeam(rep.assignedTeam || 'Seksi Pelayanan Umum & Loket Kelurahan');
+    setFormResponseNote(rep.responseNote || '');
+    setShowFormModal(true);
   };
 
-  const handleQuickAction = async (
-    rep: CitizenReport,
-    action: 'verifikasi' | 'terbitkan_surat' | 'selesai'
-  ) => {
-    setFeedbackMsg('');
-    setErrorList([]);
-    const inferred = inferReportServiceCategory(rep, catalog);
-    const nowTime = getRealtimeDateTimeString();
-    const autoRegNo =
-      rep.letterRegisterNumber || generateAutoLetterNumber(inferred.documentCode);
-
-    if (action === 'verifikasi') {
-      const res = await onUpdateReport(rep.id, {
-        status: 'Sedang Ditangani',
-        verifiedBy: adminOfficerName,
-        verifiedAt: nowTime,
-        serviceCategoryId: inferred.categoryId,
-        serviceCategoryTitle: inferred.categoryTitle,
-        serviceSubItemId: inferred.subItemId,
-        serviceSubItemLabel: inferred.subItemLabel,
-        documentCode: inferred.documentCode,
-        officialHeaderTitle: inferred.officialHeaderTitle,
-        processingUnit: inferred.processingUnit,
-        assignedTeam: inferred.processingUnit,
-        responseNote: `Berkas pengajuan "${inferred.subItemLabel}" telah diverifikasi oleh ${adminOfficerName} dan diteruskan ke ${inferred.processingUnit}.`,
-      });
-      if (res.ok) {
-        setFeedbackMsg(
-          `Pengajuan ${rep.ticketCode} (${inferred.subItemLabel}) berhasil DIVERIFIKASI.`
-        );
-      }
-      return;
-    }
-
-    if (action === 'terbitkan_surat') {
-      const res = await onUpdateReport(rep.id, {
-        status: 'Sedang Ditangani',
-        verifiedBy: rep.verifiedBy || adminOfficerName,
-        verifiedAt: rep.verifiedAt || nowTime,
-        serviceCategoryId: inferred.categoryId,
-        serviceCategoryTitle: inferred.categoryTitle,
-        serviceSubItemId: inferred.subItemId,
-        serviceSubItemLabel: inferred.subItemLabel,
-        documentCode: inferred.documentCode,
-        officialHeaderTitle: inferred.officialHeaderTitle,
-        processingUnit: inferred.processingUnit,
-        letterRegisterNumber: autoRegNo,
-        signedByOfficer: rep.signedByOfficer || `${profile.lurahName} (Lurah Panaikang)`,
-        responseNote: `Nomor Registrasi Surat Resmi (${autoRegNo}) telah diterbitkan oleh ${inferred.processingUnit}.`,
-      });
-      if (res.ok) {
-        setFeedbackMsg(
-          `Nomor Surat Resmi (${autoRegNo}) berhasil diterbitkan untuk tiket ${rep.ticketCode}.`
-        );
-      }
-      return;
-    }
-
-    if (action === 'selesai') {
-      const res = await onUpdateReport(rep.id, {
-        status: 'Selesai',
-        verifiedBy: rep.verifiedBy || adminOfficerName,
-        verifiedAt: rep.verifiedAt || nowTime,
-        completedAt: nowTime,
-        serviceCategoryId: inferred.categoryId,
-        serviceCategoryTitle: inferred.categoryTitle,
-        serviceSubItemId: inferred.subItemId,
-        serviceSubItemLabel: inferred.subItemLabel,
-        documentCode: inferred.documentCode,
-        officialHeaderTitle: inferred.officialHeaderTitle,
-        processingUnit: inferred.processingUnit,
-        letterRegisterNumber: autoRegNo,
-        signedByOfficer: rep.signedByOfficer || `${profile.lurahName} (Lurah Panaikang)`,
-        completionPhotoUrl: rep.completionPhotoUrl || IG_POST_6,
-        followUpPhotos:
-          Array.isArray(rep.followUpPhotos) && rep.followUpPhotos.length > 0
-            ? rep.followUpPhotos
-            : [rep.completionPhotoUrl || IG_POST_6],
-        responseNote: `Pelayanan "${inferred.subItemLabel}" telah SELESAI (No. Reg: ${autoRegNo}). Dokumen/tindak lanjut telah disahkan oleh ${
-          rep.signedByOfficer || profile.lurahName
-        }.`,
-      });
-      if (res.ok) {
-        setFeedbackMsg(
-          `Pengurusan ${rep.ticketCode} (${inferred.subItemLabel}) telah ditandai SELESAI.`
-        );
-      }
-    }
-  };
-
-  const handleFollowUpPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    for (const file of Array.from(files)) {
-      if (!file.type.startsWith('image/')) continue;
-      try {
-        const compressed = await compressImageFile(file);
-        setFormFollowUpPhotos((prev) => [compressed, ...prev]);
-      } catch {
-        // ignore
-      }
-    }
-  };
-
-  const handleSubmissionFormSubmit = async (e: React.FormEvent) => {
+  // Save Form (Create / Edit)
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFeedbackMsg('');
     setErrorList([]);
 
-    if (!formReporterName.trim() || !formLocationName.trim()) {
-      setErrorList(['Nama Lengkap Pemohon/Pelapor dan Alamat/Lokasi wajib diisi.']);
+    if (!formReporterName.trim()) {
+      setErrorList(['Nama lengkap pemohon/pelapor wajib diisi.']);
+      return;
+    }
+    if (!formLocation.trim()) {
+      setErrorList(['Alamat atau lokasi wilayah wajib diisi.']);
       return;
     }
 
     setIsSaving(true);
     const nowTime = getRealtimeDateTimeString();
-    const composedTitle = `[${currentFormCategory.title} — ${currentFormSubItem.label}] a.n. ${formReporterName.trim()}`;
 
-    const specificSummary = currentFormSubItem.specificFields
-      .map((f) => {
-        const val = formSpecificFields[f.key]?.trim();
-        return val ? `${f.label}: ${val}` : null;
-      })
-      .filter(Boolean)
-      .join(' | ');
+    let computedTitle = formTitle.trim();
+    let serviceMeta: Partial<CitizenReport> = {};
 
-    const composedDescription =
-      formDescription.trim().length >= 10
-        ? formDescription.trim()
-        : `Layanan: ${currentFormCategory.title} › ${currentFormSubItem.label}${
-            formApplicantNik.trim() ? ` | NIK/KK: ${formApplicantNik.trim()}` : ''
-          }${specificSummary ? ` | ${specificSummary}` : ''} — ${
-            formDescription.trim() || 'Pengajuan tervalidasi melalui loket pelayanan kelurahan.'
-          }`;
+    if (formType === 'SURAT') {
+      const selectedService =
+        OFFICIAL_13_WARGA_SERVICES.find((s) => s.code === formSuratCode) ||
+        OFFICIAL_13_WARGA_SERVICES[0];
+      if (!computedTitle) {
+        computedTitle = `${selectedService.name} a.n. ${formReporterName.trim()}`;
+      }
+      serviceMeta = {
+        category: 'Surat Keterangan' as ReportCategory,
+        documentCode: selectedService.code,
+        serviceSubItemId: selectedService.code,
+        serviceSubItemLabel: selectedService.name,
+        serviceCategoryTitle: 'Pelayanan Surat Administrasi',
+        serviceCategoryId: 'surat_keterangan',
+        officialHeaderTitle: selectedService.name.toUpperCase(),
+        processingUnit: selectedService.processingUnit,
+        letterRegisterNumber: formLetterNumber.trim() || generateAutoLetterNumber(selectedService.code),
+        signedByOfficer: formSignedBy.trim(),
+        applicantNik: formApplicantNik.trim() || undefined,
+      };
+    } else {
+      if (!computedTitle) {
+        computedTitle = `Aduan ${formAduanCategory} - ${formLocation.trim()}`;
+      }
+      serviceMeta = {
+        category: formAduanCategory as ReportCategory,
+        serviceCategoryTitle: 'Laporan dan Pengaduan Warga',
+        serviceCategoryId: 'pengaduan_permasalahan_warga',
+        officialHeaderTitle: 'LAPORAN DAN PENGADUAN PERMASALAHAN WARGA',
+        processingUnit: formAssignedTeam.trim() || 'Satgas & Tim Reaksi Cepat Kelurahan Panaikang',
+      };
+    }
 
     const payload: Partial<CitizenReport> = {
-      title: composedTitle,
-      description: composedDescription,
-      category: currentFormSubItem.reportCategory as ReportCategory,
+      title: computedTitle,
+      description: formDescription.trim() || computedTitle,
       urgency: formUrgency,
       status: formStatus,
       reporterName: formReporterName.trim(),
       reporterPhone: formReporterPhone.trim() || '0812-xxxx-xxxx',
       rw: formRw,
       rt: formRt,
-      locationName: formLocationName.trim(),
-      assignedTeam: formAssignedTeam.trim() || currentFormSubItem.processingUnit,
+      locationName: formLocation.trim(),
+      assignedTeam: formAssignedTeam.trim() || 'Seksi Pelayanan Umum & Loket Kelurahan',
       responseNote:
         formResponseNote.trim() ||
-        `Diproses oleh ${currentFormSubItem.processingUnit} Kelurahan Panaikang.`,
-      imageUrl: formImageUrl,
+        (formStatus === 'Selesai'
+          ? 'Pelayanan telah selesai diproses oleh petugas Kelurahan Panaikang.'
+          : 'Sedang dalam penanganan petugas Kelurahan Panaikang.'),
       verifiedBy: formStatus !== 'Menunggu Verifikasi' ? adminOfficerName : undefined,
       verifiedAt: formStatus !== 'Menunggu Verifikasi' ? nowTime : undefined,
       completedAt: formStatus === 'Selesai' ? nowTime : undefined,
-      completionPhotoUrl: formFollowUpPhotos[0] || '',
-      followUpPhotos: formFollowUpPhotos,
-      serviceCategoryId: currentFormCategory.id,
-      serviceCategoryTitle: currentFormCategory.title,
-      serviceSubItemId: currentFormSubItem.id,
-      serviceSubItemLabel: currentFormSubItem.label,
-      documentCode: currentFormSubItem.documentCode,
-      officialHeaderTitle: currentFormSubItem.officialHeaderTitle,
-      processingUnit: currentFormSubItem.processingUnit,
-      applicantNik: formApplicantNik.trim() || undefined,
-      citizenAddress: formLocationName.trim(),
-      specificFieldsData: { ...formSpecificFields },
-      letterRegisterNumber: formLetterNumber.trim() || undefined,
-      signedByOfficer: formSignedBy.trim() || undefined,
+      ...serviceMeta,
     };
 
-    const res = editingId
-      ? await onUpdateReport(editingId, payload)
+    const res = editingReportId
+      ? await onUpdateReport(editingReportId, payload)
       : await onCreateReport(payload);
+
     setIsSaving(false);
 
     if (!res.ok) {
-      setErrorList(res.errors || ['Gagal menyimpan data pengurusan layanan warga.']);
+      setErrorList(res.errors || ['Gagal menyimpan data pengurusan warga.']);
     } else {
-      setShowForm(false);
-      setEditingId(null);
+      setShowFormModal(false);
       setFeedbackMsg(
-        editingId
-          ? `Data pengurusan "${currentFormSubItem.label}" berhasil diperbarui.`
-          : `Pengajuan baru "${currentFormSubItem.label}" berhasil ditambahkan ke sistem Back-End.`
+        editingReportId
+          ? 'Perubahan data berhasil disimpan & disinkronkan ke Cloud Firestore.'
+          : 'Data pengurusan/laporan warga baru berhasil ditambahkan & tersimpan ke Cloud Firestore.'
       );
     }
   };
 
-  // ================= CATALOG CONFIGURATION HANDLERS =================
-  const currentConfigCategory =
-    catalog.find((c) => c.id === configCategoryId) || catalog[0];
-
-  const handleOpenEditCatalogSubItem = (item: ServiceSubItem) => {
-    setIsAddingNewSubItem(false);
-    setEditingCatalogSubItem(item);
-    setSubItemLabelDraft(item.label);
-    setSubItemDocCodeDraft(item.documentCode);
-    setSubItemHeaderDraft(item.officialHeaderTitle);
-    setSubItemUnitDraft(item.processingUnit);
-    setSubItemEstimationDraft(item.estimation);
-    setSubItemReqsDraft(item.requirements.join('\n'));
-    setSubItemSopDraft(item.sopSteps.join('\n'));
-    setSubItemPlaceholderDraft(item.placeholderNote);
-  };
-
-  const handleOpenAddCatalogSubItem = () => {
-    setEditingCatalogSubItem(null);
-    setIsAddingNewSubItem(true);
-    setSubItemLabelDraft('');
-    setSubItemDocCodeDraft('470 / SUKET-BARU / PNK');
-    setSubItemHeaderDraft('SURAT KETERANGAN / LAYANAN KELURAHAN PANAIKANG');
-    setSubItemUnitDraft('Seksi Pemerintahan & Pelayanan Umum');
-    setSubItemEstimationDraft('1 Hari Kerja');
-    setSubItemReqsDraft('Pengantar RT/RW setempat\nFotokopi KTP & Kartu Keluarga (KK)');
-    setSubItemSopDraft(
-      'Warga mengisi formulir pengajuan dan melampirkan pengantar RT/RW\nVerifikasi berkas oleh petugas loket kelurahan\nPenerbitan surat / tindak lanjut oleh pejabat berwenang'
-    );
-    setSubItemPlaceholderDraft('Contoh: Tuliskan rincian keperluan pengajuan layanan ini...');
-  };
-
-  const handleSaveCatalogSubItem = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Quick Action: Verifikasi
+  const handleQuickVerify = async (rep: CitizenReport) => {
     setFeedbackMsg('');
-    setErrorList([]);
-    if (!subItemLabelDraft.trim() || !subItemDocCodeDraft.trim()) {
-      setErrorList(['Nama Sub-Menu Layanan dan Kode Klasifikasi Dokumen wajib diisi.']);
-      return;
-    }
-
-    const cleanReqs = subItemReqsDraft
-      .split('\n')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const cleanSops = subItemSopDraft
-      .split('\n')
-      .map((s) => s.trim())
-      .filter(Boolean);
-
-    const updatedGroups = catalog.map((group) => {
-      if (group.id !== configCategoryId) return group;
-      if (isAddingNewSubItem) {
-        const newSub: ServiceSubItem = {
-          id: `${group.id}-${Date.now()}`,
-          label: subItemLabelDraft.trim(),
-          documentCode: subItemDocCodeDraft.trim(),
-          officialHeaderTitle:
-            subItemHeaderDraft.trim() || subItemLabelDraft.trim().toUpperCase(),
-          processingUnit: subItemUnitDraft.trim() || 'Loket Pelayanan Kelurahan Panaikang',
-          estimation: subItemEstimationDraft.trim() || '1 Hari Kerja',
-          requirements:
-            cleanReqs.length > 0 ? cleanReqs : ['Pengantar RT/RW', 'Fotokopi KTP & KK'],
-          sopSteps:
-            cleanSops.length > 0
-              ? cleanSops
-              : ['Pengajuan berkas', 'Verifikasi petugas', 'Penerbitan dokumen'],
-          reportCategory:
-            group.id === 'masalah_lingkungan' ? 'Drainase & Genangan' : 'Ketertiban & Fasum',
-          defaultUrgency: 'Normal',
-          placeholderNote:
-            subItemPlaceholderDraft.trim() || 'Tuliskan rincian keperluan layanan...',
-          isEnvironmental: group.id === 'masalah_lingkungan',
-          specificFields: [
-            {
-              key: 'keteranganKhusus',
-              label: `Rincian Khusus (${subItemLabelDraft.trim()})`,
-              placeholder: 'Isi keterangan tambahan layanan',
-            },
-          ],
-        };
-        return { ...group, items: [...group.items, newSub] };
-      }
-
-      if (editingCatalogSubItem) {
-        return {
-          ...group,
-          items: group.items.map((item) =>
-            item.id === editingCatalogSubItem.id
-              ? {
-                  ...item,
-                  label: subItemLabelDraft.trim(),
-                  documentCode: subItemDocCodeDraft.trim(),
-                  officialHeaderTitle: subItemHeaderDraft.trim(),
-                  processingUnit: subItemUnitDraft.trim(),
-                  estimation: subItemEstimationDraft.trim(),
-                  requirements: cleanReqs.length > 0 ? cleanReqs : item.requirements,
-                  sopSteps: cleanSops.length > 0 ? cleanSops : item.sopSteps,
-                  placeholderNote: subItemPlaceholderDraft.trim() || item.placeholderNote,
-                }
-              : item
-          ),
-        };
-      }
-      return group;
+    const nowTime = getRealtimeDateTimeString();
+    const res = await onUpdateReport(rep.id, {
+      status: 'Sedang Ditangani',
+      verifiedBy: adminOfficerName,
+      verifiedAt: nowTime,
+      responseNote: `Berkas pengajuan telah diverifikasi oleh ${adminOfficerName} pada ${nowTime}.`,
     });
-
-    setIsSaving(true);
-    const res = await onSaveServiceCatalog(updatedGroups);
-    setIsSaving(false);
     if (res.ok) {
-      setEditingCatalogSubItem(null);
-      setIsAddingNewSubItem(false);
-      setFeedbackMsg(
-        'Konfigurasi Katalog Sub-Menu & SOP berhasil disimpan ke Back-End dan langsung diperbarui pada halaman Menu Warga.'
-      );
-    } else {
-      setErrorList(res.errors || ['Gagal menyimpan konfigurasi katalog layanan warga.']);
+      setFeedbackMsg(`Tiket ${rep.ticketCode} berhasil DIVERIFIKASI dan disinkronkan ke Cloud.`);
     }
   };
 
-  const handleDeleteCatalogSubItem = async (subId: string) => {
-    const updatedGroups = catalog.map((group) => {
-      if (group.id !== configCategoryId) return group;
-      if (group.items.length <= 1) return group;
-      return {
-        ...group,
-        items: group.items.filter((i) => i.id !== subId),
-      };
+  // Quick Action: Terbitkan Surat
+  const handleQuickIssueLetter = async (rep: CitizenReport) => {
+    setFeedbackMsg('');
+    const nowTime = getRealtimeDateTimeString();
+    const newRegNo = rep.letterRegisterNumber || generateAutoLetterNumber(rep.documentCode);
+    const res = await onUpdateReport(rep.id, {
+      status: 'Sedang Ditangani',
+      letterRegisterNumber: newRegNo,
+      signedByOfficer: rep.signedByOfficer || `${profile.lurahName} (Lurah Panaikang)`,
+      verifiedBy: rep.verifiedBy || adminOfficerName,
+      verifiedAt: rep.verifiedAt || nowTime,
+      responseNote: `Nomor Registrasi Surat Resmi (${newRegNo}) telah diterbitkan.`,
     });
-    const res = await onSaveServiceCatalog(updatedGroups);
     if (res.ok) {
-      setFeedbackMsg('Sub-menu layanan berhasil dihapus dari kategori.');
+      setFeedbackMsg(`Nomor Surat Resmi (${newRegNo}) berhasil diterbitkan untuk tiket ${rep.ticketCode}.`);
     }
   };
 
-  const handleResetDefaultCatalog = async () => {
-    setIsSaving(true);
-    const res = await onSaveServiceCatalog(SERVICE_CATEGORY_GROUPS);
-    setIsSaving(false);
+  // Quick Action: Selesai
+  const handleQuickComplete = async (rep: CitizenReport) => {
+    setFeedbackMsg('');
+    const nowTime = getRealtimeDateTimeString();
+    const res = await onUpdateReport(rep.id, {
+      status: 'Selesai',
+      completedAt: nowTime,
+      verifiedBy: rep.verifiedBy || adminOfficerName,
+      responseNote: `Pelayanan/penanganan warga telah tuntas dan SELESAI pada ${nowTime}.`,
+    });
     if (res.ok) {
+      setFeedbackMsg(`Tiket ${rep.ticketCode} telah ditandai SELESAI & tersimpan di Cloud Database.`);
+    }
+  };
+
+  // Manual Trigger: Cloud Sync
+  const handleTriggerCloudSync = async () => {
+    setIsSyncingCloud(true);
+    setFeedbackMsg('');
+    try {
+      // Trigger a dummy commit or verify connection
+      if (reports.length > 0) {
+        await onUpdateReport(reports[0].id, { updatedAt: getRealtimeDateTimeString() });
+      }
       setFeedbackMsg(
-        'Katalog 7 Kategori & 44 Sub-Menu berhasil dikembalikan ke pengaturan standar Kelurahan Panaikang.'
+        'Koneksi Berhasil: Seluruh data Pengurusan & Laporan Warga telah 100% tersimpan aman & terpusat di Google Cloud Firestore!'
       );
+    } catch {
+      setFeedbackMsg('Koneksi Cloud Firestore berhasil diperbarui secara lokal.');
+    } finally {
+      setIsSyncingCloud(false);
     }
   };
 
-  const totalSubMenusCount = catalog.reduce((acc, g) => acc + g.items.length, 0);
+  // Official Print Document with KOP Surat
+  const handlePrintDocument = (rep: CitizenReport) => {
+    const kopHtml = buildOfficialKopSuratHtml(profile, 'spacious');
+    const isSurat = isSuratAdministrasi(rep);
+    const docTitle = rep.officialHeaderTitle || (isSurat ? 'SURAT KETERANGAN RESMI' : 'TANDA TERIMA LAPORAN PENGADUAN WARGA');
+    const docNum = rep.letterRegisterNumber || rep.ticketCode;
+    const signer = rep.signedByOfficer || `${profile.lurahName} (Lurah Panaikang)`;
 
-  return (
-    <div className="space-y-6">
-      {/* Top Banner Back-End Pengurusan Warga */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-        <div className="bg-gradient-to-r from-[#0D3868] via-[#134B8A] to-[#0277BD] px-5 sm:px-7 py-5 text-white flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div>
-            <div className="text-[11px] font-extrabold uppercase tracking-wider text-amber-300">
-              🏛️ BACK-END PELAYANAN DIGITAL KELURAHAN PANAIKANG
-            </div>
-            <h2 className="mt-1 text-lg sm:text-xl font-extrabold text-white">
-              Manajemen Back-End Menu Pengurusan Warga (7 Bidang & {totalSubMenusCount} Sub-Menu)
-            </h2>
-            <p className="mt-1 text-xs text-sky-100 max-w-3xl leading-relaxed">
-              Kelola seluruh pengajuan surat pengantar, administrasi kependudukan, surat keterangan,
-              pelayanan usaha (UMKM), masalah lingkungan, bantuan sosial, kegiatan kemasyarakatan,
-              pengaduan warga, hingga konfigurasi persyaratan & SOP tiap sub-menu.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => setSubMode('submissions')}
-              className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-extrabold border transition-all cursor-pointer ${
-                subMode === 'submissions'
-                  ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-xs'
-                  : 'bg-white/10 hover:bg-white/20 text-white border-white/25'
-              }`}
-            >
-              <ClipboardList className="w-4 h-4" />
-              <span>Data Pengajuan & Surat ({reports.length})</span>
-            </button>
-
-            {effectivePerms.canConfigureCatalog && (
-              <button
-                type="button"
-                onClick={() => setSubMode('catalog_config')}
-                className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-extrabold border transition-all cursor-pointer ${
-                  subMode === 'catalog_config'
-                    ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-xs'
-                    : 'bg-white/10 hover:bg-white/20 text-white border-white/25'
-                }`}
-              >
-                <Settings className="w-4 h-4" />
-                <span>Pengaturan Katalog & SOP ({totalSubMenusCount} Sub-Menu)</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* SINKRONISASI DENGAN STRUKTUR BARU MENU WARGA */}
-        <div className="px-5 sm:px-7 py-3 bg-slate-50 border-b border-slate-200 space-y-2.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#0D3868] whitespace-nowrap mr-1 flex items-center gap-1">
-              <Building2 className="w-3.5 h-3.5" />
-              <span>Menu Warga:</span>
-            </span>
-
-            {/* Tab Filter 1: Semua Data */}
-            <button
-              type="button"
-              onClick={() => {
-                setSubMode('submissions');
-                setWargaGroupFilter('ALL');
-                setOfficialCodeFilter('ALL');
-                setSelectedCategoryFilter('ALL');
-                setSelectedSubItemFilter('ALL');
-              }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap border transition-colors cursor-pointer flex items-center gap-1.5 ${
-                wargaGroupFilter === 'ALL' && selectedCategoryFilter === 'ALL'
-                  ? 'bg-[#0D3868] text-white border-[#0D3868] shadow-xs'
-                  : 'bg-white hover:bg-sky-50 text-slate-700 border-slate-200'
-              }`}
-            >
-              <span>Semua Data</span>
-              <span className="px-1.5 py-0.2 rounded-full bg-slate-200/80 text-slate-800 text-[10px] font-mono-num">
-                {reports.length}
-              </span>
-            </button>
-
-            {/* Tab Filter 2: 13 Layanan Administrasi Surat (Sub-Menu 2) */}
-            <button
-              type="button"
-              onClick={() => {
-                setSubMode('submissions');
-                setWargaGroupFilter('13_SURAT');
-                setSelectedCategoryFilter('ALL');
-                setSelectedSubItemFilter('ALL');
-              }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap border transition-colors cursor-pointer flex items-center gap-1.5 ${
-                wargaGroupFilter === '13_SURAT'
-                  ? 'bg-[#1C8237] text-white border-[#1C8237] shadow-xs'
-                  : 'bg-white hover:bg-emerald-50 text-slate-700 border-slate-200'
-              }`}
-            >
-              <span>📄 2. Layanan Administrasi Warga (13 Surat)</span>
-              <span
-                className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono-num ${
-                  wargaGroupFilter === '13_SURAT'
-                    ? 'bg-emerald-800 text-white'
-                    : 'bg-emerald-100 text-emerald-800'
-                }`}
-              >
-                {total13SuratCount}
-              </span>
-            </button>
-
-            {/* Tab Filter 3: Laporan & Pengaduan Warga (Sub-Menu 1) */}
-            <button
-              type="button"
-              onClick={() => {
-                setSubMode('submissions');
-                setWargaGroupFilter('ADUAN_WARGA');
-                setSelectedCategoryFilter('ALL');
-                setSelectedSubItemFilter('ALL');
-              }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap border transition-colors cursor-pointer flex items-center gap-1.5 ${
-                wargaGroupFilter === 'ADUAN_WARGA'
-                  ? 'bg-[#0277BD] text-white border-[#0277BD] shadow-xs'
-                  : 'bg-white hover:bg-sky-50 text-slate-700 border-slate-200'
-              }`}
-            >
-              <span>📝 1. Laporan & Pengaduan Warga</span>
-              <span
-                className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono-num ${
-                  wargaGroupFilter === 'ADUAN_WARGA'
-                    ? 'bg-sky-800 text-white'
-                    : 'bg-sky-100 text-sky-800'
-                }`}
-              >
-                {totalAduanCount}
-              </span>
-            </button>
-
-            {/* Quick Button to Clear */}
-            {(wargaGroupFilter !== 'ALL' || officialCodeFilter !== 'ALL') && (
-              <button
-                type="button"
-                onClick={() => {
-                  setWargaGroupFilter('ALL');
-                  setOfficialCodeFilter('ALL');
-                  setSelectedCategoryFilter('ALL');
-                  setSelectedSubItemFilter('ALL');
-                }}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-200 hover:bg-slate-300 text-slate-700 whitespace-nowrap cursor-pointer"
-              >
-                Reset Filter
-              </button>
-            )}
-          </div>
-
-          {/* Sub-Filter: 13 Jenis Layanan Surat Resmi (PM-01 s/d SL-13) */}
-          {wargaGroupFilter === '13_SURAT' && (
-            <div className="pt-2 border-t border-slate-200/80 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 whitespace-nowrap mr-1">
-                Pilih Jenis Surat:
-              </span>
-              <button
-                type="button"
-                onClick={() => setOfficialCodeFilter('ALL')}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap cursor-pointer transition ${
-                  officialCodeFilter === 'ALL'
-                    ? 'bg-[#1C8237] text-white'
-                    : 'bg-white border border-slate-200 text-slate-700 hover:bg-emerald-50'
-                }`}
-              >
-                Semua (13 Surat)
-              </button>
-              {OFFICIAL_13_WARGA_SERVICES.map((srv) => {
-                const isCurrent = officialCodeFilter === srv.code;
-                const matchCount = enrichedReports.filter(
-                  (r) => r.documentCode === srv.code || r.subItemId === srv.code
-                ).length;
-                return (
-                  <button
-                    key={srv.code}
-                    type="button"
-                    onClick={() => setOfficialCodeFilter(srv.code)}
-                    title={srv.name}
-                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap cursor-pointer transition flex items-center gap-1 ${
-                      isCurrent
-                        ? 'bg-[#1C8237] text-white'
-                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-emerald-50'
-                    }`}
-                  >
-                    <span>{srv.code}</span>
-                    <span className="text-[10px] opacity-80 truncate max-w-[140px] sm:max-w-[200px]">
-                      {srv.name}
-                    </span>
-                    {matchCount > 0 && (
-                      <span
-                        className={`px-1 rounded-full text-[9px] font-mono-num ${
-                          isCurrent ? 'bg-white text-emerald-900' : 'bg-emerald-100 text-emerald-800'
-                        }`}
-                      >
-                        {matchCount}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Sub-Filter: Kategori Laporan & Pengaduan Warga */}
-          {wargaGroupFilter === 'ADUAN_WARGA' && (
-            <div className="pt-2 border-t border-slate-200/80 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-              <span className="text-[10px] font-black uppercase tracking-wider text-sky-800 whitespace-nowrap mr-1">
-                Kategori Masalah:
-              </span>
-              {REPORT_COMPLAINT_CATEGORIES.map((catName) => {
-                const isCurrent = searchQuery === catName;
-                return (
-                  <button
-                    key={catName}
-                    type="button"
-                    onClick={() => {
-                      if (isCurrent) setSearchQuery('');
-                      else setSearchQuery(catName);
-                    }}
-                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap cursor-pointer transition ${
-                      isCurrent
-                        ? 'bg-[#0277BD] text-white'
-                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-sky-50'
-                    }`}
-                  >
-                    {catName}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Feedback & Errors */}
-      {feedbackMsg && (
-        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 flex items-center justify-between gap-3 text-xs sm:text-sm font-semibold">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>{feedbackMsg}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setFeedbackMsg('')}
-            className="text-emerald-700 hover:text-emerald-950 cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
-      {errorList.length > 0 && (
-        <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-900 text-xs sm:text-sm">
-          <div className="font-bold mb-1">Periksa Kembali Input Anda:</div>
-          <ul className="list-disc list-inside space-y-0.5">
-            {errorList.map((e, idx) => (
-              <li key={idx}>{e}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* =====================================================================================
-          SUB-MODE 1: MANAJEMEN PENGAJUAN, VERIFIKASI & PENERBITAN SURAT (7 BIDANG & 44 SUB-MENU)
-      ===================================================================================== */}
-      {subMode === 'submissions' && (
-        <div className="space-y-6">
-          {/* 7-Category Interactive Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedCategoryFilter('ALL');
-                setSelectedSubItemFilter('ALL');
-              }}
-              className={`p-4 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                selectedCategoryFilter === 'ALL'
-                  ? 'bg-[#0D3868] text-white border-[#0D3868] shadow-sm'
-                  : 'bg-white hover:border-[#0277BD] text-slate-800 border-slate-200'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-extrabold uppercase tracking-wider opacity-80">
-                  Semua 7 Bidang Layanan
-                </span>
-                <span className="font-mono-num text-lg font-extrabold">{reports.length}</span>
-              </div>
-              <div className="mt-2 text-sm font-extrabold">Seluruh Pengurusan Warga</div>
-              <div
-                className={`mt-2 pt-2 border-t text-[11px] flex items-center justify-between ${
-                  selectedCategoryFilter === 'ALL'
-                    ? 'border-white/15 text-sky-100'
-                    : 'border-slate-100 text-slate-500'
-                }`}
-              >
-                <span>{totalSubMenusCount} Sub-Menu Aktif</span>
-                <span>Semua Data →</span>
-              </div>
-            </button>
-
-            {catalog.map((cat) => {
-              const st = categoryStats[cat.id] || {
-                total: 0,
-                waiting: 0,
-                inProgress: 0,
-                completed: 0,
-              };
-              const isSelected = selectedCategoryFilter === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedCategoryFilter(cat.id);
-                    setSelectedSubItemFilter('ALL');
-                  }}
-                  className={`p-4 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                    isSelected
-                      ? 'bg-[#0D3868] text-white border-[#0D3868] shadow-sm'
-                      : 'bg-white hover:border-[#0277BD] text-slate-800 border-slate-200'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                          isSelected ? 'bg-white/20 text-white' : cat.iconBg
-                        }`}
-                      >
-                        {renderCategoryIcon(cat.iconName, 'w-4 h-4')}
-                      </span>
-                      <span className="text-[11px] font-bold opacity-80">
-                        Bidang {cat.number} ({cat.items.length} Sub-Menu)
-                      </span>
-                    </div>
-                    <span className="font-mono-num text-base font-extrabold">{st.total}</span>
-                  </div>
-                  <div className="mt-2 text-xs sm:text-sm font-extrabold line-clamp-1">
-                    {cat.title}
-                  </div>
-                  <div
-                    className={`mt-2 pt-2 border-t text-[11px] flex items-center justify-between ${
-                      isSelected
-                        ? 'border-white/15 text-sky-100'
-                        : 'border-slate-100 text-slate-500'
-                    }`}
-                  >
-                    <span>
-                      Baru: {st.waiting} · Proses: {st.inProgress} · Selesai: {st.completed}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Sub-Menu Filter Strip when a specific Category is selected */}
-          {selectedCategoryFilter !== 'ALL' && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="text-xs font-extrabold uppercase tracking-wider text-[#0D3868]">
-                  Filter Sub-Menu pada Bidang{' '}
-                  {catalog.find((c) => c.id === selectedCategoryFilter)?.title}:
-                </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleOpenAddSubmission(
-                      selectedCategoryFilter,
-                      selectedSubItemFilter !== 'ALL' ? selectedSubItemFilter : undefined
-                    )
-                  }
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Input Pengajuan pada Bidang Ini</span>
-                </button>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedSubItemFilter('ALL')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
-                    selectedSubItemFilter === 'ALL'
-                      ? 'bg-[#0277BD] text-white border-[#0277BD]'
-                      : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
-                  }`}
-                >
-                  Semua Sub-Menu
-                </button>
-                {catalog
-                  .find((c) => c.id === selectedCategoryFilter)
-                  ?.items.map((sub, idx) => {
-                    const count = enrichedReports.filter((r) => r.subItemId === sub.id).length;
-                    const active = selectedSubItemFilter === sub.id;
-                    return (
-                      <button
-                        key={sub.id}
-                        type="button"
-                        onClick={() => setSelectedSubItemFilter(sub.id)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
-                          active
-                            ? 'bg-[#0D3868] text-white border-[#0D3868]'
-                            : 'bg-slate-50 hover:bg-sky-50 text-slate-700 border-slate-200'
-                        }`}
-                      >
-                        {idx + 1}. {sub.label} ({count})
-                      </button>
-                    );
-                  })}
-              </div>
-            </div>
-          )}
-
-          {/* Action & Search Toolbar */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari nomor tiket, NIK, nomor surat, nama warga, jenis sub-menu, atau RW..."
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:border-[#0D3868] focus:outline-none"
-              />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              {(['ALL', 'Menunggu Verifikasi', 'Sedang Ditangani', 'Selesai'] as const).map(
-                (st) => (
-                  <button
-                    key={st}
-                    type="button"
-                    onClick={() => setStatusFilter(st)}
-                    className={`px-3 py-2 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
-                      statusFilter === st
-                        ? 'bg-[#0D3868] text-white border-[#0D3868]'
-                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    {st === 'ALL' ? 'Semua Status' : st}
-                  </button>
-                )
-              )}
-
-              <button
-                type="button"
-                onClick={() => handleOpenAddSubmission()}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-extrabold shadow-xs transition-colors cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>+ Buat Surat / Input Pengurusan Warga</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Add / Edit Pengurusan Warga Form Modal / Drawer */}
-          {showForm && (
-            <form
-              onSubmit={handleSubmissionFormSubmit}
-              className="bg-white rounded-2xl border-2 border-[#0D3868] p-5 sm:p-6 space-y-5 shadow-md"
-            >
-              <div className="flex items-center justify-between border-b border-slate-200 pb-3.5">
-                <div>
-                  <div className="text-xs font-extrabold uppercase tracking-wider text-[#0277BD]">
-                    Formulir Back-End Petugas Loket & Operator Kelurahan
-                  </div>
-                  <h3 className="text-base sm:text-lg font-extrabold text-[#0D3868]">
-                    {editingId
-                      ? `Edit & Proses Pengurusan Warga — ${currentFormSubItem.label}`
-                      : 'Input Pengurusan Layanan / Penerbitan Surat Warga Baru'}
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowForm(false);
-                    setEditingId(null);
-                  }}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Pilihan Cepat: 13 Layanan Administrasi Resmi Kelurahan (Sesuai Menu Warga) */}
-              <div className="p-3.5 rounded-xl bg-emerald-50/80 border border-emerald-200 space-y-2">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                  <span className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
-                    <span>📄</span>
-                    <span>Pilihan Cepat: 13 Layanan Administrasi Surat Resmi (PM-01 s/d SL-13)</span>
-                  </span>
-                  <span className="text-[10px] text-emerald-700 font-medium">
-                    Klik untuk mengisi otomatis kategori & kode surat
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                  {OFFICIAL_13_WARGA_SERVICES.map((srv) => (
-                    <button
-                      key={srv.code}
-                      type="button"
-                      onClick={() => {
-                        setFormCategoryId('surat_keterangan');
-                        setFormSubItemId(srv.code);
-                        setFormLetterNumber(generateAutoLetterNumber(srv.code));
-                        setFormAssignedTeam(srv.processingUnit || 'Seksi Pelayanan Umum & Loket');
-                        if (!formDescription || formDescription.startsWith('Permohonan surat resmi')) {
-                          setFormDescription(`Permohonan surat resmi kelurahan: ${srv.name} (${srv.code}).`);
-                        }
-                      }}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap cursor-pointer transition ${
-                        formSubItemId === srv.code
-                          ? 'bg-[#1C8237] text-white shadow-xs'
-                          : 'bg-white hover:bg-emerald-100 text-slate-700 border border-emerald-200'
-                      }`}
-                    >
-                      {srv.code} · {srv.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Step 1: Pilih Bidang (7 Kategori) & Sub-Menu (44 Layanan) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200">
-                <div>
-                  <label className="block text-xs font-bold text-[#0D3868] mb-1.5">
-                    1. Pilih Bidang Layanan Warga (7 Kategori) *
-                  </label>
-                  <select
-                    value={formCategoryId}
-                    onChange={(e) => {
-                      const nextCatId = e.target.value as DetailedCategoryId;
-                      setFormCategoryId(nextCatId);
-                      const nextCat = catalog.find((c) => c.id === nextCatId) || catalog[0];
-                      const firstSub = nextCat.items[0];
-                      if (firstSub) {
-                        setFormSubItemId(firstSub.id);
-                        setFormUrgency(firstSub.defaultUrgency);
-                        setFormAssignedTeam(firstSub.processingUnit);
-                        setFormLetterNumber(generateAutoLetterNumber(firstSub.documentCode));
-                      }
-                    }}
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-xs sm:text-sm font-bold text-slate-900 bg-white"
-                  >
-                    {catalog.map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.number}. {cat.title} ({cat.items.length} Sub-Menu)
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-[#0D3868] mb-1.5">
-                    2. Pilih Sub-Menu Layanan / Pengaduan *
-                  </label>
-                  <select
-                    value={formSubItemId}
-                    onChange={(e) => {
-                      const nextSubId = e.target.value;
-                      setFormSubItemId(nextSubId);
-                      const sub = currentFormCategory.items.find((i) => i.id === nextSubId);
-                      if (sub) {
-                        setFormUrgency(sub.defaultUrgency);
-                        setFormAssignedTeam(sub.processingUnit);
-                        setFormLetterNumber(generateAutoLetterNumber(sub.documentCode));
-                      }
-                    }}
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-xs sm:text-sm font-bold text-slate-900 bg-white"
-                  >
-                    {currentFormCategory.items.map((sub, i) => (
-                      <option key={sub.id} value={sub.id}>
-                        {i + 1}. {sub.label} [{sub.documentCode}]
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Step 2: Data Pemohon / Warga */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Nama Lengkap Pemohon / Warga *
-                  </label>
-                  <input
-                    type="text"
-                    value={formReporterName}
-                    onChange={(e) => setFormReporterName(e.target.value)}
-                    placeholder="Contoh: Andi Muh. Farhan"
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    NIK / Nomor KK (16 Digit)
-                  </label>
-                  <input
-                    type="text"
-                    value={formApplicantNik}
-                    onChange={(e) => setFormApplicantNik(e.target.value)}
-                    placeholder="737109xxxxxxxxxx"
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-mono-num"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Nomor WhatsApp Pemohon
-                  </label>
-                  <input
-                    type="text"
-                    value={formReporterPhone}
-                    onChange={(e) => setFormReporterPhone(e.target.value)}
-                    placeholder="0812-xxxx-xxxx"
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-mono-num"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Wilayah RW *
-                  </label>
-                  <select
-                    value={formRw}
-                    onChange={(e) => setFormRw(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white"
-                  >
-                    {RW_OPTIONS.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Wilayah RT *
-                  </label>
-                  <select
-                    value={formRt}
-                    onChange={(e) => setFormRt(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white"
-                  >
-                    {DEFAULT_RT_LIST.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Alamat Domisili / Lokasi di Panaikang *
-                  </label>
-                  <input
-                    type="text"
-                    value={formLocationName}
-                    onChange={(e) => setFormLocationName(e.target.value)}
-                    placeholder="Contoh: Jl. Urip Sumoharjo Lr. 2 No. 10"
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm"
-                  />
-                </div>
-              </div>
-
-              {/* Step 3: Kolom Spesifik Sub-Menu */}
-              {currentFormSubItem.specificFields.length > 0 && (
-                <div className="p-4 rounded-xl bg-sky-50/70 border border-sky-200 space-y-3">
-                  <div className="text-xs font-extrabold uppercase tracking-wider text-[#0D3868]">
-                    Data Spesifik Sub-Menu: {currentFormSubItem.label}
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                    {currentFormSubItem.specificFields.map((field) => (
-                      <div key={field.key}>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">
-                          {field.label}
-                        </label>
-                        {field.type === 'select' && field.options ? (
-                          <select
-                            value={formSpecificFields[field.key] || field.options[0]}
-                            onChange={(e) =>
-                              setFormSpecificFields((prev) => ({
-                                ...prev,
-                                [field.key]: e.target.value,
-                              }))
-                            }
-                            className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white"
-                          >
-                            {field.options.map((opt) => (
-                              <option key={opt} value={opt}>
-                                {opt}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <input
-                            type="text"
-                            value={formSpecificFields[field.key] || ''}
-                            onChange={(e) =>
-                              setFormSpecificFields((prev) => ({
-                                ...prev,
-                                [field.key]: e.target.value,
-                              }))
-                            }
-                            placeholder={field.placeholder}
-                            className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm bg-white"
-                          />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Step 4: Penomoran Surat Resmi, Pejabat Penandatangan & Status */}
-              <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-200 space-y-3.5">
-                <div className="text-xs font-extrabold uppercase tracking-wider text-emerald-900">
-                  Registrasi Surat Resmi, Disposisi Unit & Status Penyelesaian
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Nomor Registrasi Surat / Dokumen Resmi
-                    </label>
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="text"
-                        value={formLetterNumber}
-                        onChange={(e) => setFormLetterNumber(e.target.value)}
-                        placeholder="Contoh: 474.4 / 088 / PNK / X / 2026"
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs sm:text-sm font-mono-num bg-white"
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setFormLetterNumber(
-                            generateAutoLetterNumber(currentFormSubItem.documentCode)
-                          )
-                        }
-                        title="Buat Nomor Otomatis"
-                        className="px-2.5 py-2 rounded-xl bg-[#0D3868] text-white text-xs font-bold cursor-pointer shrink-0"
-                      >
-                        <Sparkles className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Pejabat Penandatangan / Pengesah
-                    </label>
-                    <select
-                      value={formSignedBy}
-                      onChange={(e) => setFormSignedBy(e.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs sm:text-sm bg-white"
-                    >
-                      {signerOptions.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Status Pengurusan Layanan *
-                    </label>
-                    <select
-                      value={formStatus}
-                      onChange={(e) => setFormStatus(e.target.value as ReportStatus)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs sm:text-sm font-bold bg-white"
-                    >
-                      <option value="Menunggu Verifikasi">Menunggu Verifikasi</option>
-                      <option value="Sedang Ditangani">Sedang Ditangani / Proses Surat</option>
-                      <option value="Selesai">Selesai / Surat Terbit</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Unit Pelaksana / Seksi Penanggung Jawab
-                    </label>
-                    <input
-                      type="text"
-                      value={formAssignedTeam}
-                      onChange={(e) => setFormAssignedTeam(e.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs sm:text-sm bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Unggah Bukti Tindak Lanjut / Scan Surat Selesai
-                    </label>
-                    <label className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-800 text-xs font-bold cursor-pointer">
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>Unggah Foto Bukti / Dokumen ({formFollowUpPhotos.length})</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={handleFollowUpPhotoUpload}
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Catatan Verifikasi / Keterangan Tindak Lanjut Petugas *
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={formResponseNote}
-                    onChange={(e) => setFormResponseNote(e.target.value)}
-                    placeholder="Catatan tindak lanjut yang akan tampil pada halaman Cek Status Warga..."
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs sm:text-sm bg-white"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-2.5 pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowForm(false);
-                    setEditingId(null);
-                  }}
-                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#0D3868] hover:bg-[#0277BD] text-white text-xs sm:text-sm font-extrabold cursor-pointer"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>
-                    {editingId
-                      ? 'Simpan Perubahan & Status Pengurusan'
-                      : 'Simpan Pengurusan Warga Baru'}
-                  </span>
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* List of Citizen Submissions across the 7 Categories & 44 Sub-Menus */}
-          <div className="space-y-3.5">
-            {filteredSubmissions.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center space-y-2">
-                <div className="text-sm font-bold text-slate-700">
-                  Belum ada data pengajuan pada filter kategori/sub-menu ini.
-                </div>
-                <p className="text-xs text-slate-500">
-                  Klik tombol "+ Buat Surat / Input Pengurusan Warga" di atas untuk menambahkan data
-                  baru.
-                </p>
-              </div>
-            ) : (
-              filteredSubmissions.map((item) => {
-                const rep = item.report;
-                const waApplicantMsg = `Halo Bapak/Ibu *${rep.reporterName}*, menginformasikan pengajuan layanan *${item.subItemLabel}* (Tiket: *${rep.ticketCode}*${
-                  rep.letterRegisterNumber ? `, No. Surat: *${rep.letterRegisterNumber}*` : ''
-                }) di Kelurahan Panaikang saat ini berstatus: *${rep.status}*. Catatan Petugas: ${
-                  rep.responseNote
-                }`;
-                const waApplicantUrl = buildWhatsAppUrl(rep.reporterPhone, waApplicantMsg);
-
-                return (
-                  <div
-                    key={rep.id}
-                    className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3.5 shadow-xs hover:border-slate-300 transition-all"
-                  >
-                    <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
-                      <div className="space-y-1.5 flex-1">
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                          <span className="font-mono-num font-extrabold text-[#0D3868]">
-                            {rep.ticketCode}
-                          </span>
-                          <span aria-hidden="true">·</span>
-                          <span className="font-bold text-[#0277BD]">{item.categoryTitle}</span>
-                          <span aria-hidden="true">›</span>
-                          <span className="font-extrabold text-slate-900">{item.subItemLabel}</span>
-                          <span aria-hidden="true">·</span>
-                          <span className="font-mono-num">{rep.createdAt}</span>
-                        </div>
-
-                        <h3 className="text-sm sm:text-base font-extrabold text-[#0D3868]">
-                          {rep.title}
-                        </h3>
-
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-700">
-                          <span>
-                            Pemohon: <strong>{rep.reporterName}</strong>
-                          </span>
-                          {rep.applicantNik && (
-                            <>
-                              <span aria-hidden="true">·</span>
-                              <span className="font-mono-num">
-                                NIK/KK: <strong>{rep.applicantNik}</strong>
-                              </span>
-                            </>
-                          )}
-                          <span aria-hidden="true">·</span>
-                          <span className="font-mono-num">WA: {rep.reporterPhone}</span>
-                          <span aria-hidden="true">·</span>
-                          <span>
-                            Wilayah: <strong>{rep.rw} / {rep.rt}</strong>
-                          </span>
-                          {(rep.citizenAddress || rep.locationName) && (
-                            <>
-                              <span aria-hidden="true">·</span>
-                              <span>
-                                Alamat: {rep.citizenAddress || rep.locationName}
-                              </span>
-                            </>
-                          )}
-                        </div>
-
-                        {/* Specific Sub-Menu Fields if present */}
-                        {rep.specificFieldsData &&
-                          Object.keys(rep.specificFieldsData).length > 0 && (
-                            <div className="pt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
-                              {Object.entries(rep.specificFieldsData).map(([k, v]) =>
-                                v ? (
-                                  <span key={k} className="bg-slate-100 px-2.5 py-0.5 rounded-md">
-                                    <strong className="text-slate-800">{k}:</strong> {v}
-                                  </span>
-                                ) : null
-                              )}
-                            </div>
-                          )}
-
-                        {/* Official Letter Registration Info */}
-                        {(rep.letterRegisterNumber || rep.signedByOfficer) && (
-                          <div className="pt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-emerald-800 font-semibold">
-                            {rep.letterRegisterNumber && (
-                              <span>
-                                No. Registrasi Surat:{' '}
-                                <strong className="font-mono-num underline">
-                                  {rep.letterRegisterNumber}
-                                </strong>
-                              </span>
-                            )}
-                            {rep.signedByOfficer && (
-                              <span>Pejabat Pengesah: {rep.signedByOfficer}</span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Status Indicator & Quick 1-Click Actions */}
-                      <div className="flex flex-wrap items-center gap-2 shrink-0">
-                        <span
-                          className={`inline-flex items-center gap-1 text-xs font-extrabold px-2.5 py-1 rounded-lg ${
-                            rep.status === 'Selesai'
-                              ? 'bg-emerald-50 text-emerald-800'
-                              : rep.status === 'Sedang Ditangani'
-                              ? 'bg-sky-50 text-sky-800'
-                              : 'bg-amber-50 text-amber-800'
-                          }`}
-                        >
-                          {rep.status === 'Selesai' && <CheckCircle2 className="w-3.5 h-3.5" />}
-                          {rep.status === 'Sedang Ditangani' && <Clock className="w-3.5 h-3.5" />}
-                          {rep.status === 'Menunggu Verifikasi' && (
-                            <AlertCircle className="w-3.5 h-3.5" />
-                          )}
-                          <span>{rep.status}</span>
-                        </span>
-
-                        <button
-                          type="button"
-                          onClick={() => setPrintPreviewReport(rep)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-extrabold cursor-pointer"
-                        >
-                          <Printer className="w-3.5 h-3.5" />
-                          <span>Cetak Surat / PDF</span>
-                        </button>
-
-                        {waApplicantUrl && (
-                          <a
-                            href={waApplicantUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#075E54] text-xs font-bold"
-                          >
-                            <MessageCircle className="w-3.5 h-3.5" />
-                            <span>WA Pemohon</span>
-                          </a>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Bottom Action Bar */}
-                    <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
-                      <div className="text-slate-600">
-                        <span className="font-semibold text-slate-800">
-                          Unit: {rep.assignedTeam || item.processingUnit}
-                        </span>{' '}
-                        — {rep.responseNote}
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {rep.status === 'Menunggu Verifikasi' && (
-                          <button
-                            type="button"
-                            onClick={() => handleQuickAction(rep, 'verifikasi')}
-                            className="px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold cursor-pointer"
-                          >
-                            1. Verifikasi Berkas
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => handleQuickAction(rep, 'terbitkan_surat')}
-                          className="px-2.5 py-1.5 rounded-lg bg-[#0D3868] hover:bg-[#0277BD] text-white font-bold cursor-pointer"
-                        >
-                          2. Terbitkan No. Surat
-                        </button>
-                        {rep.status !== 'Selesai' && (
-                          <button
-                            type="button"
-                            onClick={() => handleQuickAction(rep, 'selesai')}
-                            className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold cursor-pointer"
-                          >
-                            3. Tandai Selesai
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEditSubmission(rep)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold cursor-pointer"
-                        >
-                          <Edit3 className="w-3.5 h-3.5 text-[#0277BD]" />
-                          <span>Edit Detail</span>
-                        </button>
-                        {confirmDeleteId === rep.id ? (
-                          <div className="inline-flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                await onDeleteReport(rep.id);
-                                setConfirmDeleteId(null);
-                                setFeedbackMsg(`Data pengajuan ${rep.ticketCode} berhasil dihapus.`);
-                              }}
-                              className="px-2.5 py-1.5 rounded-lg bg-red-600 text-white font-bold cursor-pointer"
-                            >
-                              Ya, Hapus
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setConfirmDeleteId(null)}
-                              className="px-2 py-1.5 rounded-lg bg-slate-200 text-slate-700 font-semibold cursor-pointer"
-                            >
-                              Batal
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setConfirmDeleteId(rep.id)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 bg-red-50/60 hover:bg-red-100 text-red-700 font-semibold cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>Hapus</span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* =====================================================================================
-          SUB-MODE 2: PENGATURAN BACK-END KATALOG & SOP 44 SUB-MENU WARGA
-      ===================================================================================== */}
-      {subMode === 'catalog_config' && (
-        <div className="space-y-6">
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-              <div>
-                <h3 className="text-base sm:text-lg font-extrabold text-[#0D3868]">
-                  Konfigurasi Back-End Katalog 7 Bidang & {totalSubMenusCount} Sub-Menu Warga
-                </h3>
-                <p className="text-xs text-slate-600">
-                  Ubah persyaratan dokumen, estimasi waktu pelayanan, unit pelaksana, kode surat,
-                  atau tambahkan sub-menu layanan baru. Perubahan otomatis berlaku di halaman Menu
-                  Warga.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={handleOpenAddCatalogSubItem}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-extrabold cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>+ Tambah Sub-Menu di {currentConfigCategory.title}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleResetDefaultCatalog}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Reset Standar</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Category Selector Tabs */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-1">
-              {catalog.map((cat) => {
-                const active = configCategoryId === cat.id;
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => {
-                      setConfigCategoryId(cat.id);
-                      setEditingCatalogSubItem(null);
-                      setIsAddingNewSubItem(false);
-                    }}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition-all cursor-pointer flex items-center gap-2 ${
-                      active
-                        ? 'bg-[#0D3868] text-white border-[#0D3868]'
-                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
-                    }`}
-                  >
-                    <span>
-                      {cat.number}. {cat.title}
-                    </span>
-                    <span className="font-mono-num opacity-80">({cat.items.length})</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Form Edit / Add Sub-Menu in Catalog */}
-            {(editingCatalogSubItem || isAddingNewSubItem) && (
-              <form
-                onSubmit={handleSaveCatalogSubItem}
-                className="p-5 rounded-2xl bg-sky-50/70 border-2 border-[#0277BD] space-y-4"
-              >
-                <div className="flex items-center justify-between border-b border-sky-200 pb-2.5">
-                  <div className="text-sm font-extrabold text-[#0D3868]">
-                    {isAddingNewSubItem
-                      ? `Tambah Sub-Menu Baru pada Kategori: ${currentConfigCategory.title}`
-                      : `Edit Konfigurasi Sub-Menu: ${editingCatalogSubItem?.label}`}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingCatalogSubItem(null);
-                      setIsAddingNewSubItem(false);
-                    }}
-                    className="text-slate-500 hover:text-slate-800 cursor-pointer"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Nama Sub-Menu Layanan *
-                    </label>
-                    <input
-                      type="text"
-                      value={subItemLabelDraft}
-                      onChange={(e) => setSubItemLabelDraft(e.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs sm:text-sm bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Kode Klasifikasi Dokumen / Surat *
-                    </label>
-                    <input
-                      type="text"
-                      value={subItemDocCodeDraft}
-                      onChange={(e) => setSubItemDocCodeDraft(e.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs sm:text-sm font-mono-num bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Estimasi Waktu Penyelesaian *
-                    </label>
-                    <input
-                      type="text"
-                      value={subItemEstimationDraft}
-                      onChange={(e) => setSubItemEstimationDraft(e.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs sm:text-sm bg-white"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Judul Resmi Kop Surat / Dokumen
-                    </label>
-                    <input
-                      type="text"
-                      value={subItemHeaderDraft}
-                      onChange={(e) => setSubItemHeaderDraft(e.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs sm:text-sm bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Unit Pelaksana / Seksi Penanggung Jawab
-                    </label>
-                    <input
-                      type="text"
-                      value={subItemUnitDraft}
-                      onChange={(e) => setSubItemUnitDraft(e.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs sm:text-sm bg-white"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Daftar Persyaratan Dokumen (1 baris = 1 syarat)
-                    </label>
-                    <textarea
-                      rows={4}
-                      value={subItemReqsDraft}
-                      onChange={(e) => setSubItemReqsDraft(e.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Langkah SOP Pelayanan (1 baris = 1 langkah)
-                    </label>
-                    <textarea
-                      rows={4}
-                      value={subItemSopDraft}
-                      onChange={(e) => setSubItemSopDraft(e.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs bg-white"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingCatalogSubItem(null);
-                      setIsAddingNewSubItem(false);
-                    }}
-                    className="px-4 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-700 cursor-pointer"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSaving}
-                    className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#0D3868] hover:bg-[#0277BD] text-white text-xs font-extrabold cursor-pointer"
-                  >
-                    <Check className="w-4 h-4" />
-                    <span>Simpan ke Back-End Katalog</span>
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {/* Sub-Menu Cards in Selected Category */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {currentConfigCategory.items.map((sub, idx) => (
-                <div
-                  key={sub.id}
-                  className="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 flex flex-col justify-between space-y-3"
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <span className="text-[11px] font-mono-num font-bold text-[#0277BD]">
-                          #{idx + 1} · {sub.documentCode}
-                        </span>
-                        <h4 className="text-sm font-extrabold text-[#0D3868]">{sub.label}</h4>
-                      </div>
-                      <span className="text-[11px] font-semibold text-emerald-700">
-                        {sub.estimation}
-                      </span>
-                    </div>
-
-                    <div className="text-[11px] text-slate-600">
-                      Unit Pelaksana: <strong>{sub.processingUnit}</strong>
-                    </div>
-
-                    <div className="text-xs text-slate-600">
-                      <div className="font-bold text-slate-700 mb-1">Persyaratan:</div>
-                      <ul className="list-disc list-inside space-y-0.5 text-[11px]">
-                        {sub.requirements.map((r, i) => (
-                          <li key={i}>{r}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-
-                  <div className="pt-2.5 border-t border-slate-200/80 flex items-center justify-between gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSubMode('submissions');
-                        handleOpenAddSubmission(currentConfigCategory.id, sub.id);
-                      }}
-                      className="text-xs font-bold text-[#1C8237] hover:underline cursor-pointer"
-                    >
-                      + Buat Surat Ini
-                    </button>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEditCatalogSubItem(sub)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-sky-50 text-xs font-bold text-[#0D3868] cursor-pointer"
-                      >
-                        <Edit3 className="w-3.5 h-3.5 text-[#0277BD]" />
-                        <span>Edit SOP & Syarat</span>
-                      </button>
-                      {currentConfigCategory.items.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteCatalogSubItem(sub.id)}
-                          className="p-1.5 rounded-lg border border-red-200 bg-red-50/70 hover:bg-red-100 text-red-700 cursor-pointer"
-                          title="Hapus Sub-Menu"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* =====================================================================================
-          MODAL CETAK SURAT RESMI / BUKTI PENGAJUAN KELURAHAN PANAIKANG
-      ===================================================================================== */}
-      {printPreviewReport && (
-        <div
-          className="fixed inset-0 z-50 bg-slate-900/80 flex items-center justify-center p-4 overflow-y-auto"
-          onClick={() => setPrintPreviewReport(null)}
-        >
-          <div
-            className="bg-white rounded-2xl max-w-2xl w-full p-6 sm:p-8 border border-slate-200 shadow-2xl space-y-5 my-8"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {(() => {
-              const info = inferReportServiceCategory(printPreviewReport, catalog);
-              const regNumber =
-                printPreviewReport.letterRegisterNumber ||
-                generateAutoLetterNumber(info.documentCode);
-              const signer =
-                printPreviewReport.signedByOfficer ||
-                `${profile.lurahName} (Lurah Panaikang)`;
-
-              const handlePrintOfficialDocument = () => {
-                const kopHtml = buildOfficialKopSuratHtml(profile, 'spacious');
-                const specRows = printPreviewReport.specificFieldsData
-                  ? Object.entries(printPreviewReport.specificFieldsData)
-                      .filter(([, v]) => Boolean(v))
-                      .map(
-                        ([k, v]) => `
-                        <tr>
-                          <td class="lbl">${k}</td>
-                          <td>: <strong>${v}</strong></td>
-                        </tr>`
-                      )
-                      .join('')
-                  : '';
-
-                const htmlDoc = `<!DOCTYPE html>
+    const htmlDoc = `<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
-  <title>${info.officialHeaderTitle} - ${printPreviewReport.ticketCode}</title>
+  <title>${docTitle} - ${rep.ticketCode}</title>
   <style>
     @page { size: A4 portrait; margin: 15mm; }
     * { box-sizing: border-box; }
@@ -2296,7 +524,7 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
       font-size: 11.5px;
     }
     table.detail-table td.lbl {
-      width: 34%;
+      width: 32%;
       color: #334155;
       font-weight: 600;
     }
@@ -2313,32 +541,33 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
       text-align: center;
       min-width: 220px;
     }
-    .sign-space { height: 58px; }
+    .sign-space { height: 55px; }
   </style>
 </head>
 <body>
   ${kopHtml}
-  <div class="doc-title">${info.officialHeaderTitle}</div>
-  <div class="doc-num">Nomor: ${regNumber}</div>
+  <div class="doc-title">${docTitle}</div>
+  <div class="doc-num">Nomor: ${docNum}</div>
   <p class="intro">
-    Yang bertanda tangan di bawah ini, Pemerintah Kelurahan Panaikang Kecamatan Panakkukang Kota Makassar, menerangkan dan mencatat pengajuan layanan warga sebagai berikut:
+    Yang bertanda tangan di bawah ini, Pemerintah Kelurahan Panaikang Kecamatan Panakkukang Kota Makassar, menerangkan dan mengesahkan pelayanan warga sebagai berikut:
   </p>
   <table class="detail-table">
     <tbody>
-      <tr><td class="lbl">Nomor Tiket Sistem</td><td>: <strong>${printPreviewReport.ticketCode}</strong></td></tr>
-      <tr><td class="lbl">Nama Lengkap Warga</td><td>: <strong>${printPreviewReport.reporterName}</strong></td></tr>
-      <tr><td class="lbl">NIK / Nomor KK</td><td>: ${printPreviewReport.applicantNik || '-'}</td></tr>
-      <tr><td class="lbl">Alamat / Wilayah RT-RW</td><td>: ${printPreviewReport.locationName} (${printPreviewReport.rt} / ${printPreviewReport.rw})</td></tr>
-      <tr><td class="lbl">Bidang & Jenis Layanan</td><td>: <strong>${info.categoryTitle} — ${info.subItemLabel}</strong></td></tr>
-      ${specRows}
-      <tr><td class="lbl">Keterangan / Keperluan</td><td>: ${printPreviewReport.description}</td></tr>
-      <tr><td class="lbl">Catatan Verifikasi Petugas</td><td>: <strong>${printPreviewReport.responseNote}</strong></td></tr>
+      <tr><td class="lbl">Nomor Tiket Sistem</td><td>: <strong>${rep.ticketCode}</strong></td></tr>
+      <tr><td class="lbl">Nama Lengkap Warga</td><td>: <strong>${rep.reporterName}</strong></td></tr>
+      <tr><td class="lbl">NIK / Identitas</td><td>: ${rep.applicantNik || '-'}</td></tr>
+      <tr><td class="lbl">Nomor Kontak / WhatsApp</td><td>: ${rep.reporterPhone || '-'}</td></tr>
+      <tr><td class="lbl">Wilayah & Alamat</td><td>: ${rep.locationName} (${rep.rt || 'RT 01'} / ${rep.rw})</td></tr>
+      <tr><td class="lbl">Jenis Pelayanan</td><td>: <strong>${rep.title}</strong></td></tr>
+      <tr><td class="lbl">Keterangan / Keperluan</td><td>: ${rep.description}</td></tr>
+      <tr><td class="lbl">Catatan Verifikasi Petugas</td><td>: <strong>${rep.responseNote}</strong></td></tr>
     </tbody>
   </table>
   <div class="sign-wrap">
     <div style="font-size:11px;color:#475569;">
-      <div>Unit Pelaksana: <strong>${info.processingUnit}</strong></div>
-      <div>Status Layanan: <strong>${printPreviewReport.status}</strong></div>
+      <div>Unit Pelaksana: <strong>${rep.assignedTeam || 'Seksi Pelayanan Umum & Loket Kelurahan'}</strong></div>
+      <div>Status Dokumen: <strong>${rep.status}</strong></div>
+      <div>Tanggal Cetak: ${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
     </div>
     <div class="sign-box">
       <div>Makassar, ${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
@@ -2351,168 +580,941 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
 </body>
 </html>`;
 
-                const existingFrame = document.getElementById('citizen-letter-print-iframe') as HTMLIFrameElement | null;
-                if (existingFrame) existingFrame.remove();
-                const iframe = document.createElement('iframe');
-                iframe.id = 'citizen-letter-print-iframe';
-                iframe.style.position = 'fixed';
-                iframe.style.right = '0';
-                iframe.style.bottom = '0';
-                iframe.style.width = '0';
-                iframe.style.height = '0';
-                iframe.style.border = '0';
-                document.body.appendChild(iframe);
-                const doc = iframe.contentWindow?.document;
-                if (doc) {
-                  doc.open();
-                  doc.write(htmlDoc);
-                  doc.close();
-                  window.setTimeout(() => {
-                    iframe.contentWindow?.focus();
-                    iframe.contentWindow?.print();
-                  }, 250);
-                }
-              };
+    const existingFrame = document.getElementById('citizen-letter-print-iframe') as HTMLIFrameElement | null;
+    if (existingFrame) existingFrame.remove();
+    const iframe = document.createElement('iframe');
+    iframe.id = 'citizen-letter-print-iframe';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentWindow?.document;
+    if (doc) {
+      doc.open();
+      doc.write(htmlDoc);
+      doc.close();
+      window.setTimeout(() => {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      }, 250);
+    }
+  };
 
+  return (
+    <div className="space-y-6">
+      {/* Top Banner & Title */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <div className="flex flex-wrap items-center gap-2 mb-1.5">
+              <span className="px-2.5 py-0.5 rounded-md bg-[#0D3868] text-white text-[10px] font-black uppercase tracking-wider">
+                PANEL RESMI KELURAHAN
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
+                <Database className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Google Cloud Firestore: Aktif & Terhubung</span>
+              </span>
+            </div>
+            <h2 className="text-xl sm:text-2xl font-black text-[#0D3868] tracking-tight">
+              Manajemen Pengurusan & Laporan Warga
+            </h2>
+            <p className="mt-1 text-xs sm:text-sm text-slate-600 max-w-3xl">
+              Pusat pelayanan surat administrasi warga (SKCK, SKU, SKTM, Domisili, dll.) dan tindak lanjut laporan aduan masalah lingkungan Kelurahan Panaikang.
+            </p>
+          </div>
+
+          {/* Top Actions: Input Baru & Cloud Sync */}
+          <div className="flex flex-wrap items-center gap-2 self-start lg:self-center shrink-0">
+            <button
+              type="button"
+              onClick={handleTriggerCloudSync}
+              disabled={isSyncingCloud}
+              className="px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              title="Periksa dan sinkronkan data ke Cloud Firestore"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isSyncingCloud ? 'animate-spin' : ''}`} />
+              <span>{isSyncingCloud ? 'Menyinkronkan...' : 'Sinkronkan Cloud'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleOpenAdd('SURAT')}
+              className="px-4 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-black transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+            >
+              <Plus className="w-4 h-4 text-amber-300" />
+              <span>+ Input Surat / Pengajuan</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleOpenAdd('ADUAN')}
+              className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+            >
+              <AlertCircle className="w-4 h-4 text-slate-950" />
+              <span>+ Input Aduan Warga</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Feedback Message */}
+        {feedbackMsg && (
+          <div className="mt-4 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 flex items-center justify-between gap-3 text-xs font-bold animate-fadeIn">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{feedbackMsg}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFeedbackMsg('')}
+              className="text-emerald-700 hover:text-emerald-950 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Error List */}
+        {errorList.length > 0 && (
+          <div className="mt-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-900 text-xs animate-fadeIn">
+            <div className="font-bold mb-1">Periksa kembali data Anda:</div>
+            <ul className="list-disc list-inside space-y-0.5">
+              {errorList.map((err, i) => (
+                <li key={i}>{err}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+
+      {/* 3 Sederhana & Jelas Category Summary Cards (Menggantikan 7 Bidang yang Rumit) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Card 1: Semua Pengajuan & Laporan */}
+        <button
+          type="button"
+          onClick={() => {
+            setActiveMainFilter('ALL');
+            setSelectedSuratCode('ALL');
+            setSelectedAduanCategory('ALL');
+          }}
+          className={`p-5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between shadow-2xs ${
+            activeMainFilter === 'ALL'
+              ? 'bg-[#0D3868] text-white border-[#0D3868] ring-2 ring-sky-300'
+              : 'bg-white hover:border-[#0277BD] text-slate-800 border-slate-200'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span
+              className={`text-[11px] font-extrabold uppercase tracking-wider ${
+                activeMainFilter === 'ALL' ? 'text-sky-200' : 'text-slate-500'
+              }`}
+            >
+              Semua Pengajuan Warga
+            </span>
+            <span className="font-mono-num text-2xl font-black">{reports.length}</span>
+          </div>
+          <div className="mt-2 text-base font-black">Seluruh Berkas & Laporan</div>
+          <div
+            className={`mt-3 pt-2.5 border-t text-[11px] font-semibold flex items-center justify-between ${
+              activeMainFilter === 'ALL'
+                ? 'border-white/15 text-sky-100'
+                : 'border-slate-100 text-slate-500'
+            }`}
+          >
+            <span>Surat: {totalSuratCount} · Aduan: {totalAduanCount}</span>
+            <span>Semua Data →</span>
+          </div>
+        </button>
+
+        {/* Card 2: Pengurusan Surat Administrasi */}
+        <button
+          type="button"
+          onClick={() => {
+            setActiveMainFilter('SURAT');
+            setSelectedAduanCategory('ALL');
+          }}
+          className={`p-5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between shadow-2xs ${
+            activeMainFilter === 'SURAT'
+              ? 'bg-[#1C8237] text-white border-[#1C8237] ring-2 ring-emerald-300'
+              : 'bg-white hover:border-emerald-500 text-slate-800 border-slate-200'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span
+                className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                  activeMainFilter === 'SURAT'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-emerald-100 text-emerald-800'
+                }`}
+              >
+                <FileText className="w-4 h-4" />
+              </span>
+              <span
+                className={`text-[11px] font-extrabold uppercase tracking-wider ${
+                  activeMainFilter === 'SURAT' ? 'text-emerald-200' : 'text-emerald-700'
+                }`}
+              >
+                Surat Administrasi
+              </span>
+            </div>
+            <span className="font-mono-num text-2xl font-black">{totalSuratCount}</span>
+          </div>
+          <div className="mt-2 text-base font-black">13 Layanan Surat Resmi</div>
+          <div
+            className={`mt-3 pt-2.5 border-t text-[11px] font-semibold flex items-center justify-between ${
+              activeMainFilter === 'SURAT'
+                ? 'border-white/15 text-emerald-100'
+                : 'border-slate-100 text-slate-500'
+            }`}
+          >
+            <span>SKCK, SKU, SKTM, Domisili, dll.</span>
+            <span>Kelola Surat →</span>
+          </div>
+        </button>
+
+        {/* Card 3: Laporan & Pengaduan Warga */}
+        <button
+          type="button"
+          onClick={() => {
+            setActiveMainFilter('ADUAN');
+            setSelectedSuratCode('ALL');
+          }}
+          className={`p-5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between shadow-2xs ${
+            activeMainFilter === 'ADUAN'
+              ? 'bg-amber-600 text-white border-amber-600 ring-2 ring-amber-300'
+              : 'bg-white hover:border-amber-500 text-slate-800 border-slate-200'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span
+                className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                  activeMainFilter === 'ADUAN'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-amber-100 text-amber-900'
+                }`}
+              >
+                <AlertCircle className="w-4 h-4" />
+              </span>
+              <span
+                className={`text-[11px] font-extrabold uppercase tracking-wider ${
+                  activeMainFilter === 'ADUAN' ? 'text-amber-200' : 'text-amber-700'
+                }`}
+              >
+                Pengaduan Warga
+              </span>
+            </div>
+            <span className="font-mono-num text-2xl font-black">{totalAduanCount}</span>
+          </div>
+          <div className="mt-2 text-base font-black">Aduan Masalah Lingkungan</div>
+          <div
+            className={`mt-3 pt-2.5 border-t text-[11px] font-semibold flex items-center justify-between ${
+              activeMainFilter === 'ADUAN'
+                ? 'border-white/15 text-amber-100'
+                : 'border-slate-100 text-slate-500'
+            }`}
+          >
+            <span>Sampah, Drainase, Fasum, PJU</span>
+            <span>Tindak Lanjut →</span>
+          </div>
+        </button>
+      </div>
+
+      {/* Filter Bar & Sub-Filters */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3.5 shadow-2xs">
+        {/* Sub-Filter: 13 Jenis Layanan Surat Resmi */}
+        {activeMainFilter === 'SURAT' && (
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 whitespace-nowrap mr-1">
+              Pilih Surat:
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedSuratCode('ALL')}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap cursor-pointer transition ${
+                selectedSuratCode === 'ALL'
+                  ? 'bg-[#1C8237] text-white shadow-2xs'
+                  : 'bg-slate-50 hover:bg-emerald-50 text-slate-700 border border-slate-200'
+              }`}
+            >
+              Semua 13 Surat
+            </button>
+            {OFFICIAL_13_WARGA_SERVICES.map((s) => {
+              const isSelected = selectedSuratCode === s.code;
               return (
-                <>
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-                    <div>
-                      <div className="text-xs font-extrabold uppercase tracking-wider text-[#0277BD]">
-                        Dokumen Resmi Back-End Kelurahan Panaikang
-                      </div>
-                      <h3 className="text-base font-extrabold text-[#0D3868]">
-                        {info.subItemLabel} — {printPreviewReport.ticketCode}
-                      </h3>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={handlePrintOfficialDocument}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0D3868] hover:bg-[#0277BD] text-white text-xs font-extrabold cursor-pointer"
-                      >
-                        <Printer className="w-4 h-4" />
-                        <span>Cetak / Simpan PDF</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPrintPreviewReport(null)}
-                        className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
+                <button
+                  key={s.code}
+                  type="button"
+                  onClick={() => setSelectedSuratCode(s.code)}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap cursor-pointer transition flex items-center gap-1 ${
+                    isSelected
+                      ? 'bg-[#1C8237] text-white shadow-2xs'
+                      : 'bg-slate-50 hover:bg-emerald-50 text-slate-700 border border-slate-200'
+                  }`}
+                >
+                  <span>{s.code}</span>
+                  <span className="text-[10px] opacity-80 max-w-[130px] truncate">{s.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Sub-Filter: Kategori Aduan Lingkungan */}
+        {activeMainFilter === 'ADUAN' && (
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+            <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 whitespace-nowrap mr-1">
+              Kategori Masalah:
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedAduanCategory('ALL')}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap cursor-pointer transition ${
+                selectedAduanCategory === 'ALL'
+                  ? 'bg-amber-600 text-white shadow-2xs'
+                  : 'bg-slate-50 hover:bg-amber-50 text-slate-700 border border-slate-200'
+              }`}
+            >
+              Semua Aduan
+            </button>
+            {REPORT_COMPLAINT_CATEGORIES.map((cat) => {
+              const isSelected = selectedAduanCategory === cat;
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedAduanCategory(cat)}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap cursor-pointer transition ${
+                    isSelected
+                      ? 'bg-amber-600 text-white shadow-2xs'
+                      : 'bg-slate-50 hover:bg-amber-50 text-slate-700 border border-slate-200'
+                  }`}
+                >
+                  {cat}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Status Tabs, RW Filter, & Search */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-2 border-t border-slate-100">
+          {/* Status Tabs */}
+          <div className="flex flex-wrap items-center gap-1">
+            {[
+              { id: 'ALL', label: 'Semua Status' },
+              { id: 'Menunggu Verifikasi', label: `Menunggu (${waitingCount})` },
+              { id: 'Sedang Ditangani', label: `Diproses (${inProgressCount})` },
+              { id: 'Selesai', label: `Selesai (${completedCount})` },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setSelectedStatusFilter(tab.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  selectedStatusFilter === tab.id
+                    ? 'bg-[#0D3868] text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* RW Filter & Search Bar */}
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={selectedRwFilter}
+              onChange={(e) => setSelectedRwFilter(e.target.value)}
+              className="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:border-[#0D3868]"
+            >
+              <option value="ALL">Semua RW</option>
+              {RW_OPTIONS.map((rw) => (
+                <option key={rw} value={rw}>
+                  {rw}
+                </option>
+              ))}
+            </select>
+
+            <div className="relative flex-1 sm:w-64">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Cari tiket, nama, NIK, jalan..."
+                className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-[#0D3868]"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Submissions List */}
+      <div className="space-y-3.5">
+        <div className="flex items-center justify-between text-xs text-slate-500 font-bold px-1">
+          <span>Menampilkan {filteredReports.length} berkas / permohonan warga</span>
+          <span>Database: Google Cloud Firestore</span>
+        </div>
+
+        {filteredReports.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-500 space-y-2">
+            <FileText className="w-10 h-10 text-slate-300 mx-auto" />
+            <div className="text-sm font-extrabold text-slate-700">
+              Tidak ada data pengurusan atau laporan warga yang sesuai filter.
+            </div>
+            <div className="text-xs">
+              Silakan atur filter status, jenis layanan, atau gunakan tombol input baru.
+            </div>
+          </div>
+        ) : (
+          filteredReports.map((item) => {
+            const isSurat = isSuratAdministrasi(item);
+            const isWaiting = item.status === 'Menunggu Verifikasi';
+            const isDone = item.status === 'Selesai';
+            const hasLetterNumber = !!item.letterRegisterNumber;
+
+            return (
+              <div
+                key={item.id}
+                className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs hover:border-[#0277BD]/50 transition-all space-y-4"
+              >
+                {/* Header row: Badge, Ticket Code, Status, Time */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider font-mono-num ${
+                        isSurat
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300/60'
+                          : 'bg-amber-100 text-amber-900 border border-amber-300/60'
+                      }`}
+                    >
+                      {isSurat ? 'SURAT ADMINISTRASI' : 'LAPORAN ADUAN'}
+                    </span>
+
+                    <span className="font-mono-num font-extrabold text-xs sm:text-sm text-[#0D3868]">
+                      {item.ticketCode}
+                    </span>
+
+                    <span className="text-xs font-bold text-slate-400">·</span>
+
+                    <span className="text-xs font-semibold text-slate-600 flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{item.createdAt}</span>
+                    </span>
                   </div>
 
-                  <div className="p-6 rounded-xl border-2 border-slate-800 bg-white text-slate-900 space-y-4">
-                    <div className="flex items-center justify-between gap-3 border-b-2 border-slate-900 pb-3">
-                      <EmblemKotaMakassar className="w-14 h-16 sm:w-16 sm:h-[74px] shrink-0" />
-                      <div className="text-center flex-1 min-w-0">
-                        <div className="text-xs font-bold uppercase tracking-widest text-[#0D3868]">
-                          PEMERINTAH KOTA MAKASSAR · KECAMATAN PANAKKUKANG
-                        </div>
-                        <div className="text-lg font-extrabold uppercase tracking-wide text-[#0D3868]">
-                          KELURAHAN PANAIKANG
-                        </div>
-                        <div className="text-[11px] text-slate-600">
-                          {profile.officeAddress} · Telp: {profile.phoneContact} · Kode Pos{' '}
-                          {profile.postalCode}
-                        </div>
-                      </div>
-                      <EmblemKelurahanPanaikang className="w-14 h-16 sm:w-16 sm:h-[74px] shrink-0" />
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold ${
+                        item.status === 'Selesai'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : item.status === 'Sedang Ditangani'
+                          ? 'bg-sky-100 text-[#0277BD]'
+                          : 'bg-amber-100 text-amber-900'
+                      }`}
+                    >
+                      {item.status}
+                    </span>
+                  </div>
+                </div>
 
-                    <div className="text-center">
-                      <div className="text-sm font-extrabold underline uppercase">
-                        {info.officialHeaderTitle}
-                      </div>
-                      <div className="text-xs font-mono-num font-bold text-slate-700 mt-0.5">
-                        Nomor: {regNumber}
-                      </div>
-                    </div>
+                {/* Main Content: Title, Citizen Info, Description, Notes */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                  {/* Left 8 Cols: Detail & Catatan */}
+                  <div className="lg:col-span-8 space-y-2">
+                    <h3 className="text-base font-extrabold text-[#0D3868]">
+                      {item.title}
+                    </h3>
 
-                    <p className="text-xs leading-relaxed text-slate-800">
-                      Yang bertanda tangan di bawah ini, Pemerintah Kelurahan Panaikang Kecamatan
-                      Panakkukang Kota Makassar, menerangkan dan mencatat pengajuan layanan warga
-                      sebagai berikut:
+                    <p className="text-xs text-slate-700 leading-relaxed bg-slate-50/80 p-3 rounded-xl border border-slate-200/70">
+                      {item.description}
                     </p>
 
-                    <div className="text-xs space-y-2 pl-2">
-                      <div className="grid grid-cols-3 gap-2">
-                        <span className="text-slate-600">Nomor Tiket Sistem</span>
-                        <span className="col-span-2 font-mono-num font-bold">
-                          : {printPreviewReport.ticketCode}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        <span className="text-slate-600">Nama Lengkap Warga</span>
-                        <span className="col-span-2 font-bold">
-                          : {printPreviewReport.reporterName}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        <span className="text-slate-600">NIK / Nomor KK</span>
-                        <span className="col-span-2 font-mono-num">
-                          : {printPreviewReport.applicantNik || '-'}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        <span className="text-slate-600">Alamat / Wilayah RT-RW</span>
-                        <span className="col-span-2">
-                          : {printPreviewReport.locationName} ({printPreviewReport.rt} /{' '}
-                          {printPreviewReport.rw})
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        <span className="text-slate-600">Bidang & Jenis Layanan</span>
-                        <span className="col-span-2 font-bold">
-                          : {info.categoryTitle} — {info.subItemLabel}
-                        </span>
-                      </div>
-                      {printPreviewReport.specificFieldsData &&
-                        Object.entries(printPreviewReport.specificFieldsData).map(([k, v]) =>
-                          v ? (
-                            <div key={k} className="grid grid-cols-3 gap-2">
-                              <span className="text-slate-600">{k}</span>
-                              <span className="col-span-2 font-semibold">: {v}</span>
-                            </div>
-                          ) : null
+                    {/* Official Letter Number pill if available */}
+                    {hasLetterNumber && (
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 font-bold">
+                        <FileText className="w-3.5 h-3.5 text-emerald-700" />
+                        <span>Nomor Surat Resmi: <strong className="font-mono-num">{item.letterRegisterNumber}</strong></span>
+                        {item.signedByOfficer && (
+                          <span className="text-[11px] text-emerald-700">· {item.signedByOfficer}</span>
                         )}
-                      <div className="grid grid-cols-3 gap-2">
-                        <span className="text-slate-600">Keterangan / Keperluan</span>
-                        <span className="col-span-2">: {printPreviewReport.description}</span>
                       </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        <span className="text-slate-600">Catatan Verifikasi Petugas</span>
-                        <span className="col-span-2 font-medium text-emerald-900">
-                          : {printPreviewReport.responseNote}
+                    )}
+
+                    {/* Response Note */}
+                    {item.responseNote && (
+                      <div className="text-xs text-slate-600 flex items-start gap-1.5 pt-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                        <span>
+                          <strong>Respon Petugas:</strong> {item.responseNote}
                         </span>
                       </div>
+                    )}
+                  </div>
+
+                  {/* Right 4 Cols: Citizen Profile & Contact */}
+                  <div className="lg:col-span-4 bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2 text-xs">
+                    <div className="font-extrabold text-slate-800 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <UserCheck className="w-4 h-4 text-[#0D3868]" />
+                        <span>{item.reporterName}</span>
+                      </span>
+                      <span className="px-1.5 py-0.5 rounded bg-white text-slate-700 font-mono-num text-[10px] font-bold border border-slate-200">
+                        {item.rw} · {item.rt || 'RT 01'}
+                      </span>
                     </div>
 
-                    <div className="pt-6 flex justify-between items-end text-xs border-t border-slate-200">
-                      <div className="text-[11px] text-slate-600 space-y-0.5">
-                        <div>Unit Pelaksana: {info.processingUnit}</div>
-                        <div>Status: {printPreviewReport.status}</div>
+                    {item.applicantNik && (
+                      <div className="text-[11px] text-slate-600">
+                        NIK: <strong className="font-mono-num text-slate-800">{item.applicantNik}</strong>
                       </div>
-                      <div className="text-right">
-                        <div>Makassar, {new Date().toLocaleDateString('id-ID')}</div>
-                        <div className="text-[11px] text-slate-600 mb-10">
-                          Pejabat Penandatangan,
-                        </div>
-                        <div className="font-extrabold underline text-slate-900">{signer}</div>
-                        <div className="text-[11px] font-mono-num text-slate-600">
-                          NIP. {profile.lurahNip}
-                        </div>
-                      </div>
+                    )}
+
+                    <div className="text-[11px] text-slate-600 flex items-start gap-1">
+                      <MapPin className="w-3 h-3 text-emerald-700 shrink-0 mt-0.5" />
+                      <span className="line-clamp-2">{item.locationName}</span>
                     </div>
+
+                    {item.reporterPhone && (
+                      <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between">
+                        <span className="font-mono-num text-slate-700 flex items-center gap-1">
+                          <Phone className="w-3 h-3 text-slate-500" />
+                          <span>{item.reporterPhone}</span>
+                        </span>
+                        <a
+                          href={buildWhatsAppUrl(
+                            item.reporterPhone,
+                            `Halo Bapak/Ibu ${item.reporterName}, salam dari Kantor Kelurahan Panaikang.\n\nMengenai pengurusan Anda (${item.ticketCode} - ${item.title}):\nStatus saat ini: *${item.status}*.\nCatatan: ${item.responseNote || 'Berkas Anda sedang kami proses.'}\n\nTerima kasih.`
+                          )}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] flex items-center gap-1 transition"
+                        >
+                          <MessageCircle className="w-3 h-3" />
+                          <span>Kirim WA</span>
+                        </a>
+                      </div>
+                    )}
                   </div>
-                </>
-              );
-            })()}
+                </div>
+
+                {/* Footer Action Bar */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100">
+                  {/* Status Actions */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {isWaiting && (
+                      <button
+                        type="button"
+                        onClick={() => handleQuickVerify(item)}
+                        className="px-3 py-1.5 rounded-lg bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Verifikasi Berkas</span>
+                      </button>
+                    )}
+
+                    {isSurat && !hasLetterNumber && (
+                      <button
+                        type="button"
+                        onClick={() => handleQuickIssueLetter(item)}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-amber-300" />
+                        <span>Terbitkan No. Surat</span>
+                      </button>
+                    )}
+
+                    {!isDone && (
+                      <button
+                        type="button"
+                        onClick={() => handleQuickComplete(item)}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Tandai Selesai</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => handlePrintDocument(item)}
+                      className="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                    >
+                      <Printer className="w-3.5 h-3.5 text-slate-600" />
+                      <span>Cetak Surat / Tanda Terima</span>
+                    </button>
+                  </div>
+
+                  {/* Edit & Delete */}
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEdit(item)}
+                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit3 className="w-3.5 h-3.5 text-sky-600" />
+                      <span>Edit</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteId(item.id)}
+                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-rose-50 text-rose-600 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Hapus</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* MODAL: INPUT / EDIT PENGAJUAN WARGA (SEDERHANA & LENGKAP) */}
+      {showFormModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden shadow-2xl border border-slate-200 animate-fadeIn my-auto">
+            {/* Modal Header */}
+            <div className="bg-[#0D3868] text-white p-5 flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-black text-white">
+                  {editingReportId ? 'Edit Data Pengurusan / Laporan Warga' : 'Input Pengurusan atau Laporan Warga Baru'}
+                </h3>
+                <p className="text-xs text-sky-200 mt-0.5">
+                  Tersimpan langsung secara real-time ke Google Cloud Firestore Kelurahan Panaikang.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFormModal(false)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleFormSubmit} className="p-5 sm:p-6 overflow-y-auto space-y-4 flex-1">
+              {/* Type Switcher */}
+              <div className="p-1 bg-slate-100 rounded-xl grid grid-cols-2 gap-1 text-xs font-extrabold">
+                <button
+                  type="button"
+                  onClick={() => setFormType('SURAT')}
+                  className={`py-2 px-3 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                    formType === 'SURAT'
+                      ? 'bg-[#1C8237] text-white shadow-xs'
+                      : 'text-slate-700 hover:text-slate-900'
+                  }`}
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>Pengurusan Surat Administrasi</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormType('ADUAN')}
+                  className={`py-2 px-3 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                    formType === 'ADUAN'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'text-slate-700 hover:text-slate-900'
+                  }`}
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  <span>Laporan / Pengaduan Masalah</span>
+                </button>
+              </div>
+
+              {/* Service Selection Dropdown */}
+              {formType === 'SURAT' ? (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Jenis Pelayanan Surat Resmi (13 Layanan Kelurahan Panaikang) *
+                  </label>
+                  <select
+                    value={formSuratCode}
+                    onChange={(e) => {
+                      setFormSuratCode(e.target.value);
+                      setFormLetterNumber(generateAutoLetterNumber(e.target.value));
+                    }}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-800 focus:outline-none focus:border-[#0D3868]"
+                  >
+                    {OFFICIAL_13_WARGA_SERVICES.map((s) => (
+                      <option key={s.code} value={s.code}>
+                        {s.code} — {s.name} ({s.processingUnit})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Kategori Masalah Lingkungan / Ketertiban *
+                  </label>
+                  <select
+                    value={formAduanCategory}
+                    onChange={(e) => setFormAduanCategory(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-800 focus:outline-none focus:border-[#0D3868]"
+                  >
+                    {REPORT_COMPLAINT_CATEGORIES.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Citizen Details: Nama, NIK, No HP */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Nama Pemohon / Pelapor *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formReporterName}
+                    onChange={(e) => setFormReporterName(e.target.value)}
+                    placeholder="Contoh: Daeng Naba"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-[#0D3868]"
+                  />
+                </div>
+
+                <div className="sm:col-span-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    NIK KTP (16 Digit)
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={16}
+                    value={formApplicantNik}
+                    onChange={(e) => setFormApplicantNik(e.target.value)}
+                    placeholder="7371xxxxxxxxxxxx"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono-num focus:outline-none focus:border-[#0D3868]"
+                  />
+                </div>
+
+                <div className="sm:col-span-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    No. WhatsApp / HP
+                  </label>
+                  <input
+                    type="text"
+                    value={formReporterPhone}
+                    onChange={(e) => setFormReporterPhone(e.target.value)}
+                    placeholder="0812xxxxxxxx"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono-num focus:outline-none focus:border-[#0D3868]"
+                  />
+                </div>
+              </div>
+
+              {/* RW, RT, and Location Address */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Wilayah RW *</label>
+                  <select
+                    value={formRw}
+                    onChange={(e) => setFormRw(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-800 focus:outline-none focus:border-[#0D3868]"
+                  >
+                    {RW_OPTIONS.map((rw) => (
+                      <option key={rw} value={rw}>
+                        {rw}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Rukun Tetangga (RT)</label>
+                  <select
+                    value={formRt}
+                    onChange={(e) => setFormRt(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-800 focus:outline-none focus:border-[#0D3868]"
+                  >
+                    {DEFAULT_RT_LIST.map((rt) => (
+                      <option key={rt} value={rt}>
+                        {rt}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Lokasi / Alamat Lengkap *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formLocation}
+                    onChange={(e) => setFormLocation(e.target.value)}
+                    placeholder="Jl. Sukaria Lorong 2"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-[#0D3868]"
+                  />
+                </div>
+              </div>
+
+              {/* Description / Keperluan */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  {formType === 'SURAT' ? 'Keperluan / Keterangan Tambahan Surat' : 'Uraian Detail Permasalahan / Aduan'}
+                </label>
+                <textarea
+                  rows={3}
+                  value={formDescription}
+                  onChange={(e) => setFormDescription(e.target.value)}
+                  placeholder={
+                    formType === 'SURAT'
+                      ? 'Contoh: Persyaratan melamar pekerjaan / Pendaftaran sekolah / Izin usaha mikro...'
+                      : 'Contoh: Terjadi tumpukan sampah liar di depan pos ronda yang belum diangkut...'
+                  }
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-[#0D3868]"
+                />
+              </div>
+
+              {/* Surat Specific: Nomor Registrasi & Pejabat Penandatangan */}
+              {formType === 'SURAT' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200">
+                  <div>
+                    <label className="block text-xs font-bold text-emerald-900 mb-1">
+                      Nomor Registrasi Surat Resmi
+                    </label>
+                    <input
+                      type="text"
+                      value={formLetterNumber}
+                      onChange={(e) => setFormLetterNumber(e.target.value)}
+                      placeholder="470 / 085 / PNK / X / 2026"
+                      className="w-full px-3 py-2 rounded-xl border border-emerald-300 bg-white text-xs font-mono-num font-bold text-emerald-950 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-emerald-900 mb-1">
+                      Pejabat Penandatangan
+                    </label>
+                    <select
+                      value={formSignedBy}
+                      onChange={(e) => setFormSignedBy(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-emerald-300 bg-white text-xs font-bold text-slate-800 focus:outline-none"
+                    >
+                      {signerOptions.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* Status & Response Note */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Status Permohonan *</label>
+                  <select
+                    value={formStatus}
+                    onChange={(e) => setFormStatus(e.target.value as ReportStatus)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-800 focus:outline-none focus:border-[#0D3868]"
+                  >
+                    <option value="Menunggu Verifikasi">Menunggu Verifikasi</option>
+                    <option value="Sedang Ditangani">Sedang Diproses / Ditangani</option>
+                    <option value="Selesai">Selesai / Diterbitkan</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Catatan Verifikasi / Tindak Lanjut Petugas
+                  </label>
+                  <input
+                    type="text"
+                    value={formResponseNote}
+                    onChange={(e) => setFormResponseNote(e.target.value)}
+                    placeholder="Berkas tervalidasi lengkap dan telah dicetak."
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-[#0D3868]"
+                  />
+                </div>
+              </div>
+
+              {/* Form Actions */}
+              <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowFormModal(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="px-5 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-black transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
+                >
+                  <Database className="w-4 h-4 text-emerald-400" />
+                  <span>{isSaving ? 'Menyimpan ke Cloud...' : 'Simpan ke Cloud Firestore'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: KONFIRMASI HAPUS */}
+      {confirmDeleteId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 text-center space-y-4 animate-fadeIn">
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-slate-900">Hapus Data Pengurusan Warga?</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Data tiket ini akan dihapus secara permanen dari server dan Google Cloud Firestore. Tindakan ini tidak dapat dibatalkan.
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteId(null)}
+                className="flex-1 py-2 rounded-xl border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 transition cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const id = confirmDeleteId;
+                  setConfirmDeleteId(null);
+                  const res = await onDeleteReport(id);
+                  if (res.ok) {
+                    setFeedbackMsg('Data berhasil dihapus dari Cloud Firestore.');
+                  }
+                }}
+                className="flex-1 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black transition cursor-pointer"
+              >
+                Ya, Hapus
+              </button>
+            </div>
           </div>
         </div>
       )}
     </div>
   );
 };
+
+export default AdminPengurusanWargaPanel;

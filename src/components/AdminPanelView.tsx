@@ -54,6 +54,7 @@ import {
   Cloud,
 } from 'lucide-react';
 import {
+  SiskamlingRwSchedule,
   AppView,
   KelurahanProfile,
   StructuralOfficial,
@@ -114,6 +115,7 @@ import { MonthlyArchivePdfPanel } from './MonthlyArchivePdfPanel';
 import { AdminPengurusanWargaPanel } from './AdminPengurusanWargaPanel';
 import { AdminParameterUserPanel } from './AdminParameterUserPanel';
 import { AdminActivityLogPanel } from './AdminActivityLogPanel';
+import { AdminSiskamlingPanel } from './AdminSiskamlingPanel';
 import {
   AdminRtRwReportPanel,
   ExternalPrintSelection,
@@ -269,6 +271,8 @@ interface AdminPanelViewProps {
     point: Partial<BioporiPoint>
   ) => Promise<{ ok: boolean; errors?: string[] }>;
   onDeleteBioporiPoint?: (id: string) => Promise<{ ok: boolean; errors?: string[] }>;
+  siskamlingSchedules?: SiskamlingRwSchedule[];
+  onSaveSiskamlingSchedules?: (updated: SiskamlingRwSchedule[]) => Promise<{ ok: boolean; errors?: string[] }>;
   onExportDatabase?: () => void;
   onImportDatabase?: (jsonString: string) => { ok: boolean; message: string };
 }
@@ -362,6 +366,8 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   onCreateBioporiPoint,
   onUpdateBioporiPoint,
   onDeleteBioporiPoint,
+  siskamlingSchedules,
+  onSaveSiskamlingSchedules,
   onExportDatabase,
   onImportDatabase,
 }) => {
@@ -381,6 +387,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   const [activeTab, setActiveTab] = useState<AdminTab>(initialTab || 'dashboard_lurah');
+  const [rtrwSubTab, setRtrwSubTab] = useState<'wilayah' | 'siskamling'>('wilayah');
   useEffect(() => {
     if (initialTab) {
       setActiveTab(initialTab);
@@ -3450,54 +3457,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               <Cloud className={`w-3.5 h-3.5 ${isCloudSyncing ? 'animate-bounce' : ''}`} />
               <span>{isCloudSyncing ? 'Menyinkronkan...' : 'Sinkronkan ke Cloud'}</span>
             </button>
-            {onExportDatabase && (
-              <button
-                type="button"
-                onClick={onExportDatabase}
-                title="Unduh seluruh data (laporan warga, bank sampah, profil, RT/RW) ke file JSON cadangan"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold border border-emerald-400/40 shadow-xs transition-colors cursor-pointer whitespace-nowrap"
-              >
-                <FileDown className="w-3.5 h-3.5" />
-                <span>Cadangkan Data (JSON)</span>
-              </button>
-            )}
-            {onImportDatabase && (
-              <>
-                <input
-                  type="file"
-                  id="admin-restore-json-input"
-                  accept=".json,application/json"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    const reader = new FileReader();
-                    reader.onload = (evt) => {
-                      const text = evt.target?.result as string;
-                      if (text && onImportDatabase) {
-                        const res = onImportDatabase(text);
-                        if (res.ok) {
-                          setSuccessMessage(res.message);
-                        } else {
-                          setValidationErrors([res.message]);
-                        }
-                      }
-                    };
-                    reader.readAsText(file);
-                    e.target.value = '';
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => document.getElementById('admin-restore-json-input')?.click()}
-                  title="Pulihkan basis data dari file JSON cadangan"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold border border-amber-400/40 shadow-xs transition-colors cursor-pointer whitespace-nowrap"
-                >
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>Pulihkan Data (JSON)</span>
-                </button>
-              </>
-            )}
+            
             <button
               type="button"
               onClick={() => onNavigate('beranda')}
@@ -3600,7 +3560,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     activeTab === 'pengurusan_warga' ? 'text-sky-100' : 'text-[#0277BD]'
                   }`}
                 >
-                  7 Bidang · {serviceCatalog.reduce((acc, g) => acc + g.items.length, 0)} Sub-Menu
+                  13 Layanan Surat & Laporan Warga
                 </span>
               </button>
 
@@ -5176,7 +5136,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     type="text"
                     value={infoForm.publishedAt || ''}
                     onChange={(e) => setInfoForm({ ...infoForm, publishedAt: e.target.value })}
-                    placeholder="Contoh: 06 Okt 2026"
+                    placeholder={`Contoh: ${getRealtimeDateString()}`}
                     className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-mono-num"
                   />
                 </div>
@@ -5435,19 +5395,18 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       {/* ================= TAB 3: KELOLA LAPORAN WARGA (CRUD) ================= */}
       {activeTab === 'laporan' && isTabAllowed('laporan') && (
         <div className="mt-6 space-y-6">
-          {/* Pintasan ke Back-End 7 Bidang & 44 Sub-Menu Pengurusan Warga */}
+          {/* Pintasan ke Modul Pelayanan & Pengurusan Warga */}
           <div className="bg-gradient-to-r from-[#0D3868] to-[#0277BD] rounded-2xl p-4 sm:p-5 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <div className="text-[11px] font-extrabold uppercase tracking-wider text-amber-300">
-                🏛️ Modul Back-End Pelayanan Terpadu
+                🏛️ Modul Pelayanan Administrasi Terpadu
               </div>
               <div className="text-sm sm:text-base font-extrabold">
-                Ingin Mengelola 7 Bidang & 44 Sub-Menu Pengurusan Surat / Layanan Warga?
+                Ingin Mengelola Pelayanan Surat & Administrasi Warga?
               </div>
               <p className="text-xs text-sky-100 mt-0.5">
-                Buka tab khusus <strong>Pengurusan Warga</strong> untuk memfilter per bidang
-                (Adminduk, Surat Keterangan, UMKM, Bansos, Kemasyarakatan, Lingkungan, Pengaduan),
-                menerbitkan Nomor Surat Resmi, mencetak PDF Surat, serta mengatur SOP 44 Sub-Menu.
+                Buka tab khusus <strong>Pengurusan Warga</strong> untuk memproses 13 layanan surat resmi
+                (SKCK, SKU, SKTM, Domisili, Belum Nikah, dll.), menerbitkan Nomor Registrasi Surat Resmi, dan mencetak Dokumen KOP Resmi.
               </p>
             </div>
             <button
@@ -5455,7 +5414,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               onClick={() => handleTabSwitch('pengurusan_warga')}
               className="self-start sm:self-center px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-extrabold whitespace-nowrap cursor-pointer shrink-0"
             >
-              Buka Back-End Pengurusan Warga →
+              Buka Pengurusan Warga →
             </button>
           </div>
 
@@ -7691,6 +7650,67 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       {/* ================= TAB 6: KELOLA DATA RT & RW (CRUD PER RW & RT) ================= */}
       {activeTab === 'rtrw' && isTabAllowed('rtrw') && (
         <div className="mt-6 space-y-6">
+          {/* RT/RW Sub-Navigation Bar */}
+          <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-100 rounded-2xl border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setRtrwSubTab('wilayah')}
+              className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                rtrwSubTab === 'wilayah'
+                  ? 'bg-[#0D3868] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              <span>Data Wilayah RT & RW</span>
+              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono-num bg-white/20 text-white">
+                {rwGroups.length} RW · {totalRtInKelurahan} RT
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setRtrwSubTab('siskamling')}
+              className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                rtrwSubTab === 'siskamling'
+                  ? 'bg-[#0277BD] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              }`}
+            >
+              <ShieldCheck className="w-4 h-4 text-amber-300" />
+              <span>Daftar Siskamling RT/RW</span>
+              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono-num bg-amber-400 text-slate-950">
+                RW 01 s/d RW 07
+              </span>
+            </button>
+          </div>
+
+          {rtrwSubTab === 'siskamling' ? (
+            <AdminSiskamlingPanel
+              schedules={siskamlingSchedules}
+              rwGroups={rwGroups}
+              profile={profile}
+              adminOfficerName={adminSession?.fullName || 'Administrator Kelurahan Panaikang'}
+              onSaveSchedules={async (updated: SiskamlingRwSchedule[]) => {
+                if (onSaveSiskamlingSchedules) {
+                  const res = await onSaveSiskamlingSchedules(updated);
+                  if (res.ok) {
+                    recordAudit({
+                      actionType: 'UPDATE',
+                      module: 'STRUKTUR_RTRW',
+                      targetLabel: 'Jadwal Siskamling RW 01 s/d RW 07',
+                      summary: 'Memperbarui matriks roster penugasan Siskamling RT/RW',
+                      severity: 'info',
+                    });
+                  }
+                  return res;
+                }
+                return { ok: true };
+              }}
+            />
+          ) : (
+            <>
+
           <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h2 className="text-base font-bold text-[#0D3868]">
@@ -8268,6 +8288,8 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         );
       })}
     </div>
+            </>
+          )}
         </div>
       )}
 

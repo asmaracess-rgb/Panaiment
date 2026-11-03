@@ -20,6 +20,7 @@ import {
   HarvestRecord,
   FarmingInventoryItem,
   SupplyRequestItem,
+  SiskamlingRwSchedule,
 } from '../types';
 import {
   INITIAL_KELURAHAN_PROFILE,
@@ -45,6 +46,7 @@ import {
   INITIAL_FARMING_INVENTORIES,
   INITIAL_SUPPLY_REQUESTS,
 } from '../data/initialData';
+import { INITIAL_SISKAMLING_SCHEDULES } from '../data/siskamlingData';
 import { SERVICE_CATEGORY_GROUPS, ServiceCategoryGroup } from '../data/wargaServiceCatalog';
 
 export interface PersistedDatabase {
@@ -70,6 +72,7 @@ export interface PersistedDatabase {
   harvestRecords?: HarvestRecord[];
   farmingInventories?: FarmingInventoryItem[];
   supplyRequests?: SupplyRequestItem[];
+  siskamlingSchedules?: SiskamlingRwSchedule[];
   deletedItemIds?: string[];
   updatedAt: number;
 }
@@ -471,6 +474,13 @@ export function smartMergeDatabases(
     ? incoming!.activityLogs
     : (localDb?.activityLogs || INITIAL_ACTIVITY_LOGS);
 
+  const resolvedSiskamlingSchedules: SiskamlingRwSchedule[] =
+    Array.isArray(incoming?.siskamlingSchedules) && incoming!.siskamlingSchedules.length > 0
+      ? incoming!.siskamlingSchedules
+      : (Array.isArray(localDb?.siskamlingSchedules) && localDb!.siskamlingSchedules.length > 0
+        ? localDb!.siskamlingSchedules
+        : INITIAL_SISKAMLING_SCHEDULES);
+
   const maxUpdatedAt = Math.max(localUpdatedAt, incomingUpdatedAt, Date.now());
 
   return {
@@ -496,9 +506,14 @@ export function smartMergeDatabases(
     harvestRecords: incoming?.harvestRecords || localDb?.harvestRecords || INITIAL_HARVEST_RECORDS,
     farmingInventories: incoming?.farmingInventories || localDb?.farmingInventories || INITIAL_FARMING_INVENTORIES,
     supplyRequests: incoming?.supplyRequests || localDb?.supplyRequests || INITIAL_SUPPLY_REQUESTS,
+    siskamlingSchedules: resolvedSiskamlingSchedules,
     deletedItemIds: Array.from(deletedIds),
     updatedAt: maxUpdatedAt,
   };
+}
+
+export function buildDefaultPersistedDatabase(): PersistedDatabase {
+  return smartMergeDatabases(null, null);
 }
 
 export function loadPersistedDatabase(): PersistedDatabase | null {
