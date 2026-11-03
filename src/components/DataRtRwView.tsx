@@ -35,6 +35,25 @@ interface DataRtRwViewProps {
   onNavigate: (view: AppView) => void;
 }
 
+const toOfficerArray = (val: unknown): string[] => {
+  if (!val) return [];
+  if (Array.isArray(val)) {
+    return val
+      .map((item) => {
+        if (typeof item === 'string') return item.trim();
+        if (item && typeof item === 'object' && 'name' in item) {
+          return String((item as any).name || '').trim();
+        }
+        return String(item || '').trim();
+      })
+      .filter(Boolean);
+  }
+  if (typeof val === 'string') {
+    return [val.trim()].filter(Boolean);
+  }
+  return [];
+};
+
 export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
   rwGroups,
   siskamlingSchedules = INITIAL_SISKAMLING_SCHEDULES,
@@ -60,18 +79,28 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
         ? siskamlingSchedules
         : INITIAL_SISKAMLING_SCHEDULES;
 
-    return rawList.map((item) => {
-      const schedulesObj = item?.schedules || ({} as Record<SiskamlingDay, string[]>);
+    return rawList.map((item, idx) => {
+      const schedulesObj =
+        item && typeof item === 'object' && item.schedules && typeof item.schedules === 'object'
+          ? item.schedules
+          : ({} as Record<SiskamlingDay, string[]>);
       return {
         ...item,
+        rw: item?.rw || `RW ${idx + 1}`,
+        rwName: item?.rwName || '',
+        poskoLocation: item?.poskoLocation || '',
+        notes: item?.notes || '',
         schedules: {
-          Senin: Array.isArray(schedulesObj?.Senin) ? schedulesObj.Senin : [],
-          Selasa: Array.isArray(schedulesObj?.Selasa) ? schedulesObj.Selasa : [],
-          Rabu: Array.isArray(schedulesObj?.Rabu) ? schedulesObj.Rabu : [],
-          Kamis: Array.isArray(schedulesObj?.Kamis) ? schedulesObj.Kamis : [],
-          Jumat: Array.isArray(schedulesObj?.Jumat) ? schedulesObj.Jumat : [],
-          Sabtu: Array.isArray(schedulesObj?.Sabtu) ? schedulesObj.Sabtu : [],
-          Minggu: Array.isArray(schedulesObj?.Minggu) ? schedulesObj.Minggu : [],
+          Senin: toOfficerArray(schedulesObj?.Senin),
+          Selasa: toOfficerArray(schedulesObj?.Selasa),
+          Rabu: toOfficerArray(schedulesObj?.Rabu),
+          Kamis: toOfficerArray(schedulesObj?.Kamis),
+          Jumat: toOfficerArray(schedulesObj?.Jumat),
+          Sabtu: toOfficerArray(schedulesObj?.Sabtu),
+          Minggu:
+            toOfficerArray(schedulesObj?.Minggu).length > 0
+              ? toOfficerArray(schedulesObj?.Minggu)
+              : [`SELURUH RT/RW 00${idx + 1}`],
         },
       };
     });

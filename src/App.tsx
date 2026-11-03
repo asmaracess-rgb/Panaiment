@@ -711,27 +711,18 @@ export default function App() {
   const handleSaveProfileApi = async (
     updatedProfile: KelurahanProfile
   ): Promise<{ ok: boolean; errors?: string[] }> => {
-    // Client-side pre-validation
+    // Client-side pre-validation: only reject if provided data is malformed
     const errors: string[] = [];
-    if (!updatedProfile.lurahName || updatedProfile.lurahName.trim().length < 3) {
-      errors.push('Nama Lurah wajib diisi (minimal 3 karakter).');
-    }
-    if (!updatedProfile.lurahNip || updatedProfile.lurahNip.trim().length < 8) {
-      errors.push('NIP Lurah wajib diisi dengan format yang valid.');
-    }
-    if (!updatedProfile.officeAddress || updatedProfile.officeAddress.trim().length < 10) {
-      errors.push('Alamat Kantor Kelurahan wajib diisi secara lengkap.');
-    }
-    if (!updatedProfile.visi || updatedProfile.visi.trim().length < 10) {
-      errors.push('Visi Kelurahan wajib diisi (minimal 10 karakter).');
-    }
-    const cleanMisi = updatedProfile.misi.map((m) => m.trim()).filter(Boolean);
-    if (cleanMisi.length === 0) {
-      errors.push('Minimal harus terdapat 1 butir Misi Kelurahan.');
+    if (updatedProfile.lurahName !== undefined && updatedProfile.lurahName.trim().length > 0 && updatedProfile.lurahName.trim().length < 2) {
+      errors.push('Nama Lurah minimal 2 karakter.');
     }
     if (errors.length > 0) {
       return { ok: false, errors };
     }
+
+    const cleanMisi = Array.isArray(updatedProfile.misi)
+      ? updatedProfile.misi.map((m) => m.trim()).filter(Boolean)
+      : (kelurahanProfile.misi || []);
 
     const nextProfile: KelurahanProfile = {
       ...kelurahanProfile,
@@ -756,16 +747,20 @@ export default function App() {
         commitPersistence({ profile: json.data }, false);
       }
     } catch {
-      // Already persisted via commitPersistence
+      // Fallback already saved in local state & Firestore
     }
     return { ok: true };
   };
-
 
   const handleSaveSiskamlingSchedules = useCallback(
     async (updated: SiskamlingRwSchedule[]): Promise<{ ok: boolean; errors?: string[] }> => {
       setSiskamlingSchedules(updated);
       commitPersistence({ siskamlingSchedules: updated });
+      fetch('/api/siskamling', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      }).catch(() => {});
       return { ok: true };
     },
     [commitPersistence]
@@ -1593,6 +1588,11 @@ export default function App() {
     setRwGroups(updatedGroups);
     setKelurahanProfile(nextProfile);
     commitPersistence({ rwGroups: updatedGroups, profile: nextProfile });
+    fetch('/api/rw-groups', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedGroups),
+    }).catch(() => {});
     return { ok: true };
   };
 

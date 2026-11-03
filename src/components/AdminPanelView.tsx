@@ -116,6 +116,7 @@ import { AdminPengurusanWargaPanel } from './AdminPengurusanWargaPanel';
 import { AdminParameterUserPanel } from './AdminParameterUserPanel';
 import { AdminActivityLogPanel } from './AdminActivityLogPanel';
 import { AdminSiskamlingPanel } from './AdminSiskamlingPanel';
+import { INITIAL_SISKAMLING_SCHEDULES } from '../data/siskamlingData';
 import {
   AdminRtRwReportPanel,
   ExternalPrintSelection,
@@ -366,7 +367,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   onCreateBioporiPoint,
   onUpdateBioporiPoint,
   onDeleteBioporiPoint,
-  siskamlingSchedules,
+  siskamlingSchedules = INITIAL_SISKAMLING_SCHEDULES,
   onSaveSiskamlingSchedules,
   onExportDatabase,
   onImportDatabase,
@@ -1771,17 +1772,23 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       lurahMessage: lurahForm.lurahMessage.trim(),
       lurahPhotoUrl: lurahForm.lurahPhotoUrl,
     };
+    setIsSubmitting(true);
+    const res = await onSaveProfile(updatedProfile);
+    setIsSubmitting(false);
+    if (!res.ok) {
+      setValidationErrors(res.errors || ['Gagal menyimpan data Lurah dan NIP.']);
+      return;
+    }
     setProfileDraft(updatedProfile);
     setIsLurahModalOpen(false);
-    await onSaveProfile(updatedProfile);
     recordAudit({
       actionType: profileDraft.lurahName ? 'UPDATE' : 'CREATE',
       module: 'PROFIL_KELURAHAN',
       targetLabel: `Data Lurah: ${updatedProfile.lurahName}`,
-      summary: `Menyimpan data pimpinan Lurah Panaikang (${updatedProfile.lurahName})`,
+      summary: `Menyimpan data pimpinan Lurah Panaikang (${updatedProfile.lurahName}) & NIP: ${updatedProfile.lurahNip || '-'}`,
       severity: 'info',
     });
-    setSuccessMessage(`Data pimpinan Lurah "${updatedProfile.lurahName}" berhasil disimpan!`);
+    setSuccessMessage(`Data pimpinan Lurah "${updatedProfile.lurahName}" dan NIP berhasil disimpan permanen!`);
   };
 
   const handleConfirmDeleteLurah = async () => {

@@ -135,85 +135,73 @@ class BatchWriter {
  * because each entity's image is already saved in its individual collection document.
  */
 export function createSafeSnapshot(database: PersistedDatabase): PersistedDatabase {
-  const jsonStr = JSON.stringify(database);
-  // If the total snapshot is already well under 650 KB, we can store it directly
-  if (jsonStr.length < 650_000) {
-    return JSON.parse(jsonStr);
+  if (!database || typeof database !== 'object') {
+    return database;
   }
 
-  const clone: PersistedDatabase = JSON.parse(jsonStr);
-
-  const stripHeavyBase64 = (val: unknown): string => {
-    if (typeof val !== 'string') return '';
-    // Strip massive base64 data URLs from the aggregate document
-    if (val.length > 2048 && (val.startsWith('data:image/') || val.includes(';base64,'))) {
-      return '';
+  // 1. Recursive deep cleaner for heavy binary / base64 data URLs
+  const cleanObject = (val: any, depth = 0): any => {
+    if (depth > 12 || val === null || val === undefined) return val;
+    if (typeof val === 'string') {
+      // Strip any base64 data or extraordinarily large strings (> 800 chars)
+      if (val.length > 800 && (val.startsWith('data:') || val.includes(';base64,') || val.length > 8_000)) {
+        return '';
+      }
+      return val;
+    }
+    if (Array.isArray(val)) {
+      return val.map((item) => cleanObject(item, depth + 1));
+    }
+    if (typeof val === 'object') {
+      const result: Record<string, any> = {};
+      for (const k of Object.keys(val)) {
+        result[k] = cleanObject(val[k], depth + 1);
+      }
+      return result;
     }
     return val;
   };
 
-  if (clone.profile) {
-    clone.profile.lurahPhotoUrl = stripHeavyBase64(clone.profile.lurahPhotoUrl);
-    clone.profile.baganStrukturKelurahanUrl = stripHeavyBase64(clone.profile.baganStrukturKelurahanUrl);
-    clone.profile.baganStrukturRtRwUrl = stripHeavyBase64(clone.profile.baganStrukturRtRwUrl);
-    if (Array.isArray(clone.profile.officials)) {
-      clone.profile.officials = clone.profile.officials.map((o) => ({
-        ...o,
-        photoUrl: stripHeavyBase64(o.photoUrl),
-      }));
-    }
+  const safeClone = cleanObject(database) as PersistedDatabase;
+
+  // 2. Cap logs to 25 most recent entries
+  if (Array.isArray(safeClone.activityLogs)) {
+    safeClone.activityLogs = safeClone.activityLogs.slice(0, 25);
   }
 
-  if (Array.isArray(clone.reports)) {
-    clone.reports = clone.reports.map((r) => ({
-      ...r,
-      imageUrl: stripHeavyBase64(r.imageUrl),
-      completionPhotoUrl: stripHeavyBase64(r.completionPhotoUrl),
-    }));
+  // 3. Cap reports to 50 most recent entries in full_snapshot (all reports remain in citizen_reports collection)
+  if (Array.isArray(safeClone.reports) && safeClone.reports.length > 50) {
+    safeClone.reports = safeClone.reports.slice(0, 50);
   }
 
-  if (Array.isArray(clone.wasteUnits)) {
-    clone.wasteUnits = clone.wasteUnits.map((u) => ({
-      ...u,
-      imageUrl: stripHeavyBase64(u.imageUrl),
-    }));
+  // 4. Cap waste logs to 50 most recent entries
+  if (Array.isArray(safeClone.wasteLogs) && safeClone.wasteLogs.length > 50) {
+    safeClone.wasteLogs = safeClone.wasteLogs.slice(0, 50);
   }
 
-  if (Array.isArray(clone.cleanupEvents)) {
-    clone.cleanupEvents = clone.cleanupEvents.map((c) => ({
+  // 5. Cap cleanup events documentation photos
+  if (Array.isArray(safeClone.cleanupEvents)) {
+    safeClone.cleanupEvents = safeClone.cleanupEvents.map((c) => ({
       ...c,
-      imageUrl: stripHeavyBase64(c.imageUrl),
-      documentationPhotos: Array.isArray(c.documentationPhotos)
-        ? c.documentationPhotos.map(stripHeavyBase64).filter(Boolean)
-        : [],
+      imageUrl: '',
+      documentationPhotos: [],
     }));
   }
 
-  if (Array.isArray(clone.kelurahanInfos)) {
-    clone.kelurahanInfos = clone.kelurahanInfos.map((i) => ({
-      ...i,
-      imageUrl: stripHeavyBase64(i.imageUrl),
-    }));
+  // 6. Final safety check on total byte size
+  let jsonString = JSON.stringify(safeClone);
+  if (jsonString.length > 600_000) {
+    // If still large, trim reports further
+    if (Array.isArray(safeClone.reports)) {
+      safeClone.reports = safeClone.reports.slice(0, 20);
+    }
+    if (Array.isArray(safeClone.wasteLogs)) {
+      safeClone.wasteLogs = safeClone.wasteLogs.slice(0, 20);
+    }
+    jsonString = JSON.stringify(safeClone);
   }
 
-  if (Array.isArray(clone.tebaSpots)) {
-    clone.tebaSpots = clone.tebaSpots.map((t) => ({
-      ...t,
-      imageUrl: stripHeavyBase64(t.imageUrl),
-      documentationPhotos: Array.isArray(t.documentationPhotos)
-        ? t.documentationPhotos.map(stripHeavyBase64).filter(Boolean)
-        : [],
-    }));
-  }
-
-  if (Array.isArray(clone.urbanFarmingSpots)) {
-    clone.urbanFarmingSpots = clone.urbanFarmingSpots.map((s) => ({
-      ...s,
-      photoUrl: stripHeavyBase64(s.photoUrl),
-    }));
-  }
-
-  return clone;
+  return JSON.parse(jsonString);
 }
 
 /**

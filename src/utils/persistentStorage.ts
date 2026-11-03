@@ -292,76 +292,117 @@ export function smartMergeDatabases(
 
   if (!incRw) {
     resolvedRwGroups = baseRw;
-  } else if (localIsNewer && baseRw.some((r) => (r.rtList?.length || 0) > 0 || r.ketuaRwName)) {
-    // Local data is newer and has RT/RW data entered by admin; merge carefully
-    resolvedRwGroups = baseRw.map((lrw) => {
-      const matchingInc = incRw.find((irw) => irw.id === lrw.id || irw.rwCode === lrw.rwCode);
-      if (!matchingInc) return lrw;
-      const localRts = Array.isArray(lrw.rtList) ? lrw.rtList : [];
-      const incRts = Array.isArray(matchingInc.rtList) ? matchingInc.rtList : [];
-      const rtMap = new Map<string, typeof localRts[0]>();
-      incRts.forEach((rt) => rt && rt.id && rtMap.set(rt.id, rt));
-      localRts.forEach((rt) => rt && rt.id && rtMap.set(rt.id, rt));
-      return {
-        ...matchingInc,
-        ...lrw,
-        rtList: Array.from(rtMap.values()),
-      };
-    });
-    // Add any RW that only exists in incoming
-    incRw.forEach((irw) => {
-      if (!resolvedRwGroups.some((r) => r.id === irw.id || r.rwCode === irw.rwCode)) {
-        resolvedRwGroups.push(irw);
-      }
-    });
   } else {
-    // Incoming data merge; protect local RTs if incoming RTs are empty
-    resolvedRwGroups = incRw.map((irw) => {
-      const matchingLocal = baseRw.find((lrw) => lrw.id === irw.id || lrw.rwCode === irw.rwCode);
-      if (!matchingLocal) return irw;
-      const localRts = Array.isArray(matchingLocal.rtList) ? matchingLocal.rtList : [];
-      const incRts = Array.isArray(irw.rtList) ? irw.rtList : [];
-      const rtMap = new Map<string, typeof localRts[0]>();
-      // Put local RTs first, then incoming RTs (so if incoming is empty, local RTs are preserved!)
-      localRts.forEach((rt) => rt && rt.id && rtMap.set(rt.id, rt));
-      incRts.forEach((rt) => rt && rt.id && rtMap.set(rt.id, rt));
-      return {
-        ...matchingLocal,
-        ...irw,
-        ketuaRwName: irw.ketuaRwName || matchingLocal.ketuaRwName || '',
-        rwName: irw.rwName || matchingLocal.rwName || irw.rwCode,
-        phone: irw.phone || matchingLocal.phone || '',
-        areaDescription: irw.areaDescription || matchingLocal.areaDescription || '',
-        rtList: Array.from(rtMap.values()),
-      };
-    });
+    // Merge by RW ID or Code, never allowing empty incoming strings to wipe out populated local values
+    const rwMap = new Map<string, RwGroup>();
+
+    // Helper to get normalized RW key (e.g., "rw-01" or "rw 01")
+    const getRwKey = (rw: RwGroup) => (rw.rwCode || rw.id || '').trim().toLowerCase().replace(/\s+/g, '');
+
+    // Populate baseline from either local or incoming depending on which is newer
+    const primaryList = localIsNewer ? baseRw : incRw;
+    const secondaryList = localIsNewer ? incRw : baseRw;
+
+    for (const r of secondaryList) {
+      if (r) rwMap.set(getRwKey(r), r);
+    }
+
+    for (const p of primaryList) {
+      if (!p) continue;
+      const key = getRwKey(p);
+      const existing = rwMap.get(key);
+      if (!existing) {
+        rwMap.set(key, p);
+      } else {
+        // Merge field by field: prefer non-empty primary, fallback to non-empty existing
+        const pRts = Array.isArray(p.rtList) ? p.rtList : [];
+        const eRts = Array.isArray(existing.rtList) ? existing.rtList : [];
+        const rtMap = new Map<string, typeof pRts[0]>();
+        // Secondary RTs first, then primary RTs
+        eRts.forEach((rt) => rt && rt.id && rtMap.set(rt.id, rt));
+        pRts.forEach((rt) => rt && rt.id && rtMap.set(rt.id, rt));
+
+        rwMap.set(key, {
+          ...existing,
+          ...p,
+          ketuaRwName: (p.ketuaRwName && p.ketuaRwName.trim()) || existing.ketuaRwName || '',
+          rwName: (p.rwName && p.rwName.trim()) || existing.rwName || p.rwCode,
+          phone: (p.phone && p.phone.trim()) || existing.phone || '',
+          areaDescription: (p.areaDescription && p.areaDescription.trim()) || existing.areaDescription || '',
+          rtList: Array.from(rtMap.values()),
+        });
+      }
+    }
+
+    resolvedRwGroups = Array.from(rwMap.values());
   }
 
-  // 2. Resolve Profile - Prioritize Cloud Firestore Database so all devices always share the exact same profile data
+  // 2. Resolve Profile - Never let blank/empty values wipe out custom NIP, Lurah, or office data
   const baseProfile = localDb?.profile || INITIAL_KELURAHAN_PROFILE;
-  const incProfile = incoming?.profile;
-  const sourceProfile = incProfile && (incProfile.lurahName || incProfile.lurahPhotoUrl) ? incProfile : (localDb?.profile || baseProfile);
+  const incProfile = incoming?.profile || ({} as Partial<KelurahanProfile>);
+
+  // Determine primary & secondary profiles based on timestamp recency
+  const primaryProfile = localIsNewer ? baseProfile : { ...baseProfile, ...incProfile };
+  const secondaryProfile = localIsNewer ? { ...baseProfile, ...incProfile } : baseProfile;
+
+  const pickNonEmpty = (field: keyof KelurahanProfile, fallback = ''): string => {
+    const valPrimary = primaryProfile[field];
+    if (typeof valPrimary === 'string' && valPrimary.trim()) return valPrimary.trim();
+    const valSecondary = secondaryProfile[field];
+    if (typeof valSecondary === 'string' && valSecondary.trim()) return valSecondary.trim();
+    const valInitial = INITIAL_KELURAHAN_PROFILE[field];
+    if (typeof valInitial === 'string' && valInitial.trim()) return valInitial.trim();
+    return fallback;
+  };
 
   const resolvedOfficials = (
-    Array.isArray(incProfile?.officials) && incProfile!.officials.length > 0
-      ? incProfile!.officials
-      : (Array.isArray(localDb?.profile?.officials)
-          ? localDb!.profile!.officials
-          : (Array.isArray(baseProfile?.officials) ? baseProfile.officials : []))
+    Array.isArray(primaryProfile.officials) && primaryProfile.officials.length > 0
+      ? primaryProfile.officials
+      : (Array.isArray(secondaryProfile.officials) && secondaryProfile.officials.length > 0
+          ? secondaryProfile.officials
+          : (Array.isArray(baseProfile.officials) ? baseProfile.officials : []))
   ).filter((o) => o && o.id && !deletedIds.has(o.id));
+
+  const resolvedMisi = Array.isArray(primaryProfile.misi) && primaryProfile.misi.length > 0
+    ? primaryProfile.misi
+    : (Array.isArray(secondaryProfile.misi) && secondaryProfile.misi.length > 0
+        ? secondaryProfile.misi
+        : INITIAL_KELURAHAN_PROFILE.misi || []);
+
+  const resolvedBoundaries = primaryProfile.boundaries && (primaryProfile.boundaries.utara || primaryProfile.boundaries.selatan)
+    ? primaryProfile.boundaries
+    : (secondaryProfile.boundaries && (secondaryProfile.boundaries.utara || secondaryProfile.boundaries.selatan)
+        ? secondaryProfile.boundaries
+        : INITIAL_KELURAHAN_PROFILE.boundaries);
 
   const resolvedProfile: KelurahanProfile = {
     ...baseProfile,
-    ...sourceProfile,
+    ...secondaryProfile,
+    ...primaryProfile,
     officials: resolvedOfficials,
-    lurahName: sourceProfile.lurahName || baseProfile.lurahName || INITIAL_KELURAHAN_PROFILE.lurahName,
-    lurahNip: sourceProfile.lurahNip || baseProfile.lurahNip || INITIAL_KELURAHAN_PROFILE.lurahNip,
-    lurahPhotoUrl: sourceProfile.lurahPhotoUrl || incProfile?.lurahPhotoUrl || baseProfile.lurahPhotoUrl || '',
-    lurahRank: sourceProfile.lurahRank || baseProfile.lurahRank || '',
-    lurahPeriod: sourceProfile.lurahPeriod || baseProfile.lurahPeriod || '',
-    lurahMessage: sourceProfile.lurahMessage || baseProfile.lurahMessage || INITIAL_KELURAHAN_PROFILE.lurahMessage,
-    officeAddress: sourceProfile.officeAddress || baseProfile.officeAddress || INITIAL_KELURAHAN_PROFILE.officeAddress,
-    phoneContact: sourceProfile.phoneContact || baseProfile.phoneContact || INITIAL_KELURAHAN_PROFILE.phoneContact,
+    lurahName: pickNonEmpty('lurahName'),
+    lurahNip: pickNonEmpty('lurahNip'),
+    lurahPhotoUrl: pickNonEmpty('lurahPhotoUrl'),
+    lurahRank: pickNonEmpty('lurahRank'),
+    lurahPeriod: pickNonEmpty('lurahPeriod'),
+    lurahMessage: pickNonEmpty('lurahMessage'),
+    sekretarisName: pickNonEmpty('sekretarisName'),
+    kasiKebersihanName: pickNonEmpty('kasiKebersihanName'),
+    kasiPemerintahanName: pickNonEmpty('kasiPemerintahanName'),
+    officeAddress: pickNonEmpty('officeAddress'),
+    subDistrict: pickNonEmpty('subDistrict', 'Kecamatan Panakkukang'),
+    city: pickNonEmpty('city', 'Kota Makassar, Provinsi Sulawesi Selatan'),
+    postalCode: pickNonEmpty('postalCode', '90231'),
+    serviceHours: pickNonEmpty('serviceHours', 'Senin – Jumat · 08:00 – 16:00 WITA'),
+    phoneContact: pickNonEmpty('phoneContact'),
+    emailContact: pickNonEmpty('emailContact'),
+    baganStrukturKelurahanUrl: pickNonEmpty('baganStrukturKelurahanUrl'),
+    baganStrukturRtRwUrl: pickNonEmpty('baganStrukturRtRwUrl'),
+    areaKm2: pickNonEmpty('areaKm2'),
+    totalPopulation: pickNonEmpty('totalPopulation'),
+    visi: pickNonEmpty('visi'),
+    misi: resolvedMisi,
+    boundaries: resolvedBoundaries,
     totalRw: resolvedRwGroups.length,
     totalRt: resolvedRwGroups.reduce((acc, rw) => acc + (rw.rtList?.length || 0), 0),
   };
@@ -492,12 +533,46 @@ export function smartMergeDatabases(
     ? incoming!.activityLogs
     : (localDb?.activityLogs || INITIAL_ACTIVITY_LOGS);
 
-  const resolvedSiskamlingSchedules: SiskamlingRwSchedule[] =
+  const baseSchedules: SiskamlingRwSchedule[] =
+    Array.isArray(localDb?.siskamlingSchedules) && localDb!.siskamlingSchedules.length > 0
+      ? localDb!.siskamlingSchedules
+      : INITIAL_SISKAMLING_SCHEDULES;
+
+  const incSchedules: SiskamlingRwSchedule[] | null =
     Array.isArray(incoming?.siskamlingSchedules) && incoming!.siskamlingSchedules.length > 0
       ? incoming!.siskamlingSchedules
-      : (Array.isArray(localDb?.siskamlingSchedules) && localDb!.siskamlingSchedules.length > 0
-        ? localDb!.siskamlingSchedules
-        : INITIAL_SISKAMLING_SCHEDULES);
+      : null;
+
+  let resolvedSiskamlingSchedules: SiskamlingRwSchedule[];
+  if (!incSchedules) {
+    resolvedSiskamlingSchedules = baseSchedules;
+  } else {
+    const schedMap = new Map<string, SiskamlingRwSchedule>();
+    const getSchedKey = (s: SiskamlingRwSchedule) => (s.rw || '').trim().toLowerCase().replace(/\s+/g, '');
+    const primarySched = localIsNewer ? baseSchedules : incSchedules;
+    const secondarySched = localIsNewer ? incSchedules : baseSchedules;
+
+    for (const s of secondarySched) {
+      if (s) schedMap.set(getSchedKey(s), s);
+    }
+    for (const p of primarySched) {
+      if (!p) continue;
+      const key = getSchedKey(p);
+      const existing = schedMap.get(key);
+      if (!existing) {
+        schedMap.set(key, p);
+      } else {
+        schedMap.set(key, {
+          ...existing,
+          ...p,
+          poskoLocation: p.poskoLocation !== undefined ? p.poskoLocation : (existing.poskoLocation || ''),
+          notes: p.notes !== undefined ? p.notes : (existing.notes || ''),
+          schedules: p.schedules || existing.schedules,
+        });
+      }
+    }
+    resolvedSiskamlingSchedules = Array.from(schedMap.values());
+  }
 
   const maxUpdatedAt = Math.max(localUpdatedAt, incomingUpdatedAt, Date.now());
 

@@ -38,6 +38,7 @@ import type {
   HarvestRecord,
   FarmingInventoryItem,
   SupplyRequestItem,
+  SiskamlingRwSchedule,
 } from './src/types.ts';
 import {
   INITIAL_TEBA_SPOTS,
@@ -52,6 +53,7 @@ import {
   INITIAL_FARMING_INVENTORIES,
   INITIAL_SUPPLY_REQUESTS,
 } from './src/data/initialData.ts';
+import { INITIAL_SISKAMLING_SCHEDULES } from './src/data/siskamlingData.ts';
 import {
   SERVICE_CATEGORY_GROUPS,
   type ServiceCategoryGroup,
@@ -83,6 +85,7 @@ interface DatabaseSchema {
   harvestRecords: HarvestRecord[];
   farmingInventories: FarmingInventoryItem[];
   supplyRequests: SupplyRequestItem[];
+  siskamlingSchedules?: SiskamlingRwSchedule[];
   deletedItemIds?: string[];
   lastModified: string;
   updatedAt?: number;
@@ -166,6 +169,10 @@ function loadDatabase(): DatabaseSchema {
             ? parsed.farmingInventories
             : INITIAL_FARMING_INVENTORIES,
           supplyRequests: Array.isArray(parsed.supplyRequests) ? parsed.supplyRequests : INITIAL_SUPPLY_REQUESTS,
+          siskamlingSchedules:
+            Array.isArray(parsed.siskamlingSchedules) && parsed.siskamlingSchedules.length > 0
+              ? parsed.siskamlingSchedules
+              : INITIAL_SISKAMLING_SCHEDULES,
           deletedItemIds: Array.from(deletedSet),
           lastModified: parsed.lastModified || new Date().toISOString(),
           updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : 0,
@@ -199,6 +206,7 @@ function loadDatabase(): DatabaseSchema {
     harvestRecords: INITIAL_HARVEST_RECORDS,
     farmingInventories: INITIAL_FARMING_INVENTORIES,
     supplyRequests: INITIAL_SUPPLY_REQUESTS,
+    siskamlingSchedules: INITIAL_SISKAMLING_SCHEDULES,
     deletedItemIds: [],
     lastModified: new Date().toISOString(),
     updatedAt: 0,
@@ -354,22 +362,10 @@ function saveDatabase(db: DatabaseSchema, customUpdatedAt?: number): void {
 // Validation Helpers
 function validateProfile(body: Partial<KelurahanProfile>): string[] {
   const errors: string[] = [];
-  if (!body.lurahName || body.lurahName.trim().length < 3) {
-    errors.push('Nama Lurah wajib diisi (minimal 3 karakter).');
+  if (body.lurahName !== undefined && body.lurahName.trim().length > 0 && body.lurahName.trim().length < 2) {
+    errors.push('Nama Lurah minimal 2 karakter.');
   }
-  if (!body.lurahNip || body.lurahNip.trim().length < 8) {
-    errors.push('NIP Lurah wajib diisi dengan format yang valid.');
-  }
-  if (!body.officeAddress || body.officeAddress.trim().length < 10) {
-    errors.push('Alamat Kantor Kelurahan wajib diisi secara lengkap.');
-  }
-  if (!body.visi || body.visi.trim().length < 10) {
-    errors.push('Pernyataan Visi Kelurahan wajib diisi (minimal 10 karakter).');
-  }
-  if (!Array.isArray(body.misi) || body.misi.filter((m) => m && m.trim().length > 0).length === 0) {
-    errors.push('Minimal harus terdapat 1 butir Misi Kelurahan yang tidak kosong.');
-  }
-  if (body.emailContact && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.emailContact.trim())) {
+  if (body.emailContact && body.emailContact.trim().length > 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.emailContact.trim())) {
     errors.push('Format alamat email resmi kelurahan tidak valid.');
   }
   return errors;
@@ -1001,6 +997,8 @@ async function startServer() {
       db.farmingInventories = incoming.farmingInventories;
     if (Array.isArray(incoming.supplyRequests))
       db.supplyRequests = incoming.supplyRequests;
+    if (Array.isArray(incoming.siskamlingSchedules))
+      db.siskamlingSchedules = incoming.siskamlingSchedules;
 
     // Prune any items that were permanently deleted
     if (deletedSet.size > 0) {
@@ -1288,10 +1286,32 @@ async function startServer() {
     db.profile = {
       ...db.profile,
       ...incoming,
-      misi: incoming.misi.map((m) => m.trim()).filter(Boolean),
+      misi: Array.isArray(incoming.misi)
+        ? incoming.misi.map((m) => (typeof m === 'string' ? m.trim() : '')).filter(Boolean)
+        : (db.profile.misi || []),
     };
     saveDatabase(db);
     res.json({ ok: true, data: db.profile });
+  });
+
+  // 2A. Siskamling Schedules & Posko CRUD
+  app.get('/api/siskamling', (_req, res) => {
+    res.json({ ok: true, data: db.siskamlingSchedules || INITIAL_SISKAMLING_SCHEDULES });
+  });
+
+  app.put('/api/siskamling', (req, res) => {
+    const incoming = Array.isArray(req.body)
+      ? (req.body as SiskamlingRwSchedule[])
+      : Array.isArray(req.body?.siskamlingSchedules)
+      ? (req.body.siskamlingSchedules as SiskamlingRwSchedule[])
+      : null;
+    if (!incoming) {
+      res.status(400).json({ ok: false, errors: ['Format data jadwal & posko siskamling tidak valid.'] });
+      return;
+    }
+    db.siskamlingSchedules = incoming;
+    saveDatabase(db);
+    res.json({ ok: true, data: db.siskamlingSchedules });
   });
 
   // 2B. Data RT & RW CRUD
