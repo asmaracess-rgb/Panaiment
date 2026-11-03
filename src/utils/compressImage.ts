@@ -18,8 +18,8 @@ export function compressImageFile(
         return;
       }
 
-      // If already small (< 140 KB), return directly
-      if (rawDataUrl.length < 140_000) {
+      // If already very compact (< 50 KB), return directly
+      if (rawDataUrl.length < 50_000) {
         resolve(rawDataUrl);
         return;
       }

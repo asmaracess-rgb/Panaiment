@@ -206,9 +206,27 @@ function mergeEntityCollection<T extends { id: string }>(
   }
 
   // When incoming is authoritative (server is newer or equal):
-  // Take incoming list directly without resurrecting items that other admins deleted!
+  // Take incoming list directly without resurrecting items that other admins deleted,
+  // while preserving local image data if incoming omitted heavy base64.
   if (hasIncoming && !localIsNewer) {
-    return incomingList!.filter((item) => item && item.id && !deletedSet.has(item.id));
+    const localMap = new Map((localList || []).map((item: any) => [item?.id, item]));
+    return incomingList!
+      .filter((item) => item && item.id && !deletedSet.has(item.id))
+      .map((incItem) => {
+        const localItem = localMap.get(incItem.id) as any;
+        if (!localItem) return incItem;
+        const incAny = incItem as any;
+        return {
+          ...incItem,
+          ...(localItem.imageUrl && !incAny.imageUrl ? { imageUrl: localItem.imageUrl } : {}),
+          ...(localItem.photoUrl && !incAny.photoUrl ? { photoUrl: localItem.photoUrl } : {}),
+          ...(Array.isArray(localItem.documentationPhotos) &&
+          localItem.documentationPhotos.length > 0 &&
+          (!Array.isArray(incAny.documentationPhotos) || incAny.documentationPhotos.length === 0)
+            ? { documentationPhotos: localItem.documentationPhotos }
+            : {}),
+        };
+      });
   }
 
   // If only local exists

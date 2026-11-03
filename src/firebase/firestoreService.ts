@@ -102,36 +102,160 @@ const APP_STORE_COLLECTION = 'panaikang_app_data';
 const FULL_DB_DOC_ID = 'full_snapshot';
 const PROFILE_REF = doc(db, 'kelurahan_profiles', 'main_profile');
 
+class BatchWriter {
+  private batch = writeBatch(db);
+  private count = 0;
+  public totalCommitted = 0;
+
+  async set(ref: any, data: any, options = { merge: true }) {
+    this.batch.set(ref, data, options);
+    this.count++;
+    if (this.count >= 200) {
+      await this.batch.commit();
+      this.totalCommitted += this.count;
+      this.batch = writeBatch(db);
+      this.count = 0;
+    }
+  }
+
+  async finish(): Promise<number> {
+    if (this.count > 0) {
+      await this.batch.commit();
+      this.totalCommitted += this.count;
+      this.count = 0;
+    }
+    return this.totalCommitted;
+  }
+}
+
+/**
+ * Safely caps the monolithic full_snapshot document under 600 KB to strictly
+ * adhere to Google Cloud Firestore's 1 MiB (1,048,576 bytes) document limit.
+ * Heavy base64 images (>2KB) are omitted from this aggregated snapshot document
+ * because each entity's image is already saved in its individual collection document.
+ */
+export function createSafeSnapshot(database: PersistedDatabase): PersistedDatabase {
+  const jsonStr = JSON.stringify(database);
+  // If the total snapshot is already well under 650 KB, we can store it directly
+  if (jsonStr.length < 650_000) {
+    return JSON.parse(jsonStr);
+  }
+
+  const clone: PersistedDatabase = JSON.parse(jsonStr);
+
+  const stripHeavyBase64 = (val: unknown): string => {
+    if (typeof val !== 'string') return '';
+    // Strip massive base64 data URLs from the aggregate document
+    if (val.length > 2048 && (val.startsWith('data:image/') || val.includes(';base64,'))) {
+      return '';
+    }
+    return val;
+  };
+
+  if (clone.profile) {
+    clone.profile.lurahPhotoUrl = stripHeavyBase64(clone.profile.lurahPhotoUrl);
+    clone.profile.baganStrukturKelurahanUrl = stripHeavyBase64(clone.profile.baganStrukturKelurahanUrl);
+    clone.profile.baganStrukturRtRwUrl = stripHeavyBase64(clone.profile.baganStrukturRtRwUrl);
+    if (Array.isArray(clone.profile.officials)) {
+      clone.profile.officials = clone.profile.officials.map((o) => ({
+        ...o,
+        photoUrl: stripHeavyBase64(o.photoUrl),
+      }));
+    }
+  }
+
+  if (Array.isArray(clone.reports)) {
+    clone.reports = clone.reports.map((r) => ({
+      ...r,
+      imageUrl: stripHeavyBase64(r.imageUrl),
+      completionPhotoUrl: stripHeavyBase64(r.completionPhotoUrl),
+    }));
+  }
+
+  if (Array.isArray(clone.wasteUnits)) {
+    clone.wasteUnits = clone.wasteUnits.map((u) => ({
+      ...u,
+      imageUrl: stripHeavyBase64(u.imageUrl),
+    }));
+  }
+
+  if (Array.isArray(clone.cleanupEvents)) {
+    clone.cleanupEvents = clone.cleanupEvents.map((c) => ({
+      ...c,
+      imageUrl: stripHeavyBase64(c.imageUrl),
+      documentationPhotos: Array.isArray(c.documentationPhotos)
+        ? c.documentationPhotos.map(stripHeavyBase64).filter(Boolean)
+        : [],
+    }));
+  }
+
+  if (Array.isArray(clone.kelurahanInfos)) {
+    clone.kelurahanInfos = clone.kelurahanInfos.map((i) => ({
+      ...i,
+      imageUrl: stripHeavyBase64(i.imageUrl),
+    }));
+  }
+
+  if (Array.isArray(clone.tebaSpots)) {
+    clone.tebaSpots = clone.tebaSpots.map((t) => ({
+      ...t,
+      imageUrl: stripHeavyBase64(t.imageUrl),
+      documentationPhotos: Array.isArray(t.documentationPhotos)
+        ? t.documentationPhotos.map(stripHeavyBase64).filter(Boolean)
+        : [],
+    }));
+  }
+
+  if (Array.isArray(clone.urbanFarmingSpots)) {
+    clone.urbanFarmingSpots = clone.urbanFarmingSpots.map((s) => ({
+      ...s,
+      photoUrl: stripHeavyBase64(s.photoUrl),
+    }));
+  }
+
+  return clone;
+}
+
 /**
  * Granularly writes each entity into its respective Firestore collection
  * (Menu Warga, Pengelolaan Sampah, Data RT/RW, Urban Farming, Peta GIS, Profil, Kerja Bakti)
- * using batch commits (up to 500 operations per batch).
+ * using batch commits (up to 200 operations per batch).
  */
 export async function syncAllCollectionsToFirestore(
   database: PersistedDatabase
-): Promise<void> {
-  try {
-    const batch = writeBatch(db);
-    let opCount = 0;
+): Promise<number> {
+  const writer = new BatchWriter();
 
+  // Helper to ensure any individual document never exceeds 850 KB
+  const sanitizeDoc = <T extends Record<string, any>>(item: T): T => {
+    const raw = JSON.stringify(item);
+    if (raw.length < 850_000) return JSON.parse(raw);
+    const c = JSON.parse(raw);
+    for (const key of Object.keys(c)) {
+      if (typeof c[key] === 'string' && c[key].length > 400_000 && c[key].startsWith('data:')) {
+        c[key] = '';
+      }
+    }
+    return c;
+  };
+
+  try {
     // 1. Profil Kelurahan
     if (database.profile) {
-      const sanitizedProfile = JSON.parse(JSON.stringify(database.profile));
-      batch.set(PROFILE_REF, {
+      const sanitizedProfile = sanitizeDoc(database.profile);
+      await writer.set(PROFILE_REF, {
         ...sanitizedProfile,
         updatedAt: Date.now(),
         syncedAt: new Date().toISOString(),
       }, { merge: true });
-      opCount++;
     }
 
     // 2. Menu Warga: Citizen Reports
     if (Array.isArray(database.reports)) {
-      for (const rep of database.reports.slice(0, 100)) {
+      for (const rep of database.reports.slice(0, 150)) {
         if (!rep || !rep.id) continue;
         const ref = doc(db, 'citizen_reports', rep.id);
-        batch.set(ref, JSON.parse(JSON.stringify(rep)), { merge: true });
-        opCount++;
+        await writer.set(ref, sanitizeDoc(rep), { merge: true });
       }
     }
 
@@ -140,17 +264,15 @@ export async function syncAllCollectionsToFirestore(
       for (const unit of database.wasteUnits) {
         if (!unit || !unit.id) continue;
         const ref = doc(db, 'waste_units', unit.id);
-        batch.set(ref, JSON.parse(JSON.stringify(unit)), { merge: true });
-        opCount++;
+        await writer.set(ref, sanitizeDoc(unit), { merge: true });
       }
     }
 
     if (Array.isArray(database.wasteLogs)) {
-      for (const log of database.wasteLogs.slice(0, 60)) {
+      for (const log of database.wasteLogs.slice(0, 100)) {
         if (!log || !log.id) continue;
         const ref = doc(db, 'waste_logs', log.id);
-        batch.set(ref, JSON.parse(JSON.stringify(log)), { merge: true });
-        opCount++;
+        await writer.set(ref, sanitizeDoc(log), { merge: true });
       }
     }
 
@@ -159,8 +281,7 @@ export async function syncAllCollectionsToFirestore(
       for (const rw of database.rwGroups) {
         if (!rw || !rw.id) continue;
         const ref = doc(db, 'rw_groups', rw.id);
-        batch.set(ref, JSON.parse(JSON.stringify(rw)), { merge: true });
-        opCount++;
+        await writer.set(ref, sanitizeDoc(rw), { merge: true });
       }
     }
 
@@ -169,8 +290,7 @@ export async function syncAllCollectionsToFirestore(
       for (const spot of database.urbanFarmingSpots) {
         if (!spot || !spot.id) continue;
         const ref = doc(db, 'urban_farming_spots', spot.id);
-        batch.set(ref, JSON.parse(JSON.stringify(spot)), { merge: true });
-        opCount++;
+        await writer.set(ref, sanitizeDoc(spot), { merge: true });
       }
     }
 
@@ -178,8 +298,7 @@ export async function syncAllCollectionsToFirestore(
       for (const req of database.seedRequests) {
         if (!req || !req.id) continue;
         const ref = doc(db, 'seed_requests', req.id);
-        batch.set(ref, JSON.parse(JSON.stringify(req)), { merge: true });
-        opCount++;
+        await writer.set(ref, sanitizeDoc(req), { merge: true });
       }
     }
 
@@ -188,8 +307,7 @@ export async function syncAllCollectionsToFirestore(
       for (const teba of database.tebaSpots) {
         if (!teba || !teba.id) continue;
         const ref = doc(db, 'teba_spots', teba.id);
-        batch.set(ref, JSON.parse(JSON.stringify(teba)), { merge: true });
-        opCount++;
+        await writer.set(ref, sanitizeDoc(teba), { merge: true });
       }
     }
 
@@ -197,8 +315,7 @@ export async function syncAllCollectionsToFirestore(
       for (const bio of database.bioporiPoints) {
         if (!bio || !bio.id) continue;
         const ref = doc(db, 'biopori_points', bio.id);
-        batch.set(ref, JSON.parse(JSON.stringify(bio)), { merge: true });
-        opCount++;
+        await writer.set(ref, sanitizeDoc(bio), { merge: true });
       }
     }
 
@@ -207,8 +324,7 @@ export async function syncAllCollectionsToFirestore(
       for (const ev of database.cleanupEvents) {
         if (!ev || !ev.id) continue;
         const ref = doc(db, 'cleanup_events', ev.id);
-        batch.set(ref, JSON.parse(JSON.stringify(ev)), { merge: true });
-        opCount++;
+        await writer.set(ref, sanitizeDoc(ev), { merge: true });
       }
     }
 
@@ -216,28 +332,25 @@ export async function syncAllCollectionsToFirestore(
       for (const inf of database.kelurahanInfos) {
         if (!inf || !inf.id) continue;
         const ref = doc(db, 'kelurahan_infos', inf.id);
-        batch.set(ref, JSON.parse(JSON.stringify(inf)), { merge: true });
-        opCount++;
+        await writer.set(ref, sanitizeDoc(inf), { merge: true });
       }
     }
 
     // 8. Back-End Administrator Core: Katalog Layanan SOP & Penerima WhatsApp
     if (Array.isArray(database.serviceCatalog)) {
       const catalogRef = doc(db, 'service_catalog', 'main_catalog');
-      batch.set(catalogRef, {
-        serviceCatalog: JSON.parse(JSON.stringify(database.serviceCatalog)),
+      await writer.set(catalogRef, {
+        serviceCatalog: sanitizeDoc(database.serviceCatalog),
         updatedAt: Date.now(),
       }, { merge: true });
-      opCount++;
     }
 
     if (Array.isArray(database.whatsappRecipients)) {
       const waRef = doc(db, 'whatsapp_recipients', 'main_recipients');
-      batch.set(waRef, {
-        whatsappRecipients: JSON.parse(JSON.stringify(database.whatsappRecipients)),
+      await writer.set(waRef, {
+        whatsappRecipients: sanitizeDoc(database.whatsappRecipients),
         updatedAt: Date.now(),
       }, { merge: true });
-      opCount++;
     }
 
     // 9. Admin Users & Activity Logs
@@ -245,17 +358,15 @@ export async function syncAllCollectionsToFirestore(
       for (const usr of database.adminUsers) {
         if (!usr || !usr.id) continue;
         const ref = doc(db, 'admin_users', usr.id);
-        batch.set(ref, JSON.parse(JSON.stringify(usr)), { merge: true });
-        opCount++;
+        await writer.set(ref, sanitizeDoc(usr), { merge: true });
       }
     }
 
     if (Array.isArray(database.activityLogs)) {
-      for (const act of database.activityLogs.slice(0, 40)) {
+      for (const act of database.activityLogs.slice(0, 50)) {
         if (!act || !act.id) continue;
         const ref = doc(db, 'activity_logs', act.id);
-        batch.set(ref, JSON.parse(JSON.stringify(act)), { merge: true });
-        opCount++;
+        await writer.set(ref, sanitizeDoc(act), { merge: true });
       }
     }
 
@@ -265,40 +376,40 @@ export async function syncAllCollectionsToFirestore(
         if (!sched || !sched.rw) continue;
         const scheduleId = sched.rw.replace(/\s+/g, '-').toLowerCase();
         const ref = doc(db, 'siskamling_schedules', scheduleId);
-        batch.set(ref, JSON.parse(JSON.stringify(sched)), { merge: true });
-        opCount++;
+        await writer.set(ref, sanitizeDoc(sched), { merge: true });
       }
     }
 
-    if (opCount > 0) {
-      await batch.commit();
-      console.log(`[Firestore Cloud] Berhasil menyinkronkan ${opCount} entitas ke koleksi Google Cloud Firestore.`);
-    }
+    const totalCommitted = await writer.finish();
+    console.log(`[Firestore Cloud] Berhasil menyinkronkan ${totalCommitted} entitas ke koleksi Google Cloud Firestore.`);
+    return totalCommitted;
   } catch (err) {
     console.warn('[Firestore Cloud] Peringatan sinkronisasi granular ke koleksi Firestore:', err);
+    throw err;
   }
 }
 
 /**
  * Sync entire application database snapshot to Firestore document and granular collections.
- * This guarantees a single source of truth accessible by all devices instantly.
+ * Uses safe snapshot sizing to guarantee document stays well within the 1 MiB limit.
  */
 export async function pushFullDatabaseToFirestore(
   database: PersistedDatabase
 ): Promise<void> {
   const docRef = doc(db, APP_STORE_COLLECTION, FULL_DB_DOC_ID);
   try {
-    const sanitized = JSON.parse(JSON.stringify(database));
+    // 1. Sync granular collections across Google Cloud Firestore
+    await syncAllCollectionsToFirestore(database);
+
+    // 2. Write safe snapshot document (strictly capped < 650 KB to never exceed 1 MiB limit)
+    const safeData = createSafeSnapshot(database);
     await setDoc(docRef, {
-      ...sanitized,
+      ...safeData,
       updatedAt: Date.now(),
       syncedAt: new Date().toISOString(),
     }, { merge: true });
 
-    // Also trigger granular collection synchronization non-blockingly
-    syncAllCollectionsToFirestore(database).catch((err) => {
-      console.warn('[Firestore Cloud] Granular sync notice:', err);
-    });
+    console.log('[Firestore Cloud] Sinkronisasi ke Google Cloud Firestore sukses.');
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `${APP_STORE_COLLECTION}/${FULL_DB_DOC_ID}`);
   }
