@@ -347,6 +347,10 @@
       "schema": "#/entities/AdminActivityLog",
       "description": "Koleksi log aktivitas administrator"
     },
+    "/siskamling_schedules/{scheduleId}": {
+      "schema": "#/entities/SiskamlingRwSchedule",
+      "description": "Jadwal siskamling dan ronda malam posko RW 01 s/d RW 07"
+    },
     "/admin_session_locks/{lockId}": {
       "schema": "#/entities/AdminSessionLock",
       "description": "Dokumen lock sesi admin aktif tunggal"

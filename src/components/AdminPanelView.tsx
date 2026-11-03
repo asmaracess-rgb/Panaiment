@@ -130,7 +130,7 @@ import {
   SERVICE_CATEGORY_GROUPS,
   ServiceCategoryGroup,
 } from '../data/wargaServiceCatalog';
-import { recordDeletedItemId, PersistedDatabase } from '../utils/persistentStorage';
+import { recordDeletedItemId, PersistedDatabase, savePersistedDatabase } from '../utils/persistentStorage';
 import { pushFullDatabaseToFirestore } from '../firebase/firestoreService';
 import {
   getFirestoreSessionStatus,
@@ -1328,28 +1328,34 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   const handleForceCloudSync = async () => {
     setIsCloudSyncing(true);
     clearFeedback();
+    const currentSnapshot: PersistedDatabase = {
+      profile,
+      rwGroups,
+      reports,
+      wasteUnits,
+      wasteLogs,
+      tebaSpots,
+      bioporiPoints,
+      cleanupEvents,
+      kelurahanInfos,
+      whatsappRecipients,
+      serviceCatalog,
+      adminUsers,
+      activityLogs,
+      urbanFarmingSpots,
+      seedRequests,
+      siskamlingSchedules: siskamlingSchedules || [],
+      updatedAt: Date.now(),
+    };
     try {
-      const currentSnapshot: PersistedDatabase = {
-        profile,
-        rwGroups,
-        reports,
-        wasteUnits,
-        wasteLogs,
-        tebaSpots,
-        bioporiPoints,
-        cleanupEvents,
-        kelurahanInfos,
-        whatsappRecipients,
-        serviceCatalog,
-        adminUsers,
-        activityLogs,
-        urbanFarmingSpots,
-        seedRequests,
-        updatedAt: Date.now(),
-      };
+      // 1. First ensure immediate local persistence
+      savePersistedDatabase(currentSnapshot);
+
+      // 2. Synchronize to Google Cloud Firestore (full document + granular collections)
       await pushFullDatabaseToFirestore(currentSnapshot);
+
       setSuccessMessage(
-        'Sinkronisasi Sukses: Seluruh data Menu Warga, Pengelolaan Sampah, Data RT/RW, Urban Farming, Peta Digital GIS, Profil Kelurahan, dan Kerja Bakti telah 100% tersimpan aman & terpusat di Google Cloud Firestore!'
+        'Sinkronisasi Sukses: Seluruh data Menu Warga, Pengelolaan Sampah, Data RT/RW, Siskamling, Urban Farming, Peta Digital GIS, Profil Kelurahan, dan Kerja Bakti telah 100% tersimpan aman & terpusat di Google Cloud Firestore!'
       );
       recordAudit({
         actionType: 'EXPORT',
@@ -1358,9 +1364,20 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         summary: 'Melakukan sinkronisasi penuh seluruh data aplikasi ke Google Cloud Firestore',
         severity: 'info',
       });
-    } catch {
+    } catch (err: unknown) {
+      console.error('[Admin Cloud Sync Error]', err);
+      let detail = 'Periksa koneksi internet perangkat Anda atau firewall.';
+      if (err instanceof Error) {
+        try {
+          const parsed = JSON.parse(err.message);
+          if (parsed.error) detail = parsed.error;
+        } catch {
+          detail = err.message;
+        }
+      }
       setValidationErrors([
-        'Gagal menyinkronkan data ke cloud. Periksa koneksi internet perangkat Anda.',
+        `Sinkronisasi ke Google Cloud Firestore belum berhasil (${detail}).`,
+        'Semua data Anda tetap aman dan tersimpan di penyimpanan internal/lokal.',
       ]);
     } finally {
       setIsCloudSyncing(false);

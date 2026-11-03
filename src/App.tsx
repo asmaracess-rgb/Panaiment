@@ -223,6 +223,7 @@ export default function App() {
     activityLogs,
     urbanFarmingSpots,
     seedRequests,
+    siskamlingSchedules,
   });
 
   useEffect(() => {
@@ -242,6 +243,7 @@ export default function App() {
       activityLogs,
       urbanFarmingSpots,
       seedRequests,
+      siskamlingSchedules,
     };
   }, [
     kelurahanProfile,
@@ -259,6 +261,7 @@ export default function App() {
     activityLogs,
     urbanFarmingSpots,
     seedRequests,
+    siskamlingSchedules,
   ]);
 
   const commitPersistence = useCallback(
@@ -287,6 +290,7 @@ export default function App() {
         activityLogs: partial.activityLogs ?? stateRef.current.activityLogs,
         urbanFarmingSpots: (partial.urbanFarmingSpots ?? stateRef.current.urbanFarmingSpots).filter((s) => s && s.id && !deletedSet.has(s.id)),
         seedRequests: (partial.seedRequests ?? stateRef.current.seedRequests).filter((s) => s && s.id && !deletedSet.has(s.id)),
+        siskamlingSchedules: partial.siskamlingSchedules ?? stateRef.current.siskamlingSchedules,
         deletedItemIds: nextDeletedArray,
         updatedAt: Date.now(),
       };
@@ -307,6 +311,7 @@ export default function App() {
         activityLogs: nextSnapshot.activityLogs ?? [],
         urbanFarmingSpots: nextSnapshot.urbanFarmingSpots ?? [],
         seedRequests: nextSnapshot.seedRequests ?? [],
+        siskamlingSchedules: nextSnapshot.siskamlingSchedules ?? [],
       };
 
       savePersistedDatabase(nextSnapshot);
@@ -383,6 +388,7 @@ export default function App() {
       activityLogs: merged.activityLogs ?? [],
       urbanFarmingSpots: merged.urbanFarmingSpots ?? [],
       seedRequests: merged.seedRequests ?? [],
+      siskamlingSchedules: merged.siskamlingSchedules ?? [],
     };
 
     savePersistedDatabase(merged);
@@ -621,6 +627,7 @@ export default function App() {
         if (merged.activityLogs) setActivityLogs(merged.activityLogs);
         if (merged.urbanFarmingSpots) setUrbanFarmingSpots(merged.urbanFarmingSpots);
         if (merged.seedRequests) setSeedRequests(merged.seedRequests);
+        if (merged.siskamlingSchedules) setSiskamlingSchedules(merged.siskamlingSchedules);
         setTebaSpots(merged.tebaSpots ?? []);
         setBioporiPoints(merged.bioporiPoints ?? []);
         savePersistedDatabase(merged);

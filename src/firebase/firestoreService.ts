@@ -259,6 +259,17 @@ export async function syncAllCollectionsToFirestore(
       }
     }
 
+    // 10. Siskamling Schedules (RW 01 s/d RW 07)
+    if (Array.isArray(database.siskamlingSchedules)) {
+      for (const sched of database.siskamlingSchedules) {
+        if (!sched || !sched.rw) continue;
+        const scheduleId = sched.rw.replace(/\s+/g, '-').toLowerCase();
+        const ref = doc(db, 'siskamling_schedules', scheduleId);
+        batch.set(ref, JSON.parse(JSON.stringify(sched)), { merge: true });
+        opCount++;
+      }
+    }
+
     if (opCount > 0) {
       await batch.commit();
       console.log(`[Firestore Cloud] Berhasil menyinkronkan ${opCount} entitas ke koleksi Google Cloud Firestore.`);

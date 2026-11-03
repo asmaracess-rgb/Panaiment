@@ -55,9 +55,26 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
   const todayDay = useMemo(() => getTodaySiskamlingDay(), []);
 
   const currentSchedules = useMemo(() => {
-    return Array.isArray(siskamlingSchedules) && siskamlingSchedules.length > 0
-      ? siskamlingSchedules
-      : INITIAL_SISKAMLING_SCHEDULES;
+    const rawList =
+      Array.isArray(siskamlingSchedules) && siskamlingSchedules.length > 0
+        ? siskamlingSchedules
+        : INITIAL_SISKAMLING_SCHEDULES;
+
+    return rawList.map((item) => {
+      const schedulesObj = item?.schedules || ({} as Record<SiskamlingDay, string[]>);
+      return {
+        ...item,
+        schedules: {
+          Senin: Array.isArray(schedulesObj?.Senin) ? schedulesObj.Senin : [],
+          Selasa: Array.isArray(schedulesObj?.Selasa) ? schedulesObj.Selasa : [],
+          Rabu: Array.isArray(schedulesObj?.Rabu) ? schedulesObj.Rabu : [],
+          Kamis: Array.isArray(schedulesObj?.Kamis) ? schedulesObj.Kamis : [],
+          Jumat: Array.isArray(schedulesObj?.Jumat) ? schedulesObj.Jumat : [],
+          Sabtu: Array.isArray(schedulesObj?.Sabtu) ? schedulesObj.Sabtu : [],
+          Minggu: Array.isArray(schedulesObj?.Minggu) ? schedulesObj.Minggu : [],
+        },
+      };
+    });
   }, [siskamlingSchedules]);
 
   const toggleRwDetail = (rwId: string) => {
@@ -69,8 +86,8 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
 
   const expandAll = () => {
     const all: Record<string, boolean> = {};
-    rwGroups.forEach((rw) => {
-      all[rw.id] = true;
+    (rwGroups || []).forEach((rw) => {
+      if (rw?.id) all[rw.id] = true;
     });
     setExpandedRwIds(all);
   };
@@ -86,37 +103,39 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
     }));
   };
 
-  const totalRwCount = rwGroups.length;
-  const totalRtCount = rwGroups.reduce((acc, rw) => acc + (rw.rtList?.length || 0), 0);
-  const totalHouseholds = rwGroups.reduce(
+  const totalRwCount = rwGroups?.length || 0;
+  const totalRtCount = (rwGroups || []).reduce((acc, rw) => acc + (rw?.rtList?.length || 0), 0);
+  const totalHouseholds = (rwGroups || []).reduce(
     (acc, rw) =>
-      acc + (rw.rtList || []).reduce((sum, rt) => sum + (Number(rt.householdsCount) || 0), 0),
+      acc + (rw?.rtList || []).reduce((sum, rt) => sum + (Number(rt?.householdsCount) || 0), 0),
     0
   );
 
   const totalOfficersToday = useMemo(() => {
     return currentSchedules.reduce((acc, item) => {
-      return acc + (item.schedules[selectedDay]?.length || 0);
+      const list = item?.schedules?.[selectedDay];
+      return acc + (Array.isArray(list) ? list.length : 0);
     }, 0);
   }, [currentSchedules, selectedDay]);
 
-  const filteredRwGroups = rwGroups
-    .filter((rw) => selectedRwCode === 'Semua' || rw.rwCode === selectedRwCode)
+  const filteredRwGroups = (rwGroups || [])
+    .filter((rw) => rw && (selectedRwCode === 'Semua' || rw.rwCode === selectedRwCode))
     .map((rw) => {
       if (!searchQuery.trim()) return rw;
       const q = searchQuery.toLowerCase();
       const rwMatches =
-        rw.rwCode.toLowerCase().includes(q) ||
-        rw.rwName.toLowerCase().includes(q) ||
-        rw.ketuaRwName.toLowerCase().includes(q) ||
-        rw.areaDescription.toLowerCase().includes(q);
+        (rw.rwCode || '').toLowerCase().includes(q) ||
+        (rw.rwName || '').toLowerCase().includes(q) ||
+        (rw.ketuaRwName || '').toLowerCase().includes(q) ||
+        (rw.areaDescription || '').toLowerCase().includes(q);
       if (rwMatches) return rw;
       const matchingRts = (rw.rtList || []).filter(
         (rt) =>
-          rt.rtCode.toLowerCase().includes(q) ||
-          rt.rtName.toLowerCase().includes(q) ||
-          rt.ketuaRtName.toLowerCase().includes(q) ||
-          rt.areaDescription.toLowerCase().includes(q)
+          rt &&
+          ((rt.rtCode || '').toLowerCase().includes(q) ||
+            (rt.rtName || '').toLowerCase().includes(q) ||
+            (rt.ketuaRtName || '').toLowerCase().includes(q) ||
+            (rt.areaDescription || '').toLowerCase().includes(q))
       );
       if (matchingRts.length > 0) {
         return { ...rw, rtList: matchingRts };
@@ -127,6 +146,7 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
 
   const filteredSiskamling = useMemo(() => {
     return currentSchedules.filter((item) => {
+      if (!item || !item.rw) return false;
       const matchRw =
         selectedSiskamlingRw === 'Semua' ||
         item.rw.toLowerCase() === selectedSiskamlingRw.toLowerCase() ||
@@ -141,8 +161,8 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
       const matchPosko = (item.poskoLocation || '').toLowerCase().includes(q);
       const matchRwName = (item.rwName || '').toLowerCase().includes(q);
       const matchNotes = (item.notes || '').toLowerCase().includes(q);
-      const officers = item.schedules[selectedDay] || [];
-      const matchOfficers = officers.some((name) => name.toLowerCase().includes(q));
+      const officers = item?.schedules?.[selectedDay] || [];
+      const matchOfficers = officers.some((name) => (name || '').toLowerCase().includes(q));
 
       return matchPosko || matchRwName || matchNotes || matchOfficers;
     });
@@ -298,9 +318,9 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
               >
                 Semua RW ({rwGroups.length})
               </button>
-              {rwGroups.map((rw) => (
+              {rwGroups.map((rw, rwIdx) => (
                 <button
-                  key={rw.id}
+                  key={`rw-filter-${rw.id || rw.rwCode || rwIdx}`}
                   type="button"
                   onClick={() => setSelectedRwCode(rw.rwCode)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
@@ -353,7 +373,7 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
                 Data RW atau RT yang dicari tidak ditemukan.
               </div>
             ) : (
-              filteredRwGroups.map((rw) => {
+              filteredRwGroups.map((rw, rwIdx) => {
                 const isExpanded = !!expandedRwIds[rw.id];
                 const rwHouseholds = (rw.rtList || []).reduce(
                   (sum, rt) => sum + (Number(rt.householdsCount) || 0),
@@ -363,7 +383,7 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
 
                 return (
                   <section
-                    key={rw.id}
+                    key={`rw-sec-${rw.id || rw.rwCode || rwIdx}`}
                     className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs hover:border-[#0277BD]/60 transition-all"
                   >
                     {/* Compact RW Bilah / Bar Header */}
@@ -467,9 +487,9 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
                           </div>
                         ) : (
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                            {rw.rtList.map((rt) => (
+                            {rw.rtList.map((rt, rtIdx) => (
                               <div
-                                key={rt.id}
+                                key={`rt-card-${rw.id || rw.rwCode}-${rt.id || rt.rtCode || rtIdx}`}
                                 className="rounded-xl border border-slate-200 bg-white hover:border-[#0277BD]/70 hover:shadow-xs transition-all p-4 flex flex-col justify-between"
                               >
                                 <div>
@@ -596,7 +616,7 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
                 const isToday = day === todayDay;
                 return (
                   <button
-                    key={day}
+                    key={`siskamling-day-btn-${day}`}
                     type="button"
                     onClick={() => setSelectedDay(day)}
                     className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
@@ -683,9 +703,9 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
               >
                 Semua Posko (7 RW)
               </button>
-              {currentSchedules.map((item) => (
+              {currentSchedules.map((item, schedIdx) => (
                 <button
-                  key={item.rw}
+                  key={`siskamling-chip-${item.rw || schedIdx}`}
                   type="button"
                   onClick={() => setSelectedSiskamlingRw(item.rw)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
@@ -718,14 +738,14 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
                 Tidak ada data jadwal siskamling yang cocok dengan pencarian.
               </div>
             ) : (
-              filteredSiskamling.map((item) => {
-                const officersToday = item.schedules[selectedDay] || [];
+              filteredSiskamling.map((item, schedIdx) => {
+                const officersToday = item?.schedules?.[selectedDay] || [];
                 const isExpanded = !!expandedSiskamlingRw[item.rw];
                 const leadOfficer = officersToday[0] || 'Koordinator RW';
 
                 return (
                   <div
-                    key={item.rw}
+                    key={`siskamling-card-${item.rw || schedIdx}`}
                     className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs hover:border-[#0277BD]/60 transition-all"
                   >
                     {/* Header Bar Posko */}
@@ -792,7 +812,7 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                           {officersToday.map((officer, i) => (
                             <div
-                              key={i}
+                              key={`officer-${item.rw || 'posko'}-${selectedDay}-${i}-${officer || 'petugas'}`}
                               className={`p-3 rounded-xl border flex items-center gap-3 transition-all ${
                                 i === 0
                                   ? 'bg-amber-50/70 border-amber-300 ring-1 ring-amber-200'
@@ -863,7 +883,7 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
                                 <tr>
                                   {SISKAMLING_DAYS.map((d) => (
                                     <th
-                                      key={d}
+                                      key={`th-mini-${d}`}
                                       className={`p-2.5 border-r border-slate-200 last:border-r-0 whitespace-nowrap ${
                                         d === selectedDay ? 'bg-amber-100 text-slate-900' : ''
                                       }`}
@@ -876,10 +896,10 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
                               <tbody className="divide-y divide-slate-200 bg-white">
                                 <tr>
                                   {SISKAMLING_DAYS.map((d) => {
-                                    const officers = item.schedules[d] || [];
+                                    const officers = item?.schedules?.[d] || [];
                                     return (
                                       <td
-                                        key={d}
+                                        key={`td-mini-${item.rw}-${d}`}
                                         className={`p-2.5 align-top border-r border-slate-200 last:border-r-0 min-w-[130px] ${
                                           d === selectedDay ? 'bg-amber-50/50' : ''
                                         }`}
@@ -887,7 +907,7 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
                                         <div className="space-y-1">
                                           {officers.map((off, idx) => (
                                             <div
-                                              key={idx}
+                                              key={`mini-off-${item.rw}-${d}-${idx}-${off}`}
                                               className="text-[11px] font-semibold text-slate-800 leading-tight"
                                             >
                                               <span className="text-slate-400 font-mono-num mr-1">
@@ -975,7 +995,7 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
                     </th>
                     {SISKAMLING_DAYS.map((day) => (
                       <th
-                        key={day}
+                        key={`matrix-th-${day}`}
                         className={`p-3 border border-slate-200 whitespace-nowrap text-center ${
                           day === todayDay ? 'bg-amber-100 text-slate-900 font-black' : ''
                         }`}
@@ -991,8 +1011,8 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
-                  {currentSchedules.map((row) => (
-                    <tr key={row.rw} className="hover:bg-slate-50/80 transition-colors">
+                  {currentSchedules.map((row, rowIdx) => (
+                    <tr key={`matrix-row-${row.rw || rowIdx}`} className="hover:bg-slate-50/80 transition-colors">
                       <td className="p-3 border border-slate-200 font-bold bg-white sticky left-0 z-10">
                         <div className="text-xs font-extrabold text-[#0D3868]">{row.rw}</div>
                         <div className="text-[11px] text-slate-500 font-normal truncate max-w-[140px]">
@@ -1000,10 +1020,10 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
                         </div>
                       </td>
                       {SISKAMLING_DAYS.map((day) => {
-                        const officers = row.schedules[day] || [];
+                        const officers = row?.schedules?.[day] || [];
                         return (
                           <td
-                            key={day}
+                            key={`matrix-td-${row.rw}-${day}`}
                             className={`p-2.5 border border-slate-200 align-top min-w-[125px] ${
                               day === todayDay ? 'bg-amber-50/40' : ''
                             }`}
@@ -1011,7 +1031,7 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
                             <div className="space-y-1">
                               {officers.map((officer, idx) => (
                                 <div
-                                  key={idx}
+                                  key={`matrix-off-${row.rw}-${day}-${idx}-${officer}`}
                                   className="text-[11px] font-semibold text-slate-800 leading-tight"
                                 >
                                   <span className="text-slate-400 font-mono-num mr-1">

@@ -7,7 +7,7 @@ service cloud.firestore {
     }
 
     function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+      return id is string && id.size() > 0 && id.size() <= 128;
     }
 
     // Kelurahan Profile: Public read, administrative updates
@@ -70,6 +70,12 @@ service cloud.firestore {
     match /seed_requests/{requestId} {
       allow read: if true;
       allow write: if isValidId(requestId);
+    }
+
+    // Siskamling Schedules & Ronda Malam
+    match /siskamling_schedules/{scheduleId} {
+      allow read: if true;
+      allow write: if isValidId(scheduleId);
     }
 
     // Administrative Accounts, Activity Audit Logs & Live Session Locks
