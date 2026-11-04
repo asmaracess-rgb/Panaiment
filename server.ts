@@ -58,6 +58,11 @@ import {
   SERVICE_CATEGORY_GROUPS,
   type ServiceCategoryGroup,
 } from './src/data/wargaServiceCatalog.ts';
+import {
+  getRealtimeDateTimeString,
+  getRealtimeDateString,
+  getRealtimeTimeString,
+} from './src/utils/realtimeDate.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -139,6 +144,36 @@ function loadDatabase(): DatabaseSchema {
           return list.filter((item) => item && item.id && !deletedSet.has(item.id));
         };
 
+        const rawAdminUsers = filterDeleted(parsed.adminUsers, INITIAL_ADMIN_USERS);
+        const normalizeCategoryId = (catId: string): string => {
+          if (catId === 'adminduk') return 'administrasi_kependudukan';
+          if (catId === 'pengaduan_warga') return 'pengaduan_permasalahan_warga';
+          return catId;
+        };
+        const normalizedAdminUsers = rawAdminUsers.map((u) => ({
+          ...u,
+          allowedServiceCategories: Array.from(
+            new Set((u.allowedServiceCategories || []).map(normalizeCategoryId))
+          ),
+        }));
+        const kasiPemberdayaanInit = INITIAL_ADMIN_USERS.find(
+          (u) => u.id === 'usr-kasi-pemberdayaan'
+        );
+        if (
+          kasiPemberdayaanInit &&
+          !deletedSet.has('usr-kasi-pemberdayaan') &&
+          !normalizedAdminUsers.some(
+            (u) => u.id === 'usr-kasi-pemberdayaan' || u.username === 'kasi.pemberdayaan'
+          )
+        ) {
+          const insertIdx = normalizedAdminUsers.findIndex((u) => u.id === 'usr-kasi-pemerintahan');
+          if (insertIdx !== -1) {
+            normalizedAdminUsers.splice(insertIdx + 1, 0, kasiPemberdayaanInit);
+          } else {
+            normalizedAdminUsers.push(kasiPemberdayaanInit);
+          }
+        }
+
         return {
           profile: resolvedProfile,
           rwGroups: resolvedRwGroups,
@@ -154,7 +189,7 @@ function loadDatabase(): DatabaseSchema {
             Array.isArray(parsed.serviceCatalog) && parsed.serviceCatalog.length > 0
               ? parsed.serviceCatalog
               : SERVICE_CATEGORY_GROUPS,
-          adminUsers: filterDeleted(parsed.adminUsers, INITIAL_ADMIN_USERS),
+          adminUsers: normalizedAdminUsers,
           activityLogs: Array.isArray(parsed.activityLogs) ? parsed.activityLogs : INITIAL_ACTIVITY_LOGS,
           urbanFarmingSpots: filterDeleted(parsed.urbanFarmingSpots, INITIAL_URBAN_FARMING_SPOTS),
           seedRequests: filterDeleted(parsed.seedRequests, INITIAL_SEED_REQUESTS),
@@ -581,12 +616,13 @@ async function startServer() {
 
   // 0C. Administrator Authentication with Strict Single-Live Admin Enforcement
   app.post('/api/auth/login', (req, res) => {
-    const { username, password, clientToken, forceTakeover, masterPassphrase } = req.body as {
+    const { username, password, clientToken, forceTakeover, masterPassphrase, clientLoginAt } = req.body as {
       username?: string;
       password?: string;
       clientToken?: string;
       forceTakeover?: boolean;
       masterPassphrase?: string;
+      clientLoginAt?: string;
     };
     const cleanUser = (username || '').trim().toLowerCase();
     const cleanNip = cleanUser.replace(/\s+/g, '');
@@ -687,12 +723,11 @@ async function startServer() {
     }
 
     const loginTimeStr =
-      new Date().toLocaleTimeString('id-ID', {
-        hour: '2-digit',
-        minute: '2-digit',
-      }) + ' WITA';
+      typeof clientLoginAt === 'string' && clientLoginAt.trim().length > 0
+        ? clientLoginAt.trim()
+        : getRealtimeDateTimeString(new Date());
 
-    matchedUser.lastLoginAt = `Hari ini · ${loginTimeStr}`;
+    matchedUser.lastLoginAt = loginTimeStr;
 
     const sessionToken = `pnk-adm-${matchedUser.id}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
     activeAdminSession = {
@@ -734,12 +769,15 @@ async function startServer() {
 
   // 0D. Admin Heartbeat (renews single-admin occupancy lock)
   app.post('/api/auth/heartbeat', (req, res) => {
-    const { token } = req.body as { token?: string };
+    const { token, loginAt } = req.body as { token?: string; loginAt?: string };
     const headerToken = req.headers['x-admin-token'] as string | undefined;
     const reqToken = token || headerToken;
     const current = getValidActiveAdminSession();
     if (current && reqToken && current.token === reqToken) {
       current.lastHeartbeat = Date.now();
+      if (typeof loginAt === 'string' && loginAt.trim().length > 0) {
+        current.loginAt = loginAt.trim();
+      }
       writePersistedAdminLock(current);
       activeAdminSession = current;
       res.json({ ok: true, active: true });
@@ -1050,19 +1088,7 @@ async function startServer() {
     }
     const created: AdminActivityLog = {
       id: incoming.id || `LOG-2026-${String(Date.now()).slice(-6)}`,
-      timestamp:
-        incoming.timestamp ||
-        new Date().toLocaleDateString('id-ID', {
-          day: '2-digit',
-          month: 'short',
-          year: 'numeric',
-        }) +
-          ' · ' +
-          new Date().toLocaleTimeString('id-ID', {
-            hour: '2-digit',
-            minute: '2-digit',
-          }) +
-          ' WITA',
+      timestamp: incoming.timestamp || getRealtimeDateTimeString(new Date()),
       createdAtMs: incoming.createdAtMs || Date.now(),
       actorUsername: incoming.actorUsername || 'lurah',
       actorName: incoming.actorName || 'Muthmainnah, SE, MM',
@@ -1097,6 +1123,20 @@ async function startServer() {
     db.activityLogs = incoming.slice(0, 500);
     saveDatabase(db);
     res.json({ ok: true, data: db.activityLogs });
+  });
+
+  app.post('/api/activity-logs/reset', (_req, res) => {
+    db.activityLogs = [];
+    saveDatabase(db);
+    res.json({ ok: true, data: db.activityLogs });
+  });
+
+  app.delete('/api/activity-logs/:id', (req, res) => {
+    const { id } = req.params;
+    recordServerDeletedId(id);
+    db.activityLogs = (db.activityLogs || []).filter((l) => l.id !== id);
+    saveDatabase(db);
+    res.json({ ok: true, deletedId: id, data: db.activityLogs });
   });
 
   // 1AA. Parameter User & Batasan Akses Admin CRUD (Managed by Master Admin / Lurah)
@@ -1156,7 +1196,7 @@ async function startServer() {
         : ['pengurusan_warga', 'laporan'],
       allowedServiceCategories: Array.isArray(incoming.allowedServiceCategories)
         ? incoming.allowedServiceCategories
-        : ['adminduk', 'surat_keterangan'],
+        : ['administrasi_kependudukan', 'surat_keterangan'],
       actionPermissions: incoming.actionPermissions || {
         canCreate: true,
         canEdit: true,
@@ -1166,8 +1206,8 @@ async function startServer() {
         canManageWhatsApp: false,
         canExportPrintPdf: true,
       },
-      createdAt: incoming.createdAt || '08 Okt 2026',
-      updatedAt: '08 Okt 2026',
+      createdAt: incoming.createdAt || getRealtimeDateString(new Date()),
+      updatedAt: getRealtimeDateString(new Date()),
       notes: incoming.notes?.trim() || '',
     };
     db.adminUsers = [...db.adminUsers, created];
@@ -1207,7 +1247,7 @@ async function startServer() {
         incoming.password && incoming.password.trim().length > 0
           ? incoming.password.trim()
           : existing.password,
-      updatedAt: '08 Okt 2026 · Diperbarui',
+      updatedAt: `${getRealtimeDateString(new Date())} · Diperbarui`,
     };
     db.adminUsers[idx] = merged;
     saveDatabase(db);
@@ -1434,8 +1474,8 @@ async function startServer() {
       mapX: typeof incoming.mapX === 'number' ? incoming.mapX : 50,
       mapY: typeof incoming.mapY === 'number' ? incoming.mapY : 48,
       coordinatesLabel: incoming.coordinatesLabel || '-5.1379, 119.4470',
-      createdAt: incoming.createdAt || '06 Okt 2026 · Baru Saja',
-      updatedAt: '06 Okt 2026 · Baru Saja',
+      createdAt: incoming.createdAt || getRealtimeDateTimeString(new Date()),
+      updatedAt: getRealtimeDateTimeString(new Date()),
       assignedTeam: incoming.assignedTeam || `Koordinator Kebersihan ${incoming.rw || 'RW 02'}`,
       responseNote:
         incoming.responseNote ||
@@ -1482,7 +1522,7 @@ async function startServer() {
 
     db.reports[idx] = {
       ...updatedFields,
-      updatedAt: '06 Okt 2026 · Diperbarui',
+      updatedAt: `${getRealtimeDateTimeString(new Date())} · Diperbarui`,
     };
     saveDatabase(db);
     res.json({ ok: true, data: db.reports[idx] });
@@ -1536,7 +1576,7 @@ async function startServer() {
       activeHouseholds: Number(incoming.activeHouseholds) || 50,
       pickupSchedule: incoming.pickupSchedule?.trim() || 'Senin, Rabu, Jumat · 06:30 WITA',
       imageUrl: incoming.imageUrl?.trim() || '',
-      lastUpdated: '06 Okt 2026',
+      lastUpdated: getRealtimeDateString(new Date()),
     };
 
     db.wasteUnits = [...db.wasteUnits, newUnit];
@@ -1570,7 +1610,7 @@ async function startServer() {
 
     db.wasteUnits[idx] = {
       ...merged,
-      lastUpdated: '06 Okt 2026',
+      lastUpdated: getRealtimeDateString(new Date()),
     };
     saveDatabase(db);
     res.json({ ok: true, data: db.wasteUnits[idx] });
@@ -1602,7 +1642,7 @@ async function startServer() {
     const targetUnit = db.wasteUnits.find((u) => u.rw === rw);
     const newLog: WasteLogEntry = {
       id: `log-${Date.now()}`,
-      date: '06 Okt 2026 · Baru Saja',
+      date: getRealtimeDateTimeString(new Date()),
       rw: rw || 'RW 02',
       unitName: targetUnit ? targetUnit.unitName : `BSU ${rw}`,
       organikKg: org,
@@ -1620,7 +1660,7 @@ async function startServer() {
             organikKg: u.organikKg + org,
             anorganikKg: u.anorganikKg + anorg,
             residuKg: u.residuKg + resKg,
-            lastUpdated: '06 Okt 2026',
+            lastUpdated: getRealtimeDateString(new Date()),
           }
         : u
     );
@@ -2011,7 +2051,7 @@ async function startServer() {
         (cleanContent.length > 130 ? `${cleanContent.slice(0, 130)}...` : cleanContent),
       content: cleanContent,
       imageUrl: incoming.imageUrl!.trim(),
-      publishedAt: incoming.publishedAt?.trim() || '06 Okt 2026',
+      publishedAt: incoming.publishedAt?.trim() || getRealtimeDateString(new Date()),
       author: incoming.author?.trim() || 'Lurah Panaikang',
       instagramHandle: incoming.instagramHandle?.trim() || '@kelurahan.panaikang',
       instagramPostUrl:
@@ -2038,7 +2078,7 @@ async function startServer() {
     res.json({
       ok: true,
       handle: '@kelurahan.panaikang',
-      syncedAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WITA',
+      syncedAt: getRealtimeTimeString(new Date()),
       data: db.kelurahanInfos,
     });
   });
@@ -2549,6 +2589,21 @@ async function startServer() {
   };
 
   const getLocalIsoDate = (d = new Date()): string => {
+    try {
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Makassar',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).formatToParts(d);
+      const map: Record<string, string> = {};
+      for (const p of parts) {
+        if (p.type !== 'literal') map[p.type] = p.value;
+      }
+      if (map.year && map.month && map.day) {
+        return `${map.year}-${map.month}-${map.day}`;
+      }
+    } catch {}
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');

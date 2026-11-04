@@ -63,7 +63,12 @@ import {
   getDeletedItemIds,
   PersistedDatabase,
 } from './utils/persistentStorage';
-import { getRealtimeDateTimeString, getRealtimeDateString } from './utils/realtimeDate';
+import {
+  getRealtimeDateTimeString,
+  getRealtimeDateString,
+  getRealtimeTimeString,
+  getRealtimeTimeWithSecondsString,
+} from './utils/realtimeDate';
 import { HomePortal } from './components/HomePortal';
 import { ProfilKelurahanView } from './components/ProfilKelurahanView';
 import { DataRtRwView } from './components/DataRtRwView';
@@ -161,10 +166,36 @@ export default function App() {
 
   const [adminUsers, setAdminUsers] = useState<AdminUserAccount[]>(() => {
     const deleted = getDeletedItemIds();
-    const source = Array.isArray(initialPersisted?.adminUsers)
+    const source = Array.isArray(initialPersisted?.adminUsers) && initialPersisted.adminUsers.length > 0
       ? initialPersisted.adminUsers
       : INITIAL_ADMIN_USERS;
-    return source.filter((u) => u && u.id && !deleted.has(u.id));
+    const normalizeCat = (c: string) => {
+      if (c === 'adminduk') return 'administrasi_kependudukan';
+      if (c === 'pengaduan_warga') return 'pengaduan_permasalahan_warga';
+      return c;
+    };
+    const filtered = source
+      .filter((u) => u && u.id && !deleted.has(u.id))
+      .map((u) => ({
+        ...u,
+        allowedServiceCategories: Array.from(
+          new Set((u.allowedServiceCategories || []).map(normalizeCat))
+        ),
+      }));
+    const kasiPemberdayaanInit = INITIAL_ADMIN_USERS.find((u) => u.id === 'usr-kasi-pemberdayaan');
+    if (
+      kasiPemberdayaanInit &&
+      !deleted.has('usr-kasi-pemberdayaan') &&
+      !filtered.some((u) => u.id === 'usr-kasi-pemberdayaan' || u.username === 'kasi.pemberdayaan')
+    ) {
+      const idx = filtered.findIndex((u) => u.id === 'usr-kasi-pemerintahan');
+      if (idx !== -1) {
+        filtered.splice(idx + 1, 0, kasiPemberdayaanInit);
+      } else {
+        filtered.push(kasiPemberdayaanInit);
+      }
+    }
+    return filtered;
   });
 
   const [activityLogs, setActivityLogs] = useState<AdminActivityLog[]>(
@@ -622,19 +653,13 @@ export default function App() {
       assignedTeam: string
     ) => {
       const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString('id-ID', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      });
       const newToast: ToastNotification = {
         id,
         ticketCode,
         reportTitle,
         newStatus,
         assignedTeam,
-        timestamp: `${timeStr} WITA`,
+        timestamp: getRealtimeTimeWithSecondsString(new Date()),
       };
       setToasts((prev) => [newToast, ...prev.slice(0, 3)]);
       window.setTimeout(() => {
@@ -1622,8 +1647,7 @@ export default function App() {
     const nextInfos = [...customPosts, ...INITIAL_KELURAHAN_INFOS];
     setKelurahanInfos(nextInfos);
     commitPersistence({ kelurahanInfos: nextInfos });
-    const syncedAt =
-      new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WITA';
+    const syncedAt = getRealtimeTimeString(new Date());
     return { ok: true, syncedAt };
   };
 
@@ -1696,19 +1720,10 @@ export default function App() {
   const handleRecordActivityLog = useCallback(
     (entry: Omit<AdminActivityLog, 'id' | 'timestamp' | 'createdAtMs'>) => {
       const now = new Date();
-      const timeStr = now.toLocaleTimeString('id-ID', {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-      const dateStr = now.toLocaleDateString('id-ID', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      });
       const newLog: AdminActivityLog = {
         ...entry,
         id: `log-act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        timestamp: `${dateStr} · ${timeStr} WITA`,
+        timestamp: getRealtimeDateTimeString(now),
         createdAtMs: now.getTime(),
       };
       const nextLogs = [newLog, ...stateRef.current.activityLogs].slice(0, 500);
@@ -1718,6 +1733,19 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newLog),
+      }).catch(() => {});
+    },
+    [commitPersistence]
+  );
+
+  const handleDeleteActivityLog = useCallback(
+    (logId: string) => {
+      recordDeletedItemId(logId);
+      const nextLogs = stateRef.current.activityLogs.filter((l) => l.id !== logId);
+      setActivityLogs(nextLogs);
+      commitPersistence({ activityLogs: nextLogs });
+      fetch(`/api/activity-logs/${encodeURIComponent(logId)}`, {
+        method: 'DELETE',
       }).catch(() => {});
     },
     [commitPersistence]
@@ -2130,6 +2158,7 @@ export default function App() {
             onSaveServiceCatalog={handleSaveServiceCatalog}
             onSaveAdminUsers={handleSaveAdminUsers}
             onRecordActivityLog={handleRecordActivityLog}
+            onDeleteActivityLog={handleDeleteActivityLog}
             onResetActivityLogs={handleResetActivityLogs}
             onCreateReport={handleAdminCreateReport}
             onUpdateReport={handleAdminUpdateReport}

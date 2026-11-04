@@ -9,6 +9,7 @@ import {
 import { db } from './config';
 import { AdminUserAccount, AdminRoleLevel, AdminActionPermissions } from '../types';
 import { INITIAL_ADMIN_USERS } from '../data/initialData';
+import { getRealtimeDateTimeString } from '../utils/realtimeDate';
 
 export interface ActiveAdminSessionData {
   token: string;
@@ -143,7 +144,8 @@ export async function loginWithFirestore(
   usernameInput: string,
   passwordInput: string,
   registeredUsers?: AdminUserAccount[],
-  forceTakeover = false
+  forceTakeover = false,
+  clientLoginAt?: string
 ): Promise<{
   ok: boolean;
   error?: string;
@@ -213,15 +215,10 @@ export async function loginWithFirestore(
   }
 
   // 3. Grant session and record lock
-  const now = new Date();
-  const timeStr = now.toLocaleDateString('id-ID', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }) + ' · ' + now.toLocaleTimeString('id-ID', {
-    hour: '2-digit',
-    minute: '2-digit',
-  }) + ' WITA';
+  const timeStr =
+    typeof clientLoginAt === 'string' && clientLoginAt.trim().length > 0
+      ? clientLoginAt.trim()
+      : getRealtimeDateTimeString(new Date());
 
   const sessionToken = `pnk-adm-${matchedUser.id}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
   const sessionData: ActiveAdminSessionData = {
@@ -256,13 +253,23 @@ export async function loginWithFirestore(
  * Renews the single-admin occupancy lock in Firestore
  * Returns false if the session was taken over by another admin
  */
-export async function heartbeatFirestore(token: string): Promise<boolean> {
+export async function heartbeatFirestore(token: string, loginAt?: string): Promise<boolean> {
   try {
     const snap = await getDoc(LOCK_DOC_REF);
     if (!snap.exists()) return false;
     const data = snap.data() as ActiveAdminSessionData;
     if (data.token === token) {
-      await setDoc(LOCK_DOC_REF, { ...data, lastHeartbeat: Date.now() }, { merge: true });
+      await setDoc(
+        LOCK_DOC_REF,
+        {
+          ...data,
+          ...(typeof loginAt === 'string' && loginAt.trim().length > 0
+            ? { loginAt: loginAt.trim() }
+            : {}),
+          lastHeartbeat: Date.now(),
+        },
+        { merge: true }
+      );
       return true;
     }
     return false;

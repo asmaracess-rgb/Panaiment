@@ -387,16 +387,20 @@ export type AdminActivityActionType =
 
 export type AdminActivityModule =
   | 'AUTENTIKASI'
+  | 'DASHBOARD_LURAH'
   | 'PENGURUSAN_WARGA'
   | 'PROFIL_KELURAHAN'
   | 'STRUKTUR_RTRW'
+  | 'SISKAMLING'
   | 'INFORMASI_KELURAHAN'
   | 'LAPORAN_WARGA'
   | 'BANK_SAMPAH'
   | 'KERJA_BAKTI'
   | 'URBAN_FARMING'
+  | 'TRAFFIC_ANALITIK'
   | 'PARAMETER_USER'
-  | 'KATALOG_SOP';
+  | 'KATALOG_SOP'
+  | 'PETA_DIGITAL_GIS';
 
 export interface AdminActivityLog {
   id: string;

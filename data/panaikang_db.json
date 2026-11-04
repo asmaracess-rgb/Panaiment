@@ -113,7 +113,7 @@
       "fullName": "Lurah Panaikang",
       "nip": "",
       "jabatan": "Lurah Panaikang · Master / Super Admin",
-      "unitBidang": "Pimpinan Kelurahan Panaikang",
+      "unitBidang": "Pimpinan Pemerintah Kelurahan Panaikang",
       "phone": "",
       "roleLevel": "master_admin",
       "isMasterLurah": true,
@@ -133,13 +133,13 @@
         "log_aktivitas"
       ],
       "allowedServiceCategories": [
-        "adminduk",
+        "administrasi_kependudukan",
         "surat_keterangan",
         "pelayanan_usaha",
         "masalah_lingkungan",
         "bantuan_sosial",
         "sosial_kemasyarakatan",
-        "pengaduan_warga"
+        "pengaduan_permasalahan_warga"
       ],
       "actionPermissions": {
         "canCreate": true,
@@ -151,17 +151,17 @@
         "canExportPrintPdf": true
       },
       "createdAt": "01 Jan 2026",
-      "updatedAt": "01 Jan 2026",
+      "updatedAt": "04 Nov 2026",
       "lastLoginAt": "Belum login",
-      "notes": "Akun Master Admin / Super Admin Lurah Panaikang dengan otoritas penuh seluruh modul dan pengaturan batasan akses user."
+      "notes": "Akun Master Admin / Super Admin Lurah Panaikang dengan otoritas penuh seluruh 12 modul, bagan struktur dinamis, dan pengaturan batasan akses user."
     },
     {
       "id": "usr-sekretaris",
       "username": "sekretaris",
       "password": "panaikang2026",
-      "fullName": "Sekretaris Kelurahan",
+      "fullName": "Sekretaris Lurah",
       "nip": "",
-      "jabatan": "Sekretaris Kelurahan · Koordinator Satu Data",
+      "jabatan": "Sekretaris Lurah · Koordinator Satu Data",
       "unitBidang": "Sekretariat Kelurahan Panaikang",
       "phone": "",
       "roleLevel": "admin_bidang",
@@ -172,17 +172,21 @@
         "profil",
         "info",
         "laporan",
+        "sampah",
+        "kerjabakti",
+        "urban_farming",
         "rtrw",
-        "traffic"
+        "traffic",
+        "log_aktivitas"
       ],
       "allowedServiceCategories": [
-        "adminduk",
+        "administrasi_kependudukan",
         "surat_keterangan",
         "pelayanan_usaha",
         "masalah_lingkungan",
         "bantuan_sosial",
         "sosial_kemasyarakatan",
-        "pengaduan_warga"
+        "pengaduan_permasalahan_warga"
       ],
       "actionPermissions": {
         "canCreate": true,
@@ -194,67 +198,33 @@
         "canExportPrintPdf": true
       },
       "createdAt": "05 Jan 2026",
-      "updatedAt": "05 Jan 2026",
+      "updatedAt": "04 Nov 2026",
       "lastLoginAt": "Belum login",
-      "notes": "Mengelola verifikasi administrasi surat menyurat, profil kelurahan, dan publikasi informasi kelurahan."
+      "notes": "Koordinator Sekretariat Satu Data: verifikasi 13 layanan surat resmi, profil & bagan struktur kelurahan, data RT/RW & Siskamling, serta monitoring trafik."
     },
     {
       "id": "usr-kasi-pemerintahan",
       "username": "kasi.pemerintahan",
       "password": "panaikang2026",
-      "fullName": "Kasi Pemerintahan",
+      "fullName": "Kasi Pemerintahan, Ketentraman dan Ketertiban Umum",
       "nip": "",
-      "jabatan": "Kasi Pemerintahan, Ketenteraman & Ketertiban",
-      "unitBidang": "Seksi Pemerintahan & Trantib",
+      "jabatan": "Kasi Pemerintahan, Ketentraman dan Ketertiban Umum",
+      "unitBidang": "Seksi Pemerintahan, Ketentraman & Ketertiban Umum",
       "phone": "",
       "roleLevel": "admin_bidang",
       "isMasterLurah": false,
       "isActive": true,
       "allowedAdminTabs": [
         "pengurusan_warga",
+        "profil",
         "laporan",
-        "rtrw"
+        "rtrw",
+        "traffic"
       ],
       "allowedServiceCategories": [
-        "adminduk",
+        "administrasi_kependudukan",
         "surat_keterangan",
-        "pengaduan_warga"
-      ],
-      "actionPermissions": {
-        "canCreate": true,
-        "canEdit": true,
-        "canDelete": false,
-        "canVerifyAndIssueLetter": true,
-        "canConfigureCatalog": false,
-        "canManageWhatsApp": false,
-        "canExportPrintPdf": true
-      },
-      "createdAt": "10 Jan 2026",
-      "updatedAt": "10 Jan 2026",
-      "lastLoginAt": "Belum login",
-      "notes": "Khusus menangani Administrasi Kependudukan, Surat Keterangan, Data RT/RW, dan Mediasi Pengaduan Warga."
-    },
-    {
-      "id": "usr-kasi-kebersihan",
-      "username": "kasi.kebersihan",
-      "password": "panaikang2026",
-      "fullName": "Kasi Kebersihan & Lingkungan Hidup",
-      "nip": "",
-      "jabatan": "Kasi Pengelolaan Kebersihan & Lingkungan Hidup",
-      "unitBidang": "Seksi Kebersihan & BSU RW",
-      "phone": "",
-      "roleLevel": "admin_bidang",
-      "isMasterLurah": false,
-      "isActive": true,
-      "allowedAdminTabs": [
-        "pengurusan_warga",
-        "laporan",
-        "sampah",
-        "kerjabakti"
-      ],
-      "allowedServiceCategories": [
-        "masalah_lingkungan",
-        "pengaduan_warga"
+        "pengaduan_permasalahan_warga"
       ],
       "actionPermissions": {
         "canCreate": true,
@@ -266,9 +236,85 @@
         "canExportPrintPdf": true
       },
       "createdAt": "10 Jan 2026",
-      "updatedAt": "10 Jan 2026",
+      "updatedAt": "04 Nov 2026",
       "lastLoginAt": "Belum login",
-      "notes": "Khusus menangani Masalah Lingkungan, Bank Sampah Unit (BSU), dan Jadwal Kerja Bakti."
+      "notes": "Menangani Administrasi Kependudukan, Surat Keterangan (Pindah, Kelahiran, Kematian, Domisili, SKCK, Ahli Waris), Data RT/RW, Bagan LPM, Jadwal Siskamling & Trantibum."
+    },
+    {
+      "id": "usr-kasi-pemberdayaan",
+      "username": "kasi.pemberdayaan",
+      "password": "panaikang2026",
+      "fullName": "Kasi Pemberdayaan Masyarakat, Pembangunan dan Sosial",
+      "nip": "",
+      "jabatan": "Kasi Pemberdayaan Masyarakat, Pembangunan dan Sosial",
+      "unitBidang": "Seksi Pemberdayaan Masyarakat, Pembangunan & Sosial",
+      "phone": "",
+      "roleLevel": "admin_bidang",
+      "isMasterLurah": false,
+      "isActive": true,
+      "allowedAdminTabs": [
+        "pengurusan_warga",
+        "info",
+        "laporan",
+        "urban_farming",
+        "rtrw"
+      ],
+      "allowedServiceCategories": [
+        "pelayanan_usaha",
+        "bantuan_sosial",
+        "sosial_kemasyarakatan",
+        "surat_keterangan"
+      ],
+      "actionPermissions": {
+        "canCreate": true,
+        "canEdit": true,
+        "canDelete": false,
+        "canVerifyAndIssueLetter": true,
+        "canConfigureCatalog": false,
+        "canManageWhatsApp": true,
+        "canExportPrintPdf": true
+      },
+      "createdAt": "10 Jan 2026",
+      "updatedAt": "04 Nov 2026",
+      "lastLoginAt": "Belum login",
+      "notes": "Menangani Pelayanan Usaha & UMKM (SKU/Domisili Usaha), Bantuan Sosial, Sosial Kemasyarakatan, Pengantar Nikah, Urban Farming (7 Sub-Modul Pangan) & Publikasi Informasi."
+    },
+    {
+      "id": "usr-kasi-kebersihan",
+      "username": "kasi.kebersihan",
+      "password": "panaikang2026",
+      "fullName": "Kasi Pengelolaan Kebersihan dan Pertamanan",
+      "nip": "",
+      "jabatan": "Kasi Pengelolaan Kebersihan dan Pertamanan",
+      "unitBidang": "Seksi Pengelolaan Kebersihan & Pertamanan",
+      "phone": "",
+      "roleLevel": "admin_bidang",
+      "isMasterLurah": false,
+      "isActive": true,
+      "allowedAdminTabs": [
+        "pengurusan_warga",
+        "laporan",
+        "sampah",
+        "kerjabakti",
+        "urban_farming"
+      ],
+      "allowedServiceCategories": [
+        "masalah_lingkungan",
+        "pengaduan_permasalahan_warga"
+      ],
+      "actionPermissions": {
+        "canCreate": true,
+        "canEdit": true,
+        "canDelete": false,
+        "canVerifyAndIssueLetter": true,
+        "canConfigureCatalog": false,
+        "canManageWhatsApp": true,
+        "canExportPrintPdf": true
+      },
+      "createdAt": "10 Jan 2026",
+      "updatedAt": "04 Nov 2026",
+      "lastLoginAt": "Belum login",
+      "notes": "Menangani Pengelolaan Sampah Terpadu (Bank Sampah Unit BSU RW, Titik Teba Komunal, Lubang Resapan Biopori), Jadwal Kerja Bakti, Masalah Lingkungan & Ruang Hijau."
     },
     {
       "id": "usr-operator-loket",
@@ -276,8 +322,8 @@
       "password": "panaikang2026",
       "fullName": "Operator Pelayanan Terpadu",
       "nip": "",
-      "jabatan": "Operator Pelayanan Terpadu Satu Pintu",
-      "unitBidang": "Loket Pelayanan Warga & Ekonomi Kemasyarakatan",
+      "jabatan": "Operator Pelayanan Terpadu Satu Pintu (PTSP)",
+      "unitBidang": "Loket Pelayanan Terpadu Kelurahan Panaikang",
       "phone": "",
       "roleLevel": "operator",
       "isMasterLurah": false,
@@ -285,15 +331,17 @@
       "allowedAdminTabs": [
         "pengurusan_warga",
         "info",
-        "laporan"
+        "laporan",
+        "rtrw"
       ],
       "allowedServiceCategories": [
-        "adminduk",
+        "administrasi_kependudukan",
         "surat_keterangan",
         "pelayanan_usaha",
+        "masalah_lingkungan",
         "bantuan_sosial",
         "sosial_kemasyarakatan",
-        "pengaduan_warga"
+        "pengaduan_permasalahan_warga"
       ],
       "actionPermissions": {
         "canCreate": true,
@@ -305,9 +353,9 @@
         "canExportPrintPdf": true
       },
       "createdAt": "15 Jan 2026",
-      "updatedAt": "15 Jan 2026",
+      "updatedAt": "04 Nov 2026",
       "lastLoginAt": "Belum login",
-      "notes": "Operator loket kelurahan untuk registrasi berkas pengajuan dan pelayanan pengurusan warga."
+      "notes": "Operator loket kelurahan untuk registrasi 13 Layanan Administrasi Surat Resmi (PM-01 s/d SL-13) dan penerimaan pengaduan warga."
     }
   ],
   "activityLogs": [],

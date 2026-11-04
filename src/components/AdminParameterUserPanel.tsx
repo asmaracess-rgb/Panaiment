@@ -24,104 +24,278 @@ import {
   BarChart3,
   Phone,
   Sparkles,
+  RefreshCw,
+  Sprout,
+  Activity,
+  History,
+  Layers,
 } from 'lucide-react';
 import {
   AdminUserAccount,
   AdminTabId,
   AdminRoleLevel,
   AdminActionPermissions,
+  KelurahanProfile,
+  RwGroup,
 } from '../types';
-import { ServiceCategoryGroup } from '../data/wargaServiceCatalog';
+import {
+  ServiceCategoryGroup,
+  OFFICIAL_13_WARGA_SERVICES,
+  REPORT_COMPLAINT_CATEGORIES,
+} from '../data/wargaServiceCatalog';
+import { getRealtimeDateString } from '../utils/realtimeDate';
 
 interface AdminParameterUserPanelProps {
   adminUsers: AdminUserAccount[];
   serviceCatalog: ServiceCategoryGroup[];
   currentUsername: string;
   isMasterLurah: boolean;
+  profile?: KelurahanProfile;
+  rwGroups?: RwGroup[];
   onSaveAdminUsers: (
     updatedUsers: AdminUserAccount[]
   ) => Promise<{ ok: boolean; errors?: string[] }>;
+}
+
+export function normalizeServiceCategoryId(catId: string): string {
+  if (catId === 'adminduk') return 'administrasi_kependudukan';
+  if (catId === 'pengaduan_warga') return 'pengaduan_permasalahan_warga';
+  return catId;
+}
+
+export function normalizeCategoryList(categories: string[] = []): string[] {
+  return Array.from(new Set(categories.map(normalizeServiceCategoryId)));
 }
 
 export const ADMIN_MODULE_OPTIONS: {
   id: AdminTabId;
   label: string;
   description: string;
+  subMenus: string[];
+  structuralUnit: string;
   badgeColor: string;
 }[] = [
   {
     id: 'dashboard_lurah',
     label: 'Dashboard Lurah',
-    description: 'Monitoring eksekutif, disposisi cepat & arsip PDF bulanan',
+    description:
+      'Monitoring eksekutif Lurah, disposisi cepat laporan, grafik kinerja & cetak arsip PDF bulanan',
+    subMenus: ['Ringkasan Eksekutif', 'Disposisi Cepat', 'Cetak Arsip PDF Bulanan'],
+    structuralUnit: 'Lurah Panaikang',
     badgeColor: 'bg-emerald-50 text-emerald-800 border-emerald-200',
   },
   {
     id: 'pengurusan_warga',
-    label: 'Pengurusan Warga (7 Bidang)',
-    description: 'Back-end layanan surat, adminduk, usaha, bansos & pengaduan',
+    label: 'Pengurusan Warga (13 Surat & 9 Aduan)',
+    description:
+      'Back-end 13 Layanan Administrasi Surat Resmi (PM-01 s/d SL-13), 7 Bidang Katalog SOP & 9 Kategori Aduan Warga',
+    subMenus: [
+      '13 Layanan Surat Resmi (PM-01 s/d SL-13)',
+      '9 Kategori Pengaduan Warga',
+      '7 Bidang Katalog SOP',
+      'Cetak Kop Surat Resmi',
+    ],
+    structuralUnit: 'Loket PTSP & 3 Seksi Kelurahan',
     badgeColor: 'bg-sky-50 text-[#0D3868] border-sky-200',
   },
   {
     id: 'profil',
-    label: 'Profil Kelurahan',
-    description: 'Data pejabat struktural, visi misi & batas wilayah kelurahan',
+    label: 'Profil & Bagan Struktur Kelurahan',
+    description:
+      'Data & Foto Lurah, Sekretaris, 3 Kasi & Staf (Perwali No. 65/2023), Visi-Misi, Batas Wilayah & Bagan Struktur Dinamis',
+    subMenus: [
+      'Data & Foto Lurah',
+      'Pejabat & Staf 3 Seksi (Perwali 65/2023)',
+      'Bagan Struktur Kelurahan Dinamis',
+      'Visi Misi & Batas Wilayah',
+    ],
+    structuralUnit: 'Sekretariat Kelurahan',
     badgeColor: 'bg-indigo-50 text-indigo-800 border-indigo-200',
   },
   {
     id: 'info',
     label: 'Informasi & IG Kelurahan',
-    description: 'Publikasi pengumuman warga & sinkronisasi Instagram resmi',
+    description:
+      'Publikasi pengumuman resmi warga, agenda kelurahan & sinkronisasi feed Instagram @kelurahan.panaikang',
+    subMenus: ['Artikel & Pengumuman Warga', 'Sinkronisasi IG @kelurahan.panaikang'],
+    structuralUnit: 'Sekretariat & Seksi Pemberdayaan',
     badgeColor: 'bg-teal-50 text-teal-800 border-teal-200',
   },
   {
     id: 'laporan',
-    label: 'Laporan Warga & WA',
-    description: 'Tindak lanjut laporan lapangan & daftar nomor WhatsApp penerima',
+    label: 'Laporan Warga & Notifikasi WA',
+    description:
+      'Tindak lanjut laporan lapangan, unggah foto bukti penyelesaian & direktori nomor WhatsApp koordinator',
+    subMenus: [
+      'Verifikasi & Tindak Lanjut Laporan',
+      'Foto Bukti Penyelesaian',
+      'Direktori Nomor WA Penerima',
+    ],
+    structuralUnit: 'Seluruh Seksi & Koordinator RW',
     badgeColor: 'bg-blue-50 text-blue-800 border-blue-200',
   },
   {
     id: 'sampah',
-    label: 'Bank Sampah (BSU RW)',
-    description: 'Manajemen unit Bank Sampah RW & log timbangan sampah',
+    label: 'Pengelolaan Sampah (BSU, Teba & Biopori)',
+    description:
+      'Manajemen terpadu Unit Bank Sampah (BSU RW), Log Timbangan, Titik Teba Komunal & Lubang Resapan Biopori (LRB)',
+    subMenus: [
+      'Unit Bank Sampah (BSU RW)',
+      'Log Timbangan Sampah',
+      'Titik Teba Komunal',
+      'Lubang Resapan Biopori (LRB)',
+    ],
+    structuralUnit: 'Seksi Pengelolaan Kebersihan & Pertamanan',
     badgeColor: 'bg-amber-50 text-amber-800 border-amber-200',
   },
   {
     id: 'kerjabakti',
-    label: 'Kerja Bakti',
-    description: 'Jadwal gotong royong warga & dokumentasi kegiatan tuntas',
+    label: 'Kerja Bakti Gotong Royong',
+    description:
+      'Jadwal gotong royong warga RW/RT, target peserta, rekap tonase sampah & dokumentasi kegiatan tuntas',
+    subMenus: ['Jadwal Kerja Bakti RW/RT', 'Dokumentasi & Tonase Sampah'],
+    structuralUnit: 'Seksi Pengelolaan Kebersihan & Pertamanan',
     badgeColor: 'bg-purple-50 text-purple-800 border-purple-200',
   },
   {
     id: 'urban_farming',
-    label: 'Urban Farming',
-    description: 'Manajemen kebun warga, bibit gratis, komoditas panen & data ketahanan pangan',
+    label: 'Urban Farming (7 Sub-Modul Pangan)',
+    description:
+      'Manajemen Lokasi Lahan, Kelompok Tani, Data Tanaman, Log Perawatan, Hasil Panen, Inventaris & Permohonan Bibit',
+    subMenus: [
+      'Kebun & Lokasi Lahan',
+      'Kelompok Tani',
+      'Tanaman & Log Perawatan',
+      'Data Panen',
+      'Inventaris & Permohonan Bibit',
+    ],
+    structuralUnit: 'Seksi Pemberdayaan Masyarakat & Kebersihan',
     badgeColor: 'bg-emerald-50 text-emerald-800 border-emerald-200',
   },
   {
     id: 'rtrw',
-    label: 'Data RT & RW',
-    description: 'Database Ketua RW, Ketua RT, kontak & jumlah KK wilayah',
+    label: 'Data RT/RW, Bagan LPM & Siskamling',
+    description:
+      'Database Ketua LPM, Ketua RW 001–007 & RT, Bagan Struktur RT/RW Dinamis, Laporan RT/RW & Jadwal Siskamling',
+    subMenus: [
+      'Database RW 001–007, RT & Ketua LPM',
+      'Bagan Struktur RT/RW Dinamis',
+      'Cetak Laporan RT/RW',
+      'Jadwal Ronda Siskamling',
+    ],
+    structuralUnit: 'Seksi Pemerintahan, Trantibum & LPM',
     badgeColor: 'bg-slate-100 text-slate-800 border-slate-300',
   },
   {
     id: 'traffic',
-    label: 'Traffic Web & Aplikasi',
-    description: 'Monitoring analitik pengunjung realtime, sumber rujukan, perangkat & performa',
+    label: 'Traffic Web & Aplikasi (Real-Time)',
+    description:
+      'Monitoring analitik pengunjung real-time (tanpa simulasi), sumber trafik, perangkat, sebaran RW & log telemetri live',
+    subMenus: [
+      'Analitik Kunjungan Real-Time',
+      'Sebaran Perangkat & Wilayah RW',
+      'Log Telemetri Live & PWA Install',
+    ],
+    structuralUnit: 'Lurah & Sekretariat Satu Data',
     badgeColor: 'bg-cyan-50 text-cyan-800 border-cyan-200',
   },
   {
     id: 'parameter_user',
-    label: 'Parameter User & Hak Akses',
-    description: 'Manajemen akun admin & konfigurasi batasan akses (Khusus Lurah)',
+    label: 'Parameter User & Hak Akses (RBAC)',
+    description:
+      'Manajemen akun pejabat/staf/operator, sinkronisasi otomatis struktur jabatan & matriks hak akses (Khusus Lurah)',
+    subMenus: [
+      'Kelola Akun User Admin',
+      'Sinkronisasi Struktur Perwali 65/2023',
+      'Matriks Hak Akses RBAC',
+    ],
+    structuralUnit: 'Khusus Otoritas Lurah',
     badgeColor: 'bg-rose-50 text-rose-800 border-rose-200',
   },
   {
     id: 'log_aktivitas',
-    label: 'Log Aktivitas (Audit Trail)',
-    description: 'Rekam jejak riwayat perubahan data oleh user admin untuk pengawasan Lurah',
+    label: 'Log Aktivitas (Audit Trail WITA)',
+    description:
+      'Rekam jejak real-time WITA seluruh aktivitas login, tambah, ubah, hapus & verifikasi oleh admin untuk pengawasan Lurah',
+    subMenus: ['Audit Trail Real-Time WITA', 'Filter Modul & Pejabat', 'Reset / Ekspor Log'],
+    structuralUnit: 'Lurah & Sekretaris Lurah',
     badgeColor: 'bg-amber-50 text-amber-900 border-amber-200',
   },
 ];
+
+// Mapping of the 7 Service Categories to the current 13 Official Letters (PM-01..SL-13) & 9 Complaint Categories
+export const CATEGORY_CURRENT_SERVICES_MAP: Record<
+  string,
+  { officialLetters: string[]; complaintTopics: string[]; responsibleSection: string }
+> = {
+  administrasi_kependudukan: {
+    officialLetters: [
+      'PM-01 Pindah Masuk Penduduk',
+      'PK-02 Pindah Keluar Penduduk',
+      'SK-03 Surat Kelahiran',
+      'SK-04 Surat Kematian',
+      'DK-05 Domisili Sementara',
+    ],
+    complaintTopics: ['Administrasi pelayanan'],
+    responsibleSection: 'Kasi Pemerintahan, Ketentraman dan Ketertiban Umum',
+  },
+  surat_keterangan: {
+    officialLetters: [
+      'SK-06 Pengantar SKCK',
+      'BM-10 Keterangan Belum Menikah',
+      'PN-11 Surat Pengantar Nikah',
+      'AW-12 Persyaratan Ahli Waris',
+      'SL-13 Surat Keterangan Lainnya',
+    ],
+    complaintTopics: ['Administrasi pelayanan'],
+    responsibleSection: 'Kasi Pemerintahan & Seksi Pelayanan Umum',
+  },
+  pelayanan_usaha: {
+    officialLetters: [
+      'DU-07 Keterangan Domisili Usaha',
+      'SU-08 Surat Keterangan Usaha (SKU)',
+      'SU-09 Keterangan Usaha (Tambahan)',
+    ],
+    complaintTopics: ['Administrasi pelayanan'],
+    responsibleSection: 'Kasi Pemberdayaan Masyarakat, Pembangunan dan Sosial',
+  },
+  masalah_lingkungan: {
+    officialLetters: [],
+    complaintTopics: [
+      'Infrastruktur jalan/drainase',
+      'Sampah dan kebersihan',
+      'Lampu jalan/penerangan',
+      'Gangguan lingkungan',
+      'Fasilitas umum',
+    ],
+    responsibleSection: 'Kasi Pengelolaan Kebersihan dan Pertamanan',
+  },
+  bantuan_sosial: {
+    officialLetters: ['SL-13 Surat Keterangan Tidak Mampu / Bansos'],
+    complaintTopics: ['Bantuan sosial'],
+    responsibleSection: 'Kasi Pemberdayaan Masyarakat, Pembangunan dan Sosial',
+  },
+  sosial_kemasyarakatan: {
+    officialLetters: [
+      'BM-10 Keterangan Belum Menikah',
+      'PN-11 Surat Pengantar Nikah',
+      'SL-13 Rekomendasi Kegiatan Warga',
+    ],
+    complaintTopics: ['Fasilitas umum', 'Lainnya'],
+    responsibleSection: 'Kasi Pemberdayaan Masyarakat, Pembangunan dan Sosial',
+  },
+  pengaduan_permasalahan_warga: {
+    officialLetters: ['SK-06 Pengantar SKCK', 'AW-12 Mediasi Ahli Waris'],
+    complaintTopics: [
+      'Keamanan dan ketertiban',
+      'Infrastruktur jalan/drainase',
+      'Sampah dan kebersihan',
+      'Gangguan lingkungan',
+      'Lainnya',
+    ],
+    responsibleSection: 'Kasi Pemerintahan, Ketentraman dan Ketertiban Umum',
+  },
+};
 
 export const ACTION_PERMISSION_OPTIONS: {
   key: keyof AdminActionPermissions;
@@ -131,37 +305,43 @@ export const ACTION_PERMISSION_OPTIONS: {
   {
     key: 'canCreate',
     label: 'Tambah / Input Data Baru',
-    description: 'Mengizinkan user menambah berkas pengajuan, jadwal, atau data baru',
+    description:
+      'Mengizinkan user menambah berkas 13 surat resmi, jadwal, titik BSU/Teba/Biopori, kebun, atau data baru',
   },
   {
     key: 'canEdit',
     label: 'Edit & Perbarui Status Data',
-    description: 'Mengizinkan user mengubah data dan memperbarui status tindak lanjut',
+    description:
+      'Mengizinkan user mengubah data struktur, RT/RW, Siskamling, dan memperbarui status tindak lanjut',
   },
   {
     key: 'canDelete',
     label: 'Hapus Data / Berkas',
-    description: 'Mengizinkan user menghapus record data atau berkas pengajuan',
+    description: 'Mengizinkan user menghapus record data atau berkas pengajuan dari sistem',
   },
   {
     key: 'canVerifyAndIssueLetter',
     label: 'Verifikasi & Terbitkan Nomor Surat',
-    description: 'Mengizinkan user memverifikasi berkas & menerbitkan nomor registrasi surat resmi',
+    description:
+      'Mengizinkan user memverifikasi 13 layanan surat resmi (PM-01 s/d SL-13) & menerbitkan nomor registrasi',
   },
   {
     key: 'canConfigureCatalog',
     label: 'Konfigurasi Katalog SOP & Menu Warga',
-    description: 'Mengizinkan user menambah/mengubah sub-menu layanan & persyaratan berkas',
+    description:
+      'Mengizinkan user menambah/mengubah sub-menu layanan warga & daftar persyaratan berkas',
   },
   {
     key: 'canManageWhatsApp',
     label: 'Kelola & Kirim Notifikasi WhatsApp',
-    description: 'Mengizinkan user mengelola nomor WA penerima & mengirim broadcast WA resmi',
+    description:
+      'Mengizinkan user mengelola direktori nomor WA penerima & mengirim disposisi/koordinasi WA resmi',
   },
   {
     key: 'canExportPrintPdf',
-    label: 'Cetak Surat Resmi & Unduh PDF',
-    description: 'Mengizinkan user mencetak draf/surat resmi kelurahan & mengunduh laporan PDF',
+    label: 'Cetak Kop Surat, Bagan & Unduh PDF',
+    description:
+      'Mengizinkan user mencetak surat resmi kelurahan, laporan RT/RW, bagan struktur & arsip PDF bulanan',
   },
 ];
 
@@ -172,30 +352,56 @@ export const ROLE_LEVEL_LABELS: Record<
   master_admin: {
     label: 'Master / Super Admin (Lurah)',
     badgeClass: 'bg-[#0D3868] text-white border-[#0D3868]',
-    desc: 'Otoritas penuh seluruh modul, penerbitan surat, dan pengaturan batasan akses user.',
+    desc: 'Otoritas penuh seluruh 12 modul, penerbitan surat, bagan struktur dinamis, dan pengaturan batasan akses user.',
   },
   admin_bidang: {
-    label: 'Admin Bidang (Seklur / Kasi)',
+    label: 'Admin Bidang (Seklur / 3 Kasi)',
     badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-200',
-    desc: 'Pejabat struktural pengelola bidang layanan tertentu beserta verifikasi berkas.',
+    desc: 'Pejabat struktural (Perwali No. 65/2023) pengelola seksi/bidang layanan tertentu beserta verifikasi berkas.',
   },
   operator: {
-    label: 'Operator Pelayanan',
+    label: 'Staf Seksi / Operator Pelayanan',
     badgeClass: 'bg-sky-50 text-sky-800 border-sky-200',
-    desc: 'Petugas operasional input berkas warga, pembaruan status, dan pelayanan loket.',
+    desc: 'Staf seksi kelurahan atau operator loket PTSP untuk input berkas 13 surat, pembaruan data & operasional lapangan.',
   },
   viewer: {
-    label: 'Viewer / Monitoring Saja',
+    label: 'Viewer / Monitoring & LPM',
     badgeClass: 'bg-slate-100 text-slate-700 border-slate-300',
-    desc: 'Akses baca/monitoring data pada menu yang diizinkan tanpa hak ubah/hapus.',
+    desc: 'Akses baca/monitoring data pada menu yang diizinkan (termasuk laporan & bagan) tanpa hak hapus.',
   },
 };
+
+export type AccessPresetKey =
+  | 'master_lurah'
+  | 'sekretaris'
+  | 'kasi_pemerintahan'
+  | 'kasi_pemberdayaan'
+  | 'kasi_kebersihan'
+  | 'staf_pemerintahan'
+  | 'staf_pemberdayaan'
+  | 'staf_kebersihan'
+  | 'ketua_lpm'
+  | 'operator_loket'
+  | 'viewer_monitoring';
+
+interface StructuralCandidate {
+  key: string;
+  label: string;
+  fullName: string;
+  nip: string;
+  suggestedUsername: string;
+  jabatan: string;
+  unitBidang: string;
+  presetKey: AccessPresetKey;
+}
 
 export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = ({
   adminUsers,
   serviceCatalog,
   currentUsername,
   isMasterLurah,
+  profile,
+  rwGroups = [],
   onSaveAdminUsers,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -218,9 +424,149 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
   const [isSaving, setIsSaving] = useState(false);
 
   const allCategoryIds = useMemo(
-    () => serviceCatalog.map((c) => c.id),
+    () => serviceCatalog.map((c) => normalizeServiceCategoryId(c.id)),
     [serviceCatalog]
   );
+
+  // Build candidates dynamically from current Profil Kelurahan (Perwali 65/2023) & Data RT/RW (LPM)
+  const structuralCandidates = useMemo<StructuralCandidate[]>(() => {
+    const list: StructuralCandidate[] = [];
+    if (!profile) return list;
+
+    list.push({
+      key: 'struct-lurah',
+      label: `Lurah Panaikang — ${profile.lurahName || 'Belum diisi di Profil'}`,
+      fullName: profile.lurahName || 'Lurah Panaikang',
+      nip: profile.lurahNip || '',
+      suggestedUsername: 'lurah',
+      jabatan: 'Lurah Panaikang · Master / Super Admin',
+      unitBidang: 'Pimpinan Pemerintah Kelurahan Panaikang',
+      presetKey: 'master_lurah',
+    });
+
+    list.push({
+      key: 'struct-sekretaris',
+      label: `Sekretaris Lurah — ${profile.sekretarisName || 'Belum diisi di Profil'}`,
+      fullName: profile.sekretarisName || 'Sekretaris Lurah',
+      nip: profile.sekretarisNip || '',
+      suggestedUsername: 'sekretaris',
+      jabatan: 'Sekretaris Lurah · Koordinator Satu Data',
+      unitBidang: 'Sekretariat Kelurahan Panaikang',
+      presetKey: 'sekretaris',
+    });
+
+    list.push({
+      key: 'struct-kasi-pemerintahan',
+      label: `Kasi Pemerintahan, Trantibum — ${profile.kasiPemerintahanName || 'Belum diisi di Profil'}`,
+      fullName:
+        profile.kasiPemerintahanName || 'Kasi Pemerintahan, Ketentraman dan Ketertiban Umum',
+      nip: profile.kasiPemerintahanNip || '',
+      suggestedUsername: 'kasi.pemerintahan',
+      jabatan: 'Kasi Pemerintahan, Ketentraman dan Ketertiban Umum',
+      unitBidang: 'Seksi Pemerintahan, Ketentraman & Ketertiban Umum',
+      presetKey: 'kasi_pemerintahan',
+    });
+
+    list.push({
+      key: 'struct-kasi-pemberdayaan',
+      label: `Kasi Pemberdayaan Masyarakat, Pembangunan & Sosial — ${profile.kasiPemberdayaanName || 'Belum diisi di Profil'}`,
+      fullName:
+        profile.kasiPemberdayaanName ||
+        'Kasi Pemberdayaan Masyarakat, Pembangunan dan Sosial',
+      nip: profile.kasiPemberdayaanNip || '',
+      suggestedUsername: 'kasi.pemberdayaan',
+      jabatan: 'Kasi Pemberdayaan Masyarakat, Pembangunan dan Sosial',
+      unitBidang: 'Seksi Pemberdayaan Masyarakat, Pembangunan & Sosial',
+      presetKey: 'kasi_pemberdayaan',
+    });
+
+    list.push({
+      key: 'struct-kasi-kebersihan',
+      label: `Kasi Pengelolaan Kebersihan & Pertamanan — ${profile.kasiKebersihanName || 'Belum diisi di Profil'}`,
+      fullName:
+        profile.kasiKebersihanName || 'Kasi Pengelolaan Kebersihan dan Pertamanan',
+      nip: profile.kasiKebersihanNip || '',
+      suggestedUsername: 'kasi.kebersihan',
+      jabatan: 'Kasi Pengelolaan Kebersihan dan Pertamanan',
+      unitBidang: 'Seksi Pengelolaan Kebersihan & Pertamanan',
+      presetKey: 'kasi_kebersihan',
+    });
+
+    (profile.stafPemerintahan || []).forEach((stafName, idx) => {
+      if (!stafName || !stafName.trim()) return;
+      const slug = stafName
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '.')
+        .replace(/^\.+|\.+$/g, '')
+        .slice(0, 20);
+      list.push({
+        key: `struct-staf-pem-${idx}`,
+        label: `Staf Seksi Pemerintahan — ${stafName}`,
+        fullName: stafName.trim(),
+        nip: '-',
+        suggestedUsername: slug || `staf.pemerintahan.${idx + 1}`,
+        jabatan: 'Staf Seksi Pemerintahan, Ketentraman dan Ketertiban Umum',
+        unitBidang: 'Seksi Pemerintahan, Ketentraman & Ketertiban Umum',
+        presetKey: 'staf_pemerintahan',
+      });
+    });
+
+    (profile.stafPemberdayaan || []).forEach((stafName, idx) => {
+      if (!stafName || !stafName.trim()) return;
+      const slug = stafName
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '.')
+        .replace(/^\.+|\.+$/g, '')
+        .slice(0, 20);
+      list.push({
+        key: `struct-staf-pmb-${idx}`,
+        label: `Staf Seksi Pemberdayaan Masyarakat — ${stafName}`,
+        fullName: stafName.trim(),
+        nip: '-',
+        suggestedUsername: slug || `staf.pemberdayaan.${idx + 1}`,
+        jabatan: 'Staf Seksi Pemberdayaan Masyarakat, Pembangunan dan Sosial',
+        unitBidang: 'Seksi Pemberdayaan Masyarakat, Pembangunan & Sosial',
+        presetKey: 'staf_pemberdayaan',
+      });
+    });
+
+    (profile.stafKebersihan || []).forEach((stafName, idx) => {
+      if (!stafName || !stafName.trim()) return;
+      const slug = stafName
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '.')
+        .replace(/^\.+|\.+$/g, '')
+        .slice(0, 20);
+      list.push({
+        key: `struct-staf-kbr-${idx}`,
+        label: `Staf Seksi Kebersihan & Pertamanan — ${stafName}`,
+        fullName: stafName.trim(),
+        nip: '-',
+        suggestedUsername: slug || `staf.kebersihan.${idx + 1}`,
+        jabatan: 'Staf Seksi Pengelolaan Kebersihan dan Pertamanan',
+        unitBidang: 'Seksi Pengelolaan Kebersihan & Pertamanan',
+        presetKey: 'staf_kebersihan',
+      });
+    });
+
+    if (profile.ketuaLpmName && profile.ketuaLpmName.trim()) {
+      list.push({
+        key: 'struct-ketua-lpm',
+        label: `Ketua LPM Kelurahan Panaikang — ${profile.ketuaLpmName}`,
+        fullName: profile.ketuaLpmName.trim(),
+        nip: '-',
+        suggestedUsername: 'ketua.lpm',
+        jabatan: 'Ketua LPM Kelurahan Panaikang',
+        unitBidang: 'Lembaga Pemberdayaan Masyarakat (LPM) & Mitra RT/RW',
+        presetKey: 'ketua_lpm',
+      });
+    }
+
+    return list;
+  }, [profile]);
 
   const [userForm, setUserForm] = useState<{
     username: string;
@@ -243,13 +589,13 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
     fullName: '',
     nip: '',
     jabatan: '',
-    unitBidang: 'Pelayanan Terpadu Kelurahan Panaikang',
+    unitBidang: 'Loket Pelayanan Terpadu Kelurahan Panaikang',
     phone: '',
     roleLevel: 'operator',
     isMasterLurah: false,
     isActive: true,
-    allowedAdminTabs: ['pengurusan_warga', 'laporan'],
-    allowedServiceCategories: ['adminduk', 'surat_keterangan'],
+    allowedAdminTabs: ['pengurusan_warga', 'laporan', 'rtrw'],
+    allowedServiceCategories: ['administrasi_kependudukan', 'surat_keterangan'],
     actionPermissions: {
       canCreate: true,
       canEdit: true,
@@ -281,24 +627,18 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
     });
   }, [adminUsers, roleFilter, statusFilter, searchQuery]);
 
-  // Preset Role Templates for 1-click access configuration
-  const applyAccessPreset = (
-    presetKey:
-      | 'master_lurah'
-      | 'sekretaris'
-      | 'kasi_pemerintahan'
-      | 'kasi_kebersihan'
-      | 'kasi_kesra'
-      | 'operator_loket'
-      | 'viewer_monitoring'
-  ) => {
+  // Preset Role Templates aligned with Perwali Kota Makassar No. 65 Tahun 2023 & all 12 current menus
+  const applyAccessPreset = (presetKey: AccessPresetKey, keepIdentity = true) => {
     if (presetKey === 'master_lurah') {
       setUserForm((prev) => ({
         ...prev,
         roleLevel: 'master_admin',
         isMasterLurah: true,
-        jabatan: prev.jabatan || 'Lurah Panaikang · Master / Super Admin',
-        unitBidang: prev.unitBidang || 'Pimpinan Kelurahan Panaikang',
+        jabatan: keepIdentity && prev.jabatan ? prev.jabatan : 'Lurah Panaikang · Master / Super Admin',
+        unitBidang:
+          keepIdentity && prev.unitBidang
+            ? prev.unitBidang
+            : 'Pimpinan Pemerintah Kelurahan Panaikang',
         allowedAdminTabs: ADMIN_MODULE_OPTIONS.map((m) => m.id),
         allowedServiceCategories: [...allCategoryIds],
         actionPermissions: {
@@ -310,15 +650,32 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
           canManageWhatsApp: true,
           canExportPrintPdf: true,
         },
+        notes:
+          prev.notes ||
+          'Otoritas penuh seluruh 12 modul, bagan struktur dinamis, dan pengaturan batasan akses user.',
       }));
     } else if (presetKey === 'sekretaris') {
       setUserForm((prev) => ({
         ...prev,
         roleLevel: 'admin_bidang',
         isMasterLurah: false,
-        jabatan: prev.jabatan || 'Sekretaris Kelurahan · Koordinator Satu Data',
+        jabatan:
+          keepIdentity && prev.jabatan
+            ? prev.jabatan
+            : 'Sekretaris Lurah · Koordinator Satu Data',
         unitBidang: 'Sekretariat Kelurahan Panaikang',
-        allowedAdminTabs: ['pengurusan_warga', 'profil', 'info', 'laporan', 'rtrw'],
+        allowedAdminTabs: [
+          'pengurusan_warga',
+          'profil',
+          'info',
+          'laporan',
+          'sampah',
+          'kerjabakti',
+          'urban_farming',
+          'rtrw',
+          'traffic',
+          'log_aktivitas',
+        ],
         allowedServiceCategories: [...allCategoryIds],
         actionPermissions: {
           canCreate: true,
@@ -329,35 +686,22 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
           canManageWhatsApp: true,
           canExportPrintPdf: true,
         },
+        notes:
+          'Koordinator Sekretariat Satu Data: verifikasi 13 layanan surat resmi, profil & bagan struktur kelurahan, data RT/RW & Siskamling, serta monitoring trafik.',
       }));
     } else if (presetKey === 'kasi_pemerintahan') {
       setUserForm((prev) => ({
         ...prev,
         roleLevel: 'admin_bidang',
         isMasterLurah: false,
-        jabatan: prev.jabatan || 'Kasi Pemerintahan, Ketenteraman & Ketertiban',
-        unitBidang: 'Seksi Pemerintahan & Trantib',
-        allowedAdminTabs: ['pengurusan_warga', 'laporan', 'rtrw'],
-        allowedServiceCategories: ['adminduk', 'surat_keterangan', 'pengaduan_warga'],
-        actionPermissions: {
-          canCreate: true,
-          canEdit: true,
-          canDelete: false,
-          canVerifyAndIssueLetter: true,
-          canConfigureCatalog: false,
-          canManageWhatsApp: false,
-          canExportPrintPdf: true,
-        },
-      }));
-    } else if (presetKey === 'kasi_kebersihan') {
-      setUserForm((prev) => ({
-        ...prev,
-        roleLevel: 'admin_bidang',
-        isMasterLurah: false,
-        jabatan: prev.jabatan || 'Kasi Pengelolaan Kebersihan & Lingkungan Hidup',
-        unitBidang: 'Seksi Kebersihan & BSU RW',
-        allowedAdminTabs: ['pengurusan_warga', 'laporan', 'sampah', 'kerjabakti'],
-        allowedServiceCategories: ['masalah_lingkungan', 'pengaduan_warga'],
+        jabatan: 'Kasi Pemerintahan, Ketentraman dan Ketertiban Umum',
+        unitBidang: 'Seksi Pemerintahan, Ketentraman & Ketertiban Umum',
+        allowedAdminTabs: ['pengurusan_warga', 'profil', 'laporan', 'rtrw', 'traffic'],
+        allowedServiceCategories: [
+          'administrasi_kependudukan',
+          'surat_keterangan',
+          'pengaduan_permasalahan_warga',
+        ],
         actionPermissions: {
           canCreate: true,
           canEdit: true,
@@ -367,19 +711,22 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
           canManageWhatsApp: true,
           canExportPrintPdf: true,
         },
+        notes:
+          'Menangani Administrasi Kependudukan, Surat Keterangan (Pindah, Kelahiran, Kematian, Domisili, SKCK, Ahli Waris), Data RT/RW, Bagan LPM, Jadwal Siskamling & Trantibum.',
       }));
-    } else if (presetKey === 'kasi_kesra') {
+    } else if (presetKey === 'kasi_pemberdayaan') {
       setUserForm((prev) => ({
         ...prev,
         roleLevel: 'admin_bidang',
         isMasterLurah: false,
-        jabatan: prev.jabatan || 'Kasi Kesejahteraan Rakyat & Pemberdayaan',
-        unitBidang: 'Seksi Kesra & Pemberdayaan UMKM',
-        allowedAdminTabs: ['pengurusan_warga', 'info'],
+        jabatan: 'Kasi Pemberdayaan Masyarakat, Pembangunan dan Sosial',
+        unitBidang: 'Seksi Pemberdayaan Masyarakat, Pembangunan & Sosial',
+        allowedAdminTabs: ['pengurusan_warga', 'info', 'laporan', 'urban_farming', 'rtrw'],
         allowedServiceCategories: [
           'pelayanan_usaha',
           'bantuan_sosial',
           'sosial_kemasyarakatan',
+          'surat_keterangan',
         ],
         actionPermissions: {
           canCreate: true,
@@ -387,24 +734,48 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
           canDelete: false,
           canVerifyAndIssueLetter: true,
           canConfigureCatalog: false,
-          canManageWhatsApp: false,
+          canManageWhatsApp: true,
           canExportPrintPdf: true,
         },
+        notes:
+          'Menangani Pelayanan Usaha & UMKM (SKU/Domisili Usaha), Bantuan Sosial, Sosial Kemasyarakatan, Pengantar Nikah, Urban Farming (7 Sub-Modul Pangan) & Publikasi Informasi.',
       }));
-    } else if (presetKey === 'operator_loket') {
+    } else if (presetKey === 'kasi_kebersihan') {
+      setUserForm((prev) => ({
+        ...prev,
+        roleLevel: 'admin_bidang',
+        isMasterLurah: false,
+        jabatan: 'Kasi Pengelolaan Kebersihan dan Pertamanan',
+        unitBidang: 'Seksi Pengelolaan Kebersihan & Pertamanan',
+        allowedAdminTabs: ['pengurusan_warga', 'laporan', 'sampah', 'kerjabakti', 'urban_farming'],
+        allowedServiceCategories: [
+          'masalah_lingkungan',
+          'pengaduan_permasalahan_warga',
+        ],
+        actionPermissions: {
+          canCreate: true,
+          canEdit: true,
+          canDelete: false,
+          canVerifyAndIssueLetter: true,
+          canConfigureCatalog: false,
+          canManageWhatsApp: true,
+          canExportPrintPdf: true,
+        },
+        notes:
+          'Menangani Pengelolaan Sampah Terpadu (Bank Sampah Unit BSU RW, Titik Teba Komunal, Lubang Resapan Biopori), Jadwal Kerja Bakti, Masalah Lingkungan & Ruang Hijau.',
+      }));
+    } else if (presetKey === 'staf_pemerintahan') {
       setUserForm((prev) => ({
         ...prev,
         roleLevel: 'operator',
         isMasterLurah: false,
-        jabatan: prev.jabatan || 'Operator Pelayanan Terpadu Satu Pintu',
-        unitBidang: 'Loket Pelayanan Warga',
-        allowedAdminTabs: ['pengurusan_warga', 'info', 'laporan'],
+        jabatan: 'Staf Seksi Pemerintahan, Ketentraman dan Ketertiban Umum',
+        unitBidang: 'Seksi Pemerintahan, Ketentraman & Ketertiban Umum',
+        allowedAdminTabs: ['pengurusan_warga', 'laporan', 'rtrw'],
         allowedServiceCategories: [
-          'adminduk',
+          'administrasi_kependudukan',
           'surat_keterangan',
-          'pelayanan_usaha',
-          'bantuan_sosial',
-          'sosial_kemasyarakatan',
+          'pengaduan_permasalahan_warga',
         ],
         actionPermissions: {
           canCreate: true,
@@ -415,15 +786,124 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
           canManageWhatsApp: false,
           canExportPrintPdf: true,
         },
+        notes:
+          'Staf Seksi Pemerintahan: pelayanan berkas Adminduk, Surat Keterangan, pembaruan Data RT/RW & Jadwal Siskamling.',
+      }));
+    } else if (presetKey === 'staf_pemberdayaan') {
+      setUserForm((prev) => ({
+        ...prev,
+        roleLevel: 'operator',
+        isMasterLurah: false,
+        jabatan: 'Staf Seksi Pemberdayaan Masyarakat, Pembangunan dan Sosial',
+        unitBidang: 'Seksi Pemberdayaan Masyarakat, Pembangunan & Sosial',
+        allowedAdminTabs: ['pengurusan_warga', 'info', 'urban_farming'],
+        allowedServiceCategories: [
+          'pelayanan_usaha',
+          'bantuan_sosial',
+          'sosial_kemasyarakatan',
+          'surat_keterangan',
+        ],
+        actionPermissions: {
+          canCreate: true,
+          canEdit: true,
+          canDelete: false,
+          canVerifyAndIssueLetter: false,
+          canConfigureCatalog: false,
+          canManageWhatsApp: false,
+          canExportPrintPdf: true,
+        },
+        notes:
+          'Staf Seksi Pemberdayaan Masyarakat: pelayanan berkas UMKM, Bansos, Sosial Kemasyarakatan, dan pendataan Urban Farming.',
+      }));
+    } else if (presetKey === 'staf_kebersihan') {
+      setUserForm((prev) => ({
+        ...prev,
+        roleLevel: 'operator',
+        isMasterLurah: false,
+        jabatan: 'Staf Seksi Pengelolaan Kebersihan dan Pertamanan',
+        unitBidang: 'Seksi Pengelolaan Kebersihan & Pertamanan',
+        allowedAdminTabs: ['laporan', 'sampah', 'kerjabakti', 'urban_farming'],
+        allowedServiceCategories: [
+          'masalah_lingkungan',
+          'pengaduan_permasalahan_warga',
+        ],
+        actionPermissions: {
+          canCreate: true,
+          canEdit: true,
+          canDelete: false,
+          canVerifyAndIssueLetter: false,
+          canConfigureCatalog: false,
+          canManageWhatsApp: true,
+          canExportPrintPdf: true,
+        },
+        notes:
+          'Staf Seksi Kebersihan & Pertamanan: pencatatan BSU RW, Titik Teba Komunal, Biopori (LRB), dan dokumentasi Kerja Bakti.',
+      }));
+    } else if (presetKey === 'ketua_lpm') {
+      setUserForm((prev) => ({
+        ...prev,
+        roleLevel: 'viewer',
+        isMasterLurah: false,
+        jabatan: 'Ketua LPM Kelurahan Panaikang',
+        unitBidang: 'Lembaga Pemberdayaan Masyarakat (LPM) & Mitra RT/RW',
+        allowedAdminTabs: ['info', 'laporan', 'kerjabakti', 'urban_farming', 'rtrw'],
+        allowedServiceCategories: [
+          'pelayanan_usaha',
+          'bantuan_sosial',
+          'sosial_kemasyarakatan',
+          'masalah_lingkungan',
+        ],
+        actionPermissions: {
+          canCreate: true,
+          canEdit: true,
+          canDelete: false,
+          canVerifyAndIssueLetter: false,
+          canConfigureCatalog: false,
+          canManageWhatsApp: false,
+          canExportPrintPdf: true,
+        },
+        notes:
+          'Mitra LPM Kelurahan: koordinasi struktur RT/RW, pemberdayaan masyarakat, kerja bakti, dan ketahanan pangan.',
+      }));
+    } else if (presetKey === 'operator_loket') {
+      setUserForm((prev) => ({
+        ...prev,
+        roleLevel: 'operator',
+        isMasterLurah: false,
+        jabatan: 'Operator Pelayanan Terpadu Satu Pintu (PTSP)',
+        unitBidang: 'Loket Pelayanan Terpadu Kelurahan Panaikang',
+        allowedAdminTabs: ['pengurusan_warga', 'info', 'laporan', 'rtrw'],
+        allowedServiceCategories: [...allCategoryIds],
+        actionPermissions: {
+          canCreate: true,
+          canEdit: true,
+          canDelete: false,
+          canVerifyAndIssueLetter: true,
+          canConfigureCatalog: false,
+          canManageWhatsApp: false,
+          canExportPrintPdf: true,
+        },
+        notes:
+          'Operator loket kelurahan untuk registrasi 13 Layanan Administrasi Surat Resmi (PM-01 s/d SL-13) dan penerimaan pengaduan warga.',
       }));
     } else if (presetKey === 'viewer_monitoring') {
       setUserForm((prev) => ({
         ...prev,
         roleLevel: 'viewer',
         isMasterLurah: false,
-        jabatan: prev.jabatan || 'Staf Monitoring & Evaluasi Kelurahan',
-        unitBidang: 'Monitoring Satu Data',
-        allowedAdminTabs: ['pengurusan_warga', 'laporan', 'sampah', 'kerjabakti', 'rtrw'],
+        jabatan: 'Staf Monitoring & Evaluasi Satu Data',
+        unitBidang: 'Monitoring Satu Data Kelurahan Panaikang',
+        allowedAdminTabs: [
+          'pengurusan_warga',
+          'profil',
+          'info',
+          'laporan',
+          'sampah',
+          'kerjabakti',
+          'urban_farming',
+          'rtrw',
+          'traffic',
+        ],
         allowedServiceCategories: [...allCategoryIds],
         actionPermissions: {
           canCreate: false,
@@ -434,7 +914,204 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
           canManageWhatsApp: false,
           canExportPrintPdf: true,
         },
+        notes: 'Akses monitoring dan cetak laporan tanpa kewenangan mengubah atau menghapus data.',
       }));
+    }
+  };
+
+  // Sync existing accounts & create missing structural accounts from Profil Kelurahan (Perwali 65/2023) & LPM
+  const handleSyncWithStructuralProfile = async () => {
+    setFeedbackErrors([]);
+    setFeedbackSuccess('');
+    setIsSaving(true);
+
+    const nowLabel = getRealtimeDateString(new Date());
+    const nextUsers: AdminUserAccount[] = adminUsers.map((u) => {
+      const normalizedCats = normalizeCategoryList(u.allowedServiceCategories);
+      const cleanU = u.username.toLowerCase();
+
+      if (cleanU === 'lurah' || u.isMasterLurah) {
+        return {
+          ...u,
+          fullName:
+            profile?.lurahName && profile.lurahName.trim()
+              ? profile.lurahName.trim()
+              : u.fullName,
+          nip:
+            profile?.lurahNip && profile.lurahNip.trim()
+              ? profile.lurahNip.trim()
+              : u.nip,
+          allowedAdminTabs: ADMIN_MODULE_OPTIONS.map((m) => m.id),
+          allowedServiceCategories: [...allCategoryIds],
+          updatedAt: `${nowLabel} · Disinkronkan`,
+        };
+      }
+      if (cleanU === 'sekretaris') {
+        return {
+          ...u,
+          fullName:
+            profile?.sekretarisName && profile.sekretarisName.trim()
+              ? profile.sekretarisName.trim()
+              : u.fullName,
+          nip:
+            profile?.sekretarisNip && profile.sekretarisNip.trim()
+              ? profile.sekretarisNip.trim()
+              : u.nip,
+          jabatan: 'Sekretaris Lurah · Koordinator Satu Data',
+          allowedAdminTabs: Array.from(
+            new Set([
+              ...u.allowedAdminTabs,
+              'pengurusan_warga',
+              'profil',
+              'info',
+              'laporan',
+              'sampah',
+              'kerjabakti',
+              'urban_farming',
+              'rtrw',
+              'traffic',
+              'log_aktivitas',
+            ])
+          ) as AdminTabId[],
+          allowedServiceCategories: [...allCategoryIds],
+          updatedAt: `${nowLabel} · Disinkronkan`,
+        };
+      }
+      if (cleanU === 'kasi.pemerintahan') {
+        return {
+          ...u,
+          fullName:
+            profile?.kasiPemerintahanName && profile.kasiPemerintahanName.trim()
+              ? profile.kasiPemerintahanName.trim()
+              : u.fullName,
+          nip:
+            profile?.kasiPemerintahanNip && profile.kasiPemerintahanNip.trim()
+              ? profile.kasiPemerintahanNip.trim()
+              : u.nip,
+          jabatan: 'Kasi Pemerintahan, Ketentraman dan Ketertiban Umum',
+          unitBidang: 'Seksi Pemerintahan, Ketentraman & Ketertiban Umum',
+          allowedAdminTabs: Array.from(
+            new Set([...u.allowedAdminTabs, 'pengurusan_warga', 'profil', 'laporan', 'rtrw', 'traffic'])
+          ) as AdminTabId[],
+          allowedServiceCategories: normalizeCategoryList([
+            ...normalizedCats,
+            'administrasi_kependudukan',
+            'surat_keterangan',
+            'pengaduan_permasalahan_warga',
+          ]),
+          updatedAt: `${nowLabel} · Disinkronkan`,
+        };
+      }
+      if (cleanU === 'kasi.pemberdayaan' || cleanU === 'kasi.kesra') {
+        return {
+          ...u,
+          username: 'kasi.pemberdayaan',
+          fullName:
+            profile?.kasiPemberdayaanName && profile.kasiPemberdayaanName.trim()
+              ? profile.kasiPemberdayaanName.trim()
+              : u.fullName,
+          nip:
+            profile?.kasiPemberdayaanNip && profile.kasiPemberdayaanNip.trim()
+              ? profile.kasiPemberdayaanNip.trim()
+              : u.nip,
+          jabatan: 'Kasi Pemberdayaan Masyarakat, Pembangunan dan Sosial',
+          unitBidang: 'Seksi Pemberdayaan Masyarakat, Pembangunan & Sosial',
+          allowedAdminTabs: Array.from(
+            new Set([...u.allowedAdminTabs, 'pengurusan_warga', 'info', 'laporan', 'urban_farming', 'rtrw'])
+          ) as AdminTabId[],
+          allowedServiceCategories: normalizeCategoryList([
+            ...normalizedCats,
+            'pelayanan_usaha',
+            'bantuan_sosial',
+            'sosial_kemasyarakatan',
+            'surat_keterangan',
+          ]),
+          updatedAt: `${nowLabel} · Disinkronkan`,
+        };
+      }
+      if (cleanU === 'kasi.kebersihan') {
+        return {
+          ...u,
+          fullName:
+            profile?.kasiKebersihanName && profile.kasiKebersihanName.trim()
+              ? profile.kasiKebersihanName.trim()
+              : u.fullName,
+          nip:
+            profile?.kasiKebersihanNip && profile.kasiKebersihanNip.trim()
+              ? profile.kasiKebersihanNip.trim()
+              : u.nip,
+          jabatan: 'Kasi Pengelolaan Kebersihan dan Pertamanan',
+          unitBidang: 'Seksi Pengelolaan Kebersihan & Pertamanan',
+          allowedAdminTabs: Array.from(
+            new Set([...u.allowedAdminTabs, 'pengurusan_warga', 'laporan', 'sampah', 'kerjabakti', 'urban_farming'])
+          ) as AdminTabId[],
+          allowedServiceCategories: normalizeCategoryList([
+            ...normalizedCats,
+            'masalah_lingkungan',
+            'pengaduan_permasalahan_warga',
+          ]),
+          updatedAt: `${nowLabel} · Disinkronkan`,
+        };
+      }
+      return {
+        ...u,
+        allowedServiceCategories: normalizedCats,
+      };
+    });
+
+    // Ensure Kasi Pemberdayaan exists if not yet in list
+    if (
+      !nextUsers.some(
+        (u) => u.username.toLowerCase() === 'kasi.pemberdayaan' || u.id === 'usr-kasi-pemberdayaan'
+      )
+    ) {
+      nextUsers.push({
+        id: 'usr-kasi-pemberdayaan',
+        username: 'kasi.pemberdayaan',
+        password: 'panaikang2026',
+        fullName:
+          profile?.kasiPemberdayaanName && profile.kasiPemberdayaanName.trim()
+            ? profile.kasiPemberdayaanName.trim()
+            : 'Kasi Pemberdayaan Masyarakat, Pembangunan dan Sosial',
+        nip: profile?.kasiPemberdayaanNip?.trim() || '-',
+        jabatan: 'Kasi Pemberdayaan Masyarakat, Pembangunan dan Sosial',
+        unitBidang: 'Seksi Pemberdayaan Masyarakat, Pembangunan & Sosial',
+        phone: '',
+        roleLevel: 'admin_bidang',
+        isMasterLurah: false,
+        isActive: true,
+        allowedAdminTabs: ['pengurusan_warga', 'info', 'laporan', 'urban_farming', 'rtrw'],
+        allowedServiceCategories: [
+          'pelayanan_usaha',
+          'bantuan_sosial',
+          'sosial_kemasyarakatan',
+          'surat_keterangan',
+        ],
+        actionPermissions: {
+          canCreate: true,
+          canEdit: true,
+          canDelete: false,
+          canVerifyAndIssueLetter: true,
+          canConfigureCatalog: false,
+          canManageWhatsApp: true,
+          canExportPrintPdf: true,
+        },
+        createdAt: nowLabel,
+        updatedAt: `${nowLabel} · Disinkronkan`,
+        lastLoginAt: 'Belum login',
+        notes:
+          'Menangani Pelayanan Usaha & UMKM (SKU/Domisili Usaha), Bantuan Sosial, Sosial Kemasyarakatan, Urban Farming & Publikasi Informasi.',
+      });
+    }
+
+    const res = await onSaveAdminUsers(nextUsers);
+    setIsSaving(false);
+    if (res.ok) {
+      setFeedbackSuccess(
+        'Seluruh akun pejabat struktural, daftar 12 modul admin, dan 7 bidang layanan (13 Surat Resmi & 9 Kategori Aduan) berhasil disinkronkan dengan struktur data terbaru.'
+      );
+    } else {
+      setFeedbackErrors(res.errors || ['Gagal menyinkronkan data parameter user.']);
     }
   };
 
@@ -454,8 +1131,8 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
       roleLevel: 'operator',
       isMasterLurah: false,
       isActive: true,
-      allowedAdminTabs: ['pengurusan_warga', 'laporan'],
-      allowedServiceCategories: ['adminduk', 'surat_keterangan'],
+      allowedAdminTabs: ['pengurusan_warga', 'info', 'laporan', 'rtrw'],
+      allowedServiceCategories: [...allCategoryIds],
       actionPermissions: {
         canCreate: true,
         canEdit: true,
@@ -487,7 +1164,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
       isMasterLurah: Boolean(user.isMasterLurah || user.roleLevel === 'master_admin'),
       isActive: user.isActive,
       allowedAdminTabs: [...user.allowedAdminTabs],
-      allowedServiceCategories: [...user.allowedServiceCategories],
+      allowedServiceCategories: normalizeCategoryList(user.allowedServiceCategories),
       actionPermissions: { ...user.actionPermissions },
       notes: user.notes || '',
     });
@@ -505,11 +1182,13 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
   };
 
   const toggleCategoryPermissionInForm = (categoryId: string) => {
+    const cleanId = normalizeServiceCategoryId(categoryId);
     setUserForm((prev) => {
-      const exists = prev.allowedServiceCategories.includes(categoryId);
+      const normalized = normalizeCategoryList(prev.allowedServiceCategories);
+      const exists = normalized.includes(cleanId);
       const nextCats = exists
-        ? prev.allowedServiceCategories.filter((c) => c !== categoryId)
-        : [...prev.allowedServiceCategories, categoryId];
+        ? normalized.filter((c) => c !== cleanId)
+        : [...normalized, cleanId];
       return { ...prev, allowedServiceCategories: nextCats };
     });
   };
@@ -546,9 +1225,10 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
     if (userForm.allowedAdminTabs.length === 0) {
       errors.push('Pilih minimal 1 Menu / Modul Admin yang diizinkan untuk diakses user ini.');
     }
+    const normalizedFormCategories = normalizeCategoryList(userForm.allowedServiceCategories);
     if (
       userForm.allowedAdminTabs.includes('pengurusan_warga') &&
-      userForm.allowedServiceCategories.length === 0
+      normalizedFormCategories.length === 0
     ) {
       errors.push(
         'Karena user diberi akses ke menu Pengurusan Warga, pilih minimal 1 Bidang Layanan yang diizinkan.'
@@ -568,7 +1248,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
     }
 
     setIsSaving(true);
-    const nowLabel = '08 Okt 2026';
+    const nowLabel = getRealtimeDateString(new Date());
 
     let nextUsers: AdminUserAccount[];
     if (editingUserId) {
@@ -593,7 +1273,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                 : userForm.allowedAdminTabs,
               allowedServiceCategories: userForm.isMasterLurah
                 ? [...allCategoryIds]
-                : userForm.allowedServiceCategories,
+                : normalizedFormCategories,
               actionPermissions: userForm.isMasterLurah
                 ? {
                     canCreate: true,
@@ -626,10 +1306,11 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
         ),
         isActive: userForm.isActive,
         allowedAdminTabs: userForm.allowedAdminTabs,
-        allowedServiceCategories: userForm.allowedServiceCategories,
+        allowedServiceCategories: normalizedFormCategories,
         actionPermissions: userForm.actionPermissions,
         createdAt: nowLabel,
         updatedAt: nowLabel,
+        lastLoginAt: 'Belum login',
         notes: userForm.notes.trim(),
       };
       nextUsers = [...adminUsers, created];
@@ -660,7 +1341,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
     }
     const nextUsers = adminUsers.map((u) =>
       u.id === user.id
-        ? { ...u, isActive: !u.isActive, updatedAt: '08 Okt 2026 · Diperbarui' }
+        ? { ...u, isActive: !u.isActive, updatedAt: `${getRealtimeDateString(new Date())} · Diperbarui` }
         : u
     );
     await onSaveAdminUsers(nextUsers);
@@ -717,6 +1398,10 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
     (u) => u.isMasterLurah || u.roleLevel === 'master_admin'
   ).length;
   const totalBidangAndOperator = adminUsers.length - totalMasterUsers;
+  const totalSubMenusCount = ADMIN_MODULE_OPTIONS.reduce(
+    (acc, m) => acc + m.subMenus.length,
+    0
+  );
 
   return (
     <div className="space-y-6">
@@ -726,26 +1411,43 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
           <div>
             <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/15 text-[11px] font-bold uppercase tracking-wider text-emerald-200 mb-2">
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Otoritas Master Admin / Super Admin (Lurah Panaikang)</span>
+              <span>
+                Otoritas Master Admin (Lurah) · Struktur Perwali Kota Makassar No. 65 Tahun 2023
+              </span>
             </div>
             <h2 className="text-lg sm:text-xl font-extrabold tracking-tight text-white">
-              Parameter User Admin & Konfigurasi Batasan Hak Akses (RBAC)
+              Parameter User Admin & Konfigurasi Batasan Hak Akses (12 Menu & Sub-Modul Terkini)
             </h2>
             <p className="mt-1 text-xs sm:text-sm text-sky-100 max-w-3xl">
-              Kelola penambahan, pengeditan, dan penghapusan akun pejabat/operator admin kelurahan,
-              serta atur batasan akses menu modul, bidang layanan warga, dan kewenangan aksi CRUD
-              untuk setiap user terdaftar.
+              Kelola akun pejabat struktural (Lurah, Sekretaris Lurah, 3 Kasi, Staf Seksi, Ketua
+              LPM & Operator PTSP) serta atur hak akses ke <strong>12 Menu Utama Admin</strong> (
+              {totalSubMenusCount} Sub-Modul),{' '}
+              <strong>13 Layanan Administrasi Surat Resmi (PM-01 s/d SL-13)</strong>, dan{' '}
+              <strong>9 Kategori Pengaduan Warga</strong>.
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={openAddUserModal}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs sm:text-sm font-extrabold shadow-sm transition-colors cursor-pointer shrink-0"
-          >
-            <UserPlus className="w-4 h-4" />
-            <span>+ Tambah Akun User Admin</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              type="button"
+              disabled={isSaving}
+              onClick={handleSyncWithStructuralProfile}
+              title="Sinkronkan Nama, NIP, Jabatan & Hak Akses dari Struktur Profil Kelurahan (Perwali 65/2023)"
+              className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white border border-white/25 text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${isSaving ? 'animate-spin' : ''}`} />
+              <span>Sinkronkan dari Struktur Profil</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={openAddUserModal}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs sm:text-sm font-extrabold shadow-sm transition-colors cursor-pointer shrink-0"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>+ Tambah Akun User Admin</span>
+            </button>
+          </div>
         </div>
 
         {/* 4 Summary Cards */}
@@ -758,7 +1460,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
               {adminUsers.length} Akun
             </div>
             <div className="mt-0.5 text-[11px] text-slate-500">
-              Pejabat Struktural & Operator Kelurahan
+              Lurah, Seklur, 3 Kasi, Staf & Operator
             </div>
           </div>
 
@@ -776,26 +1478,39 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
 
           <div className="bg-white p-3.5 rounded-xl border border-sky-200">
             <div className="text-[11px] font-bold text-[#0277BD] uppercase">
-              Master / Super Admin
+              Cakupan Menu & ModulSaat Ini
             </div>
             <div className="mt-1 text-2xl font-extrabold text-[#0277BD] font-mono-num">
-              {totalMasterUsers} Lurah
+              {ADMIN_MODULE_OPTIONS.length} Menu
             </div>
             <div className="mt-0.5 text-[11px] text-slate-500">
-              Pemegang kendali penuh Parameter User
+              {totalSubMenusCount} Sub-Modul (BSU/Teba/Biopori, Siskamling, Bagan, dll.)
             </div>
           </div>
 
           <div className="bg-white p-3.5 rounded-xl border border-amber-200">
             <div className="text-[11px] font-bold text-amber-800 uppercase">
-              Admin Bidang & Operator
+              Layanan Surat & Aduan Warga
             </div>
             <div className="mt-1 text-2xl font-extrabold text-amber-700 font-mono-num">
-              {totalBidangAndOperator} Staf
+              {OFFICIAL_13_WARGA_SERVICES.length} Surat · {REPORT_COMPLAINT_CATEGORIES.length} Aduan
             </div>
             <div className="mt-0.5 text-[11px] text-slate-500">
-              Akses diatur sesuai batasan bidang & modul
+              Terpetakan dalam {serviceCatalog.length} Bidang Layanan
             </div>
+          </div>
+        </div>
+
+        {/* Overview of Current Menu Architecture & Structural Mapping */}
+        <div className="px-5 sm:px-6 py-3.5 bg-sky-50/60 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-2 text-[#0D3868] font-bold">
+            <Layers className="w-4 h-4 text-[#0277BD] shrink-0" />
+            <span>
+              Struktur Menu Aktif Saat Ini: Dashboard Lurah · Pengurusan Warga (13 Surat & 9 Aduan)
+              · Profil & Bagan Kelurahan · Info & IG · Laporan & WA · Sampah (BSU, Teba, Biopori) ·
+              Kerja Bakti · Urban Farming (7 Sub-Modul) · RT/RW, Bagan LPM & Siskamling · Traffic
+              Real-Time · Parameter User · Log Aktivitas WITA
+            </span>
           </div>
         </div>
 
@@ -807,7 +1522,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari nama pejabat/staf, username, NIP, atau jabatan..."
+              placeholder="Cari nama pejabat/staf, username, NIP, seksi bidang, atau jabatan..."
               className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-900 focus:border-[#0D3868] focus:outline-none"
             />
           </div>
@@ -820,9 +1535,9 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
             >
               <option value="ALL">Semua Level Peran ({adminUsers.length})</option>
               <option value="master_admin">Master / Super Admin (Lurah)</option>
-              <option value="admin_bidang">Admin Bidang (Seklur / Kasi)</option>
-              <option value="operator">Operator Pelayanan</option>
-              <option value="viewer">Viewer / Monitoring Saja</option>
+              <option value="admin_bidang">Admin Bidang (Seklur / 3 Kasi)</option>
+              <option value="operator">Staf Seksi / Operator Pelayanan</option>
+              <option value="viewer">Viewer / Monitoring & LPM</option>
             </select>
 
             <select
@@ -888,6 +1603,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
           const isPasswordVisible = Boolean(revealedPasswordIds[user.id]);
           const isCurrentSessionUser =
             user.username.toLowerCase() === currentUsername.toLowerCase();
+          const normalizedUserCats = normalizeCategoryList(user.allowedServiceCategories);
 
           return (
             <div
@@ -1128,7 +1844,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                     Bidang Layanan Warga:
                   </span>
                   <span className="px-2 py-0.5 rounded-md bg-sky-100 text-[#0D3868] text-[11px] font-extrabold font-mono-num">
-                    {user.allowedServiceCategories.length} / {serviceCatalog.length} Bidang
+                    {normalizedUserCats.length} / {serviceCatalog.length} Bidang
                   </span>
                 </div>
               </div>
@@ -1145,21 +1861,21 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                         </span>
                       </h4>
                       <p className="text-xs text-slate-600 mt-0.5">
-                        Klik pada kotak modul, bidang layanan, atau hak aksi di bawah ini untuk
-                        mengaktifkan/membatasi akses user secara langsung.
+                        Klik pada kotak modul (beserta sub-fiturnya), bidang layanan (13 Surat Resmi &
+                        9 Aduan), atau hak aksi di bawah ini untuk mengatur akses secara langsung.
                       </p>
                     </div>
                     {user.isMasterLurah && (
                       <span className="px-3 py-1 rounded-lg bg-amber-100 text-amber-900 text-xs font-bold border border-amber-300">
-                        Akun Master Lurah memiliki akses penuh ke seluruh modul
+                        Akun Master Lurah memiliki akses penuh ke seluruh 12 modul
                       </span>
                     )}
                   </div>
 
-                  {/* Section 1: Batasan Akses Modul Halaman Admin */}
+                  {/* Section 1: Batasan Akses 12 Modul Halaman Admin & Sub-Fitur Terkini */}
                   <div>
                     <div className="text-xs font-extrabold text-slate-800 uppercase tracking-wider mb-2.5">
-                      1. Batasan Akses Modul / Menu Halaman Admin
+                      1. Batasan Akses 12 Menu / Modul Halaman Admin (Beserta Sub-Modul Terkini)
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                       {ADMIN_MODULE_OPTIONS.map((mod) => {
@@ -1179,7 +1895,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                                 (u) => ({
                                   ...u,
                                   allowedAdminTabs: nextTabs,
-                                  updatedAt: '08 Okt 2026 · Diperbarui',
+                                  updatedAt: `${getRealtimeDateString(new Date())} · Diperbarui`,
                                 }),
                                 `Batasan akses menu "${mod.label}" untuk ${user.fullName} berhasil diperbarui.`
                               );
@@ -1199,10 +1915,20 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                             >
                               {isChecked && <Check className="w-3 h-3" />}
                             </div>
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1">
                               <div className="text-xs font-bold text-slate-900">{mod.label}</div>
                               <div className="text-[11px] text-slate-500 leading-snug mt-0.5">
                                 {mod.description}
+                              </div>
+                              <div className="mt-1.5 flex flex-wrap gap-1">
+                                {mod.subMenus.map((sub, sIdx) => (
+                                  <span
+                                    key={sIdx}
+                                    className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 text-[9px] font-semibold border border-slate-200"
+                                  >
+                                    {sub}
+                                  </span>
+                                ))}
                               </div>
                             </div>
                           </button>
@@ -1211,11 +1937,11 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                     </div>
                   </div>
 
-                  {/* Section 2: Batasan Akses 7 Bidang Pengurusan Warga */}
+                  {/* Section 2: Batasan Akses 7 Bidang Pengurusan Warga (13 Surat Resmi & 9 Kategori Aduan) */}
                   <div>
                     <div className="flex items-center justify-between gap-2 mb-2.5">
                       <div className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
-                        2. Batasan Akses 7 Bidang Layanan Pengurusan Warga
+                        2. Batasan Akses 7 Bidang Layanan Warga (13 Layanan Surat Resmi & 9 Kategori Aduan)
                       </div>
                       {!user.isMasterLurah && (
                         <div className="flex items-center gap-2">
@@ -1227,7 +1953,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                                 (u) => ({
                                   ...u,
                                   allowedServiceCategories: [...allCategoryIds],
-                                  updatedAt: '08 Okt 2026 · Diperbarui',
+                                  updatedAt: `${getRealtimeDateString(new Date())} · Diperbarui`,
                                 }),
                                 `Seluruh 7 bidang layanan diaktifkan untuk ${user.fullName}.`
                               )
@@ -1241,7 +1967,9 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                       {serviceCatalog.map((cat) => {
-                        const isChecked = user.allowedServiceCategories.includes(cat.id);
+                        const canonicalId = normalizeServiceCategoryId(cat.id);
+                        const isChecked = normalizedUserCats.includes(canonicalId);
+                        const mapInfo = CATEGORY_CURRENT_SERVICES_MAP[canonicalId];
                         return (
                           <button
                             key={cat.id}
@@ -1249,15 +1977,15 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                             disabled={Boolean(user.isMasterLurah)}
                             onClick={() => {
                               const nextCats = isChecked
-                                ? user.allowedServiceCategories.filter((c) => c !== cat.id)
-                                : [...user.allowedServiceCategories, cat.id];
+                                ? normalizedUserCats.filter((c) => c !== canonicalId)
+                                : [...normalizedUserCats, canonicalId];
                               if (nextCats.length === 0) return;
                               handleQuickUpdateUserPermissions(
                                 user.id,
                                 (u) => ({
                                   ...u,
                                   allowedServiceCategories: nextCats,
-                                  updatedAt: '08 Okt 2026 · Diperbarui',
+                                  updatedAt: `${getRealtimeDateString(new Date())} · Diperbarui`,
                                 }),
                                 `Batasan bidang "${cat.title}" untuk ${user.fullName} berhasil diperbarui.`
                               );
@@ -1277,13 +2005,30 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                             >
                               {isChecked && <Check className="w-3 h-3" />}
                             </div>
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1">
                               <div className="text-xs font-bold text-slate-900">
                                 {cat.number}. {cat.title}
                               </div>
-                              <div className="text-[11px] text-slate-500 mt-0.5 font-mono-num">
-                                {cat.items.length} Sub-Menu Layanan
+                              <div className="text-[10px] text-emerald-800 font-semibold mt-0.5">
+                                {mapInfo?.responsibleSection || 'Seksi Pelayanan Kelurahan'}
                               </div>
+                              {mapInfo && mapInfo.officialLetters.length > 0 && (
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {mapInfo.officialLetters.map((ltr, lIdx) => (
+                                    <span
+                                      key={lIdx}
+                                      className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-900 text-[9px] font-semibold border border-emerald-200"
+                                    >
+                                      {ltr}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              {mapInfo && mapInfo.complaintTopics.length > 0 && (
+                                <div className="mt-1 text-[10px] text-slate-500">
+                                  Aduan: {mapInfo.complaintTopics.join(', ')}
+                                </div>
+                              )}
                             </div>
                           </button>
                         );
@@ -1313,7 +2058,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                                     ...u.actionPermissions,
                                     [perm.key]: !isChecked,
                                   },
-                                  updatedAt: '08 Okt 2026 · Diperbarui',
+                                  updatedAt: `${getRealtimeDateString(new Date())} · Diperbarui`,
                                 }),
                                 `Kewenangan "${perm.label}" untuk ${user.fullName} berhasil diperbarui.`
                               );
@@ -1362,11 +2107,11 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                 <div>
                   <h3 className="text-base sm:text-lg font-extrabold">
                     {editingUserId
-                      ? 'Edit Akun User Admin & Batasan Akses'
+                      ? 'Edit Akun User Admin & Batasan Akses (12 Modul & Layanan Terkini)'
                       : 'Tambah Akun User Admin Baru & Tentukan Batasan Akses'}
                   </h3>
                   <p className="text-[11px] text-sky-200">
-                    Otoritas Master Admin / Super Admin (Lurah Panaikang)
+                    Otoritas Master Admin (Lurah Panaikang) · Struktur Perwali Kota Makassar No. 65 Tahun 2023
                   </p>
                 </div>
               </div>
@@ -1380,61 +2125,126 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
             </div>
 
             <form onSubmit={handleSaveUserForm} className="p-6 space-y-6">
+              {/* Auto-Fill from Profil Kelurahan / Struktur Organisasi */}
+              {structuralCandidates.length > 0 && (
+                <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200">
+                  <label className="block text-xs font-extrabold text-emerald-950 mb-1.5">
+                    Ambil Otomatis Nama, NIP & Jabatan dari Struktur Profil Kelurahan / LPM Saat Ini:
+                  </label>
+                  <select
+                    defaultValue=""
+                    onChange={(e) => {
+                      const chosen = structuralCandidates.find((c) => c.key === e.target.value);
+                      if (!chosen) return;
+                      applyAccessPreset(chosen.presetKey, false);
+                      setUserForm((prev) => ({
+                        ...prev,
+                        fullName: chosen.fullName,
+                        nip: chosen.nip || prev.nip,
+                        username: editingUserId ? prev.username : chosen.suggestedUsername,
+                        jabatan: chosen.jabatan,
+                        unitBidang: chosen.unitBidang,
+                      }));
+                    }}
+                    className="w-full px-3.5 py-2 rounded-xl border border-emerald-300 bg-white text-xs sm:text-sm font-semibold text-slate-900 focus:border-[#0D3868] focus:outline-none"
+                  >
+                    <option value="">
+                      -- Pilih Pejabat Struktural / Staf Seksi / Ketua LPM dari Data Profil Kelurahan --
+                    </option>
+                    {structuralCandidates.map((cand) => (
+                      <option key={cand.key} value={cand.key}>
+                        {cand.label} {cand.nip && cand.nip !== '-' ? `(NIP. ${cand.nip})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Quick Role Preset Selector */}
               <div className="p-4 rounded-2xl bg-sky-50/80 border border-sky-200">
                 <div className="flex items-center gap-1.5 text-xs font-extrabold text-[#0D3868] mb-2">
                   <Sparkles className="w-4 h-4 text-[#0277BD]" />
-                  <span>Template Cepat Batasan Akses Berdasarkan Jabatan (1-Klik):</span>
+                  <span>
+                    Template Cepat Batasan Akses Berdasarkan Struktur Jabatan Perwali No. 65 Tahun 2023 (1-Klik):
+                  </span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   <button
                     type="button"
-                    onClick={() => applyAccessPreset('sekretaris')}
+                    onClick={() => applyAccessPreset('sekretaris', false)}
                     className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-[#0D3868] hover:text-white text-slate-800 border border-slate-300 text-[11px] font-bold transition-colors cursor-pointer"
                   >
-                    Sekretaris Kelurahan (Semua Bidang)
+                    Sekretaris Lurah (10 Modul Koordinator)
                   </button>
                   <button
                     type="button"
-                    onClick={() => applyAccessPreset('kasi_pemerintahan')}
+                    onClick={() => applyAccessPreset('kasi_pemerintahan', false)}
                     className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-[#0D3868] hover:text-white text-slate-800 border border-slate-300 text-[11px] font-bold transition-colors cursor-pointer"
                   >
-                    Kasi Pemerintahan (Adminduk, Surat, RT/RW)
+                    Kasi Pemerintahan & Trantibum (Adminduk, Surat, RT/RW & Siskamling)
                   </button>
                   <button
                     type="button"
-                    onClick={() => applyAccessPreset('kasi_kebersihan')}
+                    onClick={() => applyAccessPreset('kasi_pemberdayaan', false)}
                     className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-[#0D3868] hover:text-white text-slate-800 border border-slate-300 text-[11px] font-bold transition-colors cursor-pointer"
                   >
-                    Kasi Kebersihan (Lingkungan, Sampah, Kerja Bakti)
+                    Kasi Pemberdayaan Masyarakat, Pembangunan & Sosial (Usaha, Bansos, Urban Farming)
                   </button>
                   <button
                     type="button"
-                    onClick={() => applyAccessPreset('kasi_kesra')}
+                    onClick={() => applyAccessPreset('kasi_kebersihan', false)}
                     className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-[#0D3868] hover:text-white text-slate-800 border border-slate-300 text-[11px] font-bold transition-colors cursor-pointer"
                   >
-                    Kasi Kesra (Bansos, Usaha UMKM, Kemasyarakatan)
+                    Kasi Pengelolaan Kebersihan & Pertamanan (BSU, Teba, Biopori, Kerja Bakti)
                   </button>
                   <button
                     type="button"
-                    onClick={() => applyAccessPreset('operator_loket')}
+                    onClick={() => applyAccessPreset('staf_pemerintahan', false)}
                     className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-[#0D3868] hover:text-white text-slate-800 border border-slate-300 text-[11px] font-bold transition-colors cursor-pointer"
                   >
-                    Operator Loket Pelayanan
+                    Staf Seksi Pemerintahan
                   </button>
                   <button
                     type="button"
-                    onClick={() => applyAccessPreset('viewer_monitoring')}
+                    onClick={() => applyAccessPreset('staf_pemberdayaan', false)}
+                    className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-[#0D3868] hover:text-white text-slate-800 border border-slate-300 text-[11px] font-bold transition-colors cursor-pointer"
+                  >
+                    Staf Seksi Pemberdayaan Masyarakat
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyAccessPreset('staf_kebersihan', false)}
+                    className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-[#0D3868] hover:text-white text-slate-800 border border-slate-300 text-[11px] font-bold transition-colors cursor-pointer"
+                  >
+                    Staf Seksi Kebersihan & Pertamanan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyAccessPreset('ketua_lpm', false)}
+                    className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-[#0D3868] hover:text-white text-slate-800 border border-slate-300 text-[11px] font-bold transition-colors cursor-pointer"
+                  >
+                    Ketua LPM / Mitra RT-RW
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyAccessPreset('operator_loket', false)}
+                    className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-[#0D3868] hover:text-white text-slate-800 border border-slate-300 text-[11px] font-bold transition-colors cursor-pointer"
+                  >
+                    Operator Loket PTSP (13 Layanan Surat)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyAccessPreset('viewer_monitoring', false)}
                     className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-[#0D3868] hover:text-white text-slate-800 border border-slate-300 text-[11px] font-bold transition-colors cursor-pointer"
                   >
                     Viewer / Monitoring Saja
                   </button>
                   <button
                     type="button"
-                    onClick={() => applyAccessPreset('master_lurah')}
+                    onClick={() => applyAccessPreset('master_lurah', false)}
                     className="px-2.5 py-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 text-[11px] font-bold transition-colors cursor-pointer"
                   >
-                    Super Admin / Lurah (Akses Penuh)
+                    Super Admin / Lurah (12 Modul Penuh)
                   </button>
                 </div>
               </div>
@@ -1452,7 +2262,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                     onChange={(e) =>
                       setUserForm((prev) => ({ ...prev, fullName: e.target.value }))
                     }
-                    placeholder="Contoh: Andi Mappanyukki, S.IP"
+                    placeholder="Contoh: Fentri Amir, SE"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-900 focus:border-[#0D3868] focus:outline-none"
                   />
                 </div>
@@ -1465,7 +2275,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                     type="text"
                     value={userForm.nip}
                     onChange={(e) => setUserForm((prev) => ({ ...prev, nip: e.target.value }))}
-                    placeholder="Contoh: 19871103 201101 1 006"
+                    placeholder="Contoh: 198509042009042003"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-mono-num text-slate-900 focus:border-[#0D3868] focus:outline-none"
                   />
                 </div>
@@ -1484,7 +2294,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                         username: e.target.value.toLowerCase().replace(/\s+/g, '.'),
                       }))
                     }
-                    placeholder="Contoh: kasi.pemerintahan"
+                    placeholder="Contoh: kasi.pemberdayaan"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-mono-num text-slate-900 focus:border-[#0D3868] focus:outline-none"
                   />
                 </div>
@@ -1529,7 +2339,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                     onChange={(e) =>
                       setUserForm((prev) => ({ ...prev, jabatan: e.target.value }))
                     }
-                    placeholder="Contoh: Kasi Pemerintahan / Operator Loket"
+                    placeholder="Contoh: Kasi Pemberdayaan Masyarakat, Pembangunan dan Sosial"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-900 focus:border-[#0D3868] focus:outline-none"
                   />
                 </div>
@@ -1544,7 +2354,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                     onChange={(e) =>
                       setUserForm((prev) => ({ ...prev, unitBidang: e.target.value }))
                     }
-                    placeholder="Contoh: Seksi Pemerintahan & Trantib"
+                    placeholder="Contoh: Seksi Pemberdayaan Masyarakat, Pembangunan & Sosial"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-900 focus:border-[#0D3868] focus:outline-none"
                   />
                 </div>
@@ -1566,9 +2376,9 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 bg-white focus:border-[#0D3868] focus:outline-none"
                   >
                     <option value="master_admin">Master / Super Admin (Lurah)</option>
-                    <option value="admin_bidang">Admin Bidang (Sekretaris / Kasi)</option>
-                    <option value="operator">Operator Pelayanan</option>
-                    <option value="viewer">Viewer / Monitoring Saja</option>
+                    <option value="admin_bidang">Admin Bidang (Sekretaris / 3 Kasi)</option>
+                    <option value="operator">Staf Seksi / Operator Pelayanan</option>
+                    <option value="viewer">Viewer / Monitoring & LPM</option>
                   </select>
                 </div>
 
@@ -1609,15 +2419,15 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                 </button>
               </div>
 
-              {/* Section B: Batasan Akses Modul Halaman Admin */}
+              {/* Section B: Batasan Akses 12 Modul Halaman Admin */}
               <div className="border-t border-slate-200 pt-5">
                 <div className="flex items-center justify-between mb-2.5">
                   <div>
                     <h4 className="text-sm font-extrabold text-[#0D3868]">
-                      1. Tentukan Batasan Akses Menu / Modul Halaman Admin *
+                      1. Tentukan Batasan Akses 12 Menu / Modul Halaman Admin *
                     </h4>
                     <p className="text-xs text-slate-500">
-                      Pilih modul mana saja pada halaman Admin yang dapat dibuka oleh user ini:
+                      Pilih modul beserta sub-fitur terbaru pada halaman Admin yang dapat dibuka oleh user ini:
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1631,7 +2441,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                       }
                       className="text-xs font-bold text-[#0277BD] hover:underline cursor-pointer"
                     >
-                      Pilih Semua Modul
+                      Pilih Semua 12 Modul
                     </button>
                     <span className="text-slate-300">|</span>
                     <button
@@ -1672,10 +2482,20 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                         >
                           {checked && <Check className="w-3 h-3" />}
                         </div>
-                        <div>
+                        <div className="min-w-0 flex-1">
                           <div className="text-xs font-bold">{mod.label}</div>
                           <div className="text-[11px] text-slate-500 leading-snug mt-0.5">
                             {mod.description}
+                          </div>
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {mod.subMenus.map((sub, sIdx) => (
+                              <span
+                                key={sIdx}
+                                className="px-1.5 py-0.5 rounded bg-white text-slate-700 text-[9px] font-semibold border border-slate-200"
+                              >
+                                {sub}
+                              </span>
+                            ))}
                           </div>
                         </div>
                       </button>
@@ -1684,15 +2504,15 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                 </div>
               </div>
 
-              {/* Section C: Batasan Akses 7 Bidang Layanan Pengurusan Warga */}
+              {/* Section C: Batasan Akses 7 Bidang Layanan Pengurusan Warga (13 Surat Resmi & 9 Kategori Aduan) */}
               <div className="border-t border-slate-200 pt-5">
                 <div className="flex items-center justify-between mb-2.5">
                   <div>
                     <h4 className="text-sm font-extrabold text-[#0D3868]">
-                      2. Tentukan Batasan Bidang Layanan Pengurusan Warga (7 Bidang)
+                      2. Tentukan Batasan Bidang Layanan Pengurusan Warga (13 Surat Resmi & 9 Kategori Aduan)
                     </h4>
                     <p className="text-xs text-slate-500">
-                      Pilih kategori layanan warga yang boleh ditangani oleh user ini:
+                      Pilih kategori layanan surat & pengaduan warga yang boleh ditangani oleh user ini:
                     </p>
                   </div>
                   <button
@@ -1711,12 +2531,17 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                   {serviceCatalog.map((cat) => {
-                    const checked = userForm.allowedServiceCategories.includes(cat.id);
+                    const canonicalId = normalizeServiceCategoryId(cat.id);
+                    const normalizedFormCats = normalizeCategoryList(
+                      userForm.allowedServiceCategories
+                    );
+                    const checked = normalizedFormCats.includes(canonicalId);
+                    const mapInfo = CATEGORY_CURRENT_SERVICES_MAP[canonicalId];
                     return (
                       <button
                         key={cat.id}
                         type="button"
-                        onClick={() => toggleCategoryPermissionInForm(cat.id)}
+                        onClick={() => toggleCategoryPermissionInForm(canonicalId)}
                         className={`flex items-start gap-2.5 p-3 rounded-xl border text-left transition-all cursor-pointer ${
                           checked
                             ? 'bg-emerald-50/70 border-emerald-600 text-slate-900'
@@ -1732,13 +2557,25 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                         >
                           {checked && <Check className="w-3 h-3" />}
                         </div>
-                        <div>
+                        <div className="min-w-0 flex-1">
                           <div className="text-xs font-bold">
                             {cat.number}. {cat.title}
                           </div>
-                          <div className="text-[11px] text-slate-500 font-mono-num">
-                            {cat.items.length} Sub-Menu
+                          <div className="text-[10px] text-emerald-800 font-semibold mt-0.5">
+                            {mapInfo?.responsibleSection || 'Seksi Pelayanan Kelurahan'}
                           </div>
+                          {mapInfo && mapInfo.officialLetters.length > 0 && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {mapInfo.officialLetters.map((ltr, lIdx) => (
+                                <span
+                                  key={lIdx}
+                                  className="px-1.5 py-0.5 rounded bg-white text-emerald-900 text-[9px] font-semibold border border-emerald-200"
+                                >
+                                  {ltr}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </button>
                     );

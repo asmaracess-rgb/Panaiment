@@ -101,7 +101,12 @@ import {
 } from '../data/initialData';
 import { resolveImageUrl } from '../utils/resolveImageUrl';
 import { compressImageFile } from '../utils/compressImage';
-import { getRealtimeDateTimeString, getRealtimeDateString, getRealtimeFullDateString } from '../utils/realtimeDate';
+import {
+  getRealtimeDateTimeString,
+  getRealtimeDateTimeWithSecondsString,
+  getRealtimeDateString,
+  getRealtimeFullDateString,
+} from '../utils/realtimeDate';
 import {
   buildInterRecipientCoordinationMessage,
   buildReportWhatsAppMessage,
@@ -161,6 +166,8 @@ interface AdminSession {
   allowedServiceCategories?: string[];
   actionPermissions?: AdminActionPermissions;
   loginAt: string;
+  loginTimestampMs?: number;
+  timezoneFixedV2?: boolean;
 }
 
 interface AdminPanelViewProps {
@@ -178,6 +185,7 @@ interface AdminPanelViewProps {
   onRecordActivityLog?: (
     entry: Omit<AdminActivityLog, 'id' | 'timestamp' | 'createdAtMs'>
   ) => void;
+  onDeleteActivityLog?: (logId: string) => void;
   onResetActivityLogs?: () => void;
   onSaveProfile: (updated: KelurahanProfile) => Promise<{ ok: boolean; errors?: string[] }>;
   onSaveRwGroups: (updated: RwGroup[]) => Promise<{ ok: boolean; errors?: string[] }>;
@@ -332,6 +340,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   adminUsers = INITIAL_ADMIN_USERS,
   activityLogs = INITIAL_ACTIVITY_LOGS,
   onRecordActivityLog,
+  onDeleteActivityLog,
   onResetActivityLogs,
   onSaveProfile,
   onSaveRwGroups,
@@ -382,11 +391,47 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   const [adminSession, setAdminSession] = useState<AdminSession | null>(() => {
     try {
       const saved = sessionStorage.getItem('pnk_admin_session');
-      return saved ? (JSON.parse(saved) as AdminSession) : null;
+      if (!saved) return null;
+      const parsed = JSON.parse(saved) as AdminSession;
+      if (!parsed.timezoneFixedV2) {
+        const realNowStr = getRealtimeDateTimeString(new Date());
+        const repaired: AdminSession = {
+          ...parsed,
+          loginAt: realNowStr,
+          loginTimestampMs: Date.now(),
+          timezoneFixedV2: true,
+        };
+        sessionStorage.setItem('pnk_admin_session', JSON.stringify(repaired));
+        try {
+          const rawLock = localStorage.getItem('pnk_active_admin_session_lock');
+          if (rawLock) {
+            const parsedLock = JSON.parse(rawLock);
+            localStorage.setItem(
+              'pnk_active_admin_session_lock',
+              JSON.stringify({
+                ...parsedLock,
+                loginAt: realNowStr,
+                lastHeartbeat: Date.now(),
+              })
+            );
+          }
+        } catch {}
+        return repaired;
+      }
+      return parsed;
     } catch {
       return null;
     }
   });
+  const [liveWitaClock, setLiveWitaClock] = useState<string>(() =>
+    getRealtimeDateTimeWithSecondsString(new Date())
+  );
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setLiveWitaClock(getRealtimeDateTimeWithSecondsString(new Date()));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
   const [loginUsername, setLoginUsername] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -478,7 +523,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   useEffect(() => {
     if (!adminSession?.token) return;
 
-    const heartbeatTimer = setInterval(async () => {
+    const sendHeartbeat = async () => {
       try {
         await fetch('/api/auth/heartbeat', {
           method: 'POST',
@@ -486,19 +531,25 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             'Content-Type': 'application/json',
             'x-admin-token': adminSession.token,
           },
-          body: JSON.stringify({ token: adminSession.token }),
+          body: JSON.stringify({
+            token: adminSession.token,
+            loginAt: adminSession.loginAt,
+          }),
         });
       } catch {}
 
       try {
-        await heartbeatFirestore(adminSession.token);
+        await heartbeatFirestore(adminSession.token, adminSession.loginAt);
       } catch {}
-    }, 15000);
+    };
+
+    sendHeartbeat();
+    const heartbeatTimer = setInterval(sendHeartbeat, 15000);
 
     return () => {
       clearInterval(heartbeatTimer);
     };
-  }, [adminSession?.token]);
+  }, [adminSession?.token, adminSession?.loginAt]);
 
   const currentAdminAccount = React.useMemo(() => {
     if (!adminSession) return null;
@@ -1133,7 +1184,16 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
     setIsLoggingIn(true);
 
-    const applySuccessfulSession = (sessionData: AdminSession) => {
+    const clientLoginAt = getRealtimeDateTimeString(new Date());
+    const clientLoginTimestampMs = Date.now();
+
+    const applySuccessfulSession = (rawSessionData: AdminSession) => {
+      const sessionData: AdminSession = {
+        ...rawSessionData,
+        loginAt: clientLoginAt,
+        loginTimestampMs: clientLoginTimestampMs,
+        timezoneFixedV2: true,
+      };
       setAdminSession(sessionData);
       sessionStorage.setItem('pnk_admin_session', JSON.stringify(sessionData));
       try {
@@ -1151,6 +1211,17 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           })
         );
       } catch {}
+
+      if (onSaveAdminUsers && Array.isArray(adminUsers) && adminUsers.length > 0) {
+        const updatedUsers = adminUsers.map((u) => {
+          const isMatch =
+            (sessionData.userId && u.id === sessionData.userId) ||
+            u.username.trim().toLowerCase() === sessionData.username.trim().toLowerCase();
+          return isMatch ? { ...u, lastLoginAt: clientLoginAt } : u;
+        });
+        onSaveAdminUsers(updatedUsers).catch(() => {});
+      }
+
       setLoginPassword('');
       checkSessionStatus();
       recordAudit({
@@ -1158,8 +1229,8 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         module: 'AUTENTIKASI',
         targetId: sessionData.userId,
         targetLabel: `Sesi Portal Admin · ${sessionData.fullName} (@${sessionData.username})`,
-        summary: `Login berhasil ke Panel Admin Kelurahan Panaikang`,
-        details: `Peran: ${sessionData.role}`,
+        summary: `Login berhasil ke Panel Admin Kelurahan Panaikang (${sessionData.loginAt})`,
+        details: `Peran: ${sessionData.role} · Waktu Login: ${sessionData.loginAt}`,
         severity: 'info',
         overrideActor: {
           username: sessionData.username,
@@ -1190,6 +1261,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           password: cleanPass,
           clientToken: adminSession?.token,
           forceTakeover: shouldForceTakeover,
+          clientLoginAt,
         }),
       });
 
@@ -1232,7 +1304,13 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
     // 2. Resilient Firestore Cloud Authentication & Single-Admin Lock
     try {
-      const fsResult = await loginWithFirestore(cleanUser, cleanPass, adminUsers, shouldForceTakeover);
+      const fsResult = await loginWithFirestore(
+        cleanUser,
+        cleanPass,
+        adminUsers,
+        shouldForceTakeover,
+        clientLoginAt
+      );
       setIsLoggingIn(false);
       if (!fsResult.ok) {
         if (fsResult.isLocked) {
@@ -1307,6 +1385,25 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
   const handleLogout = async () => {
     const token = adminSession?.token;
+    const logoutNow = getRealtimeDateTimeString(new Date());
+    if (adminSession) {
+      recordAudit({
+        actionType: 'LOGOUT',
+        module: 'AUTENTIKASI',
+        targetId: adminSession.userId,
+        targetLabel: `Sesi Portal Admin · ${adminSession.fullName} (@${adminSession.username})`,
+        summary: `Logout dari Panel Admin Kelurahan Panaikang (${logoutNow})`,
+        details: `Peran: ${adminSession.role} · Sesi ditutup pada ${logoutNow}`,
+        severity: 'info',
+        overrideActor: {
+          username: adminSession.username,
+          fullName: adminSession.fullName,
+          jabatan: adminSession.role,
+          nip: adminSession.nip,
+          roleLevel: adminSession.roleLevel,
+        },
+      });
+    }
     try {
       await fetch('/api/auth/logout', {
         method: 'POST',
@@ -1579,6 +1676,13 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     try {
       const res = await onSyncInstagram();
       if (res.ok) {
+        recordAudit({
+          actionType: 'UPDATE',
+          module: 'INFORMASI_KELURAHAN',
+          targetLabel: 'Instagram Resmi @kelurahan.panaikang',
+          summary: `Melakukan sinkronisasi publikasi informasi kelurahan dengan akun Instagram @kelurahan.panaikang (${res.syncedAt || getRealtimeDateTimeString()})`,
+          severity: 'info',
+        });
         setSuccessMessage(
           `Seluruh postingan informasi berhasil disinkronkan dengan akun Instagram resmi @kelurahan.panaikang (${res.syncedAt || 'Baru Saja'}).`
         );
@@ -2657,10 +2761,19 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
   const handleExecuteDeleteRw = async (rwId: string) => {
     clearFeedback();
+    const targetRw = rwGroups.find((rw) => rw.id === rwId);
     const nextGroups = rwGroups.filter((rw) => rw.id !== rwId);
     const res = await onSaveRwGroups(nextGroups);
     setConfirmDeleteRwId(null);
     if (res.ok) {
+      recordAudit({
+        actionType: 'DELETE',
+        module: 'STRUKTUR_RTRW',
+        targetId: rwId,
+        targetLabel: `${targetRw?.rwCode || rwId} (${targetRw?.ketuaRwName || '-'})`,
+        summary: `Menghapus wilayah Rukun Warga ${targetRw?.rwCode || rwId} beserta ${targetRw?.rtList?.length || 0} RT di dalamnya`,
+        severity: 'critical',
+      });
       setSuccessMessage('Data RW beserta daftar RT di dalamnya berhasil dihapus.');
     }
   };
@@ -2696,6 +2809,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       setValidationErrors(['Kode RT, Nama RT, dan Nama Ketua RT wajib diisi.']);
       return;
     }
+    const parentRw = rwGroups.find((rw) => rw.id === rwId);
     setIsSubmitting(true);
     const nextGroups = rwGroups.map((rw) => {
       if (rw.id !== rwId) return rw;
@@ -2738,6 +2852,16 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     if (!res.ok) {
       setValidationErrors(res.errors || ['Gagal menyimpan data RT.']);
     } else {
+      recordAudit({
+        actionType: editingRtId ? 'UPDATE' : 'CREATE',
+        module: 'STRUKTUR_RTRW',
+        targetLabel: `${rtForm.rtCode} / ${parentRw?.rwCode || 'RW'} (${rtForm.ketuaRtName})`,
+        summary: editingRtId
+          ? `Memperbarui data pengurus ${rtForm.rtCode} pada ${parentRw?.rwCode || 'RW'}`
+          : `Menambahkan Rukun Tetangga baru ${rtForm.rtCode} pada ${parentRw?.rwCode || 'RW'}`,
+        afterValue: `Ketua RT: ${rtForm.ketuaRtName} · Jumlah KK: ${rtForm.householdsCount || 100} KK`,
+        severity: 'info',
+      });
       setActiveRwForRt(null);
       setEditingRtId(null);
       setSuccessMessage(
@@ -2750,6 +2874,8 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
   const handleExecuteDeleteRt = async (rwId: string, rtId: string) => {
     clearFeedback();
+    const parentRw = rwGroups.find((rw) => rw.id === rwId);
+    const targetRt = parentRw?.rtList?.find((rt) => rt.id === rtId);
     const nextGroups = rwGroups.map((rw) =>
       rw.id === rwId
         ? { ...rw, rtList: (rw.rtList || []).filter((rt) => rt.id !== rtId) }
@@ -2758,6 +2884,14 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     const res = await onSaveRwGroups(nextGroups);
     setConfirmDeleteRtKey(null);
     if (res.ok) {
+      recordAudit({
+        actionType: 'DELETE',
+        module: 'STRUKTUR_RTRW',
+        targetId: rtId,
+        targetLabel: `${targetRt?.rtCode || rtId} / ${parentRw?.rwCode || 'RW'} (${targetRt?.ketuaRtName || '-'})`,
+        summary: `Menghapus data Rukun Tetangga ${targetRt?.rtCode || rtId} dari wilayah ${parentRw?.rwCode || 'RW'}`,
+        severity: 'warning',
+      });
       setSuccessMessage('Data Rukun Tetangga (RT) berhasil dihapus dari wilayah RW.');
     }
   };
@@ -2853,6 +2987,16 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     const res = await onSaveWhatsAppRecipients(nextList);
     setIsSubmitting(false);
     if (res.ok) {
+      recordAudit({
+        actionType: editingWaId ? 'UPDATE' : 'CREATE',
+        module: 'LAPORAN_WARGA',
+        targetLabel: `Penerima WA: ${cleanName} (${cleanPhone})`,
+        summary: editingWaId
+          ? `Memperbarui nomor WhatsApp penerima laporan warga "${cleanName}"`
+          : `Menambahkan nomor WhatsApp penerima laporan warga baru "${cleanName}"`,
+        afterValue: `Peran: ${cleanRole} · Wilayah: ${waForm.rwScope || 'Seluruh Wilayah'}`,
+        severity: 'info',
+      });
       setShowWaForm(false);
       setEditingWaId(null);
       setSuccessMessage(
@@ -2876,6 +3020,14 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     const res = await onSaveWhatsAppRecipients(nextList);
     if (res.ok) {
       const target = nextList.find((r) => r.id === id);
+      recordAudit({
+        actionType: 'UPDATE',
+        module: 'LAPORAN_WARGA',
+        targetId: id,
+        targetLabel: `Penerima Utama WA: ${target?.name || id} (${target?.phoneNumber || ''})`,
+        summary: `Menetapkan ${target?.name || id} sebagai penerima utama otomatis WhatsApp laporan warga`,
+        severity: 'info',
+      });
       setSuccessMessage(
         `Nomor WhatsApp ${target?.name || ''} (${formatDisplayPhone(target?.phoneNumber || '')}) ditetapkan sebagai penerima utama otomatis laporan warga.`
       );
@@ -2885,6 +3037,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   const handleExecuteDeleteWaRecipient = async (id: string) => {
     clearFeedback();
     if (!onSaveWhatsAppRecipients) return;
+    const target = whatsappRecipients.find((item) => item.id === id);
     const nextList = whatsappRecipients.filter((item) => item.id !== id);
     if (nextList.length > 0 && !nextList.some((r) => r.isPrimary)) {
       nextList[0] = { ...nextList[0], isPrimary: true };
@@ -2892,6 +3045,14 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     const res = await onSaveWhatsAppRecipients(nextList);
     setConfirmDeleteWaId(null);
     if (res.ok) {
+      recordAudit({
+        actionType: 'DELETE',
+        module: 'LAPORAN_WARGA',
+        targetId: id,
+        targetLabel: `Penerima WA: ${target?.name || id} (${target?.phoneNumber || ''})`,
+        summary: `Menghapus nomor penerima WhatsApp "${target?.name || id}"`,
+        severity: 'warning',
+      });
       setSuccessMessage('Nomor telepon penerima WhatsApp berhasil dihapus.');
     }
   };
@@ -3131,6 +3292,17 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     if (!res.ok) {
       setValidationErrors(res.errors || ['Validasi data Bank Sampah Unit gagal.']);
     } else {
+      recordAudit({
+        actionType: editingUnitId ? 'UPDATE' : 'CREATE',
+        module: 'BANK_SAMPAH',
+        targetId: editingUnitId || undefined,
+        targetLabel: `BSU: ${unitForm.unitName || 'Unit Baru'} (${unitForm.rw || '-'})`,
+        summary: editingUnitId
+          ? `Memperbarui data Bank Sampah Unit (BSU) "${unitForm.unitName}" (${unitForm.rw})`
+          : `Menambahkan Bank Sampah Unit (BSU) baru "${unitForm.unitName}" (${unitForm.rw})`,
+        afterValue: `Organik: ${unitForm.organikKg || 0} kg · Anorganik: ${unitForm.anorganikKg || 0} kg · KK Aktif: ${unitForm.activeHouseholds || 0}`,
+        severity: 'info',
+      });
       setShowUnitForm(false);
       setEditingUnitId(null);
       setSuccessMessage(
@@ -3143,9 +3315,18 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
   const handleExecuteDeleteUnit = async (id: string) => {
     clearFeedback();
+    const targetUnit = wasteUnits.find((u) => u.id === id);
     const res = await onDeleteWasteUnit(id);
     setConfirmDeleteUnitId(null);
     if (res.ok) {
+      recordAudit({
+        actionType: 'DELETE',
+        module: 'BANK_SAMPAH',
+        targetId: id,
+        targetLabel: `BSU: ${targetUnit?.unitName || id} (${targetUnit?.rw || '-'})`,
+        summary: `Menghapus Bank Sampah Unit (BSU) "${targetUnit?.unitName || id}"`,
+        severity: 'critical',
+      });
       setSuccessMessage('Data Bank Sampah Unit berhasil dihapus.');
     }
   };
@@ -3187,7 +3368,8 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   const handleLogFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     clearFeedback();
-    if (logForm.organikKg + logForm.anorganikKg + logForm.residuKg <= 0) {
+    const totalKg = logForm.organikKg + logForm.anorganikKg + logForm.residuKg;
+    if (totalKg <= 0) {
       setValidationErrors(['Total timbangan sampah harus lebih dari 0 kg.']);
       return;
     }
@@ -3197,6 +3379,15 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         setValidationErrors(res.errors || ['Gagal memperbarui log penimbangan.']);
         return;
       }
+      recordAudit({
+        actionType: 'UPDATE',
+        module: 'BANK_SAMPAH',
+        targetId: editingLogId,
+        targetLabel: `Log Timbangan ${logForm.rw} (${logForm.unitName})`,
+        summary: `Memperbarui catatan timbangan harian BSU ${logForm.rw} (Total: ${totalKg} kg)`,
+        afterValue: `Organik: ${logForm.organikKg} kg · Anorganik: ${logForm.anorganikKg} kg · Residu: ${logForm.residuKg} kg`,
+        severity: 'info',
+      });
       setShowLogForm(false);
       setEditingLogId(null);
       setSuccessMessage('Log penimbangan harian berhasil diperbarui.');
@@ -3209,6 +3400,14 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         logForm.officerName,
         logForm.notes
       );
+      recordAudit({
+        actionType: 'CREATE',
+        module: 'BANK_SAMPAH',
+        targetLabel: `Log Timbangan ${logForm.rw} (${logForm.unitName})`,
+        summary: `Mencatat timbangan harian sampah terpilah BSU ${logForm.rw} sebesar ${totalKg} kg`,
+        afterValue: `Organik: ${logForm.organikKg} kg · Anorganik: ${logForm.anorganikKg} kg · Residu: ${logForm.residuKg} kg`,
+        severity: 'info',
+      });
       setShowLogForm(false);
       setSuccessMessage('Log penimbangan harian baru berhasil ditambahkan.');
     }
@@ -3216,9 +3415,18 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
   const handleExecuteDeleteLog = async (id: string) => {
     clearFeedback();
+    const targetLog = wasteLogs.find((l) => l.id === id);
     const res = await onDeleteWasteLog(id);
     setConfirmDeleteLogId(null);
     if (res.ok) {
+      recordAudit({
+        actionType: 'DELETE',
+        module: 'BANK_SAMPAH',
+        targetId: id,
+        targetLabel: `Log Timbangan ${targetLog?.rw || '-'} (${targetLog?.date || id})`,
+        summary: `Menghapus catatan log penimbangan sampah harian ${targetLog?.rw || ''}`,
+        severity: 'warning',
+      });
       setSuccessMessage('Log penimbangan harian berhasil dihapus.');
     }
   };
@@ -3358,6 +3566,17 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     if (!res.ok) {
       setValidationErrors(res.errors || ['Validasi jadwal kerja bakti gagal.']);
     } else {
+      recordAudit({
+        actionType: editingCleanupId ? 'UPDATE' : 'CREATE',
+        module: 'KERJA_BAKTI',
+        targetId: editingCleanupId || undefined,
+        targetLabel: `Kerja Bakti: ${payload.title || 'Kegiatan'} (${payload.rw || '-'})`,
+        summary: editingCleanupId
+          ? `Memperbarui kegiatan kerja bakti "${payload.title}" (${payload.status})`
+          : `Menambahkan jadwal kerja bakti baru "${payload.title}" di ${payload.rw}`,
+        afterValue: `Status: ${payload.status} · Lokasi: ${payload.locationName} · Sampah Terkumpul: ${payload.collectedWasteKg || 0} kg`,
+        severity: 'info',
+      });
       setShowCleanupForm(false);
       setEditingCleanupId(null);
       setSuccessMessage(
@@ -3370,9 +3589,18 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
   const handleExecuteDeleteCleanup = async (id: string) => {
     clearFeedback();
+    const targetEv = cleanupEvents.find((e) => e.id === id);
     const res = await onDeleteCleanup(id);
     setConfirmDeleteCleanupId(null);
     if (res.ok) {
+      recordAudit({
+        actionType: 'DELETE',
+        module: 'KERJA_BAKTI',
+        targetId: id,
+        targetLabel: `Kerja Bakti: ${targetEv?.title || id} (${targetEv?.rw || '-'})`,
+        summary: `Menghapus kegiatan kerja bakti "${targetEv?.title || id}"`,
+        severity: 'warning',
+      });
       setSuccessMessage('Data kegiatan kerja bakti berhasil dihapus.');
     }
   };
@@ -3458,17 +3686,24 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="mb-4 px-3.5 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-[#0D3868] text-[11px] font-medium flex items-center justify-between shadow-2xs">
-                <div className="flex items-center gap-2">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              <div className="mb-4 px-3.5 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-[#0D3868] text-[11px] font-medium flex flex-col gap-1.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    <span className="font-semibold text-emerald-900">Slot Administrator Terbuka</span>
+                  </div>
+                  <span className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full">
+                    Siap Login (Tersedia)
                   </span>
-                  <span className="font-semibold text-emerald-900">Slot Administrator Terbuka</span>
                 </div>
-                <span className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full">
-                  Siap Login (Tersedia)
-                </span>
+                <div className="flex items-center gap-1.5 text-[10px] text-slate-600 pt-1 border-t border-emerald-200/60">
+                  <Clock className="w-3 h-3 text-emerald-700 shrink-0" />
+                  <span>Waktu Sistem Real-Time Makassar:</span>
+                  <span className="font-mono-num font-bold text-emerald-900">{liveWitaClock}</span>
+                </div>
               </div>
             )}
 
@@ -3655,9 +3890,19 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                   Cloud Firestore Aktif
                 </span>
               </div>
-              <div className="text-[11px] text-sky-200">
-                {adminSession.role} · Login:{' '}
-                <span className="font-mono-num">{adminSession.loginAt}</span>
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-sky-200 mt-0.5">
+                <span>{adminSession.role}</span>
+                <span className="text-sky-400/60">•</span>
+                <span className="inline-flex items-center gap-1 text-emerald-200 font-medium">
+                  <Clock className="w-3 h-3 text-emerald-300 shrink-0" />
+                  <span>Waktu Login:</span>
+                  <span className="font-mono-num font-bold text-white">{adminSession.loginAt}</span>
+                </span>
+                <span className="text-sky-400/60">•</span>
+                <span className="inline-flex items-center gap-1 text-sky-100">
+                  <span>Waktu Real-Time:</span>
+                  <span className="font-mono-num font-semibold text-amber-200">{liveWitaClock}</span>
+                </span>
               </div>
             </div>
           </div>
@@ -4167,6 +4412,8 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           <AdminParameterUserPanel
             adminUsers={adminUsers}
             serviceCatalog={serviceCatalog}
+            profile={profile}
+            rwGroups={rwGroups}
             currentUsername={adminSession?.username || ''}
             isMasterLurah={isLurahSession}
             onSaveAdminUsers={auditedOnSaveAdminUsers}
@@ -4180,13 +4427,14 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           <AdminActivityLogPanel
             activityLogs={activityLogs}
             adminUsers={adminUsers}
+            profile={profile}
             currentUser={
               currentAdminAccount || {
                 id: adminSession?.userId || 'usr-master-lurah',
                 username: adminSession?.username || 'lurah',
                 password: '',
-                fullName: adminSession?.fullName || 'Muthmainnah, SE, MM',
-                nip: adminSession?.nip || '19880412 201010 1 002',
+                fullName: adminSession?.fullName || profile.lurahName || 'Muthmainnah, SE, MM',
+                nip: adminSession?.nip || profile.lurahNip || '198607092015042001',
                 jabatan: adminSession?.role || 'Lurah Panaikang',
                 unitBidang: 'Pimpinan Kelurahan Panaikang',
                 phone: '',
@@ -4213,6 +4461,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               });
               setSuccessMessage('Catatan audit trail baru berhasil ditambahkan ke Log Aktivitas.');
             }}
+            onDeleteLogEntry={onDeleteActivityLog}
             onClearLogs={onResetActivityLogs}
           />
         </div>
@@ -4284,6 +4533,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               rwGroups={rwGroups}
               whatsappRecipients={whatsappRecipients}
               onUpdateReportStatus={(id, newStatus, assignedTeam, responseNote) => {
+                const targetRep = reports.find((r) => r.id === id);
                 if (onUpdateReportStatus) {
                   onUpdateReportStatus(id, newStatus, assignedTeam, responseNote);
                 } else {
@@ -4293,15 +4543,32 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     responseNote,
                   });
                 }
+                recordAudit({
+                  actionType: 'VERIFY_STATUS',
+                  module: 'DASHBOARD_LURAH',
+                  targetId: targetRep?.ticketCode || id,
+                  targetLabel: `Disposisi Lurah · Tiket #${targetRep?.ticketCode || id} (${targetRep?.title || ''})`,
+                  summary: `Disposisi cepat Lurah mengubah status tiket #${targetRep?.ticketCode || id} menjadi "${newStatus}"`,
+                  beforeValue: `Status: ${targetRep?.status || '-'}`,
+                  afterValue: `Status: ${newStatus} · Tim: ${assignedTeam}`,
+                  severity: 'info',
+                });
               }}
               onNavigate={onNavigate}
               isEmbeddedInAdmin={true}
               onOpenWhatsAppManager={() => handleTabSwitch('laporan')}
-              onPdfDownloaded={(res) =>
+              onPdfDownloaded={(res) => {
+                recordAudit({
+                  actionType: 'EXPORT',
+                  module: 'DASHBOARD_LURAH',
+                  targetLabel: `Arsip PDF Bulanan (${res.periodLabel})`,
+                  summary: `Mengunduh arsip PDF Laporan Bulanan Permasalahan Lingkungan (${res.fileName})`,
+                  severity: 'info',
+                });
                 setSuccessMessage(
                   `Arsip Fisik Laporan Bulanan Permasalahan Lingkungan (${res.periodLabel}) berhasil diunduh sebagai file PDF: ${res.fileName}`
-                )
-              }
+                );
+              }}
             />
           ) : (
             <div className="bg-white rounded-2xl border-2 border-amber-200 p-8 text-center max-w-2xl mx-auto space-y-4">
@@ -8258,9 +8525,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                   if (res.ok) {
                     recordAudit({
                       actionType: 'UPDATE',
-                      module: 'STRUKTUR_RTRW',
-                      targetLabel: 'Jadwal Siskamling RW 01 s/d RW 07',
-                      summary: 'Memperbarui matriks roster penugasan Siskamling RT/RW',
+                      module: 'SISKAMLING',
+                      targetLabel: 'Jadwal Ronda Siskamling RW 001 s/d RW 007',
+                      summary: 'Memperbarui matriks roster penugasan Siskamling RT/RW & lokasi posko',
                       severity: 'info',
                     });
                   }
