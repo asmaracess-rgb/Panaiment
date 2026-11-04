@@ -11,22 +11,11 @@ import {
   Compass,
   Users,
   User,
-  Layers,
-  Eye,
-  ChevronRight,
-  Shield,
-  Sparkles,
 } from 'lucide-react';
 import { KelurahanProfile, WasteBankUnit, RwGroup, AppView } from '../types';
 import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
-import {
-  BaganStrukturKelurahanModal,
-  BaganStrukturKelurahanInteractiveViewer,
-} from './BaganStrukturKelurahanModal';
-import {
-  BaganStrukturRtRwModal,
-  BaganStrukturRtRwInteractiveViewer,
-} from './BaganStrukturRtRwModal';
+import { BaganStrukturKelurahanModal } from './BaganStrukturKelurahanModal';
+import { BaganStrukturRtRwModal } from './BaganStrukturRtRwModal';
 
 interface ProfilKelurahanViewProps {
   profile: KelurahanProfile;
@@ -43,7 +32,6 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
 }) => {
   const [showBaganKelurahan, setShowBaganKelurahan] = useState<boolean>(false);
   const [showBaganRtRw, setShowBaganRtRw] = useState<boolean>(false);
-  const [activeInlineChart, setActiveInlineChart] = useState<'kelurahan' | 'rtrw'>('kelurahan');
 
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8">
@@ -208,18 +196,9 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
                   <div className="text-xs font-bold text-slate-700 tracking-wide uppercase">
                     Struktur Jabatan & Perangkat Kelurahan
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowBaganKelurahan(true)}
-                      className="text-[11px] font-bold text-[#0D3868] bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-lg border border-sky-200 transition cursor-pointer"
-                    >
-                      Lihat Bagan Organigram →
-                    </button>
-                    <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-                      {profile.officials?.length || 0} Pejabat Terdaftar
-                    </span>
-                  </div>
+                  <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                    {profile.officials?.length || 0} Pejabat Terdaftar
+                  </span>
                 </div>
 
                 {profile.officials && profile.officials.length > 0 ? (
@@ -393,70 +372,6 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
           </div>
         </div>
 
-        {/* BAGAN STRUKTUR ORGANISASI DINAMIS (KELURAHAN & RT/RW) - RESPONSIF HP, TABLET, PC */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 space-y-4 shadow-xs">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-200">
-            <div>
-              <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0D3868]">
-                <Layers className="w-4 h-4 text-[#0277BD]" />
-                <span>BAGAN STRUKTUR ORGANISASI RESMI (RESPONSIF HP · TABLET · PC)</span>
-              </div>
-              <h2 className="text-base sm:text-lg font-extrabold text-[#0D3868] mt-0.5">
-                {activeInlineChart === 'kelurahan'
-                  ? 'Bagan Struktur Organisasi Pemerintah Kelurahan Panaikang'
-                  : 'Bagan Struktur Organisasi RT/RW & LPM Kelurahan Panaikang'}
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Ukuran bagan otomatis menyesuaikan layar perangkat Anda. Gunakan tombol{' '}
-                <strong>Perkecil (-)</strong>, <strong>Perbesar (+)</strong>, atau{' '}
-                <strong>Pas Layar</strong> untuk kenyamanan membaca.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 self-start lg:self-center">
-              <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setActiveInlineChart('kelurahan')}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    activeInlineChart === 'kelurahan'
-                      ? 'bg-[#0D3868] text-white shadow-2xs'
-                      : 'text-slate-700 hover:bg-white/70'
-                  }`}
-                >
-                  <Building2 className="w-3.5 h-3.5" />
-                  <span>Bagan Kelurahan</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveInlineChart('rtrw')}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    activeInlineChart === 'rtrw'
-                      ? 'bg-[#1C8237] text-white shadow-2xs'
-                      : 'text-slate-700 hover:bg-white/70'
-                  }`}
-                >
-                  <Users className="w-3.5 h-3.5" />
-                  <span>Bagan RT / RW</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {activeInlineChart === 'kelurahan' ? (
-            <BaganStrukturKelurahanInteractiveViewer
-              profile={profile}
-              onExpandFullScreen={() => setShowBaganKelurahan(true)}
-            />
-          ) : (
-            <BaganStrukturRtRwInteractiveViewer
-              rwGroups={rwGroups}
-              profile={profile}
-              onExpandFullScreen={() => setShowBaganRtRw(true)}
-            />
-          )}
-        </div>
-
         {/* VISI & MISI KELURAHAN PANAIKANG SECTION */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Visi Card (5 cols) */}
@@ -524,13 +439,6 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
               </p>
             </div>
             <div className="flex items-center gap-2 self-start sm:self-auto">
-              <button
-                type="button"
-                onClick={() => setShowBaganRtRw(true)}
-                className="text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-xl border border-emerald-200 transition-colors cursor-pointer whitespace-nowrap"
-              >
-                Lihat Bagan Struktur RT/RW
-              </button>
               <button
                 type="button"
                 onClick={() => onNavigate('peta')}
