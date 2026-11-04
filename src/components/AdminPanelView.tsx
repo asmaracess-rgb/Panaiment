@@ -125,8 +125,14 @@ import { AdminUrbanFarmingPanel } from './AdminUrbanFarmingPanel';
 import { AdminTebaPanel } from './AdminTebaPanel';
 import { AdminBioporiPanel } from './AdminBioporiPanel';
 import { AdminTrafficView } from './AdminTrafficView';
-import { BaganStrukturKelurahanModal } from './BaganStrukturKelurahanModal';
-import { BaganStrukturRtRwModal } from './BaganStrukturRtRwModal';
+import {
+  BaganStrukturKelurahanModal,
+  BaganStrukturKelurahanInteractiveViewer,
+} from './BaganStrukturKelurahanModal';
+import {
+  BaganStrukturRtRwModal,
+  BaganStrukturRtRwInteractiveViewer,
+} from './BaganStrukturRtRwModal';
 import {
   SERVICE_CATEGORY_GROUPS,
   ServiceCategoryGroup,
@@ -1050,6 +1056,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     rank: string;
     department: string;
     phone: string;
+    staffNames: string[];
   }>({
     positionTitle: '',
     officialName: '',
@@ -1057,8 +1064,16 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     rank: '',
     department: '',
     phone: '',
+    staffNames: [],
   });
+  const [officialNewStaffInput, setOfficialNewStaffInput] = useState('');
   const [officialFormError, setOfficialFormError] = useState('');
+
+  // Dynamic SOTK Staff input states (per Kasi section)
+  const [newStafPemerintahanInput, setNewStafPemerintahanInput] = useState('');
+  const [newStafPemberdayaanInput, setNewStafPemberdayaanInput] = useState('');
+  const [newStafKebersihanInput, setNewStafKebersihanInput] = useState('');
+  const [showInlineRtRwChartPreview, setShowInlineRtRwChartPreview] = useState(false);
 
   // ---------- PROFIL KELURAHAN CRUD STATES ----------
   // Data Lurah Modal & Delete State
@@ -2107,13 +2122,26 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       rank: '',
       department: 'Seksi / Bagian',
       phone: '',
+      staffNames: [],
     });
+    setOfficialNewStaffInput('');
     setOfficialFormError('');
     setIsOfficialModalOpen(true);
   };
 
   const handleOpenEditOfficial = (official: StructuralOfficial) => {
     setEditingOfficialId(official.id);
+    const titleLower = (official.positionTitle || '').toLowerCase();
+    let fallbackStaff: string[] = Array.isArray(official.staffNames) ? official.staffNames : [];
+    if (fallbackStaff.length === 0) {
+      if (titleLower.includes('pemerintahan') || titleLower.includes('trantib') || titleLower.includes('ketentraman')) {
+        fallbackStaff = Array.isArray(profileDraft.stafPemerintahan) ? profileDraft.stafPemerintahan : [];
+      } else if (titleLower.includes('pemberdayaan') || titleLower.includes('pembangunan') || titleLower.includes('sosial')) {
+        fallbackStaff = Array.isArray(profileDraft.stafPemberdayaan) ? profileDraft.stafPemberdayaan : [];
+      } else if (titleLower.includes('kebersihan') || titleLower.includes('pertamanan') || titleLower.includes('lingkungan')) {
+        fallbackStaff = Array.isArray(profileDraft.stafKebersihan) ? profileDraft.stafKebersihan : [];
+      }
+    }
     setOfficialForm({
       positionTitle: official.positionTitle || '',
       officialName: official.officialName || '',
@@ -2121,7 +2149,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       rank: official.rank || '',
       department: official.department || '',
       phone: official.phone || '',
+      staffNames: [...fallbackStaff],
     });
+    setOfficialNewStaffInput('');
     setOfficialFormError('');
     setIsOfficialModalOpen(true);
   };
@@ -2136,6 +2166,14 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       setOfficialFormError('Nama lengkap pejabat wajib diisi.');
       return;
     }
+
+    const pendingStaff = officialNewStaffInput.trim();
+    const cleanedStaffList = [
+      ...(Array.isArray(officialForm.staffNames) ? officialForm.staffNames : []),
+      ...(pendingStaff ? [pendingStaff] : []),
+    ]
+      .map((s) => s.trim())
+      .filter(Boolean);
 
     const currentOfficials = Array.isArray(profileDraft.officials)
       ? [...profileDraft.officials]
@@ -2154,6 +2192,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               rank: officialForm.rank.trim() || undefined,
               department: officialForm.department.trim() || undefined,
               phone: officialForm.phone.trim() || undefined,
+              staffNames: cleanedStaffList,
             }
           : item
       );
@@ -2167,6 +2206,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         department: officialForm.department.trim() || undefined,
         phone: officialForm.phone.trim() || undefined,
         orderIndex: currentOfficials.length + 1,
+        staffNames: cleanedStaffList,
       };
       updatedOfficials = [...currentOfficials, newOfficial];
     }
@@ -2174,26 +2214,60 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     const sek = updatedOfficials.find((o) =>
       o.positionTitle.toLowerCase().includes('sekretaris')
     );
-    const kasiKeb = updatedOfficials.find((o) =>
-      o.positionTitle.toLowerCase().includes('kebersihan')
+    const kasiKeb = updatedOfficials.find(
+      (o) =>
+        o.positionTitle.toLowerCase().includes('kebersihan') ||
+        o.positionTitle.toLowerCase().includes('pertamanan')
     );
     const kasiPem = updatedOfficials.find(
       (o) =>
         o.positionTitle.toLowerCase().includes('pemerintahan') ||
-        o.positionTitle.toLowerCase().includes('trantib')
+        o.positionTitle.toLowerCase().includes('trantib') ||
+        o.positionTitle.toLowerCase().includes('ketentraman')
     );
+    const kasiPemb = updatedOfficials.find(
+      (o) =>
+        o.positionTitle.toLowerCase().includes('pemberdayaan') ||
+        o.positionTitle.toLowerCase().includes('pembangunan') ||
+        o.positionTitle.toLowerCase().includes('sosial')
+    );
+
+    const titleLower = officialForm.positionTitle.toLowerCase();
+    const updatedStafPemerintahan =
+      titleLower.includes('pemerintahan') || titleLower.includes('trantib') || titleLower.includes('ketentraman')
+        ? cleanedStaffList
+        : profileDraft.stafPemerintahan || [];
+    const updatedStafPemberdayaan =
+      titleLower.includes('pemberdayaan') || titleLower.includes('pembangunan') || titleLower.includes('sosial')
+        ? cleanedStaffList
+        : profileDraft.stafPemberdayaan || [];
+    const updatedStafKebersihan =
+      titleLower.includes('kebersihan') || titleLower.includes('pertamanan') || titleLower.includes('lingkungan')
+        ? cleanedStaffList
+        : profileDraft.stafKebersihan || [];
 
     const updatedProfile: KelurahanProfile = {
       ...profileDraft,
       officials: updatedOfficials,
       sekretarisName: sek?.officialName || (editingOfficialId ? profileDraft.sekretarisName : ''),
+      sekretarisNip: sek?.nip || profileDraft.sekretarisNip || '',
       kasiKebersihanName: kasiKeb?.officialName || (editingOfficialId ? profileDraft.kasiKebersihanName : ''),
+      kasiKebersihanNip: kasiKeb?.nip || profileDraft.kasiKebersihanNip || '',
       kasiPemerintahanName: kasiPem?.officialName || (editingOfficialId ? profileDraft.kasiPemerintahanName : ''),
+      kasiPemerintahanNip: kasiPem?.nip || profileDraft.kasiPemerintahanNip || '',
+      kasiPemberdayaanName: kasiPemb?.officialName || profileDraft.kasiPemberdayaanName || '',
+      kasiPemberdayaanNip: kasiPemb?.nip || profileDraft.kasiPemberdayaanNip || '',
+      stafPemerintahan: updatedStafPemerintahan,
+      stafPemberdayaan: updatedStafPemberdayaan,
+      stafKebersihan: updatedStafKebersihan,
+      baganStrukturKelurahanUrl: '',
+      baganStrukturRtRwUrl: '',
     };
 
     setProfileDraft(updatedProfile);
     setIsOfficialModalOpen(false);
     setEditingOfficialId(null);
+    setOfficialNewStaffInput('');
 
     // Persist immediately
     await onSaveProfile(updatedProfile);
@@ -2203,15 +2277,15 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       module: 'PROFIL_KELURAHAN',
       targetLabel: `Jabatan: ${officialForm.positionTitle.trim()} (${officialForm.officialName.trim()})`,
       summary: editingOfficialId
-        ? `Memperbarui data pejabat untuk jabatan ${officialForm.positionTitle.trim()}`
+        ? `Memperbarui data pejabat & staf untuk jabatan ${officialForm.positionTitle.trim()}`
         : `Menambahkan jabatan struktural baru: ${officialForm.positionTitle.trim()}`,
       severity: 'info',
     });
 
     setSuccessMessage(
       editingOfficialId
-        ? `Perubahan jabatan "${officialForm.positionTitle}" berhasil disimpan!`
-        : `Jabatan baru "${officialForm.positionTitle}" berhasil ditambahkan dan disimpan!`
+        ? `Perubahan jabatan "${officialForm.positionTitle}" beserta daftar staf berhasil disimpan!`
+        : `Jabatan baru "${officialForm.positionTitle}" beserta daftar staf berhasil ditambahkan dan disimpan!`
     );
   };
 
@@ -2229,6 +2303,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     let updatedSekretaris = profileDraft.sekretarisName;
     let updatedKasiKeb = profileDraft.kasiKebersihanName;
     let updatedKasiPem = profileDraft.kasiPemerintahanName;
+    let updatedKasiPemb = profileDraft.kasiPemberdayaanName;
 
     if (officialToDelete.positionTitle.toLowerCase().includes('sekretaris')) {
       const remainingSek = updatedOfficials.find((o) => o.positionTitle.toLowerCase().includes('sekretaris'));
@@ -2249,6 +2324,17 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       );
       updatedKasiPem = remainingPem?.officialName || '';
     }
+    if (
+      officialToDelete.positionTitle.toLowerCase().includes('pemberdayaan') ||
+      officialToDelete.positionTitle.toLowerCase().includes('pembangunan')
+    ) {
+      const remainingPemb = updatedOfficials.find(
+        (o) =>
+          o.positionTitle.toLowerCase().includes('pemberdayaan') ||
+          o.positionTitle.toLowerCase().includes('pembangunan')
+      );
+      updatedKasiPemb = remainingPemb?.officialName || '';
+    }
 
     const updatedProfile: KelurahanProfile = {
       ...profileDraft,
@@ -2256,6 +2342,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       sekretarisName: updatedSekretaris,
       kasiKebersihanName: updatedKasiKeb,
       kasiPemerintahanName: updatedKasiPem,
+      kasiPemberdayaanName: updatedKasiPemb,
     };
 
     setProfileDraft(updatedProfile);
@@ -2299,87 +2386,192 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     await onSaveProfile(updatedProfile);
   };
 
-  // Upload Gambar Bagan Struktur Organisasi Handlers
-  const handleUploadBaganKelurahan = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !file.type.startsWith('image/')) return;
-    try {
-      const dataUrl = await compressImageFile(file);
-      const updatedProfile: KelurahanProfile = {
-        ...profileDraft,
-        baganStrukturKelurahanUrl: dataUrl,
-      };
-      setProfileDraft(updatedProfile);
-      await onSaveProfile(updatedProfile);
-      recordAudit({
-        actionType: 'UPDATE',
-        module: 'PROFIL_KELURAHAN',
-        targetLabel: 'Bagan Struktur Kelurahan',
-        summary: 'Mengunggah gambar bagan struktur organisasi kelurahan baru',
-        severity: 'info',
-      });
-      setSuccessMessage('Gambar Bagan Struktur Organisasi Kelurahan berhasil diunggah.');
-    } catch (err) {
-      console.warn('Gagal memproses gambar bagan:', err);
+  // ---------- DYNAMIC BAGAN STRUKTUR KELURAHAN & STAF HANDLERS ----------
+  const handleAddSectionStaff = (
+    sectionKey: 'stafPemerintahan' | 'stafPemberdayaan' | 'stafKebersihan',
+    rawValue: string,
+    clearInput: () => void
+  ) => {
+    const name = rawValue.trim();
+    if (!name) return;
+    const currentList = Array.isArray(profileDraft[sectionKey]) ? [...(profileDraft[sectionKey] || [])] : [];
+    if (!currentList.some((item) => item.toLowerCase() === name.toLowerCase())) {
+      currentList.push(name);
     }
+    setProfileDraft((prev) => ({
+      ...prev,
+      [sectionKey]: currentList,
+    }));
+    clearInput();
   };
 
-  const handleRemoveBaganKelurahan = async () => {
-    const updatedProfile: KelurahanProfile = {
-      ...profileDraft,
-      baganStrukturKelurahanUrl: '',
+  const handleRemoveSectionStaff = (
+    sectionKey: 'stafPemerintahan' | 'stafPemberdayaan' | 'stafKebersihan',
+    indexToRemove: number
+  ) => {
+    const currentList = Array.isArray(profileDraft[sectionKey]) ? [...(profileDraft[sectionKey] || [])] : [];
+    const nextList = currentList.filter((_, idx) => idx !== indexToRemove);
+    setProfileDraft((prev) => ({
+      ...prev,
+      [sectionKey]: nextList,
+    }));
+  };
+
+  const handleSaveDynamicBaganKelurahan = async () => {
+    clearFeedback();
+    // Commit any unadded text still sitting in the 3 staff input boxes
+    const finalStafPem = [
+      ...(Array.isArray(profileDraft.stafPemerintahan) ? profileDraft.stafPemerintahan : []),
+      ...(newStafPemerintahanInput.trim() ? [newStafPemerintahanInput.trim()] : []),
+    ];
+    const finalStafPemb = [
+      ...(Array.isArray(profileDraft.stafPemberdayaan) ? profileDraft.stafPemberdayaan : []),
+      ...(newStafPemberdayaanInput.trim() ? [newStafPemberdayaanInput.trim()] : []),
+    ];
+    const finalStafKeb = [
+      ...(Array.isArray(profileDraft.stafKebersihan) ? profileDraft.stafKebersihan : []),
+      ...(newStafKebersihanInput.trim() ? [newStafKebersihanInput.trim()] : []),
+    ];
+
+    setNewStafPemerintahanInput('');
+    setNewStafPemberdayaanInput('');
+    setNewStafKebersihanInput('');
+
+    // Synchronize structural officials array so 02. Daftar Jabatan and 03. Bagan Struktur stay in sync
+    const existingOfficials = Array.isArray(profileDraft.officials)
+      ? [...profileDraft.officials]
+      : [];
+
+    const upsertRoleInOfficials = (
+      keywords: string[],
+      defaultPositionTitle: string,
+      defaultDepartment: string,
+      officialName: string,
+      nip: string,
+      staffNames?: string[]
+    ) => {
+      const idx = existingOfficials.findIndex((o) =>
+        keywords.some((kw) => (o.positionTitle || '').toLowerCase().includes(kw))
+      );
+      if (idx >= 0) {
+        existingOfficials[idx] = {
+          ...existingOfficials[idx],
+          officialName: officialName.trim() || existingOfficials[idx].officialName,
+          nip: nip.trim() || existingOfficials[idx].nip,
+          staffNames: staffNames ?? existingOfficials[idx].staffNames,
+        };
+      } else if (officialName.trim() || (staffNames && staffNames.length > 0)) {
+        existingOfficials.push({
+          id: `off-sotk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          positionTitle: defaultPositionTitle,
+          officialName: officialName.trim() || '-',
+          nip: nip.trim() || undefined,
+          department: defaultDepartment,
+          orderIndex: existingOfficials.length + 1,
+          staffNames,
+        });
+      }
     };
-    setProfileDraft(updatedProfile);
-    await onSaveProfile(updatedProfile);
-    recordAudit({
-      actionType: 'DELETE',
-      module: 'PROFIL_KELURAHAN',
-      targetLabel: 'Bagan Struktur Kelurahan',
-      summary: 'Menghapus gambar bagan struktur organisasi kelurahan',
-      severity: 'warning',
-    });
-    setSuccessMessage('Gambar Bagan Struktur Organisasi Kelurahan berhasil dihapus.');
-  };
 
-  const handleUploadBaganRtRw = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !file.type.startsWith('image/')) return;
-    try {
-      const dataUrl = await compressImageFile(file);
-      const updatedProfile: KelurahanProfile = {
-        ...profileDraft,
-        baganStrukturRtRwUrl: dataUrl,
-      };
-      setProfileDraft(updatedProfile);
-      await onSaveProfile(updatedProfile);
-      recordAudit({
-        actionType: 'UPDATE',
-        module: 'PROFIL_KELURAHAN',
-        targetLabel: 'Bagan Struktur RT/RW',
-        summary: 'Mengunggah gambar bagan struktur organisasi RT dan RW baru',
-        severity: 'info',
-      });
-      setSuccessMessage('Gambar Bagan Struktur Organisasi RT/RW berhasil diunggah.');
-    } catch (err) {
-      console.warn('Gagal memproses gambar bagan RT/RW:', err);
-    }
-  };
+    upsertRoleInOfficials(
+      ['sekretaris'],
+      'Sekretaris Lurah',
+      'Sekretariat Kelurahan',
+      profileDraft.sekretarisName || '',
+      profileDraft.sekretarisNip || ''
+    );
+    upsertRoleInOfficials(
+      ['pemerintahan', 'ketentraman', 'trantib'],
+      'Kasi Pemerintahan, Ketentraman dan Ketertiban Umum',
+      'Seksi Pemerintahan & Trantibum',
+      profileDraft.kasiPemerintahanName || '',
+      profileDraft.kasiPemerintahanNip || '',
+      finalStafPem
+    );
+    upsertRoleInOfficials(
+      ['pemberdayaan', 'pembangunan', 'sosial'],
+      'Kasi Pemberdayaan Masyarakat, Pembangunan dan Sosial',
+      'Seksi Pemberdayaan Masyarakat & Sosial',
+      profileDraft.kasiPemberdayaanName || '',
+      profileDraft.kasiPemberdayaanNip || '',
+      finalStafPemb
+    );
+    upsertRoleInOfficials(
+      ['kebersihan', 'pertamanan'],
+      'Kasi Pengelolaan Kebersihan dan Pertamanan',
+      'Seksi Pengelolaan Kebersihan & Pertamanan',
+      profileDraft.kasiKebersihanName || '',
+      profileDraft.kasiKebersihanNip || '',
+      finalStafKeb
+    );
 
-  const handleRemoveBaganRtRw = async () => {
     const updatedProfile: KelurahanProfile = {
       ...profileDraft,
+      officials: existingOfficials,
+      stafPemerintahan: finalStafPem,
+      stafPemberdayaan: finalStafPemb,
+      stafKebersihan: finalStafKeb,
+      perwaliReference:
+        (profileDraft.perwaliReference || '').trim() ||
+        'PERWALI KOTA MAKASSAR NOMOR 65 TAHUN 2023',
+      baganStrukturKelurahanUrl: '',
       baganStrukturRtRwUrl: '',
     };
+
+    setIsSubmitting(true);
     setProfileDraft(updatedProfile);
-    await onSaveProfile(updatedProfile);
+    const res = await onSaveProfile(updatedProfile);
+    setIsSubmitting(false);
+
+    if (!res.ok) {
+      setValidationErrors(res.errors || ['Gagal menyimpan konfigurasi Bagan Struktur Kelurahan.']);
+      return;
+    }
+
     recordAudit({
-      actionType: 'DELETE',
+      actionType: 'UPDATE',
       module: 'PROFIL_KELURAHAN',
-      targetLabel: 'Bagan Struktur RT/RW',
-      summary: 'Menghapus gambar bagan struktur organisasi RT dan RW',
-      severity: 'warning',
+      targetLabel: 'Bagan Struktur Organisasi Kelurahan & Staf Seksi',
+      summary: `Memperbarui Bagan Struktur Kelurahan Dinamis & Daftar Staf (${
+        finalStafPem.length + finalStafPemb.length + finalStafKeb.length
+      } staf terdaftar)`,
+      severity: 'info',
     });
-    setSuccessMessage('Gambar Bagan Struktur Organisasi RT/RW berhasil dihapus.');
+
+    setSuccessMessage(
+      'Data Bagan Struktur Organisasi Kelurahan & Nama Staf per Jabatan berhasil disimpan secara dinamis!'
+    );
+  };
+
+  const handleSaveKetuaLpm = async () => {
+    clearFeedback();
+    const updatedProfile: KelurahanProfile = {
+      ...profileDraft,
+      ketuaLpmName: (profileDraft.ketuaLpmName || '').trim(),
+      baganStrukturKelurahanUrl: '',
+      baganStrukturRtRwUrl: '',
+    };
+    setIsSubmitting(true);
+    setProfileDraft(updatedProfile);
+    const res = await onSaveProfile(updatedProfile);
+    setIsSubmitting(false);
+
+    if (!res.ok) {
+      setValidationErrors(res.errors || ['Gagal menyimpan nama Ketua LPM.']);
+      return;
+    }
+
+    recordAudit({
+      actionType: 'UPDATE',
+      module: 'STRUKTUR_RTRW',
+      targetLabel: `Ketua LPM: ${updatedProfile.ketuaLpmName || '-'}`,
+      summary: `Memperbarui nama Ketua LPM pada Bagan Struktur RT/RW (${updatedProfile.ketuaLpmName || 'Dikosongkan'})`,
+      severity: 'info',
+    });
+
+    setSuccessMessage(
+      `Nama Ketua LPM "${updatedProfile.ketuaLpmName || '-'}" berhasil disimpan dan ditampilkan pada Bagan Struktur RT/RW!`
+    );
   };
 
   // ---------- DATA RT & RW HANDLERS ----------
@@ -4403,6 +4595,24 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                                 Kontak: {official.phone}
                               </p>
                             )}
+                            {Array.isArray(official.staffNames) && official.staffNames.length > 0 && (
+                              <div className="pt-1.5 mt-1.5 border-t border-slate-100">
+                                <span className="text-[10px] font-bold text-[#0D3868] uppercase tracking-wider block mb-1">
+                                  Staf Jabatan ({official.staffNames.length}):
+                                </span>
+                                <div className="flex flex-wrap gap-1">
+                                  {official.staffNames.map((stafName, sIdx) => (
+                                    <span
+                                      key={sIdx}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 text-[10.5px] font-semibold border border-slate-200"
+                                    >
+                                      <User className="w-2.5 h-2.5 text-[#0D3868]" />
+                                      <span>{stafName}</span>
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -4454,176 +4664,503 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               )}
             </div>
 
-            {/* Subsection 01.3: Menu Upload Gambar Bagan Struktur Organisasi */}
+            {/* Subsection 01.3: Konfigurasi Bagan Struktur Organisasi Kelurahan & Input Nama Staf berdasarkan Struktur Jabatan */}
             <div className="pt-6 border-t border-slate-200">
-              <div className="mb-4">
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <ImageIcon className="w-4 h-4 text-[#0D3868]" />
-                  <span>03. Upload Gambar Bagan Struktur Organisasi</span>
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Unggah file gambar bagan struktur organisasi kelurahan dan struktur RT/RW resmi. Gambar yang diunggah akan langsung ditampilkan saat warga atau admin mengklik tombol bagan di Profil Kelurahan.
-                </p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-[#0D3868]" />
+                      <span>03. Bagan Struktur Organisasi Kelurahan & Input Nama Staf (Dinamis)</span>
+                    </h3>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span>Tanpa Upload Foto · Hemat Penyimpanan Data</span>
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Bagan Struktur Organisasi Kelurahan kini dirender otomatis secara dinamis berdasarkan Jabatan Struktural dan input Nama Staf di bawah masing-masing Kasi sesuai Perwali Kota Makassar.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setShowAdminBaganKelurahan(true)}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-[#0D3868] border border-slate-300 text-xs font-bold transition shadow-2xs cursor-pointer whitespace-nowrap"
+                  >
+                    <Eye className="w-4 h-4" />
+                    <span>Layar Penuh & Cetak Bagan</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveDynamicBaganKelurahan}
+                    disabled={isSubmitting}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] disabled:opacity-50 text-white text-xs font-bold transition shadow-sm cursor-pointer whitespace-nowrap"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>Simpan Struktur & Nama Staf</span>
+                  </button>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Upload Card 1: Bagan Struktur Organisasi Kelurahan */}
-                <div className="bg-slate-50/80 rounded-2xl border border-slate-200 p-5 flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-sky-100 text-[#0D3868] border border-sky-200">
-                        <Building2 className="w-3.5 h-3.5" />
-                        <span>Bagan Struktur Kelurahan</span>
-                      </span>
-                      {profileDraft.baganStrukturKelurahanUrl ? (
-                        <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3" />
-                          <span>Gambar Tersimpan</span>
-                        </span>
-                      ) : (
-                        <span className="text-[11px] font-medium text-slate-500 bg-slate-200/70 px-2 py-0.5 rounded-md">
-                          Belum Ada Gambar
-                        </span>
-                      )}
-                    </div>
-
-                    <h4 className="text-xs font-bold text-slate-800 mb-1">
-                      Gambar Bagan Struktur SOTK Kelurahan
-                    </h4>
-                    <p className="text-[11px] text-slate-500 mb-4">
-                      Format disarankan: PNG atau JPG landscape dengan resolusi jelas.
-                    </p>
-
-                    {/* Preview Area */}
-                    <div className="relative aspect-video w-full rounded-xl border border-slate-200 bg-white overflow-hidden flex items-center justify-center mb-4">
-                      {profileDraft.baganStrukturKelurahanUrl ? (
-                        <img
-                          src={profileDraft.baganStrukturKelurahanUrl}
-                          alt="Bagan Struktur Kelurahan"
-                          className="w-full h-full object-contain p-2"
-                        />
-                      ) : (
-                        <div className="text-center p-4">
-                          <ImageIcon className="w-8 h-8 text-slate-300 mx-auto mb-1" />
-                          <p className="text-[11px] text-slate-400 font-medium">Belum ada gambar bagan kelurahan</p>
-                        </div>
-                      )}
-                    </div>
+              {/* Top Row: Sekretaris Lurah & Dasar Hukum Perwali */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div className="p-4 rounded-2xl bg-sky-50/60 border border-sky-200/80 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-[#0D3868] uppercase tracking-wide">
+                      Jabatan Sekretaris Lurah
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-white text-[#0277BD] border border-sky-200">
+                      Level 2 · Sekretariat
+                    </span>
                   </div>
-
-                  <div className="flex items-center gap-2 pt-3 border-t border-slate-200">
-                    <label className="flex-1 inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold cursor-pointer transition shadow-2xs text-center">
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>{profileDraft.baganStrukturKelurahanUrl ? 'Ganti Gambar Bagan' : 'Unggah Gambar Bagan'}</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        Nama Lengkap Sekretaris Lurah
+                      </label>
                       <input
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp,image/jpg"
-                        onChange={handleUploadBaganKelurahan}
-                        className="hidden"
+                        type="text"
+                        placeholder="Contoh: MASITA FATIMA, ST, MM"
+                        value={profileDraft.sekretarisName || ''}
+                        onChange={(e) =>
+                          setProfileDraft((prev) => ({ ...prev, sekretarisName: e.target.value }))
+                        }
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-900 focus:border-[#0D3868] outline-hidden"
                       />
-                    </label>
-
-                    {profileDraft.baganStrukturKelurahanUrl && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => setShowAdminBaganKelurahan(true)}
-                          className="px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 cursor-pointer"
-                          title="Pratinjau Layar Penuh"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleRemoveBaganKelurahan}
-                          className="px-3 py-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-xs font-semibold text-rose-700 cursor-pointer"
-                          title="Hapus Gambar"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </>
-                    )}
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        NIP Sekretaris Lurah
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: 197308012010012001"
+                        value={profileDraft.sekretarisNip || ''}
+                        onChange={(e) =>
+                          setProfileDraft((prev) => ({ ...prev, sekretarisNip: e.target.value }))
+                        }
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-mono-num text-slate-800 focus:border-[#0D3868] outline-hidden"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                {/* Upload Card 2: Bagan Struktur Organisasi RT dan RW */}
-                <div className="bg-slate-50/80 rounded-2xl border border-slate-200 p-5 flex flex-col justify-between">
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3 flex flex-col justify-between">
                   <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                        <Users className="w-3.5 h-3.5" />
-                        <span>Bagan Struktur RT / RW (LKK)</span>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">
+                        Dasar Hukum SOTK (Footer Bagan)
                       </span>
-                      {profileDraft.baganStrukturRtRwUrl ? (
-                        <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3" />
-                          <span>Gambar Tersimpan</span>
-                        </span>
-                      ) : (
-                        <span className="text-[11px] font-medium text-slate-500 bg-slate-200/70 px-2 py-0.5 rounded-md">
-                          Belum Ada Gambar
-                        </span>
-                      )}
+                      <span className="text-[10px] font-semibold text-slate-500">
+                        Tampil di Pita Bawah Bagan
+                      </span>
                     </div>
-
-                    <h4 className="text-xs font-bold text-slate-800 mb-1">
-                      Gambar Bagan Struktur Organisasi 7 RW & 62 RT
-                    </h4>
-                    <p className="text-[11px] text-slate-500 mb-4">
-                      Format disarankan: PNG atau JPG landscape dengan bagan hierarki RT/RW.
-                    </p>
-
-                    {/* Preview Area */}
-                    <div className="relative aspect-video w-full rounded-xl border border-slate-200 bg-white overflow-hidden flex items-center justify-center mb-4">
-                      {profileDraft.baganStrukturRtRwUrl ? (
-                        <img
-                          src={profileDraft.baganStrukturRtRwUrl}
-                          alt="Bagan Struktur RT/RW"
-                          className="w-full h-full object-contain p-2"
-                        />
-                      ) : (
-                        <div className="text-center p-4">
-                          <ImageIcon className="w-8 h-8 text-slate-300 mx-auto mb-1" />
-                          <p className="text-[11px] text-slate-400 font-medium">Belum ada gambar bagan RT/RW</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 pt-3 border-t border-slate-200">
-                    <label className="flex-1 inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold cursor-pointer transition shadow-2xs text-center">
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>{profileDraft.baganStrukturRtRwUrl ? 'Ganti Gambar Bagan' : 'Unggah Gambar Bagan'}</span>
-                      <input
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp,image/jpg"
-                        onChange={handleUploadBaganRtRw}
-                        className="hidden"
-                      />
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Referensi Peraturan Wali Kota (Perwali)
                     </label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: PERWALI KOTA MAKASSAR NOMOR 65 TAHUN 2023"
+                      value={profileDraft.perwaliReference ?? 'PERWALI KOTA MAKASSAR NOMOR 65 TAHUN 2023'}
+                      onChange={(e) =>
+                        setProfileDraft((prev) => ({ ...prev, perwaliReference: e.target.value }))
+                      }
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-900 focus:border-[#0D3868] outline-hidden"
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Pimpinan <strong>Lurah ({profileDraft.lurahName || 'Belum diisi'})</strong> diambil otomatis dari bagian <strong>01. Data Pimpinan Lurah</strong> di atas.
+                  </p>
+                </div>
+              </div>
 
-                    {profileDraft.baganStrukturRtRwUrl && (
-                      <>
+              {/* Three Columns: 3 Kasi + Input Nama Staf masing-masing */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
+                {/* KASI 1: PEMERINTAHAN, KETENTRAMAN DAN KETERTIBAN UMUM */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 flex flex-col justify-between shadow-2xs">
+                  <div className="space-y-3">
+                    <div className="pb-2.5 border-b border-slate-100">
+                      <span className="inline-block px-2 py-0.5 rounded bg-[#0D3868] text-white text-[10px] font-extrabold uppercase tracking-wider mb-1">
+                        Seksi 01 · Kiri
+                      </span>
+                      <h4 className="text-xs font-extrabold text-[#0D3868] leading-snug uppercase">
+                        Kasi Pemerintahan, Ketentraman dan Ketertiban Umum
+                      </h4>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        Nama Pejabat Kasi Pemerintahan & Trantibum
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Kosongkan atau isi '-' jika lowong"
+                        value={profileDraft.kasiPemerintahanName || ''}
+                        onChange={(e) =>
+                          setProfileDraft((prev) => ({
+                            ...prev,
+                            kasiPemerintahanName: e.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-900 focus:border-[#0D3868] outline-hidden"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        NIP Kasi Pemerintahan
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Nomor Induk Pegawai (NIP)"
+                        value={profileDraft.kasiPemerintahanNip || ''}
+                        onChange={(e) =>
+                          setProfileDraft((prev) => ({
+                            ...prev,
+                            kasiPemerintahanNip: e.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-mono-num text-slate-800 focus:border-[#0D3868] outline-hidden"
+                      />
+                    </div>
+
+                    {/* Input Nama Staf Seksi Pemerintahan */}
+                    <div className="pt-2 border-t border-slate-100">
+                      <label className="block text-[11px] font-bold text-[#0D3868] mb-1.5">
+                        Daftar Nama Staf (Seksi Pemerintahan & Trantibum)
+                      </label>
+                      <div className="flex gap-1.5 mb-2">
+                        <input
+                          type="text"
+                          placeholder="Ketik nama staf (Misal: MEGAWATI)"
+                          value={newStafPemerintahanInput}
+                          onChange={(e) => setNewStafPemerintahanInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddSectionStaff(
+                                'stafPemerintahan',
+                                newStafPemerintahanInput,
+                                () => setNewStafPemerintahanInput('')
+                              );
+                            }
+                          }}
+                          className="flex-1 rounded-xl border border-slate-300 px-2.5 py-1.5 text-xs focus:border-[#0D3868] outline-hidden"
+                        />
                         <button
                           type="button"
-                          onClick={() => setShowAdminBaganRtRw(true)}
-                          className="px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 cursor-pointer"
-                          title="Pratinjau Layar Penuh"
+                          onClick={() =>
+                            handleAddSectionStaff(
+                              'stafPemerintahan',
+                              newStafPemerintahanInput,
+                              () => setNewStafPemerintahanInput('')
+                            )
+                          }
+                          className="px-2.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold cursor-pointer shrink-0 flex items-center gap-1"
                         >
-                          <Eye className="w-3.5 h-3.5" />
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Staf</span>
                         </button>
-                        <button
-                          type="button"
-                          onClick={handleRemoveBaganRtRw}
-                          className="px-3 py-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-xs font-semibold text-rose-700 cursor-pointer"
-                          title="Hapus Gambar"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </>
-                    )}
+                      </div>
+
+                      <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                        {(profileDraft.stafPemerintahan || []).length === 0 ? (
+                          <div className="text-[11px] text-slate-400 italic py-2 text-center bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                            Belum ada nama staf diinput
+                          </div>
+                        ) : (
+                          (profileDraft.stafPemerintahan || []).map((stafName, sIdx) => (
+                            <div
+                              key={sIdx}
+                              className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-sky-50/70 border border-sky-200/80 text-xs"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="w-5 h-5 rounded-full bg-[#0D3868] text-white flex items-center justify-center shrink-0">
+                                  <User className="w-3 h-3" />
+                                </div>
+                                <span className="font-bold text-slate-800 truncate uppercase">
+                                  {stafName}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveSectionStaff('stafPemerintahan', sIdx)}
+                                className="p-1 text-rose-600 hover:bg-rose-100 rounded cursor-pointer"
+                                title="Hapus nama staf"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
+
+                {/* KASI 2: PEMBERDAYAAN MASYARAKAT, PEMBANGUNAN DAN SOSIAL */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 flex flex-col justify-between shadow-2xs">
+                  <div className="space-y-3">
+                    <div className="pb-2.5 border-b border-slate-100">
+                      <span className="inline-block px-2 py-0.5 rounded bg-[#0D3868] text-white text-[10px] font-extrabold uppercase tracking-wider mb-1">
+                        Seksi 02 · Tengah
+                      </span>
+                      <h4 className="text-xs font-extrabold text-[#0D3868] leading-snug uppercase">
+                        Kasi Pemberdayaan Masyarakat, Pembangunan dan Sosial
+                      </h4>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        Nama Pejabat Kasi Pemberdayaan & Sosial
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: FENTRI AMIR, SE"
+                        value={profileDraft.kasiPemberdayaanName || ''}
+                        onChange={(e) =>
+                          setProfileDraft((prev) => ({
+                            ...prev,
+                            kasiPemberdayaanName: e.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-900 focus:border-[#0D3868] outline-hidden"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        NIP Kasi Pemberdayaan
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: 198509042009042003"
+                        value={profileDraft.kasiPemberdayaanNip || ''}
+                        onChange={(e) =>
+                          setProfileDraft((prev) => ({
+                            ...prev,
+                            kasiPemberdayaanNip: e.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-mono-num text-slate-800 focus:border-[#0D3868] outline-hidden"
+                      />
+                    </div>
+
+                    {/* Input Nama Staf Seksi Pemberdayaan */}
+                    <div className="pt-2 border-t border-slate-100">
+                      <label className="block text-[11px] font-bold text-[#0D3868] mb-1.5">
+                        Daftar Nama Staf (Seksi Pemberdayaan & Sosial)
+                      </label>
+                      <div className="flex gap-1.5 mb-2">
+                        <input
+                          type="text"
+                          placeholder="Ketik nama staf (Misal: ISTIQAMAH MUNTSIR)"
+                          value={newStafPemberdayaanInput}
+                          onChange={(e) => setNewStafPemberdayaanInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddSectionStaff(
+                                'stafPemberdayaan',
+                                newStafPemberdayaanInput,
+                                () => setNewStafPemberdayaanInput('')
+                              );
+                            }
+                          }}
+                          className="flex-1 rounded-xl border border-slate-300 px-2.5 py-1.5 text-xs focus:border-[#0D3868] outline-hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleAddSectionStaff(
+                              'stafPemberdayaan',
+                              newStafPemberdayaanInput,
+                              () => setNewStafPemberdayaanInput('')
+                            )
+                          }
+                          className="px-2.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold cursor-pointer shrink-0 flex items-center gap-1"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Staf</span>
+                        </button>
+                      </div>
+
+                      <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                        {(profileDraft.stafPemberdayaan || []).length === 0 ? (
+                          <div className="text-[11px] text-slate-400 italic py-2 text-center bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                            Belum ada nama staf diinput
+                          </div>
+                        ) : (
+                          (profileDraft.stafPemberdayaan || []).map((stafName, sIdx) => (
+                            <div
+                              key={sIdx}
+                              className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-sky-50/70 border border-sky-200/80 text-xs"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="w-5 h-5 rounded-full bg-[#0D3868] text-white flex items-center justify-center shrink-0">
+                                  <User className="w-3 h-3" />
+                                </div>
+                                <span className="font-bold text-slate-800 truncate uppercase">
+                                  {stafName}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveSectionStaff('stafPemberdayaan', sIdx)}
+                                className="p-1 text-rose-600 hover:bg-rose-100 rounded cursor-pointer"
+                                title="Hapus nama staf"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* KASI 3: PENGELOLAAN KEBERSIHAN DAN PERTAMANAN */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 flex flex-col justify-between shadow-2xs">
+                  <div className="space-y-3">
+                    <div className="pb-2.5 border-b border-slate-100">
+                      <span className="inline-block px-2 py-0.5 rounded bg-[#0D3868] text-white text-[10px] font-extrabold uppercase tracking-wider mb-1">
+                        Seksi 03 · Kanan
+                      </span>
+                      <h4 className="text-xs font-extrabold text-[#0D3868] leading-snug uppercase">
+                        Kasi Pengelolaan Kebersihan dan Pertamanan
+                      </h4>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        Nama Pejabat Kasi Kebersihan & Pertamanan
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: H. AKMAL, S. Sos., M.Tr, Ap"
+                        value={profileDraft.kasiKebersihanName || ''}
+                        onChange={(e) =>
+                          setProfileDraft((prev) => ({
+                            ...prev,
+                            kasiKebersihanName: e.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-900 focus:border-[#0D3868] outline-hidden"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        NIP Kasi Kebersihan
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: 197506292007011011"
+                        value={profileDraft.kasiKebersihanNip || ''}
+                        onChange={(e) =>
+                          setProfileDraft((prev) => ({
+                            ...prev,
+                            kasiKebersihanNip: e.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-mono-num text-slate-800 focus:border-[#0D3868] outline-hidden"
+                      />
+                    </div>
+
+                    {/* Input Nama Staf Seksi Kebersihan */}
+                    <div className="pt-2 border-t border-slate-100">
+                      <label className="block text-[11px] font-bold text-[#0D3868] mb-1.5">
+                        Daftar Nama Staf (Seksi Kebersihan & Pertamanan)
+                      </label>
+                      <div className="flex gap-1.5 mb-2">
+                        <input
+                          type="text"
+                          placeholder="Ketik nama staf (Misal: AM NURASWAD)"
+                          value={newStafKebersihanInput}
+                          onChange={(e) => setNewStafKebersihanInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddSectionStaff(
+                                'stafKebersihan',
+                                newStafKebersihanInput,
+                                () => setNewStafKebersihanInput('')
+                              );
+                            }
+                          }}
+                          className="flex-1 rounded-xl border border-slate-300 px-2.5 py-1.5 text-xs focus:border-[#0D3868] outline-hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleAddSectionStaff(
+                              'stafKebersihan',
+                              newStafKebersihanInput,
+                              () => setNewStafKebersihanInput('')
+                            )
+                          }
+                          className="px-2.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold cursor-pointer shrink-0 flex items-center gap-1"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Staf</span>
+                        </button>
+                      </div>
+
+                      <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                        {(profileDraft.stafKebersihan || []).length === 0 ? (
+                          <div className="text-[11px] text-slate-400 italic py-2 text-center bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                            Belum ada nama staf diinput
+                          </div>
+                        ) : (
+                          (profileDraft.stafKebersihan || []).map((stafName, sIdx) => (
+                            <div
+                              key={sIdx}
+                              className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-sky-50/70 border border-sky-200/80 text-xs"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="w-5 h-5 rounded-full bg-[#0D3868] text-white flex items-center justify-center shrink-0">
+                                  <User className="w-3 h-3" />
+                                </div>
+                                <span className="font-bold text-slate-800 truncate uppercase">
+                                  {stafName}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveSectionStaff('stafKebersihan', sIdx)}
+                                className="p-1 text-rose-600 hover:bg-rose-100 rounded cursor-pointer"
+                                title="Hapus nama staf"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Live Interactive Preview of Bagan Struktur Kelurahan */}
+              <div className="rounded-2xl border border-slate-200 bg-slate-100/80 p-3 sm:p-4 overflow-hidden space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-bold text-[#0D3868]">
+                      Pratinjau Langsung Bagan Struktur Organisasi Kelurahan Panaikang
+                    </span>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-100 text-[#0D3868]">
+                      Responsif HP · Tablet · PC (Perkecil / Perbesar)
+                    </span>
+                  </div>
+                </div>
+                <BaganStrukturKelurahanInteractiveViewer
+                  profile={profileDraft}
+                  onExpandFullScreen={() => setShowAdminBaganKelurahan(true)}
+                />
               </div>
             </div>
           </div>
@@ -7741,10 +8278,18 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 Manajemen Data Rukun Warga (RW) & Rukun Tetangga (RT) Kelurahan Panaikang
               </h2>
               <p className="text-xs text-slate-500">
-                Setiap RT dibagi berdasarkan RW masing-masing. Seluruh data RW dan RT dapat dicetak per RW maupun per RT, ditambah, diubah, dan dihapus oleh Administrator.
+                Setiap RT dibagi berdasarkan RW masing-masing. Seluruh data RW dan RT otomatis terhubung ke Bagan Struktur Organisasi RT/RW secara dinamis.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => setShowAdminBaganRtRw(true)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold cursor-pointer whitespace-nowrap shadow-xs"
+              >
+                <Users className="w-4 h-4" />
+                <span>Pratinjau & Cetak Bagan Struktur RT/RW</span>
+              </button>
               <button
                 type="button"
                 onClick={() => onNavigate('rtrw')}
@@ -7761,6 +8306,84 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 <span>Tambah Wilayah RW Baru</span>
               </button>
             </div>
+          </div>
+
+          {/* Menu Input Nama Ketua LPM & Pratinjau Bagan Struktur Organisasi RT/RW Dinamis */}
+          <div className="bg-gradient-to-r from-sky-50/90 via-white to-emerald-50/60 rounded-2xl border border-sky-200/90 p-5 shadow-2xs space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-[#0D3868] text-white">
+                    <Layers className="w-3 h-3" />
+                    <span>Bagan Struktur RT/RW Dinamis</span>
+                  </span>
+                  <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-100/80 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                    Otomatis Mengikuti Data {rwGroups.length} RW & {rwGroups.reduce((a, r) => a + (r.rtList?.length || 0), 0)} RT
+                  </span>
+                </div>
+                <h3 className="text-sm sm:text-base font-extrabold text-[#0D3868]">
+                  Pengaturan Ketua LPM & Bagan Struktur Organisasi RT/RW Kelurahan Panaikang
+                </h3>
+                <p className="text-xs text-slate-600">
+                  Masukkan nama <strong>Ketua LPM (Lembaga Pemberdayaan Masyarakat)</strong> di bawah ini untuk ditampilkan berdampingan dengan Lurah Panaikang pada Bagan Struktur Organisasi RT/RW.
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2.5 shrink-0">
+                <div className="sm:w-72">
+                  <label className="block text-[11px] font-bold text-[#0D3868] mb-1">
+                    Nama Ketua LPM Kelurahan Panaikang
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: EDY MEDY, SM, M.Th"
+                    value={profileDraft.ketuaLpmName || ''}
+                    onChange={(e) =>
+                      setProfileDraft((prev) => ({
+                        ...prev,
+                        ketuaLpmName: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs sm:text-sm font-bold text-slate-900 focus:border-[#0D3868] focus:ring-1 focus:ring-[#0D3868] outline-hidden"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveKetuaLpm}
+                  disabled={isSubmitting}
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#0D3868] hover:bg-[#072647] disabled:opacity-50 text-white text-xs font-bold transition shadow-xs cursor-pointer whitespace-nowrap"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Simpan Ketua LPM</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowInlineRtRwChartPreview((prev) => !prev)}
+                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-sky-300 bg-white hover:bg-sky-50 text-[#0D3868] text-xs font-bold transition cursor-pointer whitespace-nowrap"
+                >
+                  <Eye className="w-4 h-4" />
+                  <span>{showInlineRtRwChartPreview ? 'Sembunyikan Bagan' : 'Tampilkan Bagan'}</span>
+                </button>
+              </div>
+            </div>
+
+            {showInlineRtRwChartPreview && (
+              <div className="pt-4 border-t border-sky-200/70 space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-slate-700">
+                    Pratinjau Bagan Struktur Organisasi RT/RW (Lurah: {profileDraft.lurahName || '-'} · Ketua LPM: {profileDraft.ketuaLpmName || '-'})
+                  </span>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-[#146329]">
+                    Responsif HP · Tablet · PC (Perkecil / Perbesar)
+                  </span>
+                </div>
+                <BaganStrukturRtRwInteractiveViewer
+                  rwGroups={rwGroups}
+                  profile={profileDraft}
+                  onExpandFullScreen={() => setShowAdminBaganRtRw(true)}
+                />
+              </div>
+            )}
           </div>
 
           {/* Menu Cetak Laporan Data RT/RW (Per RW, Per RT, & Rekapitulasi Seluruh RW/RT) */}
@@ -8468,6 +9091,86 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-mono-num"
                   />
                 </div>
+              </div>
+
+              {/* Input Nama Staf berdasarkan Struktur Jabatan */}
+              <div className="pt-3 border-t border-slate-200">
+                <label className="block text-xs font-bold text-[#0D3868] mb-1">
+                  Daftar Nama Staf pada Jabatan / Seksi Ini (Ditampilkan di Bagan Struktur Kelurahan)
+                </label>
+                <p className="text-[11px] text-slate-500 mb-2">
+                  Tambahkan nama-nama staf yang berada di bawah koordinasi jabatan/Kasi ini.
+                </p>
+                <div className="flex gap-2 mb-2.5">
+                  <input
+                    type="text"
+                    placeholder="Ketik nama staf (Contoh: MEGAWATI / ISTIQAMAH MUNTSIR)"
+                    value={officialNewStaffInput}
+                    onChange={(e) => setOfficialNewStaffInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const val = officialNewStaffInput.trim();
+                        if (val) {
+                          setOfficialForm((prev) => ({
+                            ...prev,
+                            staffNames: [...(prev.staffNames || []), val],
+                          }));
+                          setOfficialNewStaffInput('');
+                        }
+                      }
+                    }}
+                    className="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-xs focus:border-sky-500 outline-hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const val = officialNewStaffInput.trim();
+                      if (val) {
+                        setOfficialForm((prev) => ({
+                          ...prev,
+                          staffNames: [...(prev.staffNames || []), val],
+                        }));
+                        setOfficialNewStaffInput('');
+                      }
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold cursor-pointer shrink-0 flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Tambah Staf</span>
+                  </button>
+                </div>
+
+                {Array.isArray(officialForm.staffNames) && officialForm.staffNames.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                    {officialForm.staffNames.map((staf, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-sky-200 text-xs font-bold text-slate-800 shadow-2xs"
+                      >
+                        <User className="w-3 h-3 text-[#0D3868]" />
+                        <span>{staf}</span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setOfficialForm((prev) => ({
+                              ...prev,
+                              staffNames: prev.staffNames.filter((_, i) => i !== idx),
+                            }))
+                          }
+                          className="text-rose-500 hover:text-rose-700 ml-1 cursor-pointer"
+                          title="Hapus staf"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-slate-400 italic">
+                    Belum ada staf ditambahkan untuk jabatan ini.
+                  </div>
+                )}
               </div>
 
               {/* Modal Actions */}
@@ -9207,6 +9910,20 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* ================= MODAL: PRATINJAU BAGAN STRUKTUR KELURAHAN & RT/RW DINAMIS ================= */}
+      <BaganStrukturKelurahanModal
+        isOpen={showAdminBaganKelurahan}
+        onClose={() => setShowAdminBaganKelurahan(false)}
+        profile={profileDraft}
+      />
+
+      <BaganStrukturRtRwModal
+        isOpen={showAdminBaganRtRw}
+        onClose={() => setShowAdminBaganRtRw(false)}
+        rwGroups={rwGroups}
+        profile={profileDraft}
+      />
     </div>
   );
 };

@@ -2431,6 +2431,519 @@ async function startServer() {
     res.json({ ok: true, deletedId: id });
   });
 
+  // ============================================================================
+  // REAL WEB TRAFFIC TELEMETRY & ANALYTICS ENGINE (100% Real Server & Client Data)
+  // ============================================================================
+  const TRAFFIC_FILE = path.join(DATA_DIR, 'traffic_analytics.json');
+  const SERVER_START_TIME = Date.now();
+  const activeVisitorHeartbeats = new Map<string, number>();
+
+  interface StoredTrafficSession {
+    sessionId: string;
+    visitorId: string;
+    firstSeenMs: number;
+    lastSeenMs: number;
+    hits: number;
+  }
+
+  interface StoredDailyBucket {
+    dateIso: string; // YYYY-MM-DD
+    pageviews: number;
+    visitorIds: string[];
+  }
+
+  interface StoredRealtimeLog {
+    id: string;
+    timestamp: string;
+    dateStr: string;
+    visitorId?: string;
+    page: string;
+    pageTitle: string;
+    deviceType: 'Mobile' | 'Desktop' | 'Tablet';
+    platform: string;
+    browser: string;
+    locationHint: string;
+    referrer: string;
+    ipMasked: string;
+  }
+
+  interface StoredTrafficState {
+    totalPageviews: number;
+    uniqueVisitorIds: string[];
+    sessions: Record<string, StoredTrafficSession>;
+    pwaInstalls: number;
+    dailyBuckets: Record<string, StoredDailyBucket>;
+    pageStats: Record<string, { views: number; visitorIds: string[]; totalDurationSec: number; durationSamples: number }>;
+    sourceCounts: Record<string, number>;
+    deviceCounts: { mobile: number; desktop: number; tablet: number };
+    browserCounts: Record<string, number>;
+    realtimeLogs: StoredRealtimeLog[];
+    lastUpdated: string;
+  }
+
+  const createEmptyTrafficState = (): StoredTrafficState => ({
+    totalPageviews: 0,
+    uniqueVisitorIds: [],
+    sessions: {},
+    pwaInstalls: 0,
+    dailyBuckets: {},
+    pageStats: {},
+    sourceCounts: {},
+    deviceCounts: { mobile: 0, desktop: 0, tablet: 0 },
+    browserCounts: {},
+    realtimeLogs: [],
+    lastUpdated: new Date().toISOString(),
+  });
+
+  const loadTrafficState = (): StoredTrafficState => {
+    try {
+      if (fs.existsSync(TRAFFIC_FILE)) {
+        const raw = fs.readFileSync(TRAFFIC_FILE, 'utf-8');
+        const parsed = JSON.parse(raw) as Partial<StoredTrafficState>;
+        return {
+          ...createEmptyTrafficState(),
+          ...parsed,
+          deviceCounts: {
+            mobile: parsed.deviceCounts?.mobile ?? 0,
+            desktop: parsed.deviceCounts?.desktop ?? 0,
+            tablet: parsed.deviceCounts?.tablet ?? 0,
+          },
+          realtimeLogs: Array.isArray(parsed.realtimeLogs) ? parsed.realtimeLogs.slice(0, 60) : [],
+        };
+      }
+    } catch (err) {
+      console.error('Failed to read traffic_analytics.json:', err);
+    }
+    return createEmptyTrafficState();
+  };
+
+  let trafficState: StoredTrafficState = loadTrafficState();
+
+  const saveTrafficState = () => {
+    try {
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
+      const tempFile = `${TRAFFIC_FILE}.tmp`;
+      fs.writeFileSync(tempFile, JSON.stringify(trafficState, null, 2), 'utf-8');
+      fs.renameSync(tempFile, TRAFFIC_FILE);
+    } catch (err) {
+      console.error('Failed to write traffic_analytics.json:', err);
+    }
+  };
+
+  const getLocalIsoDate = (d = new Date()): string => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const formatShortIndoDate = (isoDate: string): string => {
+    const [y, m, d] = isoDate.split('-').map(Number);
+    if (!y || !m || !d) return isoDate;
+    const dt = new Date(y, m - 1, d);
+    return dt.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+  };
+
+  const extractAndMaskClientIp = (req: express.Request): string => {
+    const forwarded = req.headers['x-forwarded-for'];
+    let rawIp = '';
+    if (typeof forwarded === 'string' && forwarded.trim().length > 0) {
+      rawIp = forwarded.split(',')[0].trim();
+    } else if (Array.isArray(forwarded) && forwarded.length > 0) {
+      rawIp = forwarded[0].trim();
+    } else {
+      rawIp = req.socket?.remoteAddress || req.ip || '';
+    }
+    rawIp = rawIp.replace(/^::ffff:/, '');
+    if (!rawIp || rawIp === '::1' || rawIp === '127.0.0.1') {
+      return '127.0.0.1 (Local)';
+    }
+    const ipv4Parts = rawIp.split('.');
+    if (ipv4Parts.length === 4) {
+      return `${ipv4Parts[0]}.${ipv4Parts[1]}.${ipv4Parts[2]}.***`;
+    }
+    if (rawIp.includes(':')) {
+      const ipv6Parts = rawIp.split(':').filter(Boolean);
+      return `${ipv6Parts.slice(0, 2).join(':')}:****`;
+    }
+    return rawIp;
+  };
+
+  const PAGE_META_CATALOG: Record<string, { path: string; title: string }> = {
+    beranda: { path: '/beranda', title: 'Beranda Utama Portal' },
+    profil: { path: '/profil', title: 'Profil & Kelembagaan Kelurahan' },
+    rtrw: { path: '/rtrw', title: 'Direktori RT/RW & Jadwal Siskamling' },
+    warga: { path: '/warga', title: 'Layanan Pengurusan & E-Lapor Warga' },
+    lurah: { path: '/lurah', title: 'Dashboard Eksekutif Lurah' },
+    peta: { path: '/peta', title: 'Peta GIS Interaktif Panaikang' },
+    sampah: { path: '/sampah', title: 'Monitoring Bank Sampah & Konservasi' },
+    kerjabakti: { path: '/kerjabakti', title: 'Jadwal Kerja Bakti & Armada' },
+    urbanfarming: { path: '/urbanfarming', title: 'Urban Farming & Ketahanan Pangan' },
+    admin: { path: '/admin', title: 'Panel Administrator Kelurahan' },
+  };
+
+  const computeRealTrafficPayload = () => {
+    const nowMs = Date.now();
+    // Clean expired visitor heartbeats (> 2 minutes idle)
+    for (const [vid, lastSeen] of activeVisitorHeartbeats.entries()) {
+      if (nowMs - lastSeen > 2 * 60 * 1000) {
+        activeVisitorHeartbeats.delete(vid);
+      }
+    }
+    const activeVisitorsNow = Math.max(sseClients.size, activeVisitorHeartbeats.size);
+
+    const todayIso = getLocalIsoDate(new Date());
+    const todayBucket = trafficState.dailyBuckets[todayIso];
+    const todayPageviews = todayBucket ? todayBucket.pageviews : 0;
+
+    // Calculate real Avg Session Duration and Bounce Rate from real sessions
+    const sessionList = Object.values(trafficState.sessions);
+    let totalSessionDurationSec = 0;
+    let bounceSessions = 0;
+    for (const s of sessionList) {
+      const durSec = Math.max(1, Math.round((s.lastSeenMs - s.firstSeenMs) / 1000));
+      totalSessionDurationSec += Math.min(durSec, 3600);
+      if (s.hits <= 1) {
+        bounceSessions += 1;
+      }
+    }
+    const avgSec = sessionList.length > 0 ? Math.round(totalSessionDurationSec / sessionList.length) : 0;
+    const avgMin = Math.floor(avgSec / 60);
+    const remSec = avgSec % 60;
+    const avgSessionDuration = sessionList.length > 0 ? `${avgMin}m ${String(remSec).padStart(2, '0')}s` : '0m 00s';
+    const bounceRate = sessionList.length > 0 ? Number(((bounceSessions / sessionList.length) * 100).toFixed(1)) : 0;
+
+    // Build 14-day daily chart points from real recorded buckets
+    const dailyPoints: Array<{ date: string; isoDate: string; pageviews: number; uniqueVisitors: number; sessions: number }> = [];
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const iso = getLocalIsoDate(d);
+      const bucket = trafficState.dailyBuckets[iso];
+      const sessionsForDay = sessionList.filter((s) => getLocalIsoDate(new Date(s.firstSeenMs)) === iso).length;
+      dailyPoints.push({
+        date: formatShortIndoDate(iso),
+        isoDate: iso,
+        pageviews: bucket ? bucket.pageviews : 0,
+        uniqueVisitors: bucket ? bucket.visitorIds.length : 0,
+        sessions: sessionsForDay,
+      });
+    }
+
+    // Build Top Pages from real recorded page hits + all portal routes
+    const totalViewsSafe = Math.max(1, trafficState.totalPageviews);
+    const allViewKeys = Object.keys(PAGE_META_CATALOG);
+    const topPages = allViewKeys
+      .map((viewKey) => {
+        const meta = PAGE_META_CATALOG[viewKey];
+        const stat = trafficState.pageStats[viewKey] || { views: 0, visitorIds: [], totalDurationSec: 0, durationSamples: 0 };
+        const avgTimeSec = stat.durationSamples > 0 ? Math.round(stat.totalDurationSec / stat.durationSamples) : 0;
+        const m = Math.floor(avgTimeSec / 60);
+        const s = avgTimeSec % 60;
+        return {
+          path: meta.path,
+          title: meta.title,
+          views: stat.views,
+          uniqueUsers: stat.visitorIds.length,
+          avgTimeOnPage: stat.views > 0 ? (avgTimeSec > 0 ? `${m}m ${String(s).padStart(2, '0')}s` : 'Aktif') : '0m 00s',
+          percentage: trafficState.totalPageviews > 0 ? Number(((stat.views / totalViewsSafe) * 100).toFixed(1)) : 0,
+        };
+      })
+      .sort((a, b) => b.views - a.views);
+
+    // Build Traffic Sources from real referrer telemetry
+    const defaultSources = [
+      { source: 'Direct URL / Bookmark Warga', color: '#059669' },
+      { source: 'Google Search (Organik)', color: '#2563eb' },
+      { source: 'WhatsApp Broadcast RT/RW', color: '#10b981' },
+      { source: 'PWA Home Screen (Aplikasi)', color: '#7c3aed' },
+      { source: 'Media Sosial & Rujukan Lainnya', color: '#f59e0b' },
+    ];
+    const totalSourceVisits = Math.max(
+      1,
+      Object.values(trafficState.sourceCounts).reduce((acc, v) => acc + v, 0)
+    );
+    const sources = defaultSources
+      .map((item) => {
+        const visits = trafficState.sourceCounts[item.source] || 0;
+        return {
+          source: item.source,
+          visits,
+          percentage: Object.values(trafficState.sourceCounts).some((v) => v > 0)
+            ? Number(((visits / totalSourceVisits) * 100).toFixed(1))
+            : 0,
+          color: item.color,
+        };
+      })
+      .sort((a, b) => b.visits - a.visits);
+
+    // Build real RW 01 - RW 07 Activity Breakdown directly from actual database records
+    const rwList = (db.rwGroups && db.rwGroups.length > 0
+      ? db.rwGroups.map((g) => g.rwName)
+      : ['RW 01', 'RW 02', 'RW 03', 'RW 04', 'RW 05', 'RW 06', 'RW 07']
+    ).slice(0, 7);
+
+    const rwRawCounts = rwList.map((rwName) => {
+      const rwShort = rwName.replace(/^RW\s*0?/i, '').trim(); // e.g. "1" or "01"
+      const rwRegex = new RegExp(`\\bRW\\s*0?${rwShort}\\b`, 'i');
+
+      const reportsCount = (db.reports || []).filter(
+        (r) => rwRegex.test(r.rw || '') || rwRegex.test(r.locationName || '')
+      ).length;
+      const wasteUnitsCount = (db.wasteUnits || []).filter(
+        (u) => rwRegex.test(u.rw || '') || rwRegex.test(u.locationLabel || '')
+      ).length;
+      const cleanupCount = (db.cleanupEvents || []).filter(
+        (c) => rwRegex.test(c.rw || '') || rwRegex.test(c.locationName || '') || /Seluruh RW/i.test(c.rw || '')
+      ).length;
+      const farmingCount = (db.urbanFarmingSpots || []).filter(
+        (f) => rwRegex.test(f.rw || '') || rwRegex.test(f.locationAddress || '')
+      ).length;
+      const seedCount = (db.seedRequests || []).filter(
+        (s) => rwRegex.test(s.rw || '')
+      ).length;
+      const tebaCount = (db.tebaSpots || []).filter(
+        (t) => rwRegex.test(t.rw || '') || rwRegex.test(t.address || '')
+      ).length;
+      const bioporiCount = (db.bioporiPoints || []).filter(
+        (b) => rwRegex.test(b.rw || '') || rwRegex.test(b.address || '')
+      ).length;
+      const siskamlingCount = (db.siskamlingSchedules || []).filter(
+        (sk) => rwRegex.test(sk.rw || '')
+      ).length;
+
+      const totalInteractions =
+        reportsCount +
+        wasteUnitsCount +
+        cleanupCount +
+        farmingCount +
+        seedCount +
+        tebaCount +
+        bioporiCount +
+        siskamlingCount;
+
+      return {
+        rw: rwName,
+        sessions: totalInteractions,
+        reportsSubmitted: reportsCount,
+      };
+    });
+
+    const totalRwInteractions = Math.max(
+      1,
+      rwRawCounts.reduce((acc, r) => acc + r.sessions, 0)
+    );
+    const rwBreakdown = rwRawCounts.map((r) => ({
+      rw: r.rw,
+      sessions: r.sessions,
+      reportsSubmitted: r.reportsSubmitted,
+      percentage:
+        rwRawCounts.some((x) => x.sessions > 0)
+          ? Number(((r.sessions / totalRwInteractions) * 100).toFixed(1))
+          : 0,
+    }));
+
+    // Build real Browser Breakdown from recorded browserCounts
+    const totalBrowserHits = Math.max(
+      1,
+      Object.values(trafficState.browserCounts).reduce((acc, v) => acc + v, 0)
+    );
+    const browserBreakdown = Object.entries(trafficState.browserCounts)
+      .map(([name, count]) => ({
+        name,
+        count,
+        percentage: Number(((count / totalBrowserHits) * 100).toFixed(1)),
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    return {
+      totalPageviews: trafficState.totalPageviews,
+      uniqueVisitors: trafficState.uniqueVisitorIds.length,
+      activeVisitorsNow,
+      avgSessionDuration,
+      bounceRate,
+      todayPageviews,
+      pwaInstalls: trafficState.pwaInstalls,
+      dailyPoints,
+      topPages,
+      sources,
+      deviceBreakdown: trafficState.deviceCounts,
+      browserBreakdown,
+      rwBreakdown,
+      realtimeLogs: trafficState.realtimeLogs.slice(0, 50),
+      lastUpdated: trafficState.lastUpdated,
+      serverUptimeSec: Math.round((nowMs - SERVER_START_TIME) / 1000),
+    };
+  };
+
+  app.get('/api/traffic', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ ok: true, data: computeRealTrafficPayload() });
+  });
+
+  app.post('/api/traffic/hit', (req, res) => {
+    const body = req.body || {};
+    const viewKey = typeof body.view === 'string' && body.view.trim() ? body.view.trim() : 'beranda';
+    const visitorId = typeof body.visitorId === 'string' && body.visitorId.trim() ? body.visitorId.trim() : `vis-${Date.now()}`;
+    const sessionId = typeof body.sessionId === 'string' && body.sessionId.trim() ? body.sessionId.trim() : `ses-${Date.now()}`;
+    const deviceType: 'Mobile' | 'Desktop' | 'Tablet' =
+      body.deviceType === 'Mobile' || body.deviceType === 'Tablet' || body.deviceType === 'Desktop'
+        ? body.deviceType
+        : 'Desktop';
+    const platform = typeof body.platform === 'string' && body.platform.trim() ? body.platform.trim() : 'Web OS';
+    const browser = typeof body.browser === 'string' && body.browser.trim() ? body.browser.trim() : 'Browser';
+    const referrer = typeof body.referrer === 'string' && body.referrer.trim() ? body.referrer.trim() : 'Direct URL / Bookmark Warga';
+    const locationHint = typeof body.locationHint === 'string' && body.locationHint.trim() ? body.locationHint.trim() : 'Makassar (WITA)';
+    const prevPageView = typeof body.prevView === 'string' ? body.prevView.trim() : '';
+    const prevPageDurationSec = typeof body.prevPageDurationSec === 'number' && body.prevPageDurationSec > 0 ? Math.min(body.prevPageDurationSec, 1800) : 0;
+
+    const now = new Date();
+    const nowMs = now.getTime();
+    const todayIso = getLocalIsoDate(now);
+
+    activeVisitorHeartbeats.set(visitorId, nowMs);
+
+    // 1. Update total pageviews & unique visitors
+    trafficState.totalPageviews += 1;
+    if (!trafficState.uniqueVisitorIds.includes(visitorId)) {
+      trafficState.uniqueVisitorIds.push(visitorId);
+    }
+
+    // 2. Update session tracking
+    const existingSession = trafficState.sessions[sessionId];
+    if (existingSession) {
+      existingSession.lastSeenMs = nowMs;
+      existingSession.hits += 1;
+    } else {
+      trafficState.sessions[sessionId] = {
+        sessionId,
+        visitorId,
+        firstSeenMs: nowMs,
+        lastSeenMs: nowMs,
+        hits: 1,
+      };
+    }
+
+    // 3. Update daily bucket for today
+    if (!trafficState.dailyBuckets[todayIso]) {
+      trafficState.dailyBuckets[todayIso] = {
+        dateIso: todayIso,
+        pageviews: 0,
+        visitorIds: [],
+      };
+    }
+    trafficState.dailyBuckets[todayIso].pageviews += 1;
+    if (!trafficState.dailyBuckets[todayIso].visitorIds.includes(visitorId)) {
+      trafficState.dailyBuckets[todayIso].visitorIds.push(visitorId);
+    }
+
+    // 4. Update page statistics
+    if (!trafficState.pageStats[viewKey]) {
+      trafficState.pageStats[viewKey] = {
+        views: 0,
+        visitorIds: [],
+        totalDurationSec: 0,
+        durationSamples: 0,
+      };
+    }
+    trafficState.pageStats[viewKey].views += 1;
+    if (!trafficState.pageStats[viewKey].visitorIds.includes(visitorId)) {
+      trafficState.pageStats[viewKey].visitorIds.push(visitorId);
+    }
+
+    // Record time spent on previous page if reported by client
+    if (prevPageView && prevPageDurationSec > 0 && trafficState.pageStats[prevPageView]) {
+      trafficState.pageStats[prevPageView].totalDurationSec += prevPageDurationSec;
+      trafficState.pageStats[prevPageView].durationSamples += 1;
+    }
+
+    // 5. Update traffic source only on first hit of session or every hit
+    trafficState.sourceCounts[referrer] = (trafficState.sourceCounts[referrer] || 0) + 1;
+
+    // 6. Update device & browser breakdown
+    if (deviceType === 'Mobile') trafficState.deviceCounts.mobile += 1;
+    else if (deviceType === 'Tablet') trafficState.deviceCounts.tablet += 1;
+    else trafficState.deviceCounts.desktop += 1;
+
+    trafficState.browserCounts[browser] = (trafficState.browserCounts[browser] || 0) + 1;
+
+    // 7. Create real visitor log entry
+    const meta = PAGE_META_CATALOG[viewKey] || { path: `/${viewKey}`, title: `Halaman ${viewKey}` };
+    const timeStr = `${now.toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      timeZone: 'Asia/Makassar',
+    })} WITA`;
+    const dateStr = now.toLocaleDateString('id-ID', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'Asia/Makassar',
+    });
+
+    const newLog: StoredRealtimeLog = {
+      id: `VIS-${nowMs.toString().slice(-6)}-${Math.random().toString(36).slice(2, 4).toUpperCase()}`,
+      timestamp: timeStr,
+      dateStr,
+      visitorId,
+      page: meta.path,
+      pageTitle: meta.title,
+      deviceType,
+      platform,
+      browser,
+      locationHint,
+      referrer,
+      ipMasked: extractAndMaskClientIp(req),
+    };
+
+    trafficState.realtimeLogs = [newLog, ...trafficState.realtimeLogs.slice(0, 59)];
+    trafficState.lastUpdated = now.toISOString();
+
+    saveTrafficState();
+
+    const payload = computeRealTrafficPayload();
+    const sseMsg = `event: traffic_update\ndata: ${JSON.stringify({ timestamp: trafficState.lastUpdated, data: payload })}\n\n`;
+    sseClients.forEach((client) => {
+      try {
+        client.write(sseMsg);
+      } catch {
+        sseClients.delete(client);
+      }
+    });
+
+    res.json({ ok: true, data: payload });
+  });
+
+  app.post('/api/traffic/pwa-install', (req, res) => {
+    const isStandalone = Boolean(req.body?.standalone);
+    if (isStandalone || req.body?.event === 'appinstalled') {
+      trafficState.pwaInstalls += 1;
+      trafficState.lastUpdated = new Date().toISOString();
+      saveTrafficState();
+    }
+    const payload = computeRealTrafficPayload();
+    res.json({ ok: true, data: payload });
+  });
+
+  app.post('/api/traffic/reset', (_req, res) => {
+    trafficState = createEmptyTrafficState();
+    activeVisitorHeartbeats.clear();
+    saveTrafficState();
+    const payload = computeRealTrafficPayload();
+    const sseMsg = `event: traffic_update\ndata: ${JSON.stringify({ timestamp: trafficState.lastUpdated, data: payload })}\n\n`;
+    sseClients.forEach((client) => {
+      try {
+        client.write(sseMsg);
+      } catch {
+        sseClients.delete(client);
+      }
+    });
+    res.json({ ok: true, data: payload });
+  });
+
   // Vite middleware for development or static serving for production
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

@@ -219,6 +219,7 @@ export interface StructuralOfficial {
   phone?: string;
   photoUrl?: string;
   orderIndex?: number;
+  staffNames?: string[];
 }
 
 export interface KelurahanProfile {
@@ -229,8 +230,18 @@ export interface KelurahanProfile {
   lurahMessage: string;
   lurahPhotoUrl?: string;
   sekretarisName: string;
+  sekretarisNip?: string;
   kasiKebersihanName: string;
+  kasiKebersihanNip?: string;
   kasiPemerintahanName: string;
+  kasiPemerintahanNip?: string;
+  kasiPemberdayaanName?: string;
+  kasiPemberdayaanNip?: string;
+  stafPemerintahan?: string[];
+  stafPemberdayaan?: string[];
+  stafKebersihan?: string[];
+  perwaliReference?: string;
+  ketuaLpmName?: string;
   officials?: StructuralOfficial[];
   officeAddress: string;
   subDistrict: string;

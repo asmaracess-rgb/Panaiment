@@ -75,7 +75,7 @@ import { MonitoringKerjaBaktiView } from './components/MonitoringKerjaBaktiView'
 import { UrbanFarmingView } from './components/UrbanFarmingView';
 import { AdminPanelView, AdminTab } from './components/AdminPanelView';
 import { EmblemKelurahanPanaikang } from './components/Emblems';
-import { recordTrafficHit } from './utils/trafficTracker';
+import { recordTrafficHit, recordRealPwaInstallEvent } from './utils/trafficTracker';
 
 interface ToastNotification {
   id: string;
@@ -504,6 +504,15 @@ export default function App() {
           } catch {}
         });
 
+        es.addEventListener('traffic_update', (e) => {
+          try {
+            const parsed = JSON.parse(e.data);
+            if (parsed?.data) {
+              window.dispatchEvent(new CustomEvent('pnk_traffic_sse', { detail: parsed.data }));
+            }
+          } catch {}
+        });
+
         es.onerror = () => {
           if (es) {
             es.close();
@@ -527,6 +536,16 @@ export default function App() {
     };
 
     initEventSource();
+
+    // Record initial real page visit on first mount
+    try {
+      recordTrafficHit('beranda');
+    } catch {}
+
+    const handlePwaInstalled = () => {
+      recordRealPwaInstallEvent();
+    };
+    window.addEventListener('appinstalled', handlePwaInstalled);
 
     // Cross-tab synchronization listener
     const handleStorageUpdate = (e: StorageEvent) => {
@@ -562,6 +581,7 @@ export default function App() {
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
       if (es) es.close();
       window.removeEventListener('storage', handleStorageUpdate);
+      window.removeEventListener('appinstalled', handlePwaInstalled);
     };
   }, [applyRemoteDatabase]);
 
@@ -1980,6 +2000,7 @@ export default function App() {
         {activeView === 'rtrw' && (
           <DataRtRwView
             rwGroups={rwGroups}
+            profile={kelurahanProfile}
             siskamlingSchedules={siskamlingSchedules}
             onNavigate={handleNavigate}
           />

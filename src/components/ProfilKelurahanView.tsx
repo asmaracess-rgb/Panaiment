@@ -19,8 +19,14 @@ import {
 } from 'lucide-react';
 import { KelurahanProfile, WasteBankUnit, RwGroup, AppView } from '../types';
 import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
-import { BaganStrukturKelurahanModal } from './BaganStrukturKelurahanModal';
-import { BaganStrukturRtRwModal } from './BaganStrukturRtRwModal';
+import {
+  BaganStrukturKelurahanModal,
+  BaganStrukturKelurahanInteractiveViewer,
+} from './BaganStrukturKelurahanModal';
+import {
+  BaganStrukturRtRwModal,
+  BaganStrukturRtRwInteractiveViewer,
+} from './BaganStrukturRtRwModal';
 
 interface ProfilKelurahanViewProps {
   profile: KelurahanProfile;
@@ -37,6 +43,7 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
 }) => {
   const [showBaganKelurahan, setShowBaganKelurahan] = useState<boolean>(false);
   const [showBaganRtRw, setShowBaganRtRw] = useState<boolean>(false);
+  const [activeInlineChart, setActiveInlineChart] = useState<'kelurahan' | 'rtrw'>('kelurahan');
 
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8">
@@ -239,6 +246,24 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
                               Pangkat: {official.rank}
                             </div>
                           )}
+                          {Array.isArray(official.staffNames) && official.staffNames.length > 0 && (
+                            <div className="mt-2 pt-2 border-t border-slate-100">
+                              <div className="text-[10px] font-bold text-[#0D3868] uppercase tracking-wider mb-1">
+                                Staf Seksi / Jabatan ({official.staffNames.length}):
+                              </div>
+                              <div className="flex flex-wrap gap-1">
+                                {official.staffNames.map((staf, sIdx) => (
+                                  <span
+                                    key={sIdx}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 text-[10.5px] font-semibold border border-slate-200"
+                                  >
+                                    <User className="w-2.5 h-2.5 text-[#0D3868]" />
+                                    <span>{staf}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                         <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
                           <span className="font-medium text-slate-600">
@@ -260,7 +285,7 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
                       Belum ada data perangkat struktural kelurahan
                     </p>
                     <p className="text-[11px] text-slate-500 mt-1 max-w-sm mx-auto">
-                      Data pejabat struktural dan perangkat kelurahan diisi mandiri oleh Administrator melalui Panel Admin.
+                      Data pejabat struktural dan staf berdasarkan jabatan diisi secara dinamis oleh Administrator melalui Panel Admin.
                     </p>
                   </div>
                 )}
@@ -366,6 +391,70 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
               </div>
             </div>
           </div>
+        </div>
+
+        {/* BAGAN STRUKTUR ORGANISASI DINAMIS (KELURAHAN & RT/RW) - RESPONSIF HP, TABLET, PC */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 space-y-4 shadow-xs">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+            <div>
+              <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0D3868]">
+                <Layers className="w-4 h-4 text-[#0277BD]" />
+                <span>BAGAN STRUKTUR ORGANISASI RESMI (RESPONSIF HP · TABLET · PC)</span>
+              </div>
+              <h2 className="text-base sm:text-lg font-extrabold text-[#0D3868] mt-0.5">
+                {activeInlineChart === 'kelurahan'
+                  ? 'Bagan Struktur Organisasi Pemerintah Kelurahan Panaikang'
+                  : 'Bagan Struktur Organisasi RT/RW & LPM Kelurahan Panaikang'}
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Ukuran bagan otomatis menyesuaikan layar perangkat Anda. Gunakan tombol{' '}
+                <strong>Perkecil (-)</strong>, <strong>Perbesar (+)</strong>, atau{' '}
+                <strong>Pas Layar</strong> untuk kenyamanan membaca.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 self-start lg:self-center">
+              <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setActiveInlineChart('kelurahan')}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    activeInlineChart === 'kelurahan'
+                      ? 'bg-[#0D3868] text-white shadow-2xs'
+                      : 'text-slate-700 hover:bg-white/70'
+                  }`}
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  <span>Bagan Kelurahan</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveInlineChart('rtrw')}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    activeInlineChart === 'rtrw'
+                      ? 'bg-[#1C8237] text-white shadow-2xs'
+                      : 'text-slate-700 hover:bg-white/70'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>Bagan RT / RW</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {activeInlineChart === 'kelurahan' ? (
+            <BaganStrukturKelurahanInteractiveViewer
+              profile={profile}
+              onExpandFullScreen={() => setShowBaganKelurahan(true)}
+            />
+          ) : (
+            <BaganStrukturRtRwInteractiveViewer
+              rwGroups={rwGroups}
+              profile={profile}
+              onExpandFullScreen={() => setShowBaganRtRw(true)}
+            />
+          )}
         </div>
 
         {/* VISI & MISI KELURAHAN PANAIKANG SECTION */}

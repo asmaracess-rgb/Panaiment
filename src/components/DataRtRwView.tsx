@@ -22,15 +22,20 @@ import {
   ExternalLink,
   CheckCircle2,
 } from 'lucide-react';
-import { RwGroup, AppView, SiskamlingRwSchedule, SiskamlingDay } from '../types';
+import { RwGroup, AppView, SiskamlingRwSchedule, SiskamlingDay, KelurahanProfile } from '../types';
 import {
   INITIAL_SISKAMLING_SCHEDULES,
   SISKAMLING_DAYS,
   getTodaySiskamlingDay,
 } from '../data/siskamlingData';
+import {
+  BaganStrukturRtRwModal,
+  BaganStrukturRtRwInteractiveViewer,
+} from './BaganStrukturRtRwModal';
 
 interface DataRtRwViewProps {
   rwGroups: RwGroup[];
+  profile?: KelurahanProfile;
   siskamlingSchedules?: SiskamlingRwSchedule[];
   onNavigate: (view: AppView) => void;
 }
@@ -56,6 +61,7 @@ const toOfficerArray = (val: unknown): string[] => {
 
 export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
   rwGroups,
+  profile,
   siskamlingSchedules = INITIAL_SISKAMLING_SCHEDULES,
   onNavigate,
 }) => {
@@ -63,6 +69,8 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
   const [selectedRwCode, setSelectedRwCode] = useState<string>('Semua');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [expandedRwIds, setExpandedRwIds] = useState<Record<string, boolean>>({});
+  const [showBaganRtRw, setShowBaganRtRw] = useState<boolean>(false);
+  const [showInlineRtRwChart, setShowInlineRtRwChart] = useState<boolean>(false);
 
   // Siskamling specific state
   const [selectedDay, setSelectedDay] = useState<SiskamlingDay>(() => getTodaySiskamlingDay());
@@ -223,8 +231,16 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
           </p>
         </div>
 
-        {/* Action Buttons: Profil Kelurahan, Peta Wilayah RT RW, Jadwal Siskamling RT RW */}
+        {/* Action Buttons: Bagan Struktur RT/RW, Profil Kelurahan, Peta Wilayah RT RW, Jadwal Siskamling RT RW */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 self-start">
+          <button
+            type="button"
+            onClick={() => setShowBaganRtRw(true)}
+            className="px-3.5 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold transition-colors cursor-pointer whitespace-nowrap shadow-xs inline-flex items-center gap-1.5"
+          >
+            <Users className="w-4 h-4" />
+            <span>Bagan Struktur RT/RW</span>
+          </button>
           <button
             type="button"
             onClick={() => onNavigate('profil')}
@@ -331,6 +347,51 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
                 <Home className="w-5 h-5" />
               </div>
             </div>
+          </div>
+
+          {/* Interactive Bagan Struktur RT/RW Card (Responsif HP, Tablet, PC) */}
+          <div className="mt-6 bg-white rounded-2xl border border-emerald-200/90 p-4 sm:p-5 shadow-2xs space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1C8237]">
+                  <Layers className="w-4 h-4" />
+                  <span>BAGAN STRUKTUR ORGANISASI RT/RW & LPM (RESPONSIF HP · TABLET · PC)</span>
+                </div>
+                <h2 className="text-sm sm:text-base font-extrabold text-[#0D3868] mt-0.5">
+                  Bagan Struktur Organisasi RT dan RW Kelurahan Panaikang
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Dilengkapi fitur <strong>Perkecil (-)</strong>, <strong>Perbesar (+)</strong>, dan{' '}
+                  <strong>Pas Layar</strong> otomatis untuk pengguna HP, Tablet, maupun PC.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowInlineRtRwChart((prev) => !prev)}
+                  className="px-3.5 py-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-[#146329] text-xs font-bold transition cursor-pointer"
+                >
+                  {showInlineRtRwChart ? 'Sembunyikan Pratinjau' : 'Tampilkan Bagan di Halaman Ini'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowBaganRtRw(true)}
+                  className="px-3.5 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold transition cursor-pointer shadow-2xs"
+                >
+                  Buka Layar Penuh
+                </button>
+              </div>
+            </div>
+
+            {showInlineRtRwChart && (
+              <div className="pt-2 border-t border-slate-100">
+                <BaganStrukturRtRwInteractiveViewer
+                  rwGroups={rwGroups}
+                  profile={profile}
+                  onExpandFullScreen={() => setShowBaganRtRw(true)}
+                />
+              </div>
+            )}
           </div>
 
           {/* Filter RW & Search Bar */}
@@ -1093,6 +1154,14 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Bagan Struktur Organisasi RT/RW Modal */}
+      <BaganStrukturRtRwModal
+        isOpen={showBaganRtRw}
+        onClose={() => setShowBaganRtRw(false)}
+        rwGroups={rwGroups}
+        profile={profile}
+      />
     </div>
   );
 };

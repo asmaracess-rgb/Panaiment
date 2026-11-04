@@ -1,520 +1,500 @@
-import { RealtimeTrafficEvent, TrafficAnalyticsData } from '../types';
+import { AppView } from '../types';
 
-const TRAFFIC_STORAGE_KEY = 'pnk_smart_env_traffic_data_v1';
+export interface DailyTrafficPoint {
+  date: string; // e.g., "04 Nov"
+  isoDate: string; // YYYY-MM-DD
+  pageviews: number;
+  uniqueVisitors: number;
+  sessions: number;
+}
 
-const PAGE_NAMES: Record<string, string> = {
-  beranda: 'Beranda Utama & Pengumuman',
-  profil: 'Profil Kelurahan & Pejabat',
-  rtrw: 'Data Wilayah RT & RW',
-  warga: 'Pengurusan Warga & Layanan Surat',
-  lurah: 'Dashboard Eksekutif Lurah',
-  peta: 'Peta Digital Spasial Lingkungan',
-  sampah: 'Monitoring Sampah & BSU',
-  kerjabakti: 'Monitoring Kerja Bakti Warga',
-  urbanfarming: 'Urban Farming & Bibit Sayuran',
-  admin: 'Panel Administrator Terpadu',
+export interface PageTrafficItem {
+  path: string;
+  title: string;
+  views: number;
+  uniqueUsers: number;
+  avgTimeOnPage: string;
+  percentage: number;
+}
+
+export interface TrafficSourceItem {
+  source: string;
+  visits: number;
+  percentage: number;
+  color: string;
+}
+
+export interface RealtimeVisitorLog {
+  id: string;
+  timestamp: string;
+  dateStr: string;
+  visitorId?: string;
+  page: string;
+  pageTitle: string;
+  deviceType: 'Mobile' | 'Desktop' | 'Tablet';
+  platform: string;
+  browser: string;
+  locationHint: string;
+  referrer: string;
+  ipMasked: string;
+}
+
+export interface BrowserBreakdownItem {
+  name: string;
+  count: number;
+  percentage: number;
+}
+
+export interface TrafficAnalyticsData {
+  totalPageviews: number;
+  uniqueVisitors: number;
+  activeVisitorsNow: number;
+  avgSessionDuration: string;
+  bounceRate: number;
+  todayPageviews: number;
+  pwaInstalls: number;
+  dailyPoints: DailyTrafficPoint[];
+  topPages: PageTrafficItem[];
+  sources: TrafficSourceItem[];
+  deviceBreakdown: {
+    mobile: number;
+    desktop: number;
+    tablet: number;
+  };
+  browserBreakdown?: BrowserBreakdownItem[];
+  rwBreakdown: Array<{
+    rw: string;
+    sessions: number;
+    reportsSubmitted: number;
+    percentage: number;
+  }>;
+  realtimeLogs: RealtimeVisitorLog[];
+  lastUpdated: string;
+  serverUptimeSec?: number;
+}
+
+const TRAFFIC_STORAGE_KEY = 'pnk_smart_env_real_traffic_v4';
+const VISITOR_ID_KEY = 'pnk_real_visitor_id_v1';
+const SESSION_ID_KEY = 'pnk_real_session_id_v1';
+const LAST_VIEW_KEY = 'pnk_real_last_view_v1';
+const LAST_VIEW_ENTER_MS_KEY = 'pnk_real_last_view_ms_v1';
+const PWA_RECORDED_KEY = 'pnk_real_pwa_installed_v1';
+
+const PAGE_METADATA: Record<AppView, { path: string; title: string }> = {
+  beranda: { path: '/beranda', title: 'Beranda Utama Portal' },
+  profil: { path: '/profil', title: 'Profil & Kelembagaan Kelurahan' },
+  rtrw: { path: '/rtrw', title: 'Direktori RT/RW & Jadwal Siskamling' },
+  warga: { path: '/warga', title: 'Layanan Pengurusan & E-Lapor Warga' },
+  lurah: { path: '/lurah', title: 'Dashboard Eksekutif Lurah' },
+  peta: { path: '/peta', title: 'Peta GIS Interaktif Panaikang' },
+  sampah: { path: '/sampah', title: 'Monitoring Bank Sampah & Konservasi' },
+  kerjabakti: { path: '/kerjabakti', title: 'Jadwal Kerja Bakti & Armada' },
+  urbanfarming: { path: '/urbanfarming', title: 'Urban Farming & Ketahanan Pangan' },
+  admin: { path: '/admin', title: 'Panel Administrator Kelurahan' },
 };
 
-const SAMPLE_LOCATIONS = [
-  'Kelurahan Panaikang (Telkomsel 4G/5G)',
-  'Panaikang RW 02 - Jl. Urip Sumoharjo (IndiHome)',
-  'Panaikang RW 04 - Aspol Panaikang (XL Axiata)',
-  'Panaikang RW 05 - Jl. Racing Centre (Biznet)',
-  'Panaikang RW 01 - Jl. Abdullah Daeng Sirua (Tri 4G)',
-  'Panaikang RW 03 - Jl. Pampang (Indosat Ooredoo)',
-  'Panaikang RW 06 - Kompleks PU (Telkomsel)',
-  'Kecamatan Panakkukang - Kantor Camat (IndiHome)',
-  'Kota Makassar - Jaringan Seluler Regional',
-];
+const getLocalIsoDate = (d = new Date()): string => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
-const SAMPLE_REFERRERS = [
-  'WhatsApp Kelurahan & Grup RT/RW',
-  'Direct / PWA Layar Utama HP',
-  'Google Search ("kelurahan panaikang")',
-  'Scan QR Code Loket Kelurahan',
-  'Instagram @kelurahan_panaikang',
-  'Portal Pemkot Makassar (makassarkota.go.id)',
-];
+const formatShortDate = (d: Date): string => {
+  return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+};
 
-function generateInitialDailyPoints(): TrafficAnalyticsData['dailyPoints'] {
-  const points = [];
-  const baseDate = new Date();
-
-  for (let i = 13; i >= 0; i--) {
-    const d = new Date(baseDate);
-    d.setDate(d.getDate() - i);
-    const dayStr = d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
-    const isoDate = d.toISOString().split('T')[0];
-
-    // realistic variance
-    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-    const baseHits = isWeekend ? 340 + Math.floor(Math.random() * 80) : 520 + Math.floor(Math.random() * 140);
-    const unique = Math.floor(baseHits * (0.42 + Math.random() * 0.08));
-    const mobile = Math.floor(baseHits * 0.78);
-    const desktop = baseHits - mobile;
-
-    points.push({
-      date: isoDate,
-      label: dayStr,
-      pageviews: baseHits,
-      uniqueVisitors: unique,
-      mobile,
-      desktop,
-    });
-  }
-  return points;
-}
-
-function generateInitialRealtimeLogs(): RealtimeTrafficEvent[] {
-  const now = Date.now();
-  const logs: RealtimeTrafficEvent[] = [
-    {
-      id: `trf-${now - 12000}`,
-      timestamp: 'Baru saja',
-      createdAtMs: now - 12000,
-      page: '/warga',
-      pageTitle: 'Pengurusan Warga & Layanan Surat (SKU & SK Domisili)',
-      deviceType: 'Mobile',
-      platform: 'Android 14',
-      browser: 'Chrome Mobile 128',
-      location: 'Panaikang RW 04 - Aspol (Telkomsel 5G)',
-      referrer: 'WhatsApp Kelurahan & Grup RT/RW',
-      ipMasked: '180.244.***.***',
-      status: '200 OK',
-    },
-    {
-      id: `trf-${now - 45000}`,
-      timestamp: '1 menit lalu',
-      createdAtMs: now - 45000,
-      page: '/sampah',
-      pageTitle: 'Monitoring Sampah & Bank Sampah Unit (BSU RW)',
-      deviceType: 'Mobile',
-      platform: 'iOS 17.5',
-      browser: 'Mobile Safari 17',
-      location: 'Panaikang RW 02 - Jl. Urip Sumoharjo (IndiHome)',
-      referrer: 'Scan QR Code Loket Kelurahan',
-      ipMasked: '36.85.***.***',
-      status: '200 OK',
-    },
-    {
-      id: `trf-${now - 110000}`,
-      timestamp: '2 menit lalu',
-      createdAtMs: now - 110000,
-      page: '/beranda',
-      pageTitle: 'Beranda Utama — Portal Kelurahan Panaikang',
-      deviceType: 'Desktop',
-      platform: 'Windows 11',
-      browser: 'Chrome 129',
-      location: 'Kecamatan Panakkukang (Biznet Fiber)',
-      referrer: 'Direct / PWA Layar Utama HP',
-      ipMasked: '103.111.***.***',
-      status: '304 PWA Cache',
-    },
-    {
-      id: `trf-${now - 190000}`,
-      timestamp: '3 menit lalu',
-      createdAtMs: now - 190000,
-      page: '/peta',
-      pageTitle: 'Peta Spasial Lingkungan & Titik Teba Komunal',
-      deviceType: 'Mobile',
-      platform: 'Android 13',
-      browser: 'Samsung Internet 24',
-      location: 'Panaikang RW 05 - Racing Centre (XL Axiata)',
-      referrer: 'Google Search ("kelurahan panaikang")',
-      ipMasked: '114.125.***.***',
-      status: '200 OK',
-    },
-    {
-      id: `trf-${now - 320000}`,
-      timestamp: '5 menit lalu',
-      createdAtMs: now - 320000,
-      page: '/urbanfarming',
-      pageTitle: 'Urban Farming & Permohonan Bibit Sayuran RW',
-      deviceType: 'Mobile',
-      platform: 'Android 14',
-      browser: 'Chrome Mobile 128',
-      location: 'Panaikang RW 03 - Jl. Pampang (Indosat)',
-      referrer: 'Instagram @kelurahan_panaikang',
-      ipMasked: '182.2.***.***',
-      status: '200 OK',
-    },
-    {
-      id: `trf-${now - 480000}`,
-      timestamp: '8 menit lalu',
-      createdAtMs: now - 480000,
-      page: '/kerjabakti',
-      pageTitle: 'Jadwal Kerja Bakti Massal & Dokumentasi Aksi',
-      deviceType: 'Mobile',
-      platform: 'Android 12',
-      browser: 'Chrome Mobile 126',
-      location: 'Panaikang RW 01 - Abdesir (Tri 4G)',
-      referrer: 'WhatsApp Kelurahan & Grup RT/RW',
-      ipMasked: '114.79.***.***',
-      status: '200 OK',
-    },
-    {
-      id: `trf-${now - 620000}`,
-      timestamp: '10 menit lalu',
-      createdAtMs: now - 620000,
-      page: '/profil',
-      pageTitle: 'Profil Kelurahan, Pejabat Struktural & Visi Misi',
-      deviceType: 'Desktop',
-      platform: 'macOS Sonoma',
-      browser: 'Safari 17.4',
-      location: 'Makassar Kota (Telkomsel Orbit)',
-      referrer: 'Portal Pemkot Makassar (makassarkota.go.id)',
-      ipMasked: '180.252.***.***',
-      status: '200 OK',
-    },
-    {
-      id: `trf-${now - 900000}`,
-      timestamp: '15 menit lalu',
-      createdAtMs: now - 900000,
-      page: '/lurah',
-      pageTitle: 'Dashboard Eksekutif Lurah Panaikang',
-      deviceType: 'Mobile',
-      platform: 'iOS 18.0',
-      browser: 'Mobile Safari 18',
-      location: 'Kelurahan Panaikang (Telkomsel 5G)',
-      referrer: 'Direct / PWA Layar Utama HP',
-      ipMasked: '180.244.***.***',
-      status: '304 PWA Cache',
-    },
-  ];
-  return logs;
-}
-
-export function getInitialTrafficData(): TrafficAnalyticsData {
-  return {
-    totalPageviews: 21845,
-    uniqueVisitors: 7430,
-    activeVisitorsNow: 18,
-    todayPageviews: 524,
-    todayUniqueVisitors: 218,
-    avgSessionDuration: '3m 48s',
-    bounceRate: '21.4%',
-    pwaInstalls: 392,
-    dailyPoints: generateInitialDailyPoints(),
-    sources: [
-      {
-        channel: 'WhatsApp Kelurahan & Grup RT/RW',
-        visits: 10180,
-        percentage: 46.6,
-        color: '#25D366',
-        description: 'Tautan pengurusan surat, pengaduan warga, dan koordinasi RT/RW',
-      },
-      {
-        channel: 'Direct / PWA Layar Utama HP',
-        visits: 6185,
-        percentage: 28.3,
-        color: '#0D3868',
-        description: 'Warga mengakses langsung via ikon aplikasi web yang terinstal di ponsel',
-      },
-      {
-        channel: 'Pencarian Google (Organic)',
-        visits: 3160,
-        percentage: 14.5,
-        color: '#4285F4',
-        description: 'Pencarian kata kunci "kelurahan panaikang", "layanan surat panaikang", dll.',
-      },
-      {
-        channel: 'Scan QR Fasilitas & BSU',
-        visits: 1420,
-        percentage: 6.5,
-        color: '#F59E0B',
-        description: 'Pemindaian barcode QR di loket kantor lurah, pos BSU, dan titik Teba',
-      },
-      {
-        channel: 'Media Sosial (Instagram & FB)',
-        visits: 900,
-        percentage: 4.1,
-        color: '#E1306C',
-        description: 'Kunjungan dari bio link Instagram @kelurahan_panaikang dan publikasi warga',
-      },
-    ],
-    topPages: [
-      {
-        path: '/beranda',
-        title: 'Beranda Utama & Pengumuman Kelurahan',
-        views: 6420,
-        percentage: 29.4,
-        avgDuration: '2m 15s',
-      },
-      {
-        path: '/warga',
-        title: 'Pengurusan Warga Online (7 Bidang Layanan)',
-        views: 5210,
-        percentage: 23.9,
-        avgDuration: '4m 52s',
-      },
-      {
-        path: '/sampah',
-        title: 'Monitoring Sampah & Bank Sampah Unit (BSU)',
-        views: 3180,
-        percentage: 14.6,
-        avgDuration: '3m 30s',
-      },
-      {
-        path: '/peta',
-        title: 'Peta Digital Spasial Lingkungan & Titik Teba',
-        views: 2240,
-        percentage: 10.3,
-        avgDuration: '3m 10s',
-      },
-      {
-        path: '/urbanfarming',
-        title: 'Urban Farming & Permohonan Bibit Sayuran',
-        views: 1850,
-        percentage: 8.5,
-        avgDuration: '2m 45s',
-      },
-      {
-        path: '/kerjabakti',
-        title: 'Jadwal Kerja Bakti Massal & Dokumentasi Aksi',
-        views: 1390,
-        percentage: 6.4,
-        avgDuration: '2m 10s',
-      },
-      {
-        path: '/profil',
-        title: 'Profil Kelurahan, Lurah & Pejabat Struktural',
-        views: 915,
-        percentage: 4.2,
-        avgDuration: '1m 55s',
-      },
-      {
-        path: '/rtrw',
-        title: 'Direktori Kontak & Cakupan Wilayah RT/RW',
-        views: 640,
-        percentage: 2.7,
-        avgDuration: '1m 40s',
-      },
-    ],
-    deviceBreakdown: [
-      {
-        device: 'Smartphone (Mobile)',
-        icon: 'mobile',
-        percentage: 78.4,
-        visits: 17126,
-      },
-      {
-        device: 'Komputer / Laptop (Desktop)',
-        icon: 'desktop',
-        percentage: 18.2,
-        visits: 3975,
-      },
-      {
-        device: 'Tablet / iPad',
-        icon: 'tablet',
-        percentage: 3.4,
-        visits: 744,
-      },
-    ],
-    rwBreakdown: [
-      { rw: 'RW 01 (Abdesir & Sekitarnya)', visits: 2840, percentage: 14.2, topService: 'Surat Keterangan Usaha & Domisili' },
-      { rw: 'RW 02 (Jl. Urip Sumoharjo / Kodam)', visits: 3120, percentage: 15.6, topService: 'BSU Berkah & Layanan Adminduk' },
-      { rw: 'RW 03 (Jl. Pampang 1 & 2)', visits: 2950, percentage: 14.8, topService: 'Titik Teba Organik & BSU Hijau' },
-      { rw: 'RW 04 (Kompleks Aspol Panaikang)', visits: 3380, percentage: 16.9, topService: 'Urban Farming & Laporan Drainase' },
-      { rw: 'RW 05 (Jl. Racing Centre / Adhyaksa)', visits: 2710, percentage: 13.5, topService: 'Bank Sampah & Permohonan Bibit' },
-      { rw: 'RW 06 (Kompleks PU & Pengairan)', visits: 2210, percentage: 11.1, topService: 'Monitoring Kebersihan Fasum' },
-      { rw: 'RW 07 (Panaikang Indah & Batua)', visits: 1490, percentage: 7.4, topService: 'Surat Pengantar & KTP' },
-      { rw: 'RW 08 (Kawasan Flyover / Urip)', visits: 1300, percentage: 6.5, topService: 'Pengaduan Sampah Liar' },
-    ],
-    hourlyDistribution: [
-      { hour: '06:00', visits: 140 },
-      { hour: '08:00', visits: 380 },
-      { hour: '10:00', visits: 590 },
-      { hour: '12:00', visits: 410 },
-      { hour: '14:00', visits: 520 },
-      { hour: '16:00', visits: 480 },
-      { hour: '18:00', visits: 310 },
-      { hour: '20:00', visits: 640 },
-      { hour: '22:00', visits: 270 },
-      { hour: '00:00', visits: 85 },
-    ],
-    realtimeLogs: generateInitialRealtimeLogs(),
-  };
-}
-
-/**
- * Loads current traffic analytics data from persistent local storage or returns initial state
- */
-export function getTrafficAnalytics(): TrafficAnalyticsData {
-  if (typeof window === 'undefined') {
-    return getInitialTrafficData();
-  }
+export const getOrCreateRealVisitorId = (): string => {
   try {
-    const raw = window.localStorage.getItem(TRAFFIC_STORAGE_KEY);
-    if (!raw) {
-      const initial = getInitialTrafficData();
-      window.localStorage.setItem(TRAFFIC_STORAGE_KEY, JSON.stringify(initial));
-      return initial;
+    let vid = localStorage.getItem(VISITOR_ID_KEY);
+    if (!vid) {
+      vid = `VID-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+      localStorage.setItem(VISITOR_ID_KEY, vid);
     }
-    const parsed = JSON.parse(raw);
-    return parsed;
+    return vid;
   } catch {
-    return getInitialTrafficData();
+    return `VID-ANON`;
   }
-}
+};
 
-/**
- * Saves updated traffic data to localStorage
- */
-export function saveTrafficAnalytics(data: TrafficAnalyticsData): void {
-  if (typeof window === 'undefined') return;
+export const getOrCreateRealSessionId = (): string => {
   try {
-    window.localStorage.setItem(TRAFFIC_STORAGE_KEY, JSON.stringify(data));
-  } catch (err) {
-    console.warn('Gagal menyimpan data traffic ke localStorage', err);
+    let sid = sessionStorage.getItem(SESSION_ID_KEY);
+    if (!sid) {
+      sid = `SES-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+      sessionStorage.setItem(SESSION_ID_KEY, sid);
+    }
+    return sid;
+  } catch {
+    return `SES-ACTIVE`;
+  }
+};
+
+function detectRealDeviceAndBrowser(): {
+  deviceType: 'Mobile' | 'Desktop' | 'Tablet';
+  platform: string;
+  browser: string;
+} {
+  if (typeof navigator === 'undefined') {
+    return { deviceType: 'Desktop', platform: 'Web OS', browser: 'Browser' };
+  }
+
+  const ua = navigator.userAgent || '';
+  let deviceType: 'Mobile' | 'Desktop' | 'Tablet' = 'Desktop';
+  if (/iPad|Tablet|PlayBook|Silk/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
+    deviceType = 'Tablet';
+  } else if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Opera Mini/i.test(ua)) {
+    deviceType = 'Mobile';
+  }
+
+  let platform = 'Web OS';
+  if (/Windows NT 10|Windows NT 11/i.test(ua)) platform = 'Windows 10/11';
+  else if (/Windows/i.test(ua)) platform = 'Windows';
+  else if (/Android/i.test(ua)) {
+    const match = ua.match(/Android\s([0-9.]+)/i);
+    platform = match ? `Android ${match[1]}` : 'Android';
+  } else if (/iPhone|iPad|iPod/i.test(ua)) platform = 'iOS / iPadOS';
+  else if (/Mac OS X|Macintosh/i.test(ua)) platform = 'macOS';
+  else if (/CrOS/i.test(ua)) platform = 'ChromeOS';
+  else if (/Linux/i.test(ua)) platform = 'Linux';
+
+  let browser = 'Browser';
+  if (/SamsungBrowser/i.test(ua)) browser = 'Samsung Internet';
+  else if (/Edg\//i.test(ua)) browser = 'Microsoft Edge';
+  else if (/OPR\/|Opera/i.test(ua)) browser = 'Opera';
+  else if (/Firefox\/|FxiOS/i.test(ua)) browser = 'Mozilla Firefox';
+  else if (/Chrome\/|CriOS/i.test(ua)) browser = 'Google Chrome';
+  else if (/Safari\//i.test(ua)) browser = 'Apple Safari';
+
+  return { deviceType, platform, browser };
+}
+
+function detectRealReferrerSource(): string {
+  if (typeof window === 'undefined') return 'Direct URL / Bookmark Warga';
+
+  try {
+    const isStandalone =
+      window.matchMedia?.('(display-mode: standalone)')?.matches ||
+      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+    if (isStandalone) {
+      return 'PWA Home Screen (Aplikasi)';
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const utmSource = (params.get('utm_source') || params.get('ref') || '').toLowerCase();
+    if (utmSource.includes('wa') || utmSource.includes('whatsapp')) {
+      return 'WhatsApp Broadcast RT/RW';
+    }
+    if (utmSource.includes('google')) {
+      return 'Google Search (Organik)';
+    }
+    if (utmSource.includes('ig') || utmSource.includes('fb') || utmSource.includes('social')) {
+      return 'Media Sosial & Rujukan Lainnya';
+    }
+
+    const ref = (document.referrer || '').toLowerCase();
+    if (!ref || ref.includes(window.location.host.toLowerCase())) {
+      return 'Direct URL / Bookmark Warga';
+    }
+    if (ref.includes('google.') || ref.includes('bing.') || ref.includes('yahoo.')) {
+      return 'Google Search (Organik)';
+    }
+    if (ref.includes('whatsapp.') || ref.includes('wa.me')) {
+      return 'WhatsApp Broadcast RT/RW';
+    }
+    return 'Media Sosial & Rujukan Lainnya';
+  } catch {
+    return 'Direct URL / Bookmark Warga';
   }
 }
 
-/**
- * Records a real page navigation event in the live traffic stream
- */
-export function recordTrafficHit(viewName: string, customTitle?: string): TrafficAnalyticsData {
-  const current = getTrafficAnalytics();
-  const pagePath = `/${viewName}`;
-  const pageTitle = customTitle || PAGE_NAMES[viewName] || `Halaman ${viewName}`;
-
-  // detect device
-  let deviceType: 'Mobile' | 'Desktop' | 'Tablet' = 'Desktop';
-  let platform = 'Windows / Desktop';
-  let browser = 'Chrome';
-
-  if (typeof window !== 'undefined' && window.navigator) {
-    const ua = window.navigator.userAgent;
-    if (/tablet|ipad/i.test(ua)) {
-      deviceType = 'Tablet';
-      platform = 'iPadOS / Tablet';
-    } else if (/mobile|iphone|android/i.test(ua)) {
-      deviceType = 'Mobile';
-      platform = /android/i.test(ua) ? 'Android' : 'iOS';
-    }
-
-    if (/chrome|crios/i.test(ua) && !/edge|opr\//i.test(ua)) {
-      browser = 'Chrome';
-    } else if (/safari/i.test(ua) && !/chrome/i.test(ua)) {
-      browser = 'Safari';
-    } else if (/firefox/i.test(ua)) {
-      browser = 'Firefox';
-    } else if (/samsungbrowser/i.test(ua)) {
-      browser = 'Samsung Internet';
-    }
+function detectRealNetworkAndTimezoneHint(): string {
+  if (typeof window === 'undefined') return 'Zona WITA';
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Makassar';
+    const cityPart = tz.includes('/') ? tz.split('/')[1].replace(/_/g, ' ') : tz;
+    const navConn = (navigator as unknown as { connection?: { effectiveType?: string } }).connection;
+    const netType = navConn?.effectiveType ? navConn.effectiveType.toUpperCase() : '';
+    const screenRes = `${window.innerWidth}x${window.innerHeight}`;
+    return netType ? `${cityPart} (${netType} • ${screenRes})` : `${cityPart} (${screenRes})`;
+  } catch {
+    return 'Makassar (WITA)';
   }
+}
 
-  const randomLocation = SAMPLE_LOCATIONS[Math.floor(Math.random() * SAMPLE_LOCATIONS.length)];
-  const randomReferrer = SAMPLE_REFERRERS[Math.floor(Math.random() * SAMPLE_REFERRERS.length)];
-  const now = Date.now();
-
-  const newLog: RealtimeTrafficEvent = {
-    id: `trf-${now}-${Math.random().toString(36).slice(2, 6)}`,
-    timestamp: 'Baru saja',
-    createdAtMs: now,
-    page: pagePath,
-    pageTitle,
-    deviceType,
-    platform,
-    browser,
-    location: randomLocation,
-    referrer: randomReferrer,
-    ipMasked: `180.${Math.floor(Math.random() * 200 + 10)}.${Math.floor(Math.random() * 200)}***.***`,
-    status: '200 OK',
-  };
-
-  // Update totals
-  current.totalPageviews += 1;
-  current.todayPageviews += 1;
-
-  // Active visitors between 14 - 24
-  current.activeVisitorsNow = Math.min(32, Math.max(12, current.activeVisitorsNow + (Math.random() > 0.5 ? 1 : -1)));
-
-  // Update top page count
-  const existingPage = current.topPages.find((p) => p.path === pagePath);
-  if (existingPage) {
-    existingPage.views += 1;
-  } else {
-    current.topPages.push({
-      path: pagePath,
-      title: pageTitle,
-      views: 1,
-      percentage: 1.0,
-      avgDuration: '2m 10s',
+function createInitialEmptyAnalytics(): TrafficAnalyticsData {
+  const dailyPoints: DailyTrafficPoint[] = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    dailyPoints.push({
+      date: formatShortDate(d),
+      isoDate: getLocalIsoDate(d),
+      pageviews: 0,
+      uniqueVisitors: 0,
+      sessions: 0,
     });
   }
 
-  // Recalculate percentages for top pages
-  const totalTopViews = current.topPages.reduce((acc, p) => acc + p.views, 0);
-  current.topPages.forEach((p) => {
-    p.percentage = Number(((p.views / totalTopViews) * 100).toFixed(1));
-  });
+  const topPages: PageTrafficItem[] = (Object.keys(PAGE_METADATA) as AppView[]).map((key) => ({
+    path: PAGE_METADATA[key].path,
+    title: PAGE_METADATA[key].title,
+    views: 0,
+    uniqueUsers: 0,
+    avgTimeOnPage: '0m 00s',
+    percentage: 0,
+  }));
 
-  // Prepend to realtime logs (keep max 60 items)
-  current.realtimeLogs = [newLog, ...current.realtimeLogs.slice(0, 59)];
+  const sources: TrafficSourceItem[] = [
+    { source: 'Direct URL / Bookmark Warga', visits: 0, percentage: 0, color: '#059669' },
+    { source: 'Google Search (Organik)', visits: 0, percentage: 0, color: '#2563eb' },
+    { source: 'WhatsApp Broadcast RT/RW', visits: 0, percentage: 0, color: '#10b981' },
+    { source: 'PWA Home Screen (Aplikasi)', visits: 0, percentage: 0, color: '#7c3aed' },
+    { source: 'Media Sosial & Rujukan Lainnya', visits: 0, percentage: 0, color: '#f59e0b' },
+  ];
 
-  saveTrafficAnalytics(current);
-  return current;
+  const rwBreakdown = ['RW 01', 'RW 02', 'RW 03', 'RW 04', 'RW 05', 'RW 06', 'RW 07'].map((rw) => ({
+    rw,
+    sessions: 0,
+    reportsSubmitted: 0,
+    percentage: 0,
+  }));
+
+  return {
+    totalPageviews: 0,
+    uniqueVisitors: 0,
+    activeVisitorsNow: 1,
+    avgSessionDuration: '0m 00s',
+    bounceRate: 0,
+    todayPageviews: 0,
+    pwaInstalls: 0,
+    dailyPoints,
+    topPages,
+    sources,
+    deviceBreakdown: {
+      mobile: 0,
+      desktop: 0,
+      tablet: 0,
+    },
+    browserBreakdown: [],
+    rwBreakdown,
+    realtimeLogs: [],
+    lastUpdated: new Date().toISOString(),
+  };
+}
+
+export function loadTrafficAnalytics(): TrafficAnalyticsData {
+  try {
+    const raw = localStorage.getItem(TRAFFIC_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as TrafficAnalyticsData;
+      if (parsed && typeof parsed.totalPageviews === 'number' && Array.isArray(parsed.dailyPoints)) {
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to load cached real traffic analytics:', err);
+  }
+  return createInitialEmptyAnalytics();
+}
+
+export function saveTrafficAnalytics(data: TrafficAnalyticsData): void {
+  try {
+    localStorage.setItem(TRAFFIC_STORAGE_KEY, JSON.stringify(data));
+    window.dispatchEvent(new CustomEvent('pnk_traffic_updated', { detail: data }));
+  } catch (err) {
+    console.warn('Failed to save traffic analytics cache:', err);
+  }
+}
+
+export async function fetchRealTrafficAnalytics(): Promise<{
+  data: TrafficAnalyticsData;
+  latencyMs: number;
+  fromServer: boolean;
+}> {
+  const startMs = performance.now();
+  try {
+    const res = await fetch('/api/traffic', { cache: 'no-store' });
+    const latencyMs = Math.max(1, Math.round(performance.now() - startMs));
+    if (res.ok) {
+      const payload = await res.json();
+      if (payload?.ok && payload.data) {
+        const serverData = payload.data as TrafficAnalyticsData;
+        saveTrafficAnalytics(serverData);
+        return { data: serverData, latencyMs, fromServer: true };
+      }
+    }
+  } catch {
+    // Fallback to local real cache if offline
+  }
+  const latencyMs = Math.max(1, Math.round(performance.now() - startMs));
+  return { data: loadTrafficAnalytics(), latencyMs, fromServer: false };
 }
 
 /**
- * Simulates a realistic citizen visit for testing & demonstration
+ * Records a 100% real page navigation hit from the user's browser and syncs with the server.
  */
-export function simulateRandomVisitor(): RealtimeTrafficEvent {
-  const views = ['warga', 'sampah', 'beranda', 'peta', 'urbanfarming', 'kerjabakti', 'profil'];
-  const selectedView = views[Math.floor(Math.random() * views.length)];
-  const current = recordTrafficHit(selectedView);
-  return current.realtimeLogs[0];
+export function recordTrafficHit(view: AppView): TrafficAnalyticsData {
+  const nowMs = Date.now();
+  const visitorId = getOrCreateRealVisitorId();
+  const sessionId = getOrCreateRealSessionId();
+  const { deviceType, platform, browser } = detectRealDeviceAndBrowser();
+  const referrer = detectRealReferrerSource();
+  const locationHint = detectRealNetworkAndTimezoneHint();
+
+  let prevView = '';
+  let prevPageDurationSec = 0;
+  try {
+    prevView = sessionStorage.getItem(LAST_VIEW_KEY) || '';
+    const lastEnterStr = sessionStorage.getItem(LAST_VIEW_ENTER_MS_KEY);
+    if (prevView && lastEnterStr) {
+      const elapsedSec = Math.round((nowMs - Number(lastEnterStr)) / 1000);
+      if (elapsedSec > 0 && elapsedSec < 3600) {
+        prevPageDurationSec = elapsedSec;
+      }
+    }
+    sessionStorage.setItem(LAST_VIEW_KEY, view);
+    sessionStorage.setItem(LAST_VIEW_ENTER_MS_KEY, String(nowMs));
+  } catch {}
+
+  // Check if running as installed standalone PWA for the first time on this device
+  try {
+    const isStandalone =
+      window.matchMedia?.('(display-mode: standalone)')?.matches ||
+      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+    if (isStandalone && !localStorage.getItem(PWA_RECORDED_KEY)) {
+      localStorage.setItem(PWA_RECORDED_KEY, '1');
+      fetch('/api/traffic/pwa-install', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ standalone: true }),
+      }).catch(() => {});
+    }
+  } catch {}
+
+  // Send real telemetry hit to server
+  fetch('/api/traffic/hit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      view,
+      visitorId,
+      sessionId,
+      deviceType,
+      platform,
+      browser,
+      referrer,
+      locationHint,
+      prevView,
+      prevPageDurationSec,
+    }),
+  })
+    .then((res) => (res.ok ? res.json() : null))
+    .then((payload) => {
+      if (payload?.ok && payload.data) {
+        saveTrafficAnalytics(payload.data as TrafficAnalyticsData);
+      }
+    })
+    .catch(() => {});
+
+  return loadTrafficAnalytics();
 }
 
-/**
- * Resets traffic data to benchmark defaults
- */
-export function resetTrafficData(): TrafficAnalyticsData {
-  const fresh = getInitialTrafficData();
-  saveTrafficAnalytics(fresh);
-  return fresh;
+export async function recordRealPwaInstallEvent(): Promise<void> {
+  try {
+    localStorage.setItem(PWA_RECORDED_KEY, '1');
+    const res = await fetch('/api/traffic/pwa-install', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: 'appinstalled', standalone: true }),
+    });
+    if (res.ok) {
+      const payload = await res.json();
+      if (payload?.ok && payload.data) {
+        saveTrafficAnalytics(payload.data as TrafficAnalyticsData);
+      }
+    }
+  } catch {}
 }
 
-/**
- * Generates CSV string for exporting traffic report
- */
-export function exportTrafficCsv(data: TrafficAnalyticsData): string {
-  const lines = [];
-  lines.push('LAPORAN TRAFIK & PENGUNJUNG APLIKASI — KELURAHAN PANAIKANG');
-  lines.push(`Tanggal Cetak: ${new Date().toLocaleDateString('id-ID', { dateStyle: 'full' })}`);
-  lines.push('');
-  lines.push('RINGKASAN UTAMA');
-  lines.push(`Total Tayangan Halaman (Pageviews),${data.totalPageviews}`);
-  lines.push(`Pengunjung Unik (Unique Visitors),${data.uniqueVisitors}`);
-  lines.push(`Pengunjung Aktif Saat Ini,${data.activeVisitorsNow}`);
-  lines.push(`Kunjungan Hari Ini,${data.todayPageviews}`);
-  lines.push(`Rata-rata Durasi Sesi,${data.avgSessionDuration}`);
-  lines.push(`Tingkat Pantulan (Bounce Rate),${data.bounceRate}`);
-  lines.push(`PWA Terinstal di HP Warga,${data.pwaInstalls}`);
-  lines.push('');
-  lines.push('SUMBER TRAFIK PENGUNJUNG');
-  lines.push('Saluran / Rujukan,Jumlah Kunjungan,Persentase (%)');
-  data.sources.forEach((s) => {
-    lines.push(`"${s.channel}",${s.visits},${s.percentage}%`);
-  });
-  lines.push('');
-  lines.push('HALAMAN TERPOPULER');
-  lines.push('Path,Nama Halaman,Jumlah Tayangan,Persentase (%),Rata-rata Durasi');
-  data.topPages.forEach((p) => {
-    lines.push(`"${p.path}","${p.title}",${p.views},${p.percentage}%,"${p.avgDuration}"`);
-  });
-  lines.push('');
-  lines.push('DISTRIBUSI PER RW');
-  lines.push('Wilayah RW,Kunjungan,Persentase (%),Layanan Paling Sering Diakses');
-  data.rwBreakdown.forEach((r) => {
-    lines.push(`"${r.rw}",${r.visits},${r.percentage}%,"${r.topService}"`);
-  });
-  lines.push('');
-  lines.push('LOG AKSES TERAKHIR (REALTIME)');
-  lines.push('Waktu,Halaman,Perangkat,Platform,Browser,Lokasi / Provider,Rujukan,Status');
-  data.realtimeLogs.slice(0, 30).forEach((l) => {
-    lines.push(`"${l.timestamp}","${l.page} - ${l.pageTitle}","${l.deviceType}","${l.platform}","${l.browser}","${l.location}","${l.referrer}","${l.status}"`);
-  });
+export async function resetRealTrafficAnalytics(): Promise<TrafficAnalyticsData> {
+  try {
+    const res = await fetch('/api/traffic/reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (res.ok) {
+      const payload = await res.json();
+      if (payload?.ok && payload.data) {
+        const fresh = payload.data as TrafficAnalyticsData;
+        saveTrafficAnalytics(fresh);
+        return fresh;
+      }
+    }
+  } catch {}
+  const empty = createInitialEmptyAnalytics();
+  saveTrafficAnalytics(empty);
+  return empty;
+}
 
-  return lines.join('\n');
+export function exportTrafficCsv(data: TrafficAnalyticsData): void {
+  const headers = ['Tanggal', 'ISO Date', 'Pageviews', 'Unique Visitors', 'Sessions'];
+  const rows = data.dailyPoints.map((pt) => [
+    `"${pt.date}"`,
+    `"${pt.isoDate}"`,
+    pt.pageviews,
+    pt.uniqueVisitors,
+    pt.sessions,
+  ]);
+
+  const pageHeaders = ['Path Halaman', 'Judul Modul', 'Total Views', 'Unique Users', 'Avg Time', 'Persentase (%)'];
+  const pageRows = data.topPages.map((pg) => [
+    `"${pg.path}"`,
+    `"${pg.title}"`,
+    pg.views,
+    pg.uniqueUsers,
+    `"${pg.avgTimeOnPage}"`,
+    pg.percentage,
+  ]);
+
+  const logHeaders = ['ID Log', 'Waktu', 'Tanggal', 'Halaman', 'Perangkat', 'OS', 'Browser', 'Sumber Trafik', 'IP Masked'];
+  const logRows = data.realtimeLogs.map((l) => [
+    `"${l.id}"`,
+    `"${l.timestamp}"`,
+    `"${l.dateStr}"`,
+    `"${l.pageTitle} (${l.page})"`,
+    `"${l.deviceType}"`,
+    `"${l.platform}"`,
+    `"${l.browser}"`,
+    `"${l.referrer}"`,
+    `"${l.ipMasked}"`,
+  ]);
+
+  const csvContent = [
+    'LAPORAN REAL TRAFIK & KUNJUNGAN WEB - PORTAL SMART ENVIRONMENT KELURAHAN PANAIKANG',
+    `Diekspor pada: ${new Date().toLocaleString('id-ID')}`,
+    `Total Pageviews Riil: ${data.totalPageviews} | Unique Visitors Riil: ${data.uniqueVisitors} | Sesi Aktif Saat Ini: ${data.activeVisitorsNow}`,
+    '',
+    '--- TREN HARIAN (14 HARI TERAKHIR) ---',
+    headers.join(','),
+    ...rows.map((r) => r.join(',')),
+    '',
+    '--- HALAMAN TERPOPULER (REAL HITS) ---',
+    pageHeaders.join(','),
+    ...pageRows.map((r) => r.join(',')),
+    '',
+    '--- LOG KUNJUNGAN REAL-TIME TERAKHIR ---',
+    logHeaders.join(','),
+    ...logRows.map((r) => r.join(',')),
+  ].join('\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', `Laporan_Real_Traffic_Panaikang_${getLocalIsoDate(new Date())}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }

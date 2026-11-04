@@ -375,6 +375,16 @@ export function smartMergeDatabases(
         ? secondaryProfile.boundaries
         : INITIAL_KELURAHAN_PROFILE.boundaries);
 
+  const pickStringArray = (key: 'stafPemerintahan' | 'stafPemberdayaan' | 'stafKebersihan'): string[] => {
+    const pVal = primaryProfile[key];
+    if (Array.isArray(pVal) && pVal.length > 0) return pVal.map((s) => String(s || '').trim()).filter(Boolean);
+    const sVal = secondaryProfile[key];
+    if (Array.isArray(sVal) && sVal.length > 0) return sVal.map((s) => String(s || '').trim()).filter(Boolean);
+    const bVal = baseProfile[key];
+    if (Array.isArray(bVal) && bVal.length > 0) return bVal.map((s) => String(s || '').trim()).filter(Boolean);
+    return [];
+  };
+
   const resolvedProfile: KelurahanProfile = {
     ...baseProfile,
     ...secondaryProfile,
@@ -387,8 +397,18 @@ export function smartMergeDatabases(
     lurahPeriod: pickNonEmpty('lurahPeriod'),
     lurahMessage: pickNonEmpty('lurahMessage'),
     sekretarisName: pickNonEmpty('sekretarisName'),
+    sekretarisNip: pickNonEmpty('sekretarisNip'),
     kasiKebersihanName: pickNonEmpty('kasiKebersihanName'),
+    kasiKebersihanNip: pickNonEmpty('kasiKebersihanNip'),
     kasiPemerintahanName: pickNonEmpty('kasiPemerintahanName'),
+    kasiPemerintahanNip: pickNonEmpty('kasiPemerintahanNip'),
+    kasiPemberdayaanName: pickNonEmpty('kasiPemberdayaanName'),
+    kasiPemberdayaanNip: pickNonEmpty('kasiPemberdayaanNip'),
+    stafPemerintahan: pickStringArray('stafPemerintahan'),
+    stafPemberdayaan: pickStringArray('stafPemberdayaan'),
+    stafKebersihan: pickStringArray('stafKebersihan'),
+    perwaliReference: pickNonEmpty('perwaliReference', 'PERWALI KOTA MAKASSAR NOMOR 65 TAHUN 2023'),
+    ketuaLpmName: pickNonEmpty('ketuaLpmName'),
     officeAddress: pickNonEmpty('officeAddress'),
     subDistrict: pickNonEmpty('subDistrict', 'Kecamatan Panakkukang'),
     city: pickNonEmpty('city', 'Kota Makassar, Provinsi Sulawesi Selatan'),
@@ -396,8 +416,8 @@ export function smartMergeDatabases(
     serviceHours: pickNonEmpty('serviceHours', 'Senin – Jumat · 08:00 – 16:00 WITA'),
     phoneContact: pickNonEmpty('phoneContact'),
     emailContact: pickNonEmpty('emailContact'),
-    baganStrukturKelurahanUrl: pickNonEmpty('baganStrukturKelurahanUrl'),
-    baganStrukturRtRwUrl: pickNonEmpty('baganStrukturRtRwUrl'),
+    baganStrukturKelurahanUrl: '',
+    baganStrukturRtRwUrl: '',
     areaKm2: pickNonEmpty('areaKm2'),
     totalPopulation: pickNonEmpty('totalPopulation'),
     visi: pickNonEmpty('visi'),
