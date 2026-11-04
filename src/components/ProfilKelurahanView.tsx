@@ -115,79 +115,63 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
                   <span>DATA PIMPINAN LURAH PANAIKANG</span>
                 </div>
 
-                {profile.lurahName || profile.lurahPhotoUrl ? (
-                  <div className="mt-3 p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-slate-50 via-white to-sky-50/40 border border-slate-200/90 shadow-xs">
-                    <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
-                      {/* Foto Lurah Hasil Upload Administrator */}
-                      <div className="relative shrink-0">
-                        {profile.lurahPhotoUrl ? (
-                          <div className="w-28 h-36 sm:w-32 sm:h-40 rounded-xl overflow-hidden border-2 border-[#0D3868]/40 shadow-sm bg-white">
-                            <img
-                              src={profile.lurahPhotoUrl}
-                              alt={`Foto Resmi ${profile.lurahName || 'Lurah Panaikang'}`}
-                              className="w-full h-full object-cover object-top"
-                            />
-                          </div>
-                        ) : (
-                          <div className="w-28 h-36 sm:w-32 sm:h-40 rounded-xl border-2 border-dashed border-slate-300 bg-slate-100/80 flex flex-col items-center justify-center text-slate-400 p-2 text-center">
-                            <User className="w-10 h-10 mb-1 text-slate-300" />
-                            <span className="text-[10px] font-medium leading-tight">Foto Lurah Belum Diunggah</span>
-                          </div>
-                        )}
-                        <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-[#0D3868] text-white text-[10px] font-bold tracking-wider uppercase whitespace-nowrap shadow-xs">
-                          Lurah
-                        </div>
+                <div className="mt-3 p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-slate-50 via-white to-sky-50/40 border border-slate-200/90 shadow-xs">
+                  <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
+                    {/* Foto Lurah Resmi */}
+                    <div className="relative shrink-0">
+                      <div className="w-28 h-36 sm:w-32 sm:h-40 rounded-xl overflow-hidden border-2 border-[#0D3868]/40 shadow-sm bg-white">
+                        <img
+                          src={
+                            profile.lurahPhotoUrl?.trim() ||
+                            '/images/lurah_muthmainnah_panaikang_1791548085422.jpg'
+                          }
+                          alt={`Foto Resmi ${profile.lurahName || 'Lurah Panaikang'}`}
+                          className="w-full h-full object-cover object-top"
+                        />
                       </div>
-
-                      {/* Biodata & Sambutan Pejabat Lurah */}
-                      <div className="flex-1 min-w-0 text-center sm:text-left">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                          <div>
-                            <div className="text-lg sm:text-xl font-extrabold text-[#0D3868]">
-                              {profile.lurahName || 'Nama Lurah Belum Diisi'}
-                            </div>
-                            <div className="mt-1 flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs text-slate-600">
-                              <span className="font-semibold text-emerald-700">Lurah Panaikang</span>
-                              {profile.lurahNip && (
-                                <>
-                                  <span aria-hidden="true">·</span>
-                                  <span className="font-mono-num font-medium">NIP. {profile.lurahNip}</span>
-                                </>
-                              )}
-                              {profile.lurahRank && (
-                                <>
-                                  <span aria-hidden="true">·</span>
-                                  <span>{profile.lurahRank}</span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                          {profile.lurahPeriod && (
-                            <div className="text-xs font-mono-num font-semibold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 self-center sm:self-start">
-                              Masa Tugas: {profile.lurahPeriod}
-                            </div>
-                          )}
-                        </div>
-
-                        {profile.lurahMessage ? (
-                          <p className="mt-4 pt-3 border-t border-slate-200/80 text-xs sm:text-sm italic text-slate-700 leading-relaxed bg-white/70 p-3.5 rounded-xl border border-slate-100">
-                            "{profile.lurahMessage}"
-                          </p>
-                        ) : null}
+                      <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-[#0D3868] text-white text-[10px] font-bold tracking-wider uppercase whitespace-nowrap shadow-xs">
+                        Lurah
                       </div>
                     </div>
+
+                    {/* Biodata & Sambutan Pejabat Lurah */}
+                    <div className="flex-1 min-w-0 text-center sm:text-left">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <div className="text-lg sm:text-xl font-extrabold text-[#0D3868]">
+                            {profile.lurahName || 'MUTHMAINNAH, S.E., M.M'}
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs text-slate-600">
+                            <span className="font-semibold text-emerald-700">Lurah Panaikang</span>
+                            {profile.lurahNip && (
+                              <>
+                                <span aria-hidden="true">·</span>
+                                <span className="font-mono-num font-medium">NIP. {profile.lurahNip}</span>
+                              </>
+                            )}
+                            {profile.lurahRank && (
+                              <>
+                                <span aria-hidden="true">·</span>
+                                <span>{profile.lurahRank}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        {profile.lurahPeriod && (
+                          <div className="text-xs font-mono-num font-semibold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 self-center sm:self-start">
+                            Masa Tugas: {profile.lurahPeriod}
+                          </div>
+                        )}
+                      </div>
+
+                      {profile.lurahMessage ? (
+                        <p className="mt-4 pt-3 border-t border-slate-200/80 text-xs sm:text-sm italic text-slate-700 leading-relaxed bg-white/70 p-3.5 rounded-xl border border-slate-100">
+                          "{profile.lurahMessage}"
+                        </p>
+                      ) : null}
+                    </div>
                   </div>
-                ) : (
-                  <div className="mt-3 p-6 text-center rounded-xl border border-dashed border-slate-200 bg-slate-50/70">
-                    <User className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                    <p className="text-xs font-semibold text-slate-700">
-                      Data Pejabat Lurah Belum Diinput
-                    </p>
-                    <p className="text-[11px] text-slate-500 mt-1 max-w-sm mx-auto">
-                      Administrator kelurahan dapat mengunggah foto Lurah, nama, NIP, pangkat, sambutan, dan informasi profil lainnya melalui menu Profil Kelurahan di Panel Admin.
-                    </p>
-                  </div>
-                )}
+                </div>
               </div>
 
               {/* Perangkat Struktural Kelurahan */}

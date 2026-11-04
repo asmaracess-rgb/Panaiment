@@ -209,7 +209,16 @@ export function createSafeSnapshot(database: PersistedDatabase): PersistedDataba
     return val;
   };
 
+  const preservedLurahPhoto =
+    typeof database.profile?.lurahPhotoUrl === 'string' &&
+    database.profile.lurahPhotoUrl.length < 350_000
+      ? database.profile.lurahPhotoUrl
+      : '';
+
   const safeClone = cleanObject(database) as PersistedDatabase;
+  if (safeClone.profile && preservedLurahPhoto) {
+    safeClone.profile.lurahPhotoUrl = preservedLurahPhoto;
+  }
 
   if (Array.isArray(safeClone.activityLogs)) {
     safeClone.activityLogs = safeClone.activityLogs.slice(0, 25);

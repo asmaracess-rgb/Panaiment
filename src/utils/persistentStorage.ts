@@ -80,9 +80,33 @@ export interface PersistedDatabase {
 // Multi-tier storage keys to guarantee zero data loss across GitHub sync & Vercel builds
 const STORAGE_KEY = 'pnk_smart_env_db_v4';
 const BACKUP_KEY = 'pnk_smart_env_db_backup_v4';
+const LEGACY_STORAGE_KEY_V3 = 'pnk_smart_env_db_v3';
+const LEGACY_BACKUP_KEY_V3 = 'pnk_smart_env_db_backup_v3';
+const LURAH_PHOTO_BACKUP_KEY = 'pnk_lurah_photo_backup_v1';
 const JOURNAL_REPORTS_KEY = 'pnk_smart_env_user_reports_v2';
 const JOURNAL_LOGS_KEY = 'pnk_smart_env_user_logs_v2';
 const DELETED_IDS_KEY = 'pnk_smart_env_deleted_ids_v2';
+
+function getRecoveredLurahPhotoUrl(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    const direct = window.localStorage.getItem(LURAH_PHOTO_BACKUP_KEY);
+    if (direct && direct.trim()) return direct.trim();
+    for (const key of [STORAGE_KEY, BACKUP_KEY, LEGACY_STORAGE_KEY_V3, LEGACY_BACKUP_KEY_V3]) {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      const url = parsed?.profile?.lurahPhotoUrl;
+      if (typeof url === 'string' && url.trim()) {
+        window.localStorage.setItem(LURAH_PHOTO_BACKUP_KEY, url.trim());
+        return url.trim();
+      }
+    }
+  } catch {
+    // Ignore storage read errors
+  }
+  return '';
+}
 
 // Initial IDs to distinguish default sample data from actual citizen & admin input
 const INITIAL_REPORT_IDS = new Set(INITIAL_REPORTS.map((r) => r.id));
@@ -392,7 +416,7 @@ export function smartMergeDatabases(
     officials: resolvedOfficials,
     lurahName: pickNonEmpty('lurahName'),
     lurahNip: pickNonEmpty('lurahNip'),
-    lurahPhotoUrl: pickNonEmpty('lurahPhotoUrl'),
+    lurahPhotoUrl: pickNonEmpty('lurahPhotoUrl') || getRecoveredLurahPhotoUrl(),
     lurahRank: pickNonEmpty('lurahRank'),
     lurahPeriod: pickNonEmpty('lurahPeriod'),
     lurahMessage: pickNonEmpty('lurahMessage'),
@@ -690,6 +714,10 @@ export function savePersistedDatabase(db: PersistedDatabase): void {
     window.localStorage.setItem(STORAGE_KEY, serialized);
     // 2. Redundant backup storage
     window.localStorage.setItem(BACKUP_KEY, serialized);
+    // 2B. Dedicated Lurah photo backup
+    if (db.profile?.lurahPhotoUrl && db.profile.lurahPhotoUrl.trim()) {
+      window.localStorage.setItem(LURAH_PHOTO_BACKUP_KEY, db.profile.lurahPhotoUrl.trim());
+    }
     // 3. Persistent tombstone storage
     window.localStorage.setItem(DELETED_IDS_KEY, JSON.stringify(db.deletedItemIds));
 

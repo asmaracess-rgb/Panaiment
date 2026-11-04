@@ -942,7 +942,16 @@ async function startServer() {
     db.deletedItemIds = Array.from(deletedSet);
 
     if (incoming.profile) {
-      db.profile = incoming.profile;
+      const prevPhoto = db.profile?.lurahPhotoUrl || '';
+      db.profile = {
+        ...incoming.profile,
+        lurahPhotoUrl:
+          incoming.profile.lurahPhotoUrl && incoming.profile.lurahPhotoUrl.trim()
+            ? incoming.profile.lurahPhotoUrl.trim()
+            : incoming.profile.lurahName
+            ? prevPhoto
+            : '',
+      };
       if (Array.isArray(incoming.profile.officials)) {
         db.profile.officials = incoming.profile.officials.filter(
           (o) => o && o.id && !deletedSet.has(o.id)
@@ -1283,9 +1292,16 @@ async function startServer() {
       return;
     }
 
+    const prevPhoto = db.profile?.lurahPhotoUrl || '';
     db.profile = {
       ...db.profile,
       ...incoming,
+      lurahPhotoUrl:
+        incoming.lurahPhotoUrl && incoming.lurahPhotoUrl.trim()
+          ? incoming.lurahPhotoUrl.trim()
+          : incoming.lurahName
+          ? prevPhoto
+          : '',
       misi: Array.isArray(incoming.misi)
         ? incoming.misi.map((m) => (typeof m === 'string' ? m.trim() : '')).filter(Boolean)
         : (db.profile.misi || []),

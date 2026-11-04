@@ -458,13 +458,38 @@ export default function App() {
     // 2B. Dedicated Real-time Firestore Profile Subscription (guarantees profile identical everywhere)
     const unsubscribeProfile = subscribeToFirestoreProfile((cloudProfile) => {
       if (!mounted || !cloudProfile) return;
-      setKelurahanProfile((prev) => ({ ...prev, ...cloudProfile }));
-      stateRef.current.profile = { ...stateRef.current.profile, ...cloudProfile };
+      setKelurahanProfile((prev) => {
+        const mergedPhoto =
+          (cloudProfile.lurahPhotoUrl && cloudProfile.lurahPhotoUrl.trim()) ||
+          (prev.lurahPhotoUrl && prev.lurahPhotoUrl.trim()) ||
+          '';
+        return {
+          ...prev,
+          ...cloudProfile,
+          lurahPhotoUrl: mergedPhoto,
+        };
+      });
+      const currentPhoto =
+        (cloudProfile.lurahPhotoUrl && cloudProfile.lurahPhotoUrl.trim()) ||
+        (stateRef.current.profile?.lurahPhotoUrl && stateRef.current.profile.lurahPhotoUrl.trim()) ||
+        '';
+      stateRef.current.profile = {
+        ...stateRef.current.profile,
+        ...cloudProfile,
+        lurahPhotoUrl: currentPhoto,
+      };
       const local = loadPersistedDatabase();
       if (local) {
         savePersistedDatabase({
           ...local,
-          profile: { ...local.profile, ...cloudProfile },
+          profile: {
+            ...local.profile,
+            ...cloudProfile,
+            lurahPhotoUrl:
+              (cloudProfile.lurahPhotoUrl && cloudProfile.lurahPhotoUrl.trim()) ||
+              (local.profile?.lurahPhotoUrl && local.profile.lurahPhotoUrl.trim()) ||
+              currentPhoto,
+          },
           updatedAt: Date.now(),
         });
       }
@@ -747,6 +772,12 @@ export default function App() {
     const nextProfile: KelurahanProfile = {
       ...kelurahanProfile,
       ...updatedProfile,
+      lurahPhotoUrl:
+        updatedProfile.lurahPhotoUrl && updatedProfile.lurahPhotoUrl.trim()
+          ? updatedProfile.lurahPhotoUrl.trim()
+          : updatedProfile.lurahName
+          ? kelurahanProfile.lurahPhotoUrl || ''
+          : '',
       misi: cleanMisi,
     };
     setKelurahanProfile(nextProfile);
