@@ -87,9 +87,9 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
       return {
         ...item,
         rw: item?.rw || `RW ${idx + 1}`,
-        rwName: item?.rwName || '',
-        poskoLocation: item?.poskoLocation || '',
-        notes: item?.notes || '',
+        rwName: '',
+        poskoLocation: (item?.poskoLocation || '').replace(/kawasan\s+/gi, ''),
+        notes: (item?.notes || '').replace(/kawasan\s+/gi, ''),
         schedules: {
           Senin: toOfficerArray(schedulesObj?.Senin),
           Selasa: toOfficerArray(schedulesObj?.Selasa),
@@ -789,12 +789,9 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
                             <span>Piket {selectedDay}: {officersToday.length} Petugas Siaga</span>
                           </span>
                         </div>
-                        <h3 className="mt-1 text-base sm:text-lg font-black text-white">
-                          {item.rwName}
-                        </h3>
-                        <p className="mt-0.5 text-xs text-sky-100 flex items-center gap-1.5">
-                          <MapPin className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-                          <span>{item.poskoLocation}</span>
+                        <p className="mt-1.5 text-sm sm:text-base font-extrabold text-white flex items-center gap-1.5">
+                          <MapPin className="w-4 h-4 text-amber-300 shrink-0" />
+                          <span>{item.poskoLocation || `Posko Siskamling ${item.rw}`}</span>
                         </p>
                       </div>
 

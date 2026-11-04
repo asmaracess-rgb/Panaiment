@@ -17,7 +17,7 @@ export const SISKAMLING_DAYS: SiskamlingDay[] = [
 export const INITIAL_SISKAMLING_SCHEDULES: SiskamlingRwSchedule[] = [
   {
     rw: 'RW 1',
-    rwName: 'Kawasan Nipah Mall & Racing Centre',
+    rwName: '',
     poskoLocation: 'Posko Terpadu RW 01 (Jl. Racing Centre)',
     schedules: {
       Senin: ['EDWIN BURHANUDDIN', 'SYAMSUL BAHRI', 'IVAN RUDI', 'SYARIFUDDIN'],
@@ -28,11 +28,11 @@ export const INITIAL_SISKAMLING_SCHEDULES: SiskamlingRwSchedule[] = [
       Sabtu: ['EDWIN BURHANUDDIN', 'HASIA T', 'BARLIANTA', 'AKBAR'],
       Minggu: ['SELURUH RT/RW 001'],
     },
-    notes: 'Patroli berkala kawasan poros dan pusat perbelanjaan Nipah Mall.',
+    notes: 'Patroli berkala poros jalan dan pusat perbelanjaan Nipah Mall.',
   },
   {
     rw: 'RW 2',
-    rwName: 'Koridor Poros Jl. Urip Sumoharjo',
+    rwName: '',
     poskoLocation: 'Posko Keamanan RW 02 (Poros Urip Sumoharjo)',
     schedules: {
       Senin: ['MARKUS PAPI', 'SENTOSA SUCIPTO', 'DESY ARLIN NUSU', 'NASRUDDIN'],
@@ -47,7 +47,7 @@ export const INITIAL_SISKAMLING_SCHEDULES: SiskamlingRwSchedule[] = [
   },
   {
     rw: 'RW 3',
-    rwName: 'Kawasan Kampus UMI & Lorong 2',
+    rwName: '',
     poskoLocation: 'Posko Kamtibmas RW 03 (Samping Kampus UMI)',
     schedules: {
       Senin: ['MUH. YUSUF R', 'SUDIRMAN', 'MATIUS RAMDAN PASEDA', 'SERTU BAHARUDDIN'],
@@ -62,7 +62,7 @@ export const INITIAL_SISKAMLING_SCHEDULES: SiskamlingRwSchedule[] = [
   },
   {
     rw: 'RW 4',
-    rwName: 'Kawasan Jl. Sukaria Raya Lorong 1–5',
+    rwName: '',
     poskoLocation: 'Posko Siskamling RW 04 (Jl. Sukaria Raya)',
     schedules: {
       Senin: ['RUDY KARODO', 'AGUSTINA MAGA', 'M. ARIL SYAHRIL', 'HARLINA'],
@@ -77,7 +77,7 @@ export const INITIAL_SISKAMLING_SCHEDULES: SiskamlingRwSchedule[] = [
   },
   {
     rw: 'RW 5',
-    rwName: 'Kawasan Kompleks Kejaksaan & Adhyaksa',
+    rwName: '',
     poskoLocation: 'Pos Ronda RW 05 (Kompleks Kejaksaan)',
     schedules: {
       Senin: ['HAERUDDIN TAIRAS', 'GITA OKTRIAT', 'FATMAWATI', 'SURAINI'],
@@ -92,7 +92,7 @@ export const INITIAL_SISKAMLING_SCHEDULES: SiskamlingRwSchedule[] = [
   },
   {
     rw: 'RW 6',
-    rwName: 'Kawasan Bantaran Kanal Pampang - Panaikang',
+    rwName: '',
     poskoLocation: 'Posko Siaga Bencana & Ronda RW 06 (Tepi Kanal)',
     schedules: {
       Senin: ['HIDAYAT MIHARJA', 'HASMIANTI', 'M. IRSANDI NURLAN', 'ANNA MARIANA'],
@@ -107,7 +107,7 @@ export const INITIAL_SISKAMLING_SCHEDULES: SiskamlingRwSchedule[] = [
   },
   {
     rw: 'RW 7',
-    rwName: 'Kawasan Flamboyan & Sukaria Timur',
+    rwName: '',
     poskoLocation: 'Pos Ronda RW 07 (Jl. Flamboyan)',
     schedules: {
       Senin: ['ANNA MARIANA', 'FUAD HASAN', 'MARTHEN TINRI', 'SUDARMIN'],

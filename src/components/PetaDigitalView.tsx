@@ -26,6 +26,9 @@ import {
   Users,
   ChevronRight,
   Phone,
+  Mail,
+  UserCheck,
+  User,
 } from 'lucide-react';
 import {
   CitizenReport,
@@ -329,10 +332,20 @@ export const PetaDigitalView: React.FC<PetaDigitalViewProps> = ({
   const [mapTypeId, setMapTypeId] = useState<'roadmap' | 'hybrid'>('roadmap');
 
   // Boundaries directly connected from Lurah/Admin input in Profil Kelurahan
-  const batasUtara = profile?.boundaries?.utara?.trim() || 'Kanal Pampang / Pampang';
-  const batasTimur = profile?.boundaries?.timur?.trim() || 'Manggala & Tamamaung';
-  const batasSelatan = profile?.boundaries?.selatan?.trim() || 'Karampuang & Pandang';
-  const batasBarat = profile?.boundaries?.barat?.trim() || 'Sinrijala / Pettarani';
+  const batasUtara = profile?.boundaries?.utara?.trim() || '-';
+  const batasTimur = profile?.boundaries?.timur?.trim() || '-';
+  const batasSelatan = profile?.boundaries?.selatan?.trim() || '-';
+  const batasBarat = profile?.boundaries?.barat?.trim() || '-';
+
+  const formattedOfficeAddress = useMemo(() => {
+    const addr = profile?.officeAddress?.trim();
+    const city = profile?.city?.trim() || 'Kota Makassar, Provinsi Sulawesi Selatan';
+    const postal = profile?.postalCode?.trim() || '90231';
+    if (addr) {
+      return `${addr}, ${city} (${postal})`;
+    }
+    return `- (${city} · ${postal})`;
+  }, [profile]);
 
   const [selectedBoundaryDir, setSelectedBoundaryDir] = useState<
     'utara' | 'timur' | 'selatan' | 'barat' | null
@@ -409,7 +422,7 @@ export const PetaDigitalView: React.FC<PetaDigitalViewProps> = ({
       id: 'kantor-lurah',
       position: KANTOR_LURAH_COORDINATE,
       title: 'Kantor Lurah Panaikang',
-      description: 'Pusat Pemerintahan & Posko Smart Environment Kelurahan Panaikang',
+      description: `${formattedOfficeAddress} · Jam Layanan: ${profile?.serviceHours || '-'}`,
       badge: 'Kantor Kelurahan',
       badgeColor: 'bg-[#0D3868]',
     });
@@ -874,45 +887,143 @@ export const PetaDigitalView: React.FC<PetaDigitalViewProps> = ({
 
         {/* Right: Inspection Sidebar */}
         <div className="lg:col-span-4 space-y-4">
-          {/* Kantor Lurah Card */}
+          {/* Kantor Lurah Card - Tersinkronisasi 100% dengan Profil Kelurahan */}
           {selectedItem.type === 'kantor' && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3.5 shadow-xs">
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-xs">
               <div className="pb-3 border-b border-slate-200">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#0D3868] bg-sky-50 px-2.5 py-0.5 rounded-md border border-sky-200 flex items-center gap-1">
-                    <Building2 className="w-3.5 h-3.5 text-[#0277BD]" />
-                    <span>KANTOR PEMERINTAHAN</span>
-                  </span>
-                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                    Pusat Layanan
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#1C8237] bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
+                    <Building2 className="w-3.5 h-3.5 text-[#1C8237]" />
+                    <span>ALAMAT & KONTAK KANTOR KELURAHAN</span>
                   </span>
                 </div>
                 <h3 className="mt-2 text-base font-extrabold text-[#0D3868]">
                   Kantor Lurah Panaikang
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Kecamatan Panakkukang, Kota Makassar
+                  {profile?.subDistrict || 'Kecamatan Panakkukang'}, {profile?.city || 'Kota Makassar, Provinsi Sulawesi Selatan'}
                 </p>
               </div>
 
-              <div className="text-xs space-y-2 text-slate-600">
-                <div className="flex items-start gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-[#0D3868] shrink-0 mt-0.5" />
-                  <span>
-                    <strong>Alamat:</strong> Jl. Babussalam No. 1, Kelurahan Panaikang, Makassar
-                  </span>
+              {/* Informasi Pimpinan Lurah (Sesuai Profil Kelurahan) */}
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-3">
+                {profile?.lurahPhotoUrl ? (
+                  <img
+                    src={profile.lurahPhotoUrl}
+                    alt={profile.lurahName || 'Lurah Panaikang'}
+                    className="w-11 h-14 rounded-lg object-cover object-top border border-[#0D3868]/30 shrink-0 bg-white"
+                  />
+                ) : (
+                  <div className="w-11 h-14 rounded-lg border border-dashed border-slate-300 bg-white flex items-center justify-center text-slate-400 shrink-0">
+                    <User className="w-5 h-5" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] font-bold text-[#0277BD] uppercase tracking-wider flex items-center gap-1">
+                    <UserCheck className="w-3 h-3" />
+                    <span>Pimpinan Lurah Panaikang</span>
+                  </div>
+                  <div className="text-xs font-extrabold text-[#0D3868] truncate mt-0.5">
+                    {profile?.lurahName || 'Nama Lurah Belum Diisi'}
+                  </div>
+                  <div className="text-[11px] text-slate-600 truncate">
+                    {profile?.lurahNip ? `NIP. ${profile.lurahNip}` : 'Lurah Panaikang'}
+                    {profile?.lurahRank ? ` · ${profile.lurahRank}` : ''}
+                  </div>
                 </div>
-                <div className="flex items-start gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-emerald-700 shrink-0 mt-0.5" />
-                  <span>
-                    <strong>Jam Pelayanan:</strong> Senin - Jumat: 08.00 - 15.30 WITA
-                  </span>
+              </div>
+
+              {/* Alamat, Jam Pelayanan, Telepon & Email (Sesuai Profil Kelurahan) */}
+              <div className="text-xs space-y-2.5 text-slate-700">
+                <div className="flex items-start gap-2.5">
+                  <MapPin className="w-4 h-4 text-[#0277BD] shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-semibold text-slate-900">Alamat Kantor Pelayanan:</div>
+                    <div className="text-slate-600 leading-relaxed">
+                      {formattedOfficeAddress}
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-start gap-1.5">
-                  <Shield className="w-3.5 h-3.5 text-[#0277BD] shrink-0 mt-0.5" />
-                  <span>
-                    <strong>Pusat Koordinasi:</strong> Wilayah administratif RW 01 s/d RW 07
-                  </span>
+
+                <div className="flex items-start gap-2.5">
+                  <Clock className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-semibold text-slate-900">Jam Pelayanan Warga:</div>
+                    <div className="text-slate-600 font-mono-num">
+                      {profile?.serviceHours || '-'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2.5">
+                  <Phone className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-semibold text-slate-900">
+                      Telepon & Hotline Posko Smart Environment:
+                    </div>
+                    <div className="text-slate-600 font-mono-num">
+                      {profile?.phoneContact || '-'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2.5">
+                  <Mail className="w-4 h-4 text-purple-700 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-semibold text-slate-900">Surat Elektronik Resmi:</div>
+                    <div className="text-slate-600 font-mono-num">
+                      {profile?.emailContact || '-'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Demografi & Batas Administratif Wilayah (Sesuai Profil Kelurahan) */}
+              <div className="pt-3 border-t border-slate-200 space-y-3">
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="p-2 rounded-xl bg-slate-50 border border-slate-200">
+                    <div className="text-[10px] text-slate-500">Luas Wilayah</div>
+                    <div className="text-xs font-extrabold text-[#0D3868] font-mono-num mt-0.5">
+                      {profile?.areaKm2 || '-'}
+                    </div>
+                  </div>
+                  <div className="p-2 rounded-xl bg-slate-50 border border-slate-200">
+                    <div className="text-[10px] text-slate-500">Cakupan RT/RW</div>
+                    <div className="text-xs font-extrabold text-[#0D3868] font-mono-num mt-0.5">
+                      {profile?.totalRw || 7} RW · {profile?.totalRt || 0} RT
+                    </div>
+                  </div>
+                  <div className="p-2 rounded-xl bg-slate-50 border border-slate-200">
+                    <div className="text-[10px] text-slate-500">Penduduk</div>
+                    <div className="text-[11px] font-extrabold text-[#0D3868] font-mono-num mt-0.5">
+                      {profile?.totalPopulation
+                        ? `${profile.totalPopulation.split(' ')[0]} Jiwa`
+                        : '-'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-[11px] space-y-1 text-slate-600">
+                  <div className="font-semibold text-slate-900 flex items-center gap-1.5 mb-1">
+                    <Compass className="w-3.5 h-3.5 text-[#0D3868]" />
+                    <span>Batas Administratif Wilayah:</span>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-slate-800">Utara:</span>{' '}
+                    {profile?.boundaries?.utara || '-'}
+                  </div>
+                  <div>
+                    <span className="font-semibold text-slate-800">Selatan:</span>{' '}
+                    {profile?.boundaries?.selatan || '-'}
+                  </div>
+                  <div>
+                    <span className="font-semibold text-slate-800">Timur:</span>{' '}
+                    {profile?.boundaries?.timur || '-'}
+                  </div>
+                  <div>
+                    <span className="font-semibold text-slate-800">Barat:</span>{' '}
+                    {profile?.boundaries?.barat || '-'}
+                  </div>
                 </div>
               </div>
 
