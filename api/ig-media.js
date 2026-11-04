@@ -2,6 +2,9 @@ import fs from 'fs';
 import path from 'path';
 
 const SHORTCODE_MAP = {
+  ig_post_latest_1: 'DfT7acUJdwh',
+  ig_post_latest_2: 'DfM0_MZvZON',
+  ig_post_latest_3: 'DfM0LNqPFR5',
   ig_post_1: 'DdrMaapvrr4',
   ig_post_2: 'DbnJW3OvANh',
   ig_post_3: 'DcN5ah3vZdT',
@@ -18,6 +21,9 @@ const SHORTCODE_MAP = {
 
 const FILE_BY_CODE = {
   profile: 'ig_profile_panaikang.jpg',
+  DfT7acUJdwh: 'ig_post_latest_1_DfT7acUJdwh.jpg',
+  DfM0_MZvZON: 'ig_post_latest_2_DfM0_MZvZON.jpg',
+  DfM0LNqPFR5: 'ig_post_latest_3_DfM0LNqPFR5.jpg',
   DdrMaapvrr4: 'ig_post_1_DdrMaapvrr4.jpg',
   DbnJW3OvANh: 'ig_post_2_DbnJW3OvANh.jpg',
   DcN5ah3vZdT: 'ig_post_3_DcN5ah3vZdT.jpg',

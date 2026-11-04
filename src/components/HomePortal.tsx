@@ -3,8 +3,6 @@ import {
   ArrowRight,
   MapPin,
   CheckCircle2,
-  Clock,
-  Recycle,
   Calendar,
   X,
   Newspaper,
@@ -12,9 +10,7 @@ import {
   Heart,
   MessageCircle,
   ExternalLink,
-  RefreshCw,
   Users,
-  Camera,
   Sprout,
   Leaf,
   Building2,
@@ -118,19 +114,20 @@ export const HomePortal: React.FC<HomePortalProps> = ({
       ? urbanFarmingSpots
       : INITIAL_URBAN_FARMING_SPOTS;
   const [localLikesOffset, setLocalLikesOffset] = useState<Record<string, number>>({});
-  const [isSyncingIg, setIsSyncingIg] = useState(false);
-  const [igSyncStatus, setIgSyncStatus] = useState<string>('Terhubung Otomatis · @kelurahan.panaikang');
-  const [igEmbedMode, setIgEmbedMode] = useState<boolean>(true);
   const [embedFallbackPosts, setEmbedFallbackPosts] = useState<Record<string, boolean>>({});
   const [modalShowEmbed, setModalShowEmbed] = useState<boolean>(false);
 
-  // Display current kelurahanInfos (including edits, additions, or deletions)
-  const activeInfos = Array.isArray(kelurahanInfos) ? kelurahanInfos : INITIAL_KELURAHAN_INFOS;
+  // Display current kelurahanInfos (fallback to INITIAL_KELURAHAN_INFOS if empty)
+  const activeInfos =
+    Array.isArray(kelurahanInfos) && kelurahanInfos.length > 0
+      ? kelurahanInfos
+      : INITIAL_KELURAHAN_INFOS;
 
-  // Urutkan berdasarkan tanggal terbaru (Terbaru ke Terlama)
-  const sortedInfosByLatest = [...activeInfos].sort(
-    (a, b) => parseIndonesianDateScore(b.publishedAt) - parseIndonesianDateScore(a.publishedAt)
-  );
+  // Urutkan berdasarkan tanggal terbaru (Terbaru ke Terlama) dengan menjaga urutan kronologis asli
+  const sortedInfosByLatest = [...activeInfos].sort((a, b) => {
+    const diff = parseIndonesianDateScore(b.publishedAt) - parseIndonesianDateScore(a.publishedAt);
+    return diff;
+  });
 
   const handleToggleLike = (e: React.MouseEvent, info: KelurahanInfoItem) => {
     e.stopPropagation();
@@ -143,23 +140,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
     }));
   };
 
-  const handleSyncInstagramFeed = async () => {
-    setIsSyncingIg(true);
-    try {
-      const result = await onSyncInstagram();
-      if (result.ok) {
-        setIgSyncStatus(
-          `Tersinkronisasi dengan @kelurahan.panaikang · ${result.syncedAt || 'Baru Saja'}`
-        );
-      }
-    } catch {
-      setIgSyncStatus('Tersinkronisasi dengan @kelurahan.panaikang · Baru Saja');
-    } finally {
-      window.setTimeout(() => setIsSyncingIg(false), 350);
-    }
-  };
-
-  // Pada Embed IG, tampilkan hanya 3 postingan terakhir (Terbaru) dari @kelurahan.panaikang
+  // Tampilkan 3 postingan terakhir (Terbaru) dari @kelurahan.panaikang
   const filteredInfos = sortedInfosByLatest
     .filter((item) => {
       if (infoFilter === 'ig') return item.isInstagramSynced !== false;
@@ -167,9 +148,6 @@ export const HomePortal: React.FC<HomePortalProps> = ({
       return true;
     })
     .slice(0, 3);
-
-  const scheduledCleanups = cleanupEvents.filter((e) => e.status !== 'Tuntas');
-  const completedCleanups = cleanupEvents.filter((e) => e.status === 'Tuntas');
 
   return (
     <div className="relative overflow-hidden bg-white">
@@ -443,155 +421,6 @@ export const HomePortal: React.FC<HomePortalProps> = ({
           </button>
         </div>
 
-        {/* ================= JADWAL & DOKUMENTASI FOTO KERJA BAKTI DI HALAMAN UTAMA ================= */}
-        <div className="mt-10 pt-8 border-t border-slate-200/80">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-5">
-            <div>
-              <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5E35B1]">
-                <Calendar className="w-4 h-4" />
-                <span>AGENDA TERJADWAL & DOKUMENTASI KERJA BAKTI SELESAI</span>
-              </div>
-              <h3 className="mt-1 text-lg sm:text-xl font-extrabold text-[#0D3868] tracking-tight">
-                Monitoring Kerja Bakti Kelurahan Panaikang
-              </h3>
-              <p className="mt-0.5 text-xs text-slate-600">
-                Pemisahan antara kerja bakti yang masih terjadwal (tanpa foto) dan kerja bakti yang
-                telah selesai dilaksanakan beserta lampiran foto dokumentasi.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => onNavigate('kerjabakti')}
-              className="self-start sm:self-auto inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#5E35B1] hover:bg-[#4527A0] text-white text-xs font-bold transition-colors cursor-pointer whitespace-nowrap"
-            >
-              <span>Buka Menu Kerja Bakti Lengkap</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-            {/* Left 5 Cols: Kerja Bakti yang Masih Terjadwal (Tanpa Foto) */}
-            <div className="lg:col-span-5 bg-slate-50 rounded-2xl border border-slate-200 p-4 sm:p-5 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-                  <div className="flex items-center gap-2 text-xs font-extrabold text-[#5E35B1] uppercase tracking-wider">
-                    <Clock className="w-4 h-4" />
-                    <span>Kerja Bakti Terjadwal ({scheduledCleanups.length})</span>
-                  </div>
-                  <span className="text-[11px] font-semibold text-slate-500">Tanpa Foto</span>
-                </div>
-
-                <div className="mt-3 space-y-3">
-                  {scheduledCleanups.length === 0 ? (
-                    <div className="p-4 text-xs text-slate-500 text-center">
-                      Belum ada jadwal kerja bakti yang akan datang.
-                    </div>
-                  ) : (
-                    scheduledCleanups.slice(0, 3).map((ev) => (
-                      <div
-                        key={ev.id}
-                        onClick={() => onNavigate('kerjabakti')}
-                        className="p-3.5 rounded-xl bg-white border border-slate-200 hover:border-purple-300 transition-colors cursor-pointer"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-500">
-                          <span className="font-bold text-[#5E35B1]">
-                            {ev.rw} · {ev.rtScope}
-                          </span>
-                          <span className="font-mono-num font-semibold text-amber-700">
-                            Terjadwal: {ev.date}
-                          </span>
-                        </div>
-                        <div className="mt-1 text-xs sm:text-sm font-bold text-[#0D3868] line-clamp-2">
-                          {ev.title}
-                        </div>
-                        <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
-                          <span className="truncate">{ev.locationName}</span>
-                          <span className="font-mono-num font-semibold text-slate-700 shrink-0 ml-2">
-                            {ev.registeredParticipants}/{ev.targetParticipants} peserta
-                          </span>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => onNavigate('kerjabakti')}
-                className="mt-4 w-full py-2 px-3 rounded-xl border border-purple-200 bg-white hover:bg-purple-50 text-xs font-bold text-[#5E35B1] transition-colors cursor-pointer"
-              >
-                Lihat Jadwal & Daftar Hadir Warga →
-              </button>
-            </div>
-
-            {/* Right 7 Cols: Kerja Bakti yang Telah Selesai Dilaksanakan (Dengan Foto) */}
-            <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-4 sm:p-5">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2 text-xs font-extrabold text-[#1C8237] uppercase tracking-wider">
-                  <Camera className="w-4 h-4" />
-                  <span>
-                    Kerja Bakti Telah Dilaksanakan & Lampiran Foto ({completedCleanups.length})
-                  </span>
-                </div>
-                <span className="text-[11px] font-semibold text-emerald-700">
-                  Selesai Dilaksanakan
-                </span>
-              </div>
-
-              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {completedCleanups.slice(0, 3).map((ev) => {
-                  const photos =
-                    Array.isArray(ev.documentationPhotos) && ev.documentationPhotos.length > 0
-                      ? ev.documentationPhotos.filter(Boolean)
-                      : ev.imageUrl
-                      ? [ev.imageUrl]
-                      : [];
-                  const mainPhoto = photos[0] || ev.imageUrl;
-
-                  return (
-                    <div
-                      key={ev.id}
-                      onClick={() => onNavigate('kerjabakti')}
-                      className="group rounded-xl border border-slate-200 overflow-hidden bg-slate-50 hover:border-emerald-300 transition-all cursor-pointer flex flex-col justify-between"
-                    >
-                      <div>
-                        <div className="relative h-36 w-full bg-slate-900 overflow-hidden">
-                          {mainPhoto && (
-                            <img
-                              src={resolveImageUrl(mainPhoto)}
-                              alt={ev.title}
-                              referrerPolicy="no-referrer"
-                              className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-150"
-                            />
-                          )}
-                          <div className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-slate-900/75 text-white text-[10px] font-bold">
-                            {photos.length} Foto
-                          </div>
-                        </div>
-                        <div className="p-3">
-                          <div className="text-[10px] font-bold text-[#1C8237] font-mono-num">
-                            {ev.rw} · {ev.date}
-                          </div>
-                          <h4 className="mt-0.5 text-xs font-bold text-[#0D3868] line-clamp-2">
-                            {ev.title}
-                          </h4>
-                        </div>
-                      </div>
-                      <div className="px-3 py-2 bg-white border-t border-slate-100 flex items-center justify-between text-[10px] font-semibold text-slate-600">
-                        <span>Tuntas</span>
-                        <span className="font-mono-num font-bold text-emerald-700">
-                          {ev.collectedWasteKg} kg terangkat
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* ================= SENTRA URBAN FARMING & LORONG WISATA HIJAU PANAIKANG ================= */}
         <div className="mt-10 pt-8 border-t border-slate-200/80">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-5">
@@ -726,145 +555,44 @@ export const HomePortal: React.FC<HomePortalProps> = ({
               </p>
             </div>
 
-            {/* Filter Segmented Control */}
-            <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 self-start">
-              <button
-                type="button"
-                onClick={() => setInfoFilter('semua')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                  infoFilter === 'semua'
-                    ? 'bg-[#0D3868] text-white'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                3 Postingan Terbaru
-              </button>
-              <button
-                type="button"
-                onClick={() => setInfoFilter('ig')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                  infoFilter === 'ig'
-                    ? 'bg-gradient-to-r from-[#833AB4] via-[#E1306C] to-[#F77737] text-white'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Instagram className="w-3.5 h-3.5" />
-                <span>Embed IG @kelurahan.panaikang</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setInfoFilter('pengumuman')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                  infoFilter === 'pengumuman'
-                    ? 'bg-[#1C8237] text-white'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Pengumuman
-              </button>
-            </div>
-          </div>
-
-          {/* Connected Official Instagram Profile Header Card (@kelurahan.panaikang) */}
-          <div className="mb-7 rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-50 via-white to-rose-50/40 p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5 sm:gap-4">
-              {/* Instagram Story Ring around Official @kelurahan.panaikang Profile Picture */}
-              <a
-                href="https://www.instagram.com/kelurahan.panaikang/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-0.5 rounded-full bg-gradient-to-tr from-amber-500 via-pink-600 to-purple-700 shrink-0 hover:scale-105 transition-transform"
-                title="Buka Instagram @kelurahan.panaikang"
-              >
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white flex items-center justify-center p-0.5 overflow-hidden">
-                  <img
-                    src={resolveImageUrl(IG_PROFILE_PANAIKANG)}
-                    alt="Foto Profil Resmi @kelurahan.panaikang"
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      const proxyUrl = getInstagramProxyUrl(IG_PROFILE_PANAIKANG);
-                      if (proxyUrl && e.currentTarget.dataset.proxyTried !== '1') {
-                        e.currentTarget.dataset.proxyTried = '1';
-                        e.currentTarget.src = proxyUrl;
-                        return;
-                      }
-                      e.currentTarget.onerror = null;
-                      e.currentTarget.src = resolveImageUrl(HERO_IMAGE_PATH);
-                    }}
-                    className="w-full h-full rounded-full object-cover"
-                  />
-                </div>
-              </a>
-
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <a
-                    href="https://www.instagram.com/kelurahan.panaikang/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-sm sm:text-base font-extrabold text-slate-900 hover:text-[#E1306C] transition-colors"
-                  >
-                    <Instagram className="w-4 h-4 text-[#E1306C]" />
-                    <span>@kelurahan.panaikang</span>
-                  </a>
-                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-sky-700">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-sky-600" />
-                    <span>Kelurahan panaikang · Layanan Publik & Pemerintah</span>
-                  </span>
-                </div>
-
-                <p className="mt-0.5 text-xs text-slate-600">
-                  Akun Resmi Pemerintah Kelurahan Panaikang · Menampilkan 3 Postingan Terakhir (Terbaru)
-                </p>
-
-                <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                  <span>
-                    <strong className="font-mono-num text-slate-800">206</strong> kiriman (
-                    <strong className="font-mono-num text-slate-800">{filteredInfos.length}</strong>{' '}
-                    postingan terbaru ditampilkan)
-                  </span>
-                  <span aria-hidden="true">·</span>
-                  <span>
-                    <strong className="font-mono-num text-slate-800">638</strong> pengikut
-                  </span>
-                  <span aria-hidden="true">·</span>
-                  <span>
-                    <strong className="font-mono-num text-slate-800">174</strong> diikuti
-                  </span>
-                  <span aria-hidden="true">·</span>
-                  <span className="text-emerald-700 font-semibold">{igSyncStatus}</span>
-                </div>
+            {/* Filter Segmented Control + Kunjungi @kelurahan.panaikang */}
+            <div className="flex flex-wrap items-center gap-2 self-start lg:self-end">
+              <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setInfoFilter('semua')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                    infoFilter === 'semua'
+                      ? 'bg-[#0D3868] text-white'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  3 Postingan Terbaru
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInfoFilter('ig')}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                    infoFilter === 'ig'
+                      ? 'bg-gradient-to-r from-[#833AB4] via-[#E1306C] to-[#F77737] text-white'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Instagram className="w-3.5 h-3.5" />
+                  <span>Embed IG @kelurahan.panaikang</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInfoFilter('pengumuman')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                    infoFilter === 'pengumuman'
+                      ? 'bg-[#1C8237] text-white'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Pengumuman
+                </button>
               </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2.5 self-start md:self-center">
-              <button
-                type="button"
-                onClick={() => {
-                  setEmbedFallbackPosts({});
-                  setIgEmbedMode((prev) => !prev);
-                }}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-bold transition-colors cursor-pointer ${
-                  igEmbedMode
-                    ? 'border-[#E1306C] bg-rose-50 text-[#E1306C]'
-                    : 'border-slate-300 bg-white hover:bg-slate-50 text-slate-700'
-                }`}
-              >
-                <Instagram className="w-3.5 h-3.5 text-[#E1306C]" />
-                <span>
-                  {igEmbedMode ? 'Tampilan Foto Cepat' : 'Tampilan Embed Interaktif IG'}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleSyncInstagramFeed}
-                disabled={isSyncingIg}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 transition-colors cursor-pointer"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 text-[#E1306C] ${isSyncingIg ? 'animate-spin' : ''}`} />
-                <span>{isSyncingIg ? 'Menyinkronkan...' : 'Sinkronkan Feed IG'}</span>
-              </button>
 
               <a
                 href="https://www.instagram.com/kelurahan.panaikang/"
@@ -900,10 +628,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                 const resolvedImg = resolveImageUrl(info.imageUrl, info.instagramPostUrl);
                 const embedUrl = getInstagramEmbedUrl(info.imageUrl, info.instagramPostUrl);
                 const showLiveEmbed =
-                  Boolean(embedUrl) &&
-                  (embedFallbackPosts[info.id] !== undefined
-                    ? embedFallbackPosts[info.id]
-                    : igEmbedMode);
+                  Boolean(embedUrl) && Boolean(embedFallbackPosts[info.id]);
 
                 return (
                   <article

@@ -183,7 +183,19 @@ function loadDatabase(): DatabaseSchema {
           tebaSpots: filterDeleted(parsed.tebaSpots, INITIAL_TEBA_SPOTS),
           bioporiPoints: filterDeleted(parsed.bioporiPoints, INITIAL_BIOPORI_POINTS),
           cleanupEvents: filterDeleted(parsed.cleanupEvents, INITIAL_CLEANUP_EVENTS),
-          kelurahanInfos: filterDeleted(parsed.kelurahanInfos, INITIAL_KELURAHAN_INFOS),
+          kelurahanInfos: (() => {
+            const existingInfos = filterDeleted(parsed.kelurahanInfos, INITIAL_KELURAHAN_INFOS);
+            const map = new Map<string, KelurahanInfoItem>();
+            for (const item of existingInfos) {
+              if (item && item.id) map.set(item.id, item);
+            }
+            for (const initItem of INITIAL_KELURAHAN_INFOS) {
+              if (initItem && initItem.id && !deletedSet.has(initItem.id) && !map.has(initItem.id)) {
+                map.set(initItem.id, initItem);
+              }
+            }
+            return Array.from(map.values());
+          })(),
           whatsappRecipients: filterDeleted(parsed.whatsappRecipients, INITIAL_WHATSAPP_RECIPIENTS),
           serviceCatalog:
             Array.isArray(parsed.serviceCatalog) && parsed.serviceCatalog.length > 0
@@ -872,6 +884,9 @@ async function startServer() {
   // 0b. Instagram Media Proxy for @kelurahan.panaikang (Local & Vercel parity)
   const LOCAL_IG_FILE_MAP: Record<string, string> = {
     profile: 'ig_profile_panaikang.jpg',
+    DfT7acUJdwh: 'ig_post_latest_1_DfT7acUJdwh.jpg',
+    DfM0_MZvZON: 'ig_post_latest_2_DfM0_MZvZON.jpg',
+    DfM0LNqPFR5: 'ig_post_latest_3_DfM0LNqPFR5.jpg',
     DdrMaapvrr4: 'ig_post_1_DdrMaapvrr4.jpg',
     DbnJW3OvANh: 'ig_post_2_DbnJW3OvANh.jpg',
     DcN5ah3vZdT: 'ig_post_3_DcN5ah3vZdT.jpg',
@@ -2068,12 +2083,106 @@ async function startServer() {
     res.status(201).json({ ok: true, data: created });
   });
 
-  app.post('/api/infos/sync-instagram', (_req, res) => {
+  app.post('/api/infos/sync-instagram', async (_req, res) => {
     const legacyIds = new Set(['info-1', 'info-2', 'info-3', 'info-4', 'info-5', 'info-6']);
+    let liveSyncedPosts: KelurahanInfoItem[] = [...INITIAL_KELURAHAN_INFOS];
+
+    try {
+      const embedRes = await fetch('https://www.instagram.com/kelurahan.panaikang/embed/?cr=1&v=12', {
+        headers: {
+          'User-Agent': 'curl/8.5.0',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+      });
+      if (embedRes.ok) {
+        const html = await embedRes.text();
+        const match = html.match(/"contextJSON"\s*:\s*("(?:\\.|[^"\\])*")/);
+        if (match && match[1]) {
+          const rawJsonStr = JSON.parse(match[1]);
+          const parsed = JSON.parse(rawJsonStr);
+          const mediaList = Array.isArray(parsed?.context?.graphql_media)
+            ? parsed.context.graphql_media.slice(0, 3)
+            : [];
+          if (mediaList.length > 0) {
+            const fetchedItems: KelurahanInfoItem[] = [];
+            for (let i = 0; i < mediaList.length; i++) {
+              const sm = mediaList[i]?.shortcode_media;
+              if (!sm || !sm.shortcode) continue;
+              const code = String(sm.shortcode);
+              const existingInit = INITIAL_KELURAHAN_INFOS.find(
+                (init) => init.id.includes(code) || init.instagramPostUrl?.includes(code)
+              );
+              if (existingInit) {
+                fetchedItems.push({
+                  ...existingInit,
+                  instagramLikes:
+                    sm.edge_liked_by?.count ??
+                    sm.edge_media_preview_like?.count ??
+                    existingInit.instagramLikes,
+                  instagramCommentsCount:
+                    sm.edge_media_to_comment?.count ?? existingInit.instagramCommentsCount,
+                });
+              } else {
+                const rawCaption =
+                  sm.edge_media_to_caption?.edges?.[0]?.node?.text?.trim() ||
+                  'Publikasi terbaru Instagram Resmi Pemerintah Kelurahan Panaikang (@kelurahan.panaikang).';
+                const firstLine = rawCaption.split('\n')[0].trim();
+                const dateObj = sm.taken_at_timestamp
+                  ? new Date(sm.taken_at_timestamp * 1000)
+                  : new Date();
+                const dateFormatted = dateObj.toLocaleDateString('id-ID', {
+                  day: '2-digit',
+                  month: 'long',
+                  year: 'numeric',
+                });
+                const isVideo = Boolean(sm.is_video);
+                fetchedItems.push({
+                  id: `ig-latest-${i + 1}-${code}`,
+                  title:
+                    firstLine.length > 10 && firstLine.length <= 100
+                      ? firstLine
+                      : `${rawCaption.slice(0, 82)}...`,
+                  category: 'Kegiatan Lingkungan',
+                  summary:
+                    rawCaption.length > 130 ? `${rawCaption.slice(0, 130)}...` : rawCaption,
+                  content: rawCaption,
+                  imageUrl: LOCAL_IG_FILE_MAP[code]
+                    ? `/images/${LOCAL_IG_FILE_MAP[code]}`
+                    : `/api/ig-media?code=${code}`,
+                  publishedAt: dateFormatted,
+                  author: 'Lurah Panaikang · @kelurahan.panaikang',
+                  instagramHandle: '@kelurahan.panaikang',
+                  instagramPostUrl: `https://www.instagram.com/${isVideo ? 'reel' : 'p'}/${code}/`,
+                  instagramLikes:
+                    sm.edge_liked_by?.count ?? sm.edge_media_preview_like?.count ?? 25,
+                  instagramCommentsCount: sm.edge_media_to_comment?.count ?? 2,
+                  isInstagramSynced: true,
+                  hashtags: [
+                    '#KelurahanPanaikang',
+                    '#PanaikangSmartEnvironment',
+                    '#KecamatanPanakkukang',
+                    '#KotaMakassar',
+                  ],
+                });
+              }
+            }
+            if (fetchedItems.length > 0) {
+              liveSyncedPosts = fetchedItems;
+            }
+          }
+        }
+      }
+    } catch {
+      // Fallback to INITIAL_KELURAHAN_INFOS
+    }
+
     const customPosts = db.kelurahanInfos.filter(
-      (i) => !legacyIds.has(i.id) && !INITIAL_KELURAHAN_INFOS.some((init) => init.id === i.id)
+      (i) =>
+        !legacyIds.has(i.id) &&
+        !i.id.startsWith('ig-latest-') &&
+        !INITIAL_KELURAHAN_INFOS.some((init) => init.id === i.id)
     );
-    db.kelurahanInfos = [...customPosts, ...INITIAL_KELURAHAN_INFOS];
+    db.kelurahanInfos = [...liveSyncedPosts, ...customPosts];
     saveDatabase(db);
     res.json({
       ok: true,

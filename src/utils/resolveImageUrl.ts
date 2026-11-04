@@ -39,6 +39,9 @@ export function extractInstagramShortcode(
 ): string | null {
   const combined = `${rawUrl || ''} ${instagramPostUrl || ''}`;
 
+  if (combined.includes('DfT7acUJdwh') || combined.includes('ig_post_latest_1_')) return 'DfT7acUJdwh';
+  if (combined.includes('DfM0_MZvZON') || combined.includes('ig_post_latest_2_')) return 'DfM0_MZvZON';
+  if (combined.includes('DfM0LNqPFR5') || combined.includes('ig_post_latest_3_')) return 'DfM0LNqPFR5';
   if (combined.includes('DdrMaapvrr4') || combined.includes('ig_post_1_')) return 'DdrMaapvrr4';
   if (combined.includes('DbnJW3OvANh') || combined.includes('ig_post_2_')) return 'DbnJW3OvANh';
   if (combined.includes('DcN5ah3vZdT') || combined.includes('ig_post_3_')) return 'DcN5ah3vZdT';
@@ -62,6 +65,9 @@ export function extractInstagramShortcode(
 }
 
 const SHORTCODE_TO_STATIC_PATH: Record<string, string> = {
+  DfT7acUJdwh: '/images/ig_post_latest_1_DfT7acUJdwh.jpg',
+  DfM0_MZvZON: '/images/ig_post_latest_2_DfM0_MZvZON.jpg',
+  DfM0LNqPFR5: '/images/ig_post_latest_3_DfM0LNqPFR5.jpg',
   DdrMaapvrr4: '/images/ig_post_1_DdrMaapvrr4.jpg',
   DbnJW3OvANh: '/images/ig_post_2_DbnJW3OvANh.jpg',
   DcN5ah3vZdT: '/images/ig_post_3_DcN5ah3vZdT.jpg',

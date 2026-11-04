@@ -134,10 +134,19 @@ export default function App() {
 
   const [kelurahanInfos, setKelurahanInfos] = useState<KelurahanInfoItem[]>(() => {
     const deleted = getDeletedItemIds();
-    const source = Array.isArray(initialPersisted?.kelurahanInfos)
-      ? initialPersisted.kelurahanInfos
-      : INITIAL_KELURAHAN_INFOS;
-    return source.filter((i) => i && i.id && !deleted.has(i.id));
+    const persistedList = Array.isArray(initialPersisted?.kelurahanInfos)
+      ? initialPersisted.kelurahanInfos.filter((i) => i && i.id && !deleted.has(i.id))
+      : [];
+    const map = new Map<string, KelurahanInfoItem>();
+    for (const item of persistedList) {
+      map.set(item.id, item);
+    }
+    for (const initItem of INITIAL_KELURAHAN_INFOS) {
+      if (initItem && initItem.id && !deleted.has(initItem.id) && !map.has(initItem.id)) {
+        map.set(initItem.id, initItem);
+      }
+    }
+    return Array.from(map.values());
   });
 
   const [siskamlingSchedules, setSiskamlingSchedules] = useState<SiskamlingRwSchedule[]>(() => {
@@ -1641,10 +1650,21 @@ export default function App() {
   };
 
   const handleSyncInstagram = async (): Promise<{ ok: boolean; syncedAt?: string }> => {
+    try {
+      const res = await fetch('/api/infos/sync-instagram', { method: 'POST' });
+      const json = await res.json();
+      if (json.ok && Array.isArray(json.data) && json.data.length > 0) {
+        setKelurahanInfos(json.data);
+        commitPersistence({ kelurahanInfos: json.data });
+        return { ok: true, syncedAt: json.syncedAt || getRealtimeTimeString(new Date()) };
+      }
+    } catch {
+      // Fallback to local sync below
+    }
     const customPosts = stateRef.current.kelurahanInfos.filter(
       (i) => !INITIAL_KELURAHAN_INFOS.some((init) => init.id === i.id)
     );
-    const nextInfos = [...customPosts, ...INITIAL_KELURAHAN_INFOS];
+    const nextInfos = [...INITIAL_KELURAHAN_INFOS, ...customPosts];
     setKelurahanInfos(nextInfos);
     commitPersistence({ kelurahanInfos: nextInfos });
     const syncedAt = getRealtimeTimeString(new Date());

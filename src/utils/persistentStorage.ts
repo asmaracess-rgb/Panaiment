@@ -545,13 +545,26 @@ export function smartMergeDatabases(
   );
 
   // 8. Kelurahan Infos & WhatsApp Recipients
-  const resolvedKelurahanInfos = mergeEntityCollection(
+  const mergedKelurahanInfos = mergeEntityCollection(
     localDb?.kelurahanInfos,
     incoming?.kelurahanInfos,
     INITIAL_KELURAHAN_INFOS,
     deletedIds,
     localIsNewer
   );
+  // Ensure the 3 latest official @kelurahan.panaikang Instagram posts are always present unless deleted
+  const infoMap = new Map<string, KelurahanInfoItem>();
+  for (const item of mergedKelurahanInfos) {
+    if (item && item.id && !deletedIds.has(item.id)) {
+      infoMap.set(item.id, item);
+    }
+  }
+  for (const initInfo of INITIAL_KELURAHAN_INFOS) {
+    if (initInfo && initInfo.id && !deletedIds.has(initInfo.id) && !infoMap.has(initInfo.id)) {
+      infoMap.set(initInfo.id, initInfo);
+    }
+  }
+  const resolvedKelurahanInfos = Array.from(infoMap.values());
 
   const resolvedWhatsappRecipients = mergeEntityCollection(
     localDb?.whatsappRecipients,

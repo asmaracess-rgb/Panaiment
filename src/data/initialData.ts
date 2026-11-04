@@ -32,6 +32,9 @@ export const IMG_DRAINASE = '/images/dokumentasi_drainase_bersih_1791349273322.j
 
 // Official @kelurahan.panaikang Instagram Image Assets
 export const IG_PROFILE_PANAIKANG = '/images/ig_profile_panaikang.jpg';
+export const IG_POST_LATEST_1 = '/images/ig_post_latest_1_DfT7acUJdwh.jpg';
+export const IG_POST_LATEST_2 = '/images/ig_post_latest_2_DfM0_MZvZON.jpg';
+export const IG_POST_LATEST_3 = '/images/ig_post_latest_3_DfM0LNqPFR5.jpg';
 export const IG_POST_1 = '/images/ig_post_1_DdrMaapvrr4.jpg';
 export const IG_POST_2 = '/images/ig_post_2_DbnJW3OvANh.jpg';
 export const IG_POST_3 = '/images/ig_post_3_DcN5ah3vZdT.jpg';
@@ -172,7 +175,107 @@ export const INITIAL_KELURAHAN_PROFILE: KelurahanProfile = {
   },
 };
 
-export const INITIAL_KELURAHAN_INFOS: KelurahanInfoItem[] = [];
+export const INITIAL_KELURAHAN_INFOS: KelurahanInfoItem[] = [
+  {
+    id: 'ig-latest-1-DfT7acUJdwh',
+    title: 'Kunjungan Lapangan Wali Kota Makassar Munafri Arifuddin di Kelurahan Panaikang',
+    category: 'Kegiatan Lingkungan',
+    summary:
+      'Wali Kota Makassar Munafri Arifuddin didampingi Camat Panakkukang Syahril dan Lurah Panaikang Muthmainnah melakukan kunjungan lapangan dan dialog langsung bersama warga Kelurahan Panaikang.',
+    content: `Wali Kota Makassar Munafri Arifuddin melakukan kunjungan lapangan ke Kelurahan Panaikang, Kecamatan Panakkukang, Rabu (04/11/2026).
+
+Kunjungan ini bertujuan untuk bertatap muka dan berdialog langsung dengan warga serta para pemilik usaha ternak hewan, guna menyerap aspirasi dan merumuskan solusi bersama demi kesejahteraan masyarakat dan kelestarian lingkungan.
+
+Wali Kota Makassar Munafri Arifuddin didampingi oleh Camat Panakkukang Syahril dan Lurah Panaikang Muthmainnah.
+
+Sebelumnya, Pemerintah Kota Makassar telah menertibkan peternakan babi di area pemukiman Kelurahan Panaikang. Penertiban tersebut dilakukan lantaran aktivitas peternakan memicu pencemaran lingkungan, menimbulkan bau tak sedap, serta mengganggu kenyamanan dan kesehatan warga sekitar.
+
+Wali Kota Makassar menegaskan pemerintah kota ingin memastikan proses penataan tidak mengabaikan keberlangsungan ekonomi masyarakat yang selama ini menggantungkan hidup dari usaha peternakan.
+
+Selain menyiapkan solusi relokasi, Wali Kota Makassar Munafri Arifuddin juga membuka peluang pemberian dukungan permodalan bagi para pelaku usaha yang terdampak penataan.
+
+Salah satunya melalui fasilitasi akses Kredit Usaha Rakyat (KUR) dengan menggandeng perbankan, termasuk Bank Sulselbar.`,
+    imageUrl: IG_POST_LATEST_1,
+    publishedAt: '04 November 2026',
+    author: 'Lurah Panaikang · @kelurahan.panaikang',
+    instagramHandle: '@kelurahan.panaikang',
+    instagramPostUrl: 'https://www.instagram.com/reel/DfT7acUJdwh/',
+    instagramLikes: 83,
+    instagramCommentsCount: 30,
+    isInstagramSynced: true,
+    hashtags: [
+      '#KelurahanPanaikang',
+      '#KecamatanPanakkukang',
+      '#PemkotMakassar',
+      '#WaliKotaMakassar',
+      '#PanaikangSmartEnvironment',
+    ],
+  },
+  {
+    id: 'ig-latest-2-DfM0_MZvZON',
+    title: 'Panaikang Smart Environment Dalam Genggamanmu!',
+    category: 'Edukasi & Sosialisasi',
+    summary:
+      'Kelurahan Panaikang terus berinovasi dalam mewujudkan pelayanan publik yang modern, transparan, informatif, dan berbasis digital melalui inovasi Panaikang Smart Environment.',
+    content: `PANAIKANG SMART ENVIRONMENT Dalam Genggamanmu!
+
+Kelurahan Panaikang terus berinovasi dalam mewujudkan pelayanan publik yang modern, transparan, informatif, dan berbasis digital melalui inovasi Panaikang Smart Environment.
+
+Sebuah platform digital yang dirancang untuk memudahkan masyarakat dalam mengakses informasi, menyampaikan laporan, serta berpartisipasi aktif dalam menjaga kebersihan dan ketertiban lingkungan Kelurahan Panaikang.`,
+    imageUrl: IG_POST_LATEST_2,
+    publishedAt: '01 November 2026',
+    author: 'Lurah Panaikang · @kelurahan.panaikang',
+    instagramHandle: '@kelurahan.panaikang',
+    instagramPostUrl: 'https://www.instagram.com/p/DfM0_MZvZON/',
+    instagramLikes: 20,
+    instagramCommentsCount: 3,
+    isInstagramSynced: true,
+    hashtags: [
+      '#PanaikangSmartEnvironment',
+      '#KelurahanPanaikang',
+      '#SatuLaporanSatuDataSatuAksi',
+      '#KecamatanPanakkukang',
+      '#KotaMakassar',
+    ],
+  },
+  {
+    id: 'ig-latest-3-DfM0LNqPFR5',
+    title: 'Suara Anda Sangat Berarti! Survei Kepuasan Masyarakat (SKM) Pelayanan Kelurahan Panaikang',
+    category: 'Pengumuman Kelurahan',
+    summary:
+      'Dalam rangka meningkatkan kualitas pelayanan publik, Kelurahan Panaikang mengajak seluruh masyarakat berpartisipasi dalam Survei Kepuasan Masyarakat (SKM).',
+    content: `SUARA ANDA SANGAT BERARTI!
+
+Dalam rangka meningkatkan kualitas pelayanan publik, Kelurahan Panaikang mengajak seluruh masyarakat untuk berpartisipasi dalam Survei Kepuasan Masyarakat (SKM) terhadap Pelayanan Kelurahan Panaikang.
+
+Survei ini merupakan salah satu sarana bagi masyarakat untuk menyampaikan penilaian, saran, kritik, serta masukan terhadap pelayanan yang telah diberikan oleh pemerintah kelurahan.
+Melalui partisipasi masyarakat, kami dapat mengetahui sejauh mana kualitas pelayanan yang telah berjalan, sekaligus menjadi bahan evaluasi untuk melakukan perbaikan dan peningkatan pelayanan ke depannya.
+
+Cara berpartisipasi sangat mudah :
+1. Scan QR Code yang tersedia pada poster.
+2. Isi survei sesuai dengan pengalaman dan penilaian Anda.
+3. Sampaikan pendapat secara jujur dan objektif.
+
+⏱️ Cepat, mudah, dan hanya membutuhkan waktu sekitar 1 menit!
+
+Kami percaya bahwa pelayanan publik yang berkualitas tidak dapat terwujud tanpa adanya keterlibatan dan partisipasi masyarakat.`,
+    imageUrl: IG_POST_LATEST_3,
+    publishedAt: '01 November 2026',
+    author: 'Lurah Panaikang · @kelurahan.panaikang',
+    instagramHandle: '@kelurahan.panaikang',
+    instagramPostUrl: 'https://www.instagram.com/p/DfM0LNqPFR5/',
+    instagramLikes: 14,
+    instagramCommentsCount: 0,
+    isInstagramSynced: true,
+    hashtags: [
+      '#SurveiKepuasanMasyarakat',
+      '#PelayananPublik',
+      '#KelurahanPanaikang',
+      '#MelayaniDenganHati',
+      '#KotaMakassar',
+    ],
+  },
+];
 
 export const INITIAL_WHATSAPP_RECIPIENTS: WhatsAppRecipient[] = [];
 
