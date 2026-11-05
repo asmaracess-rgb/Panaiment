@@ -349,6 +349,14 @@ export default function App() {
     return source.filter((b) => b && b.id && !deleted.has(b.id));
   });
 
+  const [citizenUsers, setCitizenUsers] = useState<AuthenticatedUserProfile[]>(() => {
+    const deleted = getDeletedItemIds();
+    const source = Array.isArray(initialPersisted?.citizenUsers)
+      ? initialPersisted.citizenUsers
+      : [];
+    return source.filter((c) => c && c.uid && !deleted.has(c.uid));
+  });
+
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
   const stateRef = useRef({
@@ -368,6 +376,7 @@ export default function App() {
     urbanFarmingSpots,
     seedRequests,
     siskamlingSchedules,
+    citizenUsers,
   });
 
   useEffect(() => {
@@ -388,6 +397,7 @@ export default function App() {
       urbanFarmingSpots,
       seedRequests,
       siskamlingSchedules,
+      citizenUsers,
     };
   }, [
     kelurahanProfile,
@@ -406,6 +416,7 @@ export default function App() {
     urbanFarmingSpots,
     seedRequests,
     siskamlingSchedules,
+    citizenUsers,
   ]);
 
   const commitPersistence = useCallback(
@@ -435,6 +446,7 @@ export default function App() {
         urbanFarmingSpots: (partial.urbanFarmingSpots ?? stateRef.current.urbanFarmingSpots).filter((s) => s && s.id && !deletedSet.has(s.id)),
         seedRequests: (partial.seedRequests ?? stateRef.current.seedRequests).filter((s) => s && s.id && !deletedSet.has(s.id)),
         siskamlingSchedules: partial.siskamlingSchedules ?? stateRef.current.siskamlingSchedules,
+        citizenUsers: (partial.citizenUsers ?? stateRef.current.citizenUsers).filter((c) => c && c.uid && !deletedSet.has(c.uid)),
         deletedItemIds: nextDeletedArray,
         updatedAt: Date.now(),
       };
@@ -456,6 +468,7 @@ export default function App() {
         urbanFarmingSpots: nextSnapshot.urbanFarmingSpots ?? [],
         seedRequests: nextSnapshot.seedRequests ?? [],
         siskamlingSchedules: nextSnapshot.siskamlingSchedules ?? [],
+        citizenUsers: nextSnapshot.citizenUsers ?? [],
       };
 
       savePersistedDatabase(nextSnapshot);
@@ -475,6 +488,67 @@ export default function App() {
     },
     []
   );
+
+  const upsertCitizenUser = useCallback(
+    (profile: AuthenticatedUserProfile | null | undefined) => {
+      if (!profile || !profile.uid) return;
+      const deletedSet = getDeletedItemIds();
+      if (deletedSet.has(profile.uid)) return;
+
+      const currentList = stateRef.current.citizenUsers || [];
+      const existingIdx = currentList.findIndex(
+        (c) =>
+          c.uid === profile.uid ||
+          (c.email &&
+            profile.email &&
+            c.email.trim().toLowerCase() === profile.email.trim().toLowerCase())
+      );
+
+      let nextList: AuthenticatedUserProfile[];
+      if (existingIdx >= 0) {
+        const existing = currentList[existingIdx];
+        const mergedItem: AuthenticatedUserProfile = {
+          ...existing,
+          ...profile,
+          uid: existing.uid.startsWith('warga_') ? profile.uid : existing.uid,
+          fullName:
+            (profile.fullName && profile.fullName !== 'Warga Panaikang'
+              ? profile.fullName
+              : existing.fullName) || 'Warga Panaikang',
+          email: profile.email || existing.email || '',
+          nik: profile.nik || existing.nik || '',
+          phone: (profile.phone && profile.phone !== '-' ? profile.phone : existing.phone) || '',
+          rw: profile.rw || existing.rw || 'RW 01',
+          rt: profile.rt || existing.rt || 'RT 01',
+          address: profile.address || existing.address || 'Kelurahan Panaikang',
+          role: 'warga',
+          updatedAt: getRealtimeDateTimeString(),
+        };
+        nextList = currentList.map((item, idx) => (idx === existingIdx ? mergedItem : item));
+      } else {
+        const nowStr = getRealtimeDateTimeString();
+        nextList = [
+          {
+            ...profile,
+            role: 'warga',
+            createdAt: profile.createdAt || nowStr,
+            updatedAt: nowStr,
+          },
+          ...currentList,
+        ];
+      }
+
+      setCitizenUsers(nextList);
+      commitPersistence({ citizenUsers: nextList });
+    },
+    [commitPersistence]
+  );
+
+  useEffect(() => {
+    if (authUserProfile && authUserProfile.uid) {
+      upsertCitizenUser(authUserProfile);
+    }
+  }, [authUserProfile, upsertCitizenUser]);
 
   const handleAddUrbanFarmingSpot = useCallback(
     (newSpot: UrbanFarmingSpot) => {
@@ -513,6 +587,7 @@ export default function App() {
     if (merged.urbanFarmingSpots) setUrbanFarmingSpots(merged.urbanFarmingSpots);
     if (merged.seedRequests) setSeedRequests(merged.seedRequests);
     if (merged.siskamlingSchedules) setSiskamlingSchedules(merged.siskamlingSchedules);
+    if (merged.citizenUsers) setCitizenUsers(merged.citizenUsers);
     setTebaSpots(merged.tebaSpots ?? []);
     setBioporiPoints(merged.bioporiPoints ?? []);
 
@@ -533,6 +608,7 @@ export default function App() {
       urbanFarmingSpots: merged.urbanFarmingSpots ?? [],
       seedRequests: merged.seedRequests ?? [],
       siskamlingSchedules: merged.siskamlingSchedules ?? [],
+      citizenUsers: merged.citizenUsers ?? [],
     };
 
     savePersistedDatabase(merged);
@@ -563,6 +639,7 @@ export default function App() {
       if (initialLocal.seedRequests) setSeedRequests(initialLocal.seedRequests);
       if (initialLocal.tebaSpots) setTebaSpots(initialLocal.tebaSpots);
       if (initialLocal.bioporiPoints) setBioporiPoints(initialLocal.bioporiPoints);
+      if (initialLocal.citizenUsers) setCitizenUsers(initialLocal.citizenUsers);
     }
 
     // Seed Firestore if this is the first deployment
@@ -1005,10 +1082,126 @@ export default function App() {
     };
     const nextReports = [optimistic, ...stateRef.current.reports];
     setReports(nextReports);
-    commitPersistence({ reports: nextReports });
+
+    // Also ensure the citizen who submitted this report is recorded in citizenUsers
+    const cleanReporter = (optimistic.reporterName || '').trim();
+    let nextCitizenUsers = stateRef.current.citizenUsers || [];
+    if (cleanReporter && cleanReporter.toLowerCase() !== 'warga anonim') {
+      const targetUid =
+        optimistic.ownerId ||
+        authUserProfile?.uid ||
+        (optimistic.ownerEmail
+          ? `warga_${optimistic.ownerEmail.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_')}`
+          : `warga_${cleanReporter.toLowerCase().replace(/[^a-z0-9_-]/g, '_')}`);
+
+      const existingIdx = nextCitizenUsers.findIndex(
+        (c) =>
+          c.uid === targetUid ||
+          (optimistic.ownerEmail &&
+            c.email &&
+            c.email.trim().toLowerCase() === optimistic.ownerEmail.trim().toLowerCase()) ||
+          c.fullName.trim().toLowerCase() === cleanReporter.toLowerCase()
+      );
+
+      const citizenEntry: AuthenticatedUserProfile = {
+        uid: existingIdx >= 0 ? nextCitizenUsers[existingIdx].uid : targetUid,
+        email:
+          optimistic.ownerEmail ||
+          authUserProfile?.email ||
+          (existingIdx >= 0 ? nextCitizenUsers[existingIdx].email : '') ||
+          '',
+        fullName: cleanReporter,
+        nik:
+          optimistic.applicantNik ||
+          authUserProfile?.nik ||
+          (existingIdx >= 0 ? nextCitizenUsers[existingIdx].nik : '') ||
+          '',
+        phone:
+          (optimistic.reporterPhone && optimistic.reporterPhone !== '-'
+            ? optimistic.reporterPhone
+            : authUserProfile?.phone ||
+              (existingIdx >= 0 ? nextCitizenUsers[existingIdx].phone : '')) || '',
+        rw: optimistic.rw || authUserProfile?.rw || 'RW 01',
+        rt: optimistic.rt || authUserProfile?.rt || 'RT 01',
+        address:
+          optimistic.citizenAddress ||
+          optimistic.locationName ||
+          authUserProfile?.address ||
+          'Kelurahan Panaikang',
+        role: 'warga',
+        createdAt:
+          existingIdx >= 0 ? nextCitizenUsers[existingIdx].createdAt || nowTime : nowTime,
+        updatedAt: nowTime,
+      };
+
+      if (existingIdx >= 0) {
+        nextCitizenUsers = nextCitizenUsers.map((item, idx) =>
+          idx === existingIdx ? citizenEntry : item
+        );
+      } else {
+        nextCitizenUsers = [citizenEntry, ...nextCitizenUsers];
+      }
+      setCitizenUsers(nextCitizenUsers);
+    }
+
+    commitPersistence({ reports: nextReports, citizenUsers: nextCitizenUsers });
 
     return ticketCode;
   };
+
+  const handleUpdateCitizenUser = useCallback(
+    async (
+      uid: string,
+      updates: Partial<AuthenticatedUserProfile>
+    ): Promise<{ ok: boolean; error?: string }> => {
+      const currentList = stateRef.current.citizenUsers || [];
+      const existingIdx = currentList.findIndex((c) => c.uid === uid);
+      let nextList: AuthenticatedUserProfile[];
+      if (existingIdx >= 0) {
+        nextList = currentList.map((c, idx) =>
+          idx === existingIdx
+            ? {
+                ...c,
+                ...updates,
+                updatedAt: getRealtimeDateTimeString(),
+              }
+            : c
+        );
+      } else {
+        nextList = [
+          {
+            uid,
+            email: updates.email || '',
+            fullName: updates.fullName || 'Warga Panaikang',
+            nik: updates.nik || '',
+            phone: updates.phone || '',
+            rw: updates.rw || 'RW 01',
+            rt: updates.rt || 'RT 01',
+            address: updates.address || 'Kelurahan Panaikang',
+            role: 'warga',
+            createdAt: getRealtimeDateTimeString(),
+            updatedAt: getRealtimeDateTimeString(),
+          },
+          ...currentList,
+        ];
+      }
+      setCitizenUsers(nextList);
+      commitPersistence({ citizenUsers: nextList });
+      return { ok: true };
+    },
+    [commitPersistence]
+  );
+
+  const handleDeleteCitizenUser = useCallback(
+    async (uid: string): Promise<{ ok: boolean; error?: string }> => {
+      recordDeletedItemId(uid);
+      const nextList = (stateRef.current.citizenUsers || []).filter((c) => c.uid !== uid);
+      setCitizenUsers(nextList);
+      commitPersistence({ citizenUsers: nextList });
+      return { ok: true };
+    },
+    [commitPersistence]
+  );
 
   const handleAdminCreateReport = async (
     rep: Partial<CitizenReport>
@@ -2447,6 +2640,9 @@ export default function App() {
             onImportDatabase={handleImportDatabase}
             firebaseUserProfile={authUserProfile}
             onFirebaseLogout={handleFirebaseLogout}
+            citizenUsers={citizenUsers}
+            onUpdateCitizenUser={handleUpdateCitizenUser}
+            onDeleteCitizenUser={handleDeleteCitizenUser}
           />
         )}
       </main>

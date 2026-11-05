@@ -21,6 +21,7 @@ import {
   FarmingInventoryItem,
   SupplyRequestItem,
   SiskamlingRwSchedule,
+  AuthenticatedUserProfile,
 } from '../types';
 import {
   INITIAL_KELURAHAN_PROFILE,
@@ -73,6 +74,7 @@ export interface PersistedDatabase {
   farmingInventories?: FarmingInventoryItem[];
   supplyRequests?: SupplyRequestItem[];
   siskamlingSchedules?: SiskamlingRwSchedule[];
+  citizenUsers?: AuthenticatedUserProfile[];
   deletedItemIds?: string[];
   updatedAt: number;
 }
@@ -85,6 +87,7 @@ const LEGACY_BACKUP_KEY_V3 = 'pnk_smart_env_db_backup_v3';
 const LURAH_PHOTO_BACKUP_KEY = 'pnk_lurah_photo_backup_v1';
 const JOURNAL_REPORTS_KEY = 'pnk_smart_env_user_reports_v2';
 const JOURNAL_LOGS_KEY = 'pnk_smart_env_user_logs_v2';
+const JOURNAL_CITIZENS_KEY = 'pnk_smart_env_user_citizens_v2';
 const DELETED_IDS_KEY = 'pnk_smart_env_deleted_ids_v2';
 
 function getRecoveredLurahPhotoUrl(): string {
@@ -172,6 +175,10 @@ export function recordDeletedItemId(id: string): void {
     // Clean up from user waste logs journal
     const jLogs = loadWasteLogsJournal().filter((l) => l && l.id !== id);
     window.localStorage.setItem(JOURNAL_LOGS_KEY, JSON.stringify(jLogs));
+
+    // Clean up from citizen users journal
+    const jCitizens = loadCitizensJournal().filter((c) => c && c.uid !== id);
+    window.localStorage.setItem(JOURNAL_CITIZENS_KEY, JSON.stringify(jCitizens));
   } catch (err) {
     console.warn('Failed to record deleted item id:', err);
   }
@@ -199,6 +206,21 @@ function loadWasteLogsJournal(): WasteLogEntry[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = window.localStorage.getItem(JOURNAL_LOGS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Safely loads registered citizen profiles journal from localStorage
+ */
+export function loadCitizensJournal(): AuthenticatedUserProfile[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(JOURNAL_CITIZENS_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -631,6 +653,88 @@ export function smartMergeDatabases(
     resolvedSiskamlingSchedules = Array.from(schedMap.values());
   }
 
+  // 9. Resolve Registered Citizen Users (zero-loss merge + auto-discovery from user-submitted reports)
+  const citizensMap = new Map<string, AuthenticatedUserProfile>();
+  const upsertCitizen = (c: AuthenticatedUserProfile | undefined | null) => {
+    if (!c || !c.uid || deletedIds.has(c.uid)) return;
+    const existing = citizensMap.get(c.uid);
+    if (!existing) {
+      citizensMap.set(c.uid, {
+        ...c,
+        role: 'warga',
+      });
+    } else {
+      citizensMap.set(c.uid, {
+        ...existing,
+        ...c,
+        fullName: (c.fullName && c.fullName !== 'Warga Panaikang' ? c.fullName : existing.fullName) || 'Warga Panaikang',
+        email: c.email || existing.email || '',
+        nik: c.nik || existing.nik || '',
+        phone: (c.phone && c.phone !== '-' ? c.phone : existing.phone) || '',
+        rw: c.rw || existing.rw || 'RW 01',
+        rt: c.rt || existing.rt || 'RT 01',
+        address: c.address || existing.address || 'Kelurahan Panaikang',
+        role: 'warga',
+      });
+    }
+  };
+
+  const secondaryCitizens = localIsNewer ? incoming?.citizenUsers : localDb?.citizenUsers;
+  const primaryCitizens = localIsNewer ? localDb?.citizenUsers : incoming?.citizenUsers;
+
+  if (Array.isArray(secondaryCitizens)) {
+    secondaryCitizens.forEach(upsertCitizen);
+  }
+  if (Array.isArray(primaryCitizens)) {
+    primaryCitizens.forEach(upsertCitizen);
+  }
+  for (const jc of loadCitizensJournal()) {
+    upsertCitizen(jc);
+  }
+
+  // Also ensure any citizen who submitted a non-sample report is represented in citizenUsers
+  for (const rep of finalReports) {
+    if (!rep || INITIAL_REPORT_IDS.has(rep.id)) continue;
+    const cleanReporter = (rep.reporterName || '').trim();
+    if (!cleanReporter || cleanReporter.toLowerCase() === 'warga anonim') continue;
+
+    const derivedUid =
+      rep.ownerId ||
+      (rep.ownerEmail
+        ? `warga_${rep.ownerEmail.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_')}`
+        : `warga_${cleanReporter.toLowerCase().replace(/[^a-z0-9_-]/g, '_')}`);
+
+    if (deletedIds.has(derivedUid)) continue;
+
+    // Check if already matched by email or fullName
+    const alreadyExists = Array.from(citizensMap.values()).some(
+      (existing) =>
+        existing.uid === derivedUid ||
+        (rep.ownerEmail &&
+          existing.email &&
+          existing.email.trim().toLowerCase() === rep.ownerEmail.trim().toLowerCase()) ||
+        existing.fullName.trim().toLowerCase() === cleanReporter.toLowerCase()
+    );
+
+    if (!alreadyExists) {
+      upsertCitizen({
+        uid: derivedUid,
+        email: rep.ownerEmail || '',
+        fullName: cleanReporter,
+        nik: rep.applicantNik || '',
+        phone: rep.reporterPhone && rep.reporterPhone !== '-' ? rep.reporterPhone : '',
+        rw: rep.rw || 'RW 01',
+        rt: rep.rt || 'RT 01',
+        address: rep.citizenAddress || rep.locationName || 'Kelurahan Panaikang',
+        role: 'warga',
+        createdAt: rep.createdAt,
+        updatedAt: rep.updatedAt,
+      });
+    }
+  }
+
+  const resolvedCitizenUsers = Array.from(citizensMap.values());
+
   const maxUpdatedAt = Math.max(localUpdatedAt, incomingUpdatedAt, Date.now());
 
   return {
@@ -657,6 +761,7 @@ export function smartMergeDatabases(
     farmingInventories: incoming?.farmingInventories || localDb?.farmingInventories || INITIAL_FARMING_INVENTORIES,
     supplyRequests: incoming?.supplyRequests || localDb?.supplyRequests || INITIAL_SUPPLY_REQUESTS,
     siskamlingSchedules: resolvedSiskamlingSchedules,
+    citizenUsers: resolvedCitizenUsers,
     deletedItemIds: Array.from(deletedIds),
     updatedAt: maxUpdatedAt,
   };
@@ -720,6 +825,7 @@ export function savePersistedDatabase(db: PersistedDatabase): void {
       db.adminUsers = (db.adminUsers || []).filter((u) => u && u.id && !deletedSet.has(u.id));
       db.urbanFarmingSpots = (db.urbanFarmingSpots || []).filter((s) => s && s.id && !deletedSet.has(s.id));
       db.seedRequests = (db.seedRequests || []).filter((s) => s && s.id && !deletedSet.has(s.id));
+      db.citizenUsers = (db.citizenUsers || []).filter((c) => c && c.uid && !deletedSet.has(c.uid));
     }
 
     const serialized = JSON.stringify(db);
@@ -734,7 +840,7 @@ export function savePersistedDatabase(db: PersistedDatabase): void {
     // 3. Persistent tombstone storage
     window.localStorage.setItem(DELETED_IDS_KEY, JSON.stringify(db.deletedItemIds));
 
-    // 4. User Journal extraction (all user-submitted reports and logs that are not deleted)
+    // 4. User Journal extraction (all user-submitted reports, logs, and citizen accounts that are not deleted)
     const userReports = db.reports.filter(
       (r) => (!INITIAL_REPORT_IDS.has(r.id) || r.id.startsWith('rep-')) && !deletedSet.has(r.id)
     );
@@ -744,6 +850,9 @@ export function savePersistedDatabase(db: PersistedDatabase): void {
       (l) => (!INITIAL_WASTE_LOG_IDS.has(l.id) || l.id.startsWith('log-')) && !deletedSet.has(l.id)
     );
     window.localStorage.setItem(JOURNAL_LOGS_KEY, JSON.stringify(userLogs));
+
+    const userCitizens = (db.citizenUsers || []).filter((c) => c && c.uid && !deletedSet.has(c.uid));
+    window.localStorage.setItem(JOURNAL_CITIZENS_KEY, JSON.stringify(userCitizens));
 
     // 5. Dispatch custom event for real-time reactivity across tabs
     window.dispatchEvent(new CustomEvent('pnk_db_updated', { detail: { updatedAt: db.updatedAt } }));

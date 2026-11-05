@@ -303,6 +303,12 @@ interface AdminPanelViewProps {
   onImportDatabase?: (jsonString: string) => { ok: boolean; message: string };
   firebaseUserProfile?: AuthenticatedUserProfile | null;
   onFirebaseLogout?: () => Promise<void>;
+  citizenUsers?: AuthenticatedUserProfile[];
+  onUpdateCitizenUser?: (
+    uid: string,
+    updates: Partial<AuthenticatedUserProfile>
+  ) => Promise<{ ok: boolean; error?: string }>;
+  onDeleteCitizenUser?: (uid: string) => Promise<{ ok: boolean; error?: string }>;
 }
 
 export type AdminTab =
@@ -403,6 +409,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   onImportDatabase,
   firebaseUserProfile,
   onFirebaseLogout,
+  citizenUsers = [],
+  onUpdateCitizenUser,
+  onDeleteCitizenUser,
 }) => {
   // ================= AUTHENTICATION STATE =================
   const [adminSession, setAdminSession] = useState<AdminSession | null>(() => {
@@ -4914,6 +4923,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               <AdminDaftarWargaPanel
                 reports={reports}
                 rwGroups={rwGroups}
+                citizenUsers={citizenUsers}
+                onUpdateCitizenUser={onUpdateCitizenUser}
+                onDeleteCitizenUser={onDeleteCitizenUser}
                 onRecordAudit={(audit) => {
                   recordAudit({
                     actionType: audit.actionType,

@@ -31,10 +31,20 @@ import {
   updateCitizenProfileByAdmin,
   deleteCitizenProfileByAdmin,
 } from '../firebase/authService';
+import { INITIAL_REPORTS } from '../data/initialData';
+import { getDeletedItemIds, loadCitizensJournal } from '../utils/persistentStorage';
+
+const INITIAL_SAMPLE_REPORT_IDS = new Set(INITIAL_REPORTS.map((r) => r.id));
 
 interface AdminDaftarWargaPanelProps {
   reports: CitizenReport[];
   rwGroups: RwGroup[];
+  citizenUsers?: AuthenticatedUserProfile[];
+  onUpdateCitizenUser?: (
+    uid: string,
+    updates: Partial<AuthenticatedUserProfile>
+  ) => Promise<{ ok: boolean; error?: string }>;
+  onDeleteCitizenUser?: (uid: string) => Promise<{ ok: boolean; error?: string }>;
   onRecordAudit?: (params: {
     actionType: 'CREATE' | 'UPDATE' | 'DELETE' | 'EXPORT';
     targetId?: string;
@@ -47,9 +57,16 @@ interface AdminDaftarWargaPanelProps {
 export const AdminDaftarWargaPanel: React.FC<AdminDaftarWargaPanelProps> = ({
   reports,
   rwGroups,
+  citizenUsers = [],
+  onUpdateCitizenUser,
+  onDeleteCitizenUser,
   onRecordAudit,
 }) => {
-  const [citizens, setCitizens] = useState<AuthenticatedUserProfile[]>([]);
+  const [cloudCitizens, setCloudCitizens] = useState<AuthenticatedUserProfile[]>([]);
+  const [localDeletedUids, setLocalDeletedUids] = useState<Set<string>>(() => getDeletedItemIds());
+  const [localEditedOverrides, setLocalEditedOverrides] = useState<
+    Record<string, Partial<AuthenticatedUserProfile>>
+  >({});
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRw, setSelectedRw] = useState('Semua');
@@ -79,7 +96,7 @@ export const AdminDaftarWargaPanel: React.FC<AdminDaftarWargaPanelProps> = ({
     setIsLoading(true);
     const unsub = subscribeToAllCitizenProfiles(
       (data) => {
-        setCitizens(data);
+        setCloudCitizens(data);
         setIsLoading(false);
       },
       () => {
@@ -88,6 +105,114 @@ export const AdminDaftarWargaPanel: React.FC<AdminDaftarWargaPanelProps> = ({
     );
     return () => unsub();
   }, []);
+
+  // Unified, deduplicated list of registered citizens from:
+  // 1) Firestore `/user_profiles`
+  // 2) PersistedDatabase `citizenUsers` + localStorage `loadCitizensJournal()`
+  // 3) Real user-submitted `reports` (non-sample reports where reporterName !== 'Warga Anonim')
+  const citizens = useMemo(() => {
+    const deletedSet = new Set<string>([
+      ...getDeletedItemIds(),
+      ...localDeletedUids,
+    ]);
+    const list: AuthenticatedUserProfile[] = [];
+
+    const mergeIntoList = (candidate: AuthenticatedUserProfile | undefined | null) => {
+      if (!candidate || !candidate.uid || deletedSet.has(candidate.uid)) return;
+      const cleanEmail = (candidate.email || '').trim().toLowerCase();
+      const cleanName = (candidate.fullName || '').trim().toLowerCase();
+
+      const existingIdx = list.findIndex(
+        (item) =>
+          item.uid === candidate.uid ||
+          (cleanEmail && item.email && item.email.trim().toLowerCase() === cleanEmail) ||
+          (cleanName &&
+            cleanName !== 'warga panaikang' &&
+            cleanName !== 'warga kelurahan panaikang' &&
+            item.fullName.trim().toLowerCase() === cleanName)
+      );
+
+      if (existingIdx === -1) {
+        const override = localEditedOverrides[candidate.uid] || {};
+        list.push({
+          ...candidate,
+          ...override,
+          role: 'warga',
+        });
+      } else {
+        const existing = list[existingIdx];
+        const primaryUid = existing.uid.startsWith('warga_') ? candidate.uid : existing.uid;
+        if (deletedSet.has(primaryUid)) return;
+        const override = localEditedOverrides[primaryUid] || localEditedOverrides[existing.uid] || {};
+        list[existingIdx] = {
+          ...existing,
+          ...candidate,
+          uid: primaryUid,
+          fullName:
+            (candidate.fullName &&
+            candidate.fullName !== 'Warga Panaikang' &&
+            candidate.fullName !== 'Warga Kelurahan Panaikang'
+              ? candidate.fullName
+              : existing.fullName) || 'Warga Panaikang',
+          email: candidate.email || existing.email || '',
+          nik: candidate.nik || existing.nik || '',
+          phone:
+            (candidate.phone && candidate.phone !== '-' ? candidate.phone : existing.phone) || '',
+          rw: candidate.rw || existing.rw || 'RW 01',
+          rt: candidate.rt || existing.rt || 'RT 01',
+          address: candidate.address || existing.address || 'Kelurahan Panaikang',
+          createdAt: candidate.createdAt || existing.createdAt,
+          updatedAt: candidate.updatedAt || existing.updatedAt,
+          ...override,
+          role: 'warga',
+        };
+      }
+    };
+
+    // 1. Persisted & journal citizen users
+    for (const c of citizenUsers) {
+      mergeIntoList(c);
+    }
+    for (const jc of loadCitizensJournal()) {
+      mergeIntoList(jc);
+    }
+
+    // 2. Cloud Firestore /user_profiles
+    for (const cc of cloudCitizens) {
+      mergeIntoList(cc);
+    }
+
+    // 3. Backfill from user-submitted reports (non-sample reports)
+    for (const rep of reports) {
+      if (!rep || INITIAL_SAMPLE_REPORT_IDS.has(rep.id)) continue;
+      const cleanReporter = (rep.reporterName || '').trim();
+      if (!cleanReporter || cleanReporter.toLowerCase() === 'warga anonim') continue;
+
+      const derivedUid =
+        rep.ownerId ||
+        (rep.ownerEmail
+          ? `warga_${rep.ownerEmail.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_')}`
+          : `warga_${cleanReporter.toLowerCase().replace(/[^a-z0-9_-]/g, '_')}`);
+
+      if (deletedSet.has(derivedUid)) continue;
+
+      mergeIntoList({
+        uid: derivedUid,
+        email: rep.ownerEmail || '',
+        fullName: cleanReporter,
+        nik: rep.applicantNik || '',
+        phone: rep.reporterPhone && rep.reporterPhone !== '-' ? rep.reporterPhone : '',
+        rw: rep.rw || 'RW 01',
+        rt: rep.rt || 'RT 01',
+        address: rep.citizenAddress || rep.locationName || 'Kelurahan Panaikang',
+        role: 'warga',
+        createdAt: rep.createdAt,
+        updatedAt: rep.updatedAt,
+      });
+    }
+
+    return list.sort((a, b) => a.fullName.localeCompare(b.fullName));
+  }, [citizenUsers, cloudCitizens, reports, localDeletedUids, localEditedOverrides]);
 
   // Available RWs
   const rwList = useMemo(() => {
@@ -147,16 +272,40 @@ export const AdminDaftarWargaPanel: React.FC<AdminDaftarWargaPanelProps> = ({
     return { total, withEmail, withPhone, rws };
   }, [citizens]);
 
-  // Citizen's submissions mapping
-  const citizenSubmissionsCount = useMemo(() => {
-    const map = new Map<string, number>();
-    reports.forEach((r) => {
-      if (r.ownerId) {
-        map.set(r.ownerId, (map.get(r.ownerId) || 0) + 1);
-      }
-    });
+  // Citizen's submissions mapping (matches by ownerId, ownerEmail, or reporterName on user-submitted reports)
+  const citizenSubmissionsMap = useMemo(() => {
+    const map = new Map<string, CitizenReport[]>();
+    for (const citizen of citizens) {
+      const cleanEmail = (citizen.email || '').trim().toLowerCase();
+      const cleanName = (citizen.fullName || '').trim().toLowerCase();
+      const matched = reports.filter((r) => {
+        if (!r) return false;
+        if (r.ownerId && r.ownerId === citizen.uid) return true;
+        if (cleanEmail && r.ownerEmail && r.ownerEmail.trim().toLowerCase() === cleanEmail) {
+          return true;
+        }
+        if (
+          !INITIAL_SAMPLE_REPORT_IDS.has(r.id) &&
+          cleanName &&
+          r.reporterName &&
+          r.reporterName.trim().toLowerCase() === cleanName
+        ) {
+          return true;
+        }
+        return false;
+      });
+      map.set(citizen.uid, matched);
+    }
     return map;
-  }, [reports]);
+  }, [citizens, reports]);
+
+  const citizenSubmissionsCount = useMemo(() => {
+    const countMap = new Map<string, number>();
+    citizenSubmissionsMap.forEach((list, uid) => {
+      countMap.set(uid, list.length);
+    });
+    return countMap;
+  }, [citizenSubmissionsMap]);
 
   const handleOpenDetail = (citizen: AuthenticatedUserProfile) => {
     setSelectedCitizen(citizen);
@@ -189,21 +338,28 @@ export const AdminDaftarWargaPanel: React.FC<AdminDaftarWargaPanelProps> = ({
       return;
     }
 
-    setIsSaving(true);
-    const res = await updateCitizenProfileByAdmin(selectedCitizen.uid, {
+    const updates: Partial<AuthenticatedUserProfile> = {
       fullName: editForm.fullName.trim(),
       nik: cleanNik,
       phone: editForm.phone.trim(),
       rw: editForm.rw,
       rt: editForm.rt,
       address: editForm.address.trim(),
-    });
-    setIsSaving(false);
+    };
 
-    if (!res.ok) {
-      setFeedbackError(res.error || 'Gagal memperbarui data warga.');
-      return;
+    setIsSaving(true);
+    setLocalEditedOverrides((prev) => ({
+      ...prev,
+      [selectedCitizen.uid]: updates,
+    }));
+
+    if (onUpdateCitizenUser) {
+      await onUpdateCitizenUser(selectedCitizen.uid, updates).catch(() => {});
     }
+    if (!selectedCitizen.uid.startsWith('warga_')) {
+      await updateCitizenProfileByAdmin(selectedCitizen.uid, updates).catch(() => {});
+    }
+    setIsSaving(false);
 
     const updated: AuthenticatedUserProfile = {
       ...selectedCitizen,
@@ -221,7 +377,7 @@ export const AdminDaftarWargaPanel: React.FC<AdminDaftarWargaPanelProps> = ({
     if (onRecordAudit) {
       onRecordAudit({
         actionType: 'UPDATE',
-        targetLabel: `Warga: ${updated.fullName} (${updated.email})`,
+        targetLabel: `Warga: ${updated.fullName} (${updated.email || updated.rw})`,
         summary: `Memperbarui data profil warga ${updated.fullName} (RW: ${updated.rw}/${updated.rt})`,
       });
     }
@@ -233,24 +389,25 @@ export const AdminDaftarWargaPanel: React.FC<AdminDaftarWargaPanelProps> = ({
     const targetEmail = citizenToDelete.email;
     const uid = citizenToDelete.uid;
 
-    const res = await deleteCitizenProfileByAdmin(uid);
+    setLocalDeletedUids((prev) => new Set([...prev, uid]));
+    if (onDeleteCitizenUser) {
+      await onDeleteCitizenUser(uid).catch(() => {});
+    }
+    if (!uid.startsWith('warga_')) {
+      await deleteCitizenProfileByAdmin(uid).catch(() => {});
+    }
     setCitizenToDelete(null);
 
     if (selectedCitizen?.uid === uid) {
       setSelectedCitizen(null);
     }
 
-    if (!res.ok) {
-      setFeedbackError(res.error || 'Gagal menghapus data warga.');
-      return;
-    }
-
     setFeedbackSuccess(`Profil warga "${targetName}" berhasil dihapus.`);
     if (onRecordAudit) {
       onRecordAudit({
         actionType: 'DELETE',
-        targetLabel: `Warga: ${targetName} (${targetEmail})`,
-        summary: `Menghapus akun profil warga ${targetName} (${targetEmail}) dari basis data`,
+        targetLabel: `Warga: ${targetName} (${targetEmail || uid})`,
+        summary: `Menghapus akun profil warga ${targetName} (${targetEmail || uid}) dari basis data`,
       });
     }
   };
@@ -501,7 +658,7 @@ export const AdminDaftarWargaPanel: React.FC<AdminDaftarWargaPanelProps> = ({
 
       {/* Main Table Card */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-2xs overflow-hidden">
-        {isLoading ? (
+        {isLoading && filteredCitizens.length === 0 ? (
           <div className="p-12 text-center space-y-3">
             <Loader2 className="w-8 h-8 text-[#0D3868] animate-spin mx-auto" />
             <p className="text-xs font-bold text-slate-600">
@@ -854,6 +1011,42 @@ export const AdminDaftarWargaPanel: React.FC<AdminDaftarWargaPanelProps> = ({
                       {selectedCitizen.address || 'Kelurahan Panaikang, Kec. Panakkukang, Kota Makassar'}
                     </p>
                   </div>
+
+                  {/* Citizen's Submitted Reports / Letters */}
+                  {(citizenSubmissionsMap.get(selectedCitizen.uid) || []).length > 0 && (
+                    <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 text-xs space-y-2">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold block">
+                        Riwayat Laporan & Permohonan Surat ({(citizenSubmissionsMap.get(selectedCitizen.uid) || []).length})
+                      </span>
+                      <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                        {(citizenSubmissionsMap.get(selectedCitizen.uid) || []).map((rep) => (
+                          <div
+                            key={rep.id}
+                            className="p-2.5 rounded-lg bg-white border border-slate-200 flex items-start justify-between gap-2"
+                          >
+                            <div className="min-w-0">
+                              <div className="font-mono font-bold text-[11px] text-[#0D3868]">
+                                #{rep.ticketCode}
+                              </div>
+                              <div className="font-bold text-slate-800 truncate">{rep.title}</div>
+                              <div className="text-[10px] text-slate-500">{rep.createdAt}</div>
+                            </div>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                                rep.status === 'Selesai'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : rep.status === 'Sedang Ditangani'
+                                  ? 'bg-sky-100 text-sky-800'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}
+                            >
+                              {rep.status}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Actions in Detail View */}
                   <div className="pt-3 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2">

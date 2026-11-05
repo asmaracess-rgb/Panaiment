@@ -246,19 +246,65 @@ export async function resolveTrustedUserRoleAndProfile(
       const data = profileSnap.data() as Record<string, unknown>;
       const trustedRole: UserRole = isTrustedAdmin ? 'admin' : 'warga';
 
+      const hasExplicitReg = Boolean(effectiveDefaults && effectiveDefaults.fullName && effectiveDefaults.fullName.trim().length >= 2);
+      const resolvedFullName = sanitizeString(
+        String(
+          (hasExplicitReg ? effectiveDefaults?.fullName : '') ||
+          data.fullName ||
+          effectiveDefaults?.fullName ||
+          firebaseUser.displayName ||
+          'Warga Panaikang'
+        ),
+        AUTH_SCHEMA_LIMITS.NAME_MAX,
+        'Warga Panaikang'
+      );
+      const resolvedNik = sanitizeString(
+        String((hasExplicitReg && effectiveDefaults?.nik ? effectiveDefaults.nik : data.nik) || effectiveDefaults?.nik || ''),
+        AUTH_SCHEMA_LIMITS.NIK_MAX,
+        ''
+      );
+      const resolvedPhone = sanitizeString(
+        String((hasExplicitReg && effectiveDefaults?.phone ? effectiveDefaults.phone : data.phone) || effectiveDefaults?.phone || ''),
+        AUTH_SCHEMA_LIMITS.PHONE_MAX,
+        ''
+      );
+      const resolvedRw = sanitizeString(
+        String((hasExplicitReg && effectiveDefaults?.rw ? effectiveDefaults.rw : data.rw) || effectiveDefaults?.rw || 'RW 01'),
+        AUTH_SCHEMA_LIMITS.RW_MAX,
+        'RW 01'
+      );
+      const resolvedRt = sanitizeString(
+        String((hasExplicitReg && effectiveDefaults?.rt ? effectiveDefaults.rt : data.rt) || effectiveDefaults?.rt || 'RT 01'),
+        AUTH_SCHEMA_LIMITS.RT_MAX,
+        'RT 01'
+      );
+      const resolvedAddress = sanitizeString(
+        String((hasExplicitReg && effectiveDefaults?.address ? effectiveDefaults.address : data.address) || effectiveDefaults?.address || ''),
+        AUTH_SCHEMA_LIMITS.ADDRESS_MAX,
+        ''
+      );
+
+      if (hasExplicitReg) {
+        updateDoc(profileRef, {
+          fullName: resolvedFullName,
+          nik: resolvedNik,
+          phone: resolvedPhone,
+          rw: resolvedRw,
+          rt: resolvedRt,
+          address: resolvedAddress,
+          updatedAt: serverTimestamp(),
+        }).catch(() => {});
+      }
+
       return {
         uid,
         email: sanitizeString(String(data.email || email), AUTH_SCHEMA_LIMITS.EMAIL_MAX, email),
-        fullName: sanitizeString(
-          String(data.fullName || effectiveDefaults?.fullName || firebaseUser.displayName || 'Warga Panaikang'),
-          AUTH_SCHEMA_LIMITS.NAME_MAX,
-          'Warga Panaikang'
-        ),
-        nik: sanitizeString(String(data.nik || effectiveDefaults?.nik || ''), AUTH_SCHEMA_LIMITS.NIK_MAX, ''),
-        phone: sanitizeString(String(data.phone || effectiveDefaults?.phone || ''), AUTH_SCHEMA_LIMITS.PHONE_MAX, ''),
-        rw: sanitizeString(String(data.rw || effectiveDefaults?.rw || 'RW 01'), AUTH_SCHEMA_LIMITS.RW_MAX, 'RW 01'),
-        rt: sanitizeString(String(data.rt || effectiveDefaults?.rt || 'RT 01'), AUTH_SCHEMA_LIMITS.RT_MAX, 'RT 01'),
-        address: sanitizeString(String(data.address || effectiveDefaults?.address || ''), AUTH_SCHEMA_LIMITS.ADDRESS_MAX, ''),
+        fullName: resolvedFullName,
+        nik: resolvedNik,
+        phone: resolvedPhone,
+        rw: resolvedRw,
+        rt: resolvedRt,
+        address: resolvedAddress,
         role: trustedRole,
         adminDetails,
       };
@@ -268,7 +314,8 @@ export async function resolveTrustedUserRoleAndProfile(
   }
 
   // 3. If profile does not exist yet in Firestore, initialize a citizen profile document
-  // Notice: Firestore rules strictly require role == 'warga' unless the user is already in /admins/{uid}
+  // Store role as 'warga' in /user_profiles so Firestore rules always accept citizen registration
+  // and the account is always listed in User Warga Terdaftar.
   const initialRole: UserRole = isTrustedAdmin ? 'admin' : 'warga';
   const defaultProfile: AuthenticatedUserProfile = {
     uid,
@@ -301,7 +348,7 @@ export async function resolveTrustedUserRoleAndProfile(
       rw: defaultProfile.rw,
       rt: defaultProfile.rt,
       address: defaultProfile.address,
-      role: defaultProfile.role,
+      role: 'warga',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -385,6 +432,23 @@ export async function signInWithGoogleAccount(
         ok: false,
         error: 'Nama lengkap sesuai KTP wajib diisi (minimal 2 karakter).',
       };
+    }
+    try {
+      window.localStorage.setItem(
+        PENDING_REG_PROFILE_STORAGE_KEY,
+        JSON.stringify({
+          fullName: cleanName,
+          nik: (registrationDefaults.nik || '').replace(/\D/g, '').trim(),
+          phone: (registrationDefaults.phone || '').trim(),
+          rw: registrationDefaults.rw || 'RW 01',
+          rt: registrationDefaults.rt || 'RT 01',
+          address:
+            (registrationDefaults.address || '').trim() ||
+            'Kelurahan Panaikang, Kec. Panakkukang, Kota Makassar',
+        })
+      );
+    } catch {
+      // Ignore storage errors
     }
   }
 
@@ -1078,7 +1142,7 @@ export function subscribeToAllCitizenProfiles(
       const items: AuthenticatedUserProfile[] = [];
       snapshot.forEach((docSnap) => {
         const d = docSnap.data() as Record<string, unknown>;
-        if (d && (d.role === 'warga' || !d.role)) {
+        if (d && (d.uid || docSnap.id)) {
           items.push({
             uid: String(d.uid || docSnap.id),
             email: String(d.email || ''),
