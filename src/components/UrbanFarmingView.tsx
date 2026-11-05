@@ -48,6 +48,7 @@ interface UrbanFarmingViewProps {
   onAddSpot?: (spot: UrbanFarmingSpot) => void;
   seedRequests?: SeedRequestItem[];
   onAddSeedRequest?: (req: SeedRequestItem) => void;
+  allowedSubItems?: string[];
 }
 
 const FARM_TYPE_CONFIG: Record<
@@ -133,8 +134,34 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
   onAddSpot,
   seedRequests = [],
   onAddSeedRequest,
+  allowedSubItems,
 }) => {
-  const [activeTab, setActiveTab] = useState<'kebun' | 'panen' | 'edukasi' | 'bibit'>('kebun');
+  const isAllowed = (key: string) => !allowedSubItems || allowedSubItems.includes(key);
+
+  const availableTabs = useMemo(() => {
+    const list: ('kebun' | 'panen' | 'edukasi' | 'bibit')[] = [];
+    if (!allowedSubItems || allowedSubItems.includes('urbanfarming_kebun')) list.push('kebun');
+    if (!allowedSubItems || allowedSubItems.includes('urbanfarming_panen')) list.push('panen');
+    if (!allowedSubItems || allowedSubItems.includes('urbanfarming_edukasi')) list.push('edukasi');
+    if (!allowedSubItems || allowedSubItems.includes('urbanfarming_bibit')) list.push('bibit');
+    return list;
+  }, [allowedSubItems]);
+
+  const [activeTab, setActiveTab] = useState<'kebun' | 'panen' | 'edukasi' | 'bibit'>(() => {
+    if (allowedSubItems && !allowedSubItems.includes('urbanfarming_kebun')) {
+      if (allowedSubItems.includes('urbanfarming_panen')) return 'panen';
+      if (allowedSubItems.includes('urbanfarming_edukasi')) return 'edukasi';
+      if (allowedSubItems.includes('urbanfarming_bibit')) return 'bibit';
+    }
+    return 'kebun';
+  });
+
+  React.useEffect(() => {
+    if (availableTabs.length > 0 && !availableTabs.includes(activeTab)) {
+      setActiveTab(availableTabs[0]);
+    }
+  }, [availableTabs, activeTab]);
+
   const [selectedRwFilter, setSelectedRwFilter] = useState<string>('Semua');
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('Semua');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -406,14 +433,16 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
             <span>Cetak Laporan Ketahanan Pangan</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setShowSeedFormModal(true)}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#059669] hover:bg-[#047857] text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
-          >
-            <Sprout className="w-3.5 h-3.5" />
-            <span>Ajukan Bibit Gratis</span>
-          </button>
+          {isAllowed('urbanfarming_bibit') && (
+            <button
+              type="button"
+              onClick={() => setShowSeedFormModal(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#059669] hover:bg-[#047857] text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+            >
+              <Sprout className="w-3.5 h-3.5" />
+              <span>Ajukan Bibit Gratis</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -514,61 +543,69 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
 
       {/* ================= TAB NAVIGATION ================= */}
       <div className="flex items-center gap-2 border-b border-slate-200 overflow-x-auto pb-1">
-        <button
-          type="button"
-          onClick={() => setActiveTab('kebun')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
-            activeTab === 'kebun'
-              ? 'bg-[#059669] text-white shadow-xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <Sprout className="w-4 h-4" />
-          <span>Daftar Kebun ({spots.length})</span>
-        </button>
+        {isAllowed('urbanfarming_kebun') && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('kebun')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'kebun'
+                ? 'bg-[#059669] text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <Sprout className="w-4 h-4" />
+            <span>Daftar Kebun ({spots.length})</span>
+          </button>
+        )}
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('panen')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
-            activeTab === 'panen'
-              ? 'bg-[#059669] text-white shadow-xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <Calendar className="w-4 h-4" />
-          <span>Jadwal Panen Raya</span>
-        </button>
+        {isAllowed('urbanfarming_panen') && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('panen')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'panen'
+                ? 'bg-[#059669] text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <Calendar className="w-4 h-4" />
+            <span>Jadwal Panen Raya</span>
+          </button>
+        )}
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('edukasi')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
-            activeTab === 'edukasi'
-              ? 'bg-[#059669] text-white shadow-xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <BookOpen className="w-4 h-4" />
-          <span>Panduan Lahan Sempit</span>
-        </button>
+        {isAllowed('urbanfarming_edukasi') && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('edukasi')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'edukasi'
+                ? 'bg-[#059669] text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <BookOpen className="w-4 h-4" />
+            <span>Panduan Lahan Sempit</span>
+          </button>
+        )}
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('bibit')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
-            activeTab === 'bibit'
-              ? 'bg-[#059669] text-white shadow-xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <Package className="w-4 h-4" />
-          <span>Katalog Bibit Gratis ({SEED_CATALOG.length})</span>
-        </button>
+        {isAllowed('urbanfarming_bibit') && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('bibit')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'bibit'
+                ? 'bg-[#059669] text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <Package className="w-4 h-4" />
+            <span>Katalog Bibit Gratis ({SEED_CATALOG.length})</span>
+          </button>
+        )}
       </div>
 
       {/* ================= TAB 1: DAFTAR KEBUN LORONG ================= */}
-      {activeTab === 'kebun' && (
+      {activeTab === 'kebun' && isAllowed('urbanfarming_kebun') && (
         <div className="space-y-4">
           {/* Filter Bar */}
           <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 space-y-3.5 shadow-xs">
@@ -771,7 +808,7 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
       )}
 
       {/* ================= TAB 2: JADWAL PANEN RAYA ================= */}
-      {activeTab === 'panen' && (
+      {activeTab === 'panen' && isAllowed('urbanfarming_panen') && (
         <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 space-y-6 shadow-xs">
           <div className="max-w-2xl">
             <h2 className="text-lg sm:text-xl font-extrabold text-[#0D3868] flex items-center gap-2">
@@ -843,7 +880,7 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
       )}
 
       {/* ================= TAB 3: PANDUAN EDUKASI LAHAN SEMPIT ================= */}
-      {activeTab === 'edukasi' && (
+      {activeTab === 'edukasi' && isAllowed('urbanfarming_edukasi') && (
         <div className="space-y-5">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3 shadow-xs">
@@ -922,7 +959,7 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
       )}
 
       {/* ================= TAB 4: KATALOG BIBIT & PERMOHONAN ================= */}
-      {activeTab === 'bibit' && (
+      {activeTab === 'bibit' && isAllowed('urbanfarming_bibit') && (
         <div className="space-y-6">
           <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 space-y-6 shadow-xs">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">

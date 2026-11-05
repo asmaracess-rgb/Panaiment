@@ -80,6 +80,7 @@ import {
   SeedRequestItem,
   AuthenticatedUserProfile,
   KelolaAdminWargaSubTab,
+  CitizenMenuAccessConfig,
 } from '../types';
 import {
   signInWithGoogleAccount,
@@ -304,6 +305,10 @@ interface AdminPanelViewProps {
   firebaseUserProfile?: AuthenticatedUserProfile | null;
   onFirebaseLogout?: () => Promise<void>;
   citizenUsers?: AuthenticatedUserProfile[];
+  citizenMenuConfig?: CitizenMenuAccessConfig;
+  onSaveCitizenMenuConfig?: (
+    updatedConfig: CitizenMenuAccessConfig
+  ) => Promise<{ ok: boolean; error?: string }>;
   onUpdateCitizenUser?: (
     uid: string,
     updates: Partial<AuthenticatedUserProfile>
@@ -410,6 +415,8 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   firebaseUserProfile,
   onFirebaseLogout,
   citizenUsers = [],
+  citizenMenuConfig,
+  onSaveCitizenMenuConfig,
   onUpdateCitizenUser,
   onDeleteCitizenUser,
 }) => {
@@ -4875,7 +4882,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                       kelolaAdminWargaSubTab === 'user_warga' ? 'text-indigo-200' : 'text-slate-500'
                     }`}
                   >
-                    Database Profil Warga & Alamat Email Terdaftar
+                    Database Warga & Parameter Batasan Akses Menu
                   </p>
                 </button>
               </div>
@@ -4924,6 +4931,8 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 reports={reports}
                 rwGroups={rwGroups}
                 citizenUsers={citizenUsers}
+                citizenMenuConfig={citizenMenuConfig}
+                onSaveCitizenMenuConfig={onSaveCitizenMenuConfig}
                 onUpdateCitizenUser={onUpdateCitizenUser}
                 onDeleteCitizenUser={onDeleteCitizenUser}
                 onRecordAudit={(audit) => {
@@ -4934,7 +4943,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     targetLabel: audit.targetLabel,
                     summary: audit.summary,
                     details: audit.details,
-                    severity: 'info',
+                    severity: audit.actionType === 'ACCESS_CHANGE' ? 'warning' : 'info',
                   });
                 }}
               />

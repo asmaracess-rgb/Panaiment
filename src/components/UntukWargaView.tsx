@@ -101,6 +101,7 @@ interface UntukWargaViewProps {
   userProfile?: AuthenticatedUserProfile | null;
   onRequireAuth?: (notice?: string) => void;
   onLogout?: () => void;
+  allowedSubItems?: string[];
 }
 
 type SectionKey = 'home' | 'aduan' | 'admin';
@@ -116,7 +117,9 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
   userProfile,
   onRequireAuth,
   onLogout,
+  allowedSubItems,
 }) => {
+  const isAllowed = (key: string) => !allowedSubItems || allowedSubItems.includes(key);
   // Navigation section state (matches prototype)
   const [section, setSection] = useState<SectionKey>('home');
   const [aduanPage, setAduanPage] = useState<AduanTab>('new');
@@ -919,39 +922,45 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
 
               {/* Sub-Tabs: Buat Laporan | Lacak Laporan | Daftar Laporan */}
               <div className="flex flex-wrap items-center gap-2 pb-2">
-                <button
-                  type="button"
-                  onClick={() => setAduanPage('new')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                    aduanPage === 'new'
-                      ? 'bg-[#0277BD] text-white shadow-xs'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                  }`}
-                >
-                  ＋ Buat Laporan
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAduanPage('track')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                    aduanPage === 'track'
-                      ? 'bg-[#0277BD] text-white shadow-xs'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                  }`}
-                >
-                  ⌕ Lacak Laporan
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAduanPage('list')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                    aduanPage === 'list'
-                      ? 'bg-[#0277BD] text-white shadow-xs'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                  }`}
-                >
-                  ☷ Daftar Laporan ({reports.length})
-                </button>
+                {isAllowed('warga_aduan_baru') && (
+                  <button
+                    type="button"
+                    onClick={() => setAduanPage('new')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      aduanPage === 'new'
+                        ? 'bg-[#0277BD] text-white shadow-xs'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    ＋ Buat Laporan
+                  </button>
+                )}
+                {isAllowed('warga_lacak_tiket') && (
+                  <button
+                    type="button"
+                    onClick={() => setAduanPage('track')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      aduanPage === 'track'
+                        ? 'bg-[#0277BD] text-white shadow-xs'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    ⌕ Lacak Laporan
+                  </button>
+                )}
+                {isAllowed('warga_daftar_laporan') && (
+                  <button
+                    type="button"
+                    onClick={() => setAduanPage('list')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      aduanPage === 'list'
+                        ? 'bg-[#0277BD] text-white shadow-xs'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    ☷ Daftar Laporan ({reports.length})
+                  </button>
+                )}
               </div>
 
               {/* TAB 1: FORMULIR BUAT LAPORAN */}
@@ -1747,13 +1756,15 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
                           <span>Cetak Checklist</span>
                         </button>
 
-                        <button
-                          type="button"
-                          onClick={() => setAdminPage('apply')}
-                          className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#0277BD] hover:bg-[#0D3868] text-white text-xs font-extrabold shadow-sm cursor-pointer transition"
-                        >
-                          <span>Ajukan Permohonan Ini →</span>
-                        </button>
+                        {isAllowed('warga_pengajuan_surat') && (
+                          <button
+                            type="button"
+                            onClick={() => setAdminPage('apply')}
+                            className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#0277BD] hover:bg-[#0D3868] text-white text-xs font-extrabold shadow-sm cursor-pointer transition"
+                          >
+                            <span>Ajukan Permohonan Ini →</span>
+                          </button>
+                        )}
                       </div>
                     </div>
 

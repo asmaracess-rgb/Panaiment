@@ -258,7 +258,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
           </p>
         </div>
 
-        {/* TOP ROW: 3 Compact Portal Menu Cards (Menu Warga, Dashboard Lurah, Peta Digital) */}
+        {/* TOP ROW: 3 Compact Portal Menu Cards (Menu Warga, Profil Kelurahan, Peta Digital) */}
         <div className="max-w-4xl mx-auto grid grid-cols-3 gap-2.5 sm:gap-3.5">
           {/* Card 1: Menu Warga (Blue Gradient) */}
           <button

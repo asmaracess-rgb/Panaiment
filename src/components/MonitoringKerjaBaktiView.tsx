@@ -21,6 +21,7 @@ interface MonitoringKerjaBaktiViewProps {
   onJoinCleanup: (eventId: string, participantCount: number) => void;
   onAddCleanupEvent: (newEvent: Omit<CleanupEvent, 'id'>) => void;
   onNavigate: (view: AppView) => void;
+  allowedSubItems?: string[];
 }
 
 export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> = ({
@@ -28,7 +29,9 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
   onJoinCleanup,
   onAddCleanupEvent,
   onNavigate,
+  allowedSubItems,
 }) => {
+  const isAllowed = (subKey: string) => !allowedSubItems || allowedSubItems.includes(subKey);
   const [filterStatus, setFilterStatus] = useState<'Semua' | 'Terjadwal' | 'Tuntas'>('Semua');
   const [joiningEventId, setJoiningEventId] = useState<string | null>(null);
   const [participantName, setParticipantName] = useState('');
@@ -441,19 +444,21 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
                           </span>
                         )}
 
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setJoiningEventId(joiningEventId === ev.id ? null : ev.id)
-                          }
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#5E35B1] hover:bg-[#4527A0] text-white text-xs font-bold transition-colors cursor-pointer"
-                        >
-                          <UserPlus className="w-3.5 h-3.5" />
-                          <span>Daftar Hadir Warga</span>
-                        </button>
+                        {isAllowed('kerjabakti_daftar_relawan') && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setJoiningEventId(joiningEventId === ev.id ? null : ev.id)
+                            }
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#5E35B1] hover:bg-[#4527A0] text-white text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            <UserPlus className="w-3.5 h-3.5" />
+                            <span>Daftar Hadir Warga</span>
+                          </button>
+                        )}
                       </div>
 
-                      {joiningEventId === ev.id && (
+                      {isAllowed('kerjabakti_daftar_relawan') && joiningEventId === ev.id && (
                         <form
                           onSubmit={(e) => handleConfirmJoin(e, ev.id)}
                           className="p-3.5 rounded-xl bg-purple-50/70 border border-purple-200 grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-end"
@@ -536,7 +541,7 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
           </div>
 
           {/* Galeri Foto Dokumentasi Khusus Kegiatan yang Telah Dilaksanakan */}
-          {allDocumentationGallery.length > 0 && (
+          {isAllowed('kerjabakti_dokumentasi') && allDocumentationGallery.length > 0 && (
             <div className="mt-5 bg-white rounded-2xl border border-slate-200 p-5 sm:p-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2">

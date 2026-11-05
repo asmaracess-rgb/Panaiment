@@ -22,6 +22,9 @@ import {
   SupplyRequestItem,
   SiskamlingRwSchedule,
   AuthenticatedUserProfile,
+  CitizenMenuAccessConfig,
+  ALL_CITIZEN_MENU_KEYS,
+  ALL_CITIZEN_SUB_ITEM_KEYS,
 } from '../types';
 import {
   INITIAL_KELURAHAN_PROFILE,
@@ -75,9 +78,19 @@ export interface PersistedDatabase {
   supplyRequests?: SupplyRequestItem[];
   siskamlingSchedules?: SiskamlingRwSchedule[];
   citizenUsers?: AuthenticatedUserProfile[];
+  citizenMenuConfig?: CitizenMenuAccessConfig;
   deletedItemIds?: string[];
   updatedAt: number;
 }
+
+export const DEFAULT_CITIZEN_MENU_ACCESS_CONFIG: CitizenMenuAccessConfig = {
+  guestAllowedMenus: [...ALL_CITIZEN_MENU_KEYS],
+  registeredAllowedMenus: [...ALL_CITIZEN_MENU_KEYS],
+  perCitizenAllowedMenus: {},
+  guestAllowedSubItems: [...ALL_CITIZEN_SUB_ITEM_KEYS],
+  registeredAllowedSubItems: [...ALL_CITIZEN_SUB_ITEM_KEYS],
+  perCitizenAllowedSubItems: {},
+};
 
 // Multi-tier storage keys to guarantee zero data loss across GitHub sync & Vercel builds
 const STORAGE_KEY = 'pnk_smart_env_db_v4';
@@ -88,7 +101,23 @@ const LURAH_PHOTO_BACKUP_KEY = 'pnk_lurah_photo_backup_v1';
 const JOURNAL_REPORTS_KEY = 'pnk_smart_env_user_reports_v2';
 const JOURNAL_LOGS_KEY = 'pnk_smart_env_user_logs_v2';
 const JOURNAL_CITIZENS_KEY = 'pnk_smart_env_user_citizens_v2';
+const CITIZEN_MENU_ACCESS_KEY = 'pnk_citizen_menu_access_v1';
 const DELETED_IDS_KEY = 'pnk_smart_env_deleted_ids_v2';
+
+export function loadCitizenMenuAccessJournal(): CitizenMenuAccessConfig | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(CITIZEN_MENU_ACCESS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && Array.isArray(parsed.guestAllowedMenus) && Array.isArray(parsed.registeredAllowedMenus)) {
+      return parsed as CitizenMenuAccessConfig;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 function getRecoveredLurahPhotoUrl(): string {
   if (typeof window === 'undefined') return '';
@@ -679,6 +708,7 @@ export function smartMergeDatabases(
         rw: c.rw || existing.rw || 'RW 01',
         rt: c.rt || existing.rt || 'RT 01',
         address: c.address || existing.address || 'Kelurahan Panaikang',
+        allowedMenus: Array.isArray(c.allowedMenus) ? c.allowedMenus : existing.allowedMenus,
         role: 'warga',
       });
     }
@@ -740,6 +770,47 @@ export function smartMergeDatabases(
 
   const resolvedCitizenUsers = Array.from(citizensMap.values());
 
+  const journalMenuConfig = loadCitizenMenuAccessJournal();
+  const primaryMenuConfig = localIsNewer
+    ? (localDb?.citizenMenuConfig || journalMenuConfig || incoming?.citizenMenuConfig)
+    : (incoming?.citizenMenuConfig || localDb?.citizenMenuConfig || journalMenuConfig);
+  const secondaryMenuConfig = localIsNewer
+    ? (incoming?.citizenMenuConfig || journalMenuConfig)
+    : (localDb?.citizenMenuConfig || journalMenuConfig);
+
+  const resolvedCitizenMenuConfig: CitizenMenuAccessConfig = {
+    guestAllowedMenus: Array.isArray(primaryMenuConfig?.guestAllowedMenus)
+      ? primaryMenuConfig!.guestAllowedMenus
+      : Array.isArray(secondaryMenuConfig?.guestAllowedMenus)
+      ? secondaryMenuConfig!.guestAllowedMenus
+      : [...DEFAULT_CITIZEN_MENU_ACCESS_CONFIG.guestAllowedMenus],
+    registeredAllowedMenus: Array.isArray(primaryMenuConfig?.registeredAllowedMenus)
+      ? primaryMenuConfig!.registeredAllowedMenus
+      : Array.isArray(secondaryMenuConfig?.registeredAllowedMenus)
+      ? secondaryMenuConfig!.registeredAllowedMenus
+      : [...DEFAULT_CITIZEN_MENU_ACCESS_CONFIG.registeredAllowedMenus],
+    perCitizenAllowedMenus: {
+      ...(secondaryMenuConfig?.perCitizenAllowedMenus || {}),
+      ...(primaryMenuConfig?.perCitizenAllowedMenus || {}),
+    },
+    guestAllowedSubItems: Array.isArray(primaryMenuConfig?.guestAllowedSubItems)
+      ? primaryMenuConfig!.guestAllowedSubItems
+      : Array.isArray(secondaryMenuConfig?.guestAllowedSubItems)
+      ? secondaryMenuConfig!.guestAllowedSubItems
+      : [...DEFAULT_CITIZEN_MENU_ACCESS_CONFIG.guestAllowedSubItems!],
+    registeredAllowedSubItems: Array.isArray(primaryMenuConfig?.registeredAllowedSubItems)
+      ? primaryMenuConfig!.registeredAllowedSubItems
+      : Array.isArray(secondaryMenuConfig?.registeredAllowedSubItems)
+      ? secondaryMenuConfig!.registeredAllowedSubItems
+      : [...DEFAULT_CITIZEN_MENU_ACCESS_CONFIG.registeredAllowedSubItems!],
+    perCitizenAllowedSubItems: {
+      ...(secondaryMenuConfig?.perCitizenAllowedSubItems || {}),
+      ...(primaryMenuConfig?.perCitizenAllowedSubItems || {}),
+    },
+    updatedAt: primaryMenuConfig?.updatedAt || secondaryMenuConfig?.updatedAt,
+    updatedBy: primaryMenuConfig?.updatedBy || secondaryMenuConfig?.updatedBy,
+  };
+
   const maxUpdatedAt = Math.max(localUpdatedAt, incomingUpdatedAt, Date.now());
 
   return {
@@ -767,6 +838,7 @@ export function smartMergeDatabases(
     supplyRequests: incoming?.supplyRequests || localDb?.supplyRequests || INITIAL_SUPPLY_REQUESTS,
     siskamlingSchedules: resolvedSiskamlingSchedules,
     citizenUsers: resolvedCitizenUsers,
+    citizenMenuConfig: resolvedCitizenMenuConfig,
     deletedItemIds: Array.from(deletedIds),
     updatedAt: maxUpdatedAt,
   };
@@ -858,6 +930,10 @@ export function savePersistedDatabase(db: PersistedDatabase): void {
 
     const userCitizens = (db.citizenUsers || []).filter((c) => c && c.uid && !deletedSet.has(c.uid));
     window.localStorage.setItem(JOURNAL_CITIZENS_KEY, JSON.stringify(userCitizens));
+
+    if (db.citizenMenuConfig) {
+      window.localStorage.setItem(CITIZEN_MENU_ACCESS_KEY, JSON.stringify(db.citizenMenuConfig));
+    }
 
     // 5. Dispatch custom event for real-time reactivity across tabs
     window.dispatchEvent(new CustomEvent('pnk_db_updated', { detail: { updatedAt: db.updatedAt } }));

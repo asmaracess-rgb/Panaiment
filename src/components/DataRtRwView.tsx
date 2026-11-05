@@ -38,6 +38,7 @@ interface DataRtRwViewProps {
   profile?: KelurahanProfile;
   siskamlingSchedules?: SiskamlingRwSchedule[];
   onNavigate: (view: AppView) => void;
+  allowedSubItems?: string[];
 }
 
 const toOfficerArray = (val: unknown): string[] => {
@@ -64,7 +65,9 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
   profile,
   siskamlingSchedules = INITIAL_SISKAMLING_SCHEDULES,
   onNavigate,
+  allowedSubItems,
 }) => {
+  const isAllowed = (subKey: string) => !allowedSubItems || allowedSubItems.includes(subKey);
   const [activeTab, setActiveTab] = useState<'rtrw' | 'siskamling'>('rtrw');
   const [selectedRwCode, setSelectedRwCode] = useState<string>('Semua');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -236,14 +239,16 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
 
         {/* Action Buttons: Bagan Struktur RT/RW, Profil Kelurahan, Peta Wilayah RT RW, Jadwal Siskamling RT RW */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 self-start">
-          <button
-            type="button"
-            onClick={() => setShowBaganRtRw(true)}
-            className="px-3.5 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold transition-colors cursor-pointer whitespace-nowrap shadow-xs inline-flex items-center gap-1.5"
-          >
-            <Users className="w-4 h-4" />
-            <span>Bagan Struktur RT/RW</span>
-          </button>
+          {isAllowed('rtrw_bagan_struktur') && (
+            <button
+              type="button"
+              onClick={() => setShowBaganRtRw(true)}
+              className="px-3.5 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold transition-colors cursor-pointer whitespace-nowrap shadow-xs inline-flex items-center gap-1.5"
+            >
+              <Users className="w-4 h-4" />
+              <span>Bagan Struktur RT/RW</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onNavigate('profil')}
@@ -258,18 +263,20 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
           >
             Peta Wilayah RT RW
           </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab(activeTab === 'siskamling' ? 'rtrw' : 'siskamling')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 shadow-xs ${
-              activeTab === 'siskamling'
-                ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 ring-2 ring-amber-300 font-extrabold'
-                : 'bg-[#0D3868] hover:bg-[#072647] text-white'
-            }`}
-          >
-            <ShieldCheck className="w-4 h-4 text-amber-300" />
-            <span>Jadwal Siskamling RT RW</span>
-          </button>
+          {isAllowed('rtrw_jadwal_siskamling') && (
+            <button
+              type="button"
+              onClick={() => setActiveTab(activeTab === 'siskamling' ? 'rtrw' : 'siskamling')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 shadow-xs ${
+                activeTab === 'siskamling'
+                  ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 ring-2 ring-amber-300 font-extrabold'
+                  : 'bg-[#0D3868] hover:bg-[#072647] text-white'
+              }`}
+            >
+              <ShieldCheck className="w-4 h-4 text-amber-300" />
+              <span>Jadwal Siskamling RT RW</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -288,21 +295,23 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
           <span>Direktori RT & RW ({totalRwCount} RW · {totalRtCount} RT)</span>
         </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('siskamling')}
-          className={`pb-3 px-4 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
-            activeTab === 'siskamling'
-              ? 'border-amber-500 text-amber-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <ShieldCheck className="w-4 h-4 text-amber-500" />
-          <span>Jadwal Siskamling RT RW (7 Posko RW)</span>
-          <span className="text-[10px] bg-amber-100 text-amber-900 font-extrabold px-1.5 py-0.5 rounded-full">
-            Hari Ini: {todayDay}
-          </span>
-        </button>
+        {isAllowed('rtrw_jadwal_siskamling') && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('siskamling')}
+            className={`pb-3 px-4 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
+              activeTab === 'siskamling'
+                ? 'border-amber-500 text-amber-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4 text-amber-500" />
+            <span>Jadwal Siskamling RT RW (7 Posko RW)</span>
+            <span className="text-[10px] bg-amber-100 text-amber-900 font-extrabold px-1.5 py-0.5 rounded-full">
+              Hari Ini: {todayDay}
+            </span>
+          </button>
+        )}
       </div>
 
       {/* TAB 1: DIREKTORI DATA RT & RW */}
@@ -860,23 +869,25 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
                       </div>
 
                       <div className="flex items-center gap-2.5 self-start md:self-center shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => toggleSiskamlingDetail(item.rw)}
-                          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs ${
-                            isExpanded
-                              ? 'bg-amber-400 text-slate-950 font-black'
-                              : 'bg-white/10 hover:bg-white/20 border border-white/20 text-white'
-                          }`}
-                        >
-                          <Calendar className="w-3.5 h-3.5 text-amber-300" />
-                          <span>{isExpanded ? 'Tutup Matriks 7 Hari' : 'Lihat Matriks 7 Hari'}</span>
-                          {isExpanded ? (
-                            <ChevronUp className="w-3.5 h-3.5" />
-                          ) : (
-                            <ChevronDown className="w-3.5 h-3.5" />
-                          )}
-                        </button>
+                        {isAllowed('rtrw_matriks_siskamling') && (
+                          <button
+                            type="button"
+                            onClick={() => toggleSiskamlingDetail(item.rw)}
+                            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs ${
+                              isExpanded
+                                ? 'bg-amber-400 text-slate-950 font-black'
+                                : 'bg-white/10 hover:bg-white/20 border border-white/20 text-white'
+                            }`}
+                          >
+                            <Calendar className="w-3.5 h-3.5 text-amber-300" />
+                            <span>{isExpanded ? 'Tutup Matriks 7 Hari' : 'Lihat Matriks 7 Hari'}</span>
+                            {isExpanded ? (
+                              <ChevronUp className="w-3.5 h-3.5" />
+                            ) : (
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        )}
                       </div>
                     </div>
 

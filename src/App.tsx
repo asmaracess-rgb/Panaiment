@@ -42,6 +42,11 @@ import {
   SeedRequestItem,
   SiskamlingRwSchedule,
   AuthenticatedUserProfile,
+  CitizenMenuAccessConfig,
+  CitizenMenuKey,
+  ALL_CITIZEN_MENU_KEYS,
+  CITIZEN_MENU_DEFINITIONS,
+  ALL_CITIZEN_SUB_ITEM_KEYS,
 } from './types';
 import {
   INITIAL_REPORTS,
@@ -81,6 +86,8 @@ import {
   recordDeletedItemId,
   getDeletedItemIds,
   PersistedDatabase,
+  DEFAULT_CITIZEN_MENU_ACCESS_CONFIG,
+  loadCitizenMenuAccessJournal,
 } from './utils/persistentStorage';
 import {
   getRealtimeDateTimeString,
@@ -357,6 +364,14 @@ export default function App() {
     return source.filter((c) => c && c.uid && !deleted.has(c.uid));
   });
 
+  const [citizenMenuConfig, setCitizenMenuConfig] = useState<CitizenMenuAccessConfig>(() => {
+    return (
+      initialPersisted?.citizenMenuConfig ??
+      loadCitizenMenuAccessJournal() ??
+      DEFAULT_CITIZEN_MENU_ACCESS_CONFIG
+    );
+  });
+
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
   const stateRef = useRef({
@@ -377,6 +392,7 @@ export default function App() {
     seedRequests,
     siskamlingSchedules,
     citizenUsers,
+    citizenMenuConfig,
   });
 
   useEffect(() => {
@@ -398,6 +414,7 @@ export default function App() {
       seedRequests,
       siskamlingSchedules,
       citizenUsers,
+      citizenMenuConfig,
     };
   }, [
     kelurahanProfile,
@@ -417,6 +434,7 @@ export default function App() {
     seedRequests,
     siskamlingSchedules,
     citizenUsers,
+    citizenMenuConfig,
   ]);
 
   const commitPersistence = useCallback(
@@ -447,6 +465,7 @@ export default function App() {
         seedRequests: (partial.seedRequests ?? stateRef.current.seedRequests).filter((s) => s && s.id && !deletedSet.has(s.id)),
         siskamlingSchedules: partial.siskamlingSchedules ?? stateRef.current.siskamlingSchedules,
         citizenUsers: (partial.citizenUsers ?? stateRef.current.citizenUsers).filter((c) => c && c.uid && !deletedSet.has(c.uid)),
+        citizenMenuConfig: partial.citizenMenuConfig ?? stateRef.current.citizenMenuConfig,
         deletedItemIds: nextDeletedArray,
         updatedAt: Date.now(),
       };
@@ -469,6 +488,7 @@ export default function App() {
         seedRequests: nextSnapshot.seedRequests ?? [],
         siskamlingSchedules: nextSnapshot.siskamlingSchedules ?? [],
         citizenUsers: nextSnapshot.citizenUsers ?? [],
+        citizenMenuConfig: nextSnapshot.citizenMenuConfig ?? DEFAULT_CITIZEN_MENU_ACCESS_CONFIG,
       };
 
       savePersistedDatabase(nextSnapshot);
@@ -588,6 +608,7 @@ export default function App() {
     if (merged.seedRequests) setSeedRequests(merged.seedRequests);
     if (merged.siskamlingSchedules) setSiskamlingSchedules(merged.siskamlingSchedules);
     if (merged.citizenUsers) setCitizenUsers(merged.citizenUsers);
+    if (merged.citizenMenuConfig) setCitizenMenuConfig(merged.citizenMenuConfig);
     setTebaSpots(merged.tebaSpots ?? []);
     setBioporiPoints(merged.bioporiPoints ?? []);
 
@@ -609,6 +630,7 @@ export default function App() {
       seedRequests: merged.seedRequests ?? [],
       siskamlingSchedules: merged.siskamlingSchedules ?? [],
       citizenUsers: merged.citizenUsers ?? [],
+      citizenMenuConfig: merged.citizenMenuConfig ?? DEFAULT_CITIZEN_MENU_ACCESS_CONFIG,
     };
 
     savePersistedDatabase(merged);
@@ -640,6 +662,7 @@ export default function App() {
       if (initialLocal.tebaSpots) setTebaSpots(initialLocal.tebaSpots);
       if (initialLocal.bioporiPoints) setBioporiPoints(initialLocal.bioporiPoints);
       if (initialLocal.citizenUsers) setCitizenUsers(initialLocal.citizenUsers);
+      if (initialLocal.citizenMenuConfig) setCitizenMenuConfig(initialLocal.citizenMenuConfig);
     }
 
     // Seed Firestore if this is the first deployment
@@ -812,6 +835,8 @@ export default function App() {
             if (updated.activityLogs) setActivityLogs(updated.activityLogs);
             if (updated.urbanFarmingSpots) setUrbanFarmingSpots(updated.urbanFarmingSpots);
             if (updated.seedRequests) setSeedRequests(updated.seedRequests);
+            if (updated.citizenUsers) setCitizenUsers(updated.citizenUsers);
+            if (updated.citizenMenuConfig) setCitizenMenuConfig(updated.citizenMenuConfig);
             setTebaSpots(updated.tebaSpots ?? []);
             setBioporiPoints(updated.bioporiPoints ?? []);
           }
@@ -1201,6 +1226,68 @@ export default function App() {
       return { ok: true };
     },
     [commitPersistence]
+  );
+
+  const handleSaveCitizenMenuConfig = useCallback(
+    async (config: CitizenMenuAccessConfig): Promise<{ ok: boolean; error?: string }> => {
+      const normalized: CitizenMenuAccessConfig = {
+        ...config,
+        updatedAt: config.updatedAt || getRealtimeDateTimeString(),
+      };
+      setCitizenMenuConfig(normalized);
+      commitPersistence({ citizenMenuConfig: normalized });
+      return { ok: true };
+    },
+    [commitPersistence]
+  );
+
+  // Compute effective allowed citizen menus outside Administrator
+  const effectiveCitizenMenus = useMemo<CitizenMenuKey[]>(() => {
+    if (authUserProfile?.role === 'admin') {
+      return ALL_CITIZEN_MENU_KEYS;
+    }
+    if (authUserProfile && authUserProfile.uid) {
+      const perUserOverride = citizenMenuConfig?.perCitizenAllowedMenus?.[authUserProfile.uid];
+      if (Array.isArray(perUserOverride)) {
+        return perUserOverride;
+      }
+      const matchedDirectoryUser = citizenUsers.find((u) => u.uid === authUserProfile.uid);
+      if (Array.isArray(matchedDirectoryUser?.allowedMenus)) {
+        return matchedDirectoryUser.allowedMenus;
+      }
+      if (Array.isArray(authUserProfile.allowedMenus)) {
+        return authUserProfile.allowedMenus;
+      }
+      return Array.isArray(citizenMenuConfig?.registeredAllowedMenus)
+        ? citizenMenuConfig.registeredAllowedMenus
+        : ALL_CITIZEN_MENU_KEYS;
+    }
+    return Array.isArray(citizenMenuConfig?.guestAllowedMenus)
+      ? citizenMenuConfig.guestAllowedMenus
+      : ALL_CITIZEN_MENU_KEYS;
+  }, [authUserProfile, citizenMenuConfig, citizenUsers]);
+
+  const effectiveCitizenSubItems = useMemo<string[]>(() => {
+    if (authUserProfile?.role === 'admin') {
+      return ALL_CITIZEN_SUB_ITEM_KEYS;
+    }
+    if (authUserProfile && authUserProfile.uid) {
+      const perUserOverride = citizenMenuConfig?.perCitizenAllowedSubItems?.[authUserProfile.uid];
+      if (Array.isArray(perUserOverride)) {
+        return perUserOverride;
+      }
+      return Array.isArray(citizenMenuConfig?.registeredAllowedSubItems)
+        ? citizenMenuConfig.registeredAllowedSubItems
+        : ALL_CITIZEN_SUB_ITEM_KEYS;
+    }
+    return Array.isArray(citizenMenuConfig?.guestAllowedSubItems)
+      ? citizenMenuConfig.guestAllowedSubItems
+      : ALL_CITIZEN_SUB_ITEM_KEYS;
+  }, [authUserProfile, citizenMenuConfig]);
+
+  const isCitizenMenuAllowed = useCallback(
+    (menuKey: CitizenMenuKey) => effectiveCitizenMenus.includes(menuKey),
+    [effectiveCitizenMenus]
   );
 
   const handleAdminCreateReport = async (
@@ -2239,120 +2326,138 @@ export default function App() {
 
         {/* Zone 2: Compact text navigation links */}
         <nav className="hidden md:flex items-center gap-4 lg:gap-5 text-xs font-semibold text-slate-600">
-          <a
-            href="#beranda"
-            onClick={(e) => {
-              e.preventDefault();
-              handleNavigate('beranda');
-            }}
-            className={`whitespace-nowrap transition-colors hover:text-[#0D3868] hover:underline underline-offset-4 ${
-              activeView === 'beranda' ? 'text-[#0D3868] font-bold underline' : ''
-            }`}
-          >
-            Beranda
-          </a>
-          <a
-            href="#profil"
-            onClick={(e) => {
-              e.preventDefault();
-              handleNavigate('profil');
-            }}
-            className={`whitespace-nowrap transition-colors hover:text-[#0D3868] hover:underline underline-offset-4 ${
-              activeView === 'profil' ? 'text-[#0D3868] font-bold underline' : ''
-            }`}
-          >
-            Profil Kelurahan
-          </a>
-          <a
-            href="#rtrw"
-            onClick={(e) => {
-              e.preventDefault();
-              handleNavigate('rtrw');
-            }}
-            className={`whitespace-nowrap transition-colors hover:text-[#0D3868] hover:underline underline-offset-4 ${
-              activeView === 'rtrw' ? 'text-[#0D3868] font-bold underline' : ''
-            }`}
-          >
-            Data RT & RW
-          </a>
-          <a
-            href="#warga"
-            onClick={(e) => {
-              e.preventDefault();
-              handleNavigate('warga');
-            }}
-            className={`whitespace-nowrap transition-colors hover:text-[#0277BD] hover:underline underline-offset-4 ${
-              activeView === 'warga' ? 'text-[#0277BD] font-bold underline' : ''
-            }`}
-          >
-            Menu Warga
-          </a>
-          <a
-            href="#peta"
-            onClick={(e) => {
-              e.preventDefault();
-              handleNavigate('peta');
-            }}
-            className={`whitespace-nowrap transition-colors hover:text-[#00838F] hover:underline underline-offset-4 ${
-              activeView === 'peta' ? 'text-[#00838F] font-bold underline' : ''
-            }`}
-          >
-            Peta Digital
-          </a>
-          <a
-            href="#sampah"
-            onClick={(e) => {
-              e.preventDefault();
-              handleNavigate('sampah');
-            }}
-            className={`hidden lg:inline-block whitespace-nowrap transition-colors hover:text-[#EF6C00] hover:underline underline-offset-4 ${
-              activeView === 'sampah' ? 'text-[#EF6C00] font-bold underline' : ''
-            }`}
-          >
-            Pengelolaan Sampah
-          </a>
-          <a
-            href="#kerjabakti"
-            onClick={(e) => {
-              e.preventDefault();
-              handleNavigate('kerjabakti');
-            }}
-            className={`hidden lg:inline-block whitespace-nowrap transition-colors hover:text-[#5E35B1] hover:underline underline-offset-4 ${
-              activeView === 'kerjabakti' ? 'text-[#5E35B1] font-bold underline' : ''
-            }`}
-          >
-            Kerja Bakti
-          </a>
-          <a
-            href="#urbanfarming"
-            onClick={(e) => {
-              e.preventDefault();
-              handleNavigate('urbanfarming');
-            }}
-            className={`hidden xl:inline-block whitespace-nowrap transition-colors hover:text-[#059669] hover:underline underline-offset-4 ${
-              activeView === 'urbanfarming' ? 'text-[#059669] font-bold underline' : ''
-            }`}
-          >
-            Urban Farming
-          </a>
+          {isCitizenMenuAllowed('beranda') && (
+            <a
+              href="#beranda"
+              onClick={(e) => {
+                e.preventDefault();
+                handleNavigate('beranda');
+              }}
+              className={`whitespace-nowrap transition-colors hover:text-[#0D3868] hover:underline underline-offset-4 ${
+                activeView === 'beranda' ? 'text-[#0D3868] font-bold underline' : ''
+              }`}
+            >
+              Beranda
+            </a>
+          )}
+          {isCitizenMenuAllowed('profil') && (
+            <a
+              href="#profil"
+              onClick={(e) => {
+                e.preventDefault();
+                handleNavigate('profil');
+              }}
+              className={`whitespace-nowrap transition-colors hover:text-[#0D3868] hover:underline underline-offset-4 ${
+                activeView === 'profil' ? 'text-[#0D3868] font-bold underline' : ''
+              }`}
+            >
+              Profil Kelurahan
+            </a>
+          )}
+          {isCitizenMenuAllowed('rtrw') && (
+            <a
+              href="#rtrw"
+              onClick={(e) => {
+                e.preventDefault();
+                handleNavigate('rtrw');
+              }}
+              className={`whitespace-nowrap transition-colors hover:text-[#0D3868] hover:underline underline-offset-4 ${
+                activeView === 'rtrw' ? 'text-[#0D3868] font-bold underline' : ''
+              }`}
+            >
+              Data RT & RW
+            </a>
+          )}
+          {isCitizenMenuAllowed('warga') && (
+            <a
+              href="#warga"
+              onClick={(e) => {
+                e.preventDefault();
+                handleNavigate('warga');
+              }}
+              className={`whitespace-nowrap transition-colors hover:text-[#0277BD] hover:underline underline-offset-4 ${
+                activeView === 'warga' ? 'text-[#0277BD] font-bold underline' : ''
+              }`}
+            >
+              Menu Warga
+            </a>
+          )}
+          {isCitizenMenuAllowed('peta') && (
+            <a
+              href="#peta"
+              onClick={(e) => {
+                e.preventDefault();
+                handleNavigate('peta');
+              }}
+              className={`whitespace-nowrap transition-colors hover:text-[#00838F] hover:underline underline-offset-4 ${
+                activeView === 'peta' ? 'text-[#00838F] font-bold underline' : ''
+              }`}
+            >
+              Peta Digital
+            </a>
+          )}
+          {isCitizenMenuAllowed('sampah') && (
+            <a
+              href="#sampah"
+              onClick={(e) => {
+                e.preventDefault();
+                handleNavigate('sampah');
+              }}
+              className={`hidden lg:inline-block whitespace-nowrap transition-colors hover:text-[#EF6C00] hover:underline underline-offset-4 ${
+                activeView === 'sampah' ? 'text-[#EF6C00] font-bold underline' : ''
+              }`}
+            >
+              Pengelolaan Sampah
+            </a>
+          )}
+          {isCitizenMenuAllowed('kerjabakti') && (
+            <a
+              href="#kerjabakti"
+              onClick={(e) => {
+                e.preventDefault();
+                handleNavigate('kerjabakti');
+              }}
+              className={`hidden lg:inline-block whitespace-nowrap transition-colors hover:text-[#5E35B1] hover:underline underline-offset-4 ${
+                activeView === 'kerjabakti' ? 'text-[#5E35B1] font-bold underline' : ''
+              }`}
+            >
+              Kerja Bakti
+            </a>
+          )}
+          {isCitizenMenuAllowed('urbanfarming') && (
+            <a
+              href="#urbanfarming"
+              onClick={(e) => {
+                e.preventDefault();
+                handleNavigate('urbanfarming');
+              }}
+              className={`hidden xl:inline-block whitespace-nowrap transition-colors hover:text-[#059669] hover:underline underline-offset-4 ${
+                activeView === 'urbanfarming' ? 'text-[#059669] font-bold underline' : ''
+              }`}
+            >
+              Urban Farming
+            </a>
+          )}
         </nav>
 
         {/* Zone 3: Compact Primary Actions */}
         <div className="flex items-center gap-1.5 sm:gap-2">
           {authUserProfile ? (
             <>
-              <button
-                type="button"
-                onClick={() => handleNavigate('dashboard_warga')}
-                className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-[11px] font-bold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                  activeView === 'dashboard_warga'
-                    ? 'bg-[#0D3868] text-white'
-                    : 'bg-sky-50 text-[#0D3868] border border-sky-200 hover:bg-sky-100'
-                }`}
-              >
-                <UserCheck className="w-3.5 h-3.5" />
-                <span>Dashboard Warga</span>
-              </button>
+              {isCitizenMenuAllowed('dashboard_warga') && (
+                <button
+                  type="button"
+                  onClick={() => handleNavigate('dashboard_warga')}
+                  className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-[11px] font-bold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                    activeView === 'dashboard_warga'
+                      ? 'bg-[#0D3868] text-white'
+                      : 'bg-sky-50 text-[#0D3868] border border-sky-200 hover:bg-sky-100'
+                  }`}
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span>Dashboard Warga</span>
+                </button>
+              )}
               {authUserProfile.role === 'admin' && (
                 <button
                   type="button"
@@ -2393,7 +2498,8 @@ export default function App() {
           <button
             type="button"
             onClick={() => handleNavigate('warga')}
-            className="px-3 py-1.5 text-[11px] font-bold text-white bg-[#1C8237] rounded-lg hover:bg-[#146329] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="px-3 py-1.5 text-[11px] font-bold text-white bg-[#1C8237] rounded-lg hover:bg-[#146329] transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-xs"
+            title="Lapor Masalah Lingkungan Warga"
           >
             Lapor Masalah
           </button>
@@ -2402,6 +2508,62 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1">
+        {activeView !== 'admin' &&
+        activeView !== 'login' &&
+        (ALL_CITIZEN_MENU_KEYS as string[]).includes(activeView) &&
+        !isCitizenMenuAllowed(activeView as CitizenMenuKey) ? (
+          <div className="mx-auto max-w-lg px-4 py-16">
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-8 text-center space-y-4">
+              <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center mx-auto">
+                <Lock className="w-7 h-7" />
+              </div>
+              <div>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-amber-100 text-amber-900 text-[10px] font-extrabold uppercase tracking-wider">
+                  Parameter Batasan Akses Menu Warga
+                </span>
+                <h2 className="mt-2 text-lg sm:text-xl font-extrabold text-[#0D3868]">
+                  Akses Menu{' '}
+                  {CITIZEN_MENU_DEFINITIONS.find((m) => m.key === activeView)?.label || activeView}{' '}
+                  Dibatasi
+                </h2>
+                <p className="mt-1.5 text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  {!authUserProfile &&
+                  citizenMenuConfig.registeredAllowedMenus.includes(activeView as CitizenMenuKey)
+                    ? 'Menu ini hanya diaktifkan oleh Administrator untuk Warga Terdaftar (Sudah Login). Silakan masuk atau daftar akun warga terlebih dahulu untuk mengakses layanan ini.'
+                    : 'Menu ini sedang dinonaktifkan oleh Administrator Kelurahan Panaikang pada pengaturan Parameter Batasan Akses Menu Warga.'}
+                </p>
+              </div>
+              <div className="pt-2 flex flex-wrap items-center justify-center gap-2.5">
+                {!authUserProfile && (
+                  <button
+                    type="button"
+                    onClick={() => handleNavigate('login')}
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#0D3868] hover:bg-[#09294D] text-white text-xs font-extrabold transition-colors cursor-pointer"
+                  >
+                    <UserCheck className="w-4 h-4" />
+                    <span>Masuk / Daftar Akun Warga</span>
+                  </button>
+                )}
+                {effectiveCitizenMenus.length > 0 &&
+                  effectiveCitizenMenus[0] !== activeView && (
+                    <button
+                      type="button"
+                      onClick={() => handleNavigate(effectiveCitizenMenus[0] as AppView)}
+                      className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      <span>
+                        Buka Menu Aktif (
+                        {CITIZEN_MENU_DEFINITIONS.find((m) => m.key === effectiveCitizenMenus[0])
+                          ?.label || 'Beranda'}
+                        )
+                      </span>
+                    </button>
+                  )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
         {activeView === 'beranda' && (
           <HomePortal
             onNavigate={handleNavigate}
@@ -2422,6 +2584,7 @@ export default function App() {
             wasteUnits={wasteUnits}
             rwGroups={rwGroups}
             onNavigate={handleNavigate}
+            allowedSubItems={effectiveCitizenSubItems}
           />
         )}
 
@@ -2431,6 +2594,7 @@ export default function App() {
             profile={kelurahanProfile}
             siskamlingSchedules={siskamlingSchedules}
             onNavigate={handleNavigate}
+            allowedSubItems={effectiveCitizenSubItems}
           />
         )}
 
@@ -2466,6 +2630,7 @@ export default function App() {
                 handleNavigate('login');
               }}
               onLogout={handleFirebaseLogout}
+              allowedSubItems={effectiveCitizenSubItems}
             />
           )
         )}
@@ -2554,6 +2719,7 @@ export default function App() {
             bioporiPoints={bioporiPoints}
             onAddWasteLog={handleAddWasteLog}
             onNavigate={handleNavigate}
+            allowedSubItems={effectiveCitizenSubItems}
           />
         )}
 
@@ -2563,6 +2729,7 @@ export default function App() {
             onJoinCleanup={handleJoinCleanup}
             onAddCleanupEvent={handleAddCleanupEvent}
             onNavigate={handleNavigate}
+            allowedSubItems={effectiveCitizenSubItems}
           />
         )}
 
@@ -2575,6 +2742,7 @@ export default function App() {
             onAddSpot={handleAddUrbanFarmingSpot}
             seedRequests={seedRequests}
             onAddSeedRequest={handleAddSeedRequest}
+            allowedSubItems={effectiveCitizenSubItems}
           />
         )}
 
@@ -2643,7 +2811,11 @@ export default function App() {
             citizenUsers={citizenUsers}
             onUpdateCitizenUser={handleUpdateCitizenUser}
             onDeleteCitizenUser={handleDeleteCitizenUser}
+            citizenMenuConfig={citizenMenuConfig}
+            onSaveCitizenMenuConfig={handleSaveCitizenMenuConfig}
           />
+        )}
+          </>
         )}
       </main>
 

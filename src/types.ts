@@ -14,6 +14,360 @@ export type AppView =
 
 export type UserRole = 'warga' | 'admin';
 
+export type CitizenMenuKey =
+  | 'beranda'
+  | 'profil'
+  | 'rtrw'
+  | 'warga'
+  | 'peta'
+  | 'sampah'
+  | 'kerjabakti'
+  | 'urbanfarming'
+  | 'dashboard_warga'
+  | 'lurah';
+
+export const ALL_CITIZEN_MENU_KEYS: CitizenMenuKey[] = [
+  'beranda',
+  'profil',
+  'rtrw',
+  'warga',
+  'peta',
+  'sampah',
+  'kerjabakti',
+  'urbanfarming',
+  'dashboard_warga',
+  'lurah',
+];
+
+export interface CitizenMenuSubItem {
+  key: string;
+  label: string;
+  description: string;
+}
+
+export interface CitizenMenuDefinition {
+  key: CitizenMenuKey;
+  label: string;
+  shortLabel: string;
+  category: string;
+  description: string;
+  subItems: CitizenMenuSubItem[];
+}
+
+export const CITIZEN_MENU_DEFINITIONS: CitizenMenuDefinition[] = [
+  {
+    key: 'beranda',
+    label: 'Beranda Utama Portal',
+    shortLabel: 'Beranda',
+    category: 'Portal & Informasi',
+    description: 'Halaman utama portal, ringkasan layanan kelurahan, dan berita Instagram resmi.',
+    subItems: [
+      {
+        key: 'beranda_hero',
+        label: 'Banner & Sambutan Utama Portal',
+        description: 'Tampilan banner selamat datang dan identitas Kelurahan Panaikang.',
+      },
+      {
+        key: 'beranda_quick_stats',
+        label: 'Kartu Statistik Cepat Program',
+        description: 'Metrik data ringkas persampahan, kerja bakti, aduan, dan posko.',
+      },
+      {
+        key: 'beranda_instagram',
+        label: 'Feed Berita Resmi Instagram',
+        description: 'Integrasi update postingan akun Instagram @kelurahan.panaikang.',
+      },
+    ],
+  },
+  {
+    key: 'profil',
+    label: 'Profil Kelurahan & Struktur Organisasi',
+    shortLabel: 'Profil Kelurahan',
+    category: 'Portal & Informasi',
+    description: 'Data pimpinan Lurah, struktur organisasi kelurahan, visi misi, dan demografi wilayah.',
+    subItems: [
+      {
+        key: 'profil_data_lurah',
+        label: 'Data & Foto Resmi Pimpinan Lurah',
+        description: 'Foto dinas, nama lengkap, NIP, pangkat, masa tugas, dan sambutan resmi Lurah.',
+      },
+      {
+        key: 'profil_bagan_kelurahan',
+        label: 'Bagan Struktur Kelurahan (Modal Dinamis)',
+        description: 'Tombol & diagram bagan struktur organisasi kelurahan interaktif.',
+      },
+      {
+        key: 'profil_bagan_rtrw',
+        label: 'Bagan Struktur Organisasi RT / RW',
+        description: 'Tombol & diagram struktur kepengurusan RT dan RW se-Kelurahan Panaikang.',
+      },
+      {
+        key: 'profil_perangkat_seksi',
+        label: 'Pejabat Struktural & Staf 3 Seksi',
+        description: 'Daftar pejabat Kasi, Kasubag, dan staf kelurahan sesuai Perwali No. 65/2023.',
+      },
+      {
+        key: 'profil_alamat_kontak',
+        label: 'Alamat Kantor, Jam Layanan & Kontak Hotline',
+        description: 'Lokasi kantor lurah, jam buka pelayanan, nomor telepon/WA, dan email resmi.',
+      },
+      {
+        key: 'profil_visi_misi',
+        label: 'Visi, Misi & Batas Administratif Wilayah',
+        description: 'Visi misi pembangunan kelurahan, demografi kependudukan, dan batas wilayah.',
+      },
+      {
+        key: 'profil_direktori_rw',
+        label: 'Direktori Wilayah RW 01–07 & Koordinator',
+        description: 'Daftar ringkas wilayah RW dan koordinator kebersihan lingkungan.',
+      },
+    ],
+  },
+  {
+    key: 'rtrw',
+    label: 'Data RT & RW + Jadwal Siskamling',
+    shortLabel: 'Data RT & RW',
+    category: 'Wilayah & Keamanan',
+    description: 'Direktori resmi Ketua RW 01–07, daftar Ketua RT, dan jadwal piket Posko Siskamling.',
+    subItems: [
+      {
+        key: 'rtrw_direktori_rw',
+        label: 'Direktori Ketua RW 01–07 & Daftar Ketua RT',
+        description: 'Informasi nama ketua RW, cakupan RT, alamat, dan jumlah warga.',
+      },
+      {
+        key: 'rtrw_bagan_struktur',
+        label: 'Bagan Struktur RT/RW (Modal & Interaktif)',
+        description: 'Akses melihat bagan pohon struktur organisasi RT/RW Kelurahan Panaikang.',
+      },
+      {
+        key: 'rtrw_kontak_pengurus',
+        label: 'Kontak WhatsApp & Telepon Pengurus RT/RW',
+        description: 'Nomor telepon dan link WhatsApp langsung untuk menghubungi pengurus lingkungan.',
+      },
+      {
+        key: 'rtrw_jadwal_siskamling',
+        label: 'Jadwal Ronda & Piket Siskamling Harian',
+        description: 'Daftar giliran piket petugas ronda kamtibmas posko RW per hari.',
+      },
+      {
+        key: 'rtrw_matriks_siskamling',
+        label: 'Matriks Jadwal Posko 7 Hari Penuh & Cetak',
+        description: 'Tampilan matriks jadwal posko kamtibmas sepekan dan opsi cetak.',
+      },
+    ],
+  },
+  {
+    key: 'warga',
+    label: 'Menu Warga (Lapor Masalah & Pengajuan Surat)',
+    shortLabel: 'Menu Warga',
+    category: 'Pelayanan Publik',
+    description: 'Formulir Lapor Masalah Lingkungan, Katalog SOP 7 Bidang Layanan, dan Lacak Tiket.',
+    subItems: [
+      {
+        key: 'warga_aduan_baru',
+        label: 'Formulir Lapor Pengaduan Masalah Warga',
+        description: 'Formulir pelaporan masalah kebersihan, drainase, lampu jalan, dan fasilitas.',
+      },
+      {
+        key: 'warga_lacak_tiket',
+        label: 'Lacak Tiket & Cek Status Pengajuan',
+        description: 'Pengecekan progres tindak lanjut aduan warga menggunakan nomor tiket.',
+      },
+      {
+        key: 'warga_daftar_laporan',
+        label: 'Direktori Laporan Warga Terbuka (Upvote)',
+        description: 'Daftar laporan warga yang masuk serta tombol dukungan masyarakat (upvote).',
+      },
+      {
+        key: 'warga_katalog_sop',
+        label: 'Katalog SOP 7 Bidang Pelayanan Publik',
+        description: 'Persyaratan berkas, alur proses, dan estimasi waktu pelayanan kelurahan.',
+      },
+      {
+        key: 'warga_pengajuan_surat',
+        label: 'Formulir Pengajuan 13 Surat Administrasi Resmi',
+        description: 'Formulir online permohonan surat pengantar (PM-01 s/d SL-13).',
+      },
+    ],
+  },
+  {
+    key: 'peta',
+    label: 'Peta Digital GIS Kelurahan',
+    shortLabel: 'Peta Digital',
+    category: 'Wilayah & Keamanan',
+    description: 'Peta interaktif sebaran titik laporan warga, Bank Sampah, Teba, Biopori, dan batas RW.',
+    subItems: [
+      {
+        key: 'peta_sebaran_laporan',
+        label: 'Layer Sebaran Titik Laporan Masalah Warga',
+        description: 'Pin lokasi keluhan dan status penyelesaian tindak lanjut di peta.',
+      },
+      {
+        key: 'peta_bank_sampah',
+        label: 'Layer Titik Bank Sampah Unit (BSU RW)',
+        description: 'Lokasi dan rute unit bank sampah di setiap wilayah RW.',
+      },
+      {
+        key: 'peta_posko_siskamling',
+        label: 'Layer Titik Posko Kamtibmas Siskamling',
+        description: 'Lokasi posko ronda keamanan warga di RW 01–07.',
+      },
+      {
+        key: 'peta_urban_farming',
+        label: 'Layer Sentra Kebun Urban Farming',
+        description: 'Sebaran lokasi budidaya tanaman pangan dan kelompok tani.',
+      },
+    ],
+  },
+  {
+    key: 'sampah',
+    label: 'Pengelolaan Sampah (BSU, Teba & Biopori)',
+    shortLabel: 'Pengelolaan Sampah',
+    category: 'Program Lingkungan',
+    description: 'Monitoring Bank Sampah Unit (BSU), Teba Komunal Organik, dan Lubang Resapan Biopori.',
+    subItems: [
+      {
+        key: 'sampah_bsu_units',
+        label: 'Monitoring Bank Sampah Unit (BSU RW 01–07)',
+        description: 'Data unit bank sampah, jadwal penimbangan, dan nasabah terdaftar.',
+      },
+      {
+        key: 'sampah_kalkulator',
+        label: 'Kalkulator Nilai Tabungan Sampah (Rupiah)',
+        description: 'Simulasi nilai konversi sampah anorganik (plastik, kardus, minyak jelantah).',
+      },
+      {
+        key: 'sampah_teba_komunal',
+        label: 'Monitoring Titik Teba Komunal Organik',
+        description: 'Titik pengolahan sampah daun dan sisa organik berbasis teba lorong.',
+      },
+      {
+        key: 'sampah_biopori',
+        label: 'Sebaran Lubang Resapan Biopori (LRB)',
+        description: 'Monitoring titik lubang biopori pencegah genangan air dan penyubur tanah.',
+      },
+    ],
+  },
+  {
+    key: 'kerjabakti',
+    label: 'Monitoring Kerja Bakti Gotong Royong',
+    shortLabel: 'Kerja Bakti',
+    category: 'Program Lingkungan',
+    description: 'Jadwal gotong royong warga, titik kumpul, pendaftaran peserta, dan dokumentasi aksi.',
+    subItems: [
+      {
+        key: 'kerjabakti_jadwal',
+        label: 'Jadwal Aksi Kerja Bakti RW/RT',
+        description: 'Agenda kerja bakti yang terencana beserta titik lokasi dan target peserta.',
+      },
+      {
+        key: 'kerjabakti_daftar_relawan',
+        label: 'Formulir Pendaftaran Partisipasi Relawan',
+        description: 'Form pendaftaran warga untuk ikut serta gotong royong lingkungan.',
+      },
+      {
+        key: 'kerjabakti_dokumentasi',
+        label: 'Galeri Foto Dokumentasi & Bukti Aksi Tuntas',
+        description: 'Dokumentasi foto pelaksanaan dan hasil nyata kegiatan kerja bakti.',
+      },
+    ],
+  },
+  {
+    key: 'urbanfarming',
+    label: 'Urban Farming & Ketahanan Pangan',
+    shortLabel: 'Urban Farming',
+    category: 'Program Lingkungan',
+    description: 'Sentra kebun kelompok, hidroponik, akuaponik, tanaman obat, dan permohonan bibit.',
+    subItems: [
+      {
+        key: 'urbanfarming_kebun',
+        label: 'Sentra Kebun Lorong & Lokasi Lahan RW',
+        description: 'Profil lokasi kebun, jenis budidaya, dan kelompok tani pengelola.',
+      },
+      {
+        key: 'urbanfarming_panen',
+        label: 'Kalender & Jadwal Panen Sayur / TOGA',
+        description: 'Informasi perkiraan waktu panen sayuran daun, cabai, dan tanaman obat.',
+      },
+      {
+        key: 'urbanfarming_edukasi',
+        label: 'Panduan SOP Budidaya Tanaman Lorong',
+        description: 'Materi edukasi cara bercocok tanam hidroponik, polybag, dan akuaponik.',
+      },
+      {
+        key: 'urbanfarming_bibit',
+        label: 'Formulir Permohonan Bibit & Sarana Tani Gratis',
+        description: 'Pengajuan bantuan bibit sayuran dan media tanam bagi warga lorong.',
+      },
+    ],
+  },
+  {
+    key: 'dashboard_warga',
+    label: 'Dashboard Warga Terdaftar',
+    shortLabel: 'Dashboard Warga',
+    category: 'Pelayanan Publik',
+    description: 'Panel akun pribadi warga untuk memantau riwayat permohonan surat, aduan, dan profil.',
+    subItems: [
+      {
+        key: 'dashboard_riwayat_surat',
+        label: 'Riwayat Permohonan Surat Administrasi',
+        description: 'Arsip berkas surat yang telah diajukan dan bukti terbit.',
+      },
+      {
+        key: 'dashboard_riwayat_laporan',
+        label: 'Riwayat Laporan Pengaduan Lingkungan Warga',
+        description: 'Daftar pelaporan pribadi dan progres penanganan lapangan.',
+      },
+      {
+        key: 'dashboard_profil_warga',
+        label: 'Informasi Profil & Data Domisili Warga',
+        description: 'Data diri warga, nomor WhatsApp terdaftar, dan domisili RT/RW.',
+      },
+    ],
+  },
+  {
+    key: 'lurah',
+    label: 'Dashboard Kinerja Kelurahan',
+    shortLabel: 'Kinerja Kelurahan',
+    category: 'Portal & Informasi',
+    description: 'Ringkasan statistik penanganan laporan warga dan indeks kebersihan lingkungan.',
+    subItems: [
+      {
+        key: 'kinerja_statistik_eksekutif',
+        label: 'Statistik Ringkasan Eksekutif Penanganan',
+        description: 'Angka persentase penyelesaian laporan dan indeks kepuasan.',
+      },
+      {
+        key: 'kinerja_grafik_kinerja',
+        label: 'Grafik Tren & Rekap Kinerja Bulanan',
+        description: 'Visualisasi grafik penanganan permasalahan lingkungan dari waktu ke waktu.',
+      },
+    ],
+  },
+];
+
+export const ALL_CITIZEN_SUB_ITEM_KEYS: string[] = CITIZEN_MENU_DEFINITIONS.flatMap((m) =>
+  m.subItems.map((s) => s.key)
+);
+
+export interface CitizenMenuAccessConfig {
+  /** Daftar menu utama yang aktif & ditampilkan untuk Warga Belum Terdaftar (Pengunjung / Tanpa Login) */
+  guestAllowedMenus: CitizenMenuKey[];
+  /** Daftar menu utama yang aktif & ditampilkan untuk Warga Terdaftar (Sudah Login Akun Warga) */
+  registeredAllowedMenus: CitizenMenuKey[];
+  /** Opsional: kustomisasi menu utama spesifik per UID warga terdaftar */
+  perCitizenAllowedMenus?: Record<string, CitizenMenuKey[]>;
+  /** Sub-item detail menu spesifik yang diizinkan untuk Pengunjung (default: semua sub-item aktif) */
+  guestAllowedSubItems?: string[];
+  /** Sub-item detail menu spesifik yang diizinkan untuk Warga Login (default: semua sub-item aktif) */
+  registeredAllowedSubItems?: string[];
+  /** Kustomisasi sub-item detail menu per UID warga */
+  perCitizenAllowedSubItems?: Record<string, string[]>;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
 export interface AuthenticatedUserProfile {
   uid: string;
   email: string;
@@ -24,6 +378,7 @@ export interface AuthenticatedUserProfile {
   rt: string;
   address: string;
   role: UserRole;
+  allowedMenus?: CitizenMenuKey[];
   adminDetails?: {
     nip: string;
     jabatan: string;
