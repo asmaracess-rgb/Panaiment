@@ -1107,7 +1107,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
               <div>© {new Date().getFullYear()} Kelurahan Panaikang · Kota Makassar</div>
               <div className="flex flex-col items-center sm:items-end gap-1">
                 <span className="font-medium tracking-wide text-sky-100">
-                  Develope by @asmaracess
+                  Developed by @asmaracess
                 </span>
                 <button
                   type="button"

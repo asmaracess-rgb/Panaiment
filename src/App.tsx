@@ -2456,7 +2456,7 @@ export default function App() {
         <footer className="mt-auto border-t border-slate-200 bg-white py-3.5 px-4 text-center">
           <div className="flex flex-col items-center justify-center gap-1">
             <p className="text-[11px] sm:text-xs text-slate-500 font-medium tracking-wide">
-              Develope by @asmaracess
+              Developed by @asmaracess
             </p>
             <button
               type="button"
