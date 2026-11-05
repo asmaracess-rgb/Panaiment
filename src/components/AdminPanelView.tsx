@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ArrowLeft,
   ShieldCheck,
@@ -83,6 +83,8 @@ import {
 } from '../types';
 import {
   signInWithGoogleAccount,
+  signInWithGoogleIdToken,
+  getGoogleOAuthClientId,
   logoutFirebaseUser,
   submitGoogleAdminVerificationRequest,
 } from '../firebase/authService';
@@ -1430,6 +1432,56 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     }
   };
 
+  const verifyAndEstablishGoogleAdminProfile = useCallback(
+    async (profile: AuthenticatedUserProfile) => {
+      const emailLower = (profile.email || '').trim().toLowerCase();
+      const isSuperAdmin = emailLower === 'asmaracess@gmail.com';
+      const matchedAdmin = adminUsers.find(
+        (u) =>
+          u.googleEmail &&
+          u.googleEmail.trim().toLowerCase() === emailLower &&
+          u.isActive !== false &&
+          u.isGoogleVerified !== false
+      );
+
+      if (!isSuperAdmin && !matchedAdmin) {
+        const rejectedEmail = profile.email;
+        setPendingGoogleAdminRequestEmail(rejectedEmail);
+        // Sign out the unverified account so the browser doesn't stay locked to it on the next click
+        try {
+          await logoutFirebaseUser();
+        } catch {
+          // Non-fatal
+        }
+        setLoginError(
+          `Akun Google "${rejectedEmail}" belum terdaftar atau belum diverifikasi oleh Master Admin (Lurah) sebagai Administrator. Silakan pilih akun Gmail Anda yang telah didaftarkan dari perangkat ini.`
+        );
+        return;
+      }
+
+      const nowStr = getRealtimeDateTimeString(new Date());
+      const trustedSession: AdminSession = {
+        token: `fb-admin-${profile.uid}`,
+        userId: matchedAdmin ? matchedAdmin.id : profile.uid,
+        username: matchedAdmin ? matchedAdmin.username : (profile.email.split('@')[0] || 'admin'),
+        fullName: matchedAdmin ? matchedAdmin.fullName : (profile.fullName || 'Muthmainnah, SE, MM'),
+        nip: matchedAdmin ? matchedAdmin.nip : (profile.nik || '198607092015042001'),
+        role: matchedAdmin ? matchedAdmin.jabatan : 'Lurah Panaikang (Master Admin Terverifikasi)',
+        roleLevel: isSuperAdmin ? 'master_admin' : (matchedAdmin?.roleLevel || 'admin_bidang'),
+        isMasterLurah: isSuperAdmin || Boolean(matchedAdmin?.isMasterLurah),
+        allowedAdminTabs: isSuperAdmin ? undefined : (matchedAdmin?.allowedAdminTabs as AdminTab[] | undefined),
+        allowedServiceCategories: isSuperAdmin ? undefined : matchedAdmin?.allowedServiceCategories,
+        actionPermissions: isSuperAdmin ? undefined : matchedAdmin?.actionPermissions,
+        loginAt: nowStr,
+        loginTimestampMs: Date.now(),
+        timezoneFixedV2: true,
+      };
+      setAdminSession(trustedSession);
+      sessionStorage.setItem('pnk_admin_session', JSON.stringify(trustedSession));
+    },
+    [adminUsers]
+  );
+
   const handleFirebaseAdminLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
@@ -1448,50 +1500,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       return;
     }
 
-    const emailLower = (result.profile.email || '').trim().toLowerCase();
-    const isSuperAdmin = emailLower === 'asmaracess@gmail.com';
-    const matchedAdmin = adminUsers.find(
-      (u) =>
-        u.googleEmail &&
-        u.googleEmail.trim().toLowerCase() === emailLower &&
-        u.isActive !== false &&
-        u.isGoogleVerified !== false
-    );
-
-    if (!isSuperAdmin && !matchedAdmin) {
-      const rejectedEmail = result.profile.email;
-      setPendingGoogleAdminRequestEmail(rejectedEmail);
-      // Sign out the unverified account so the browser doesn't stay locked to it on the next click
-      try {
-        await logoutFirebaseUser();
-      } catch {
-        // Non-fatal
-      }
-      setLoginError(
-        `Akun Google "${rejectedEmail}" belum terdaftar atau belum diverifikasi oleh Master Admin (Lurah) sebagai Administrator. Silakan klik kembali Masuk dengan Google dan pilih akun Gmail Anda yang telah didaftarkan dari perangkat ini.`
-      );
-      return;
-    }
-
-    const nowStr = getRealtimeDateTimeString(new Date());
-    const trustedSession: AdminSession = {
-      token: `fb-admin-${result.profile.uid}`,
-      userId: matchedAdmin ? matchedAdmin.id : result.profile.uid,
-      username: matchedAdmin ? matchedAdmin.username : (result.profile.email.split('@')[0] || 'admin'),
-      fullName: matchedAdmin ? matchedAdmin.fullName : (result.profile.fullName || 'Muthmainnah, SE, MM'),
-      nip: matchedAdmin ? matchedAdmin.nip : (result.profile.nik || '198607092015042001'),
-      role: matchedAdmin ? matchedAdmin.jabatan : 'Lurah Panaikang (Master Admin Terverifikasi)',
-      roleLevel: isSuperAdmin ? 'master_admin' : (matchedAdmin?.roleLevel || 'admin_bidang'),
-      isMasterLurah: isSuperAdmin || Boolean(matchedAdmin?.isMasterLurah),
-      allowedAdminTabs: isSuperAdmin ? undefined : (matchedAdmin?.allowedAdminTabs as AdminTab[] | undefined),
-      allowedServiceCategories: isSuperAdmin ? undefined : matchedAdmin?.allowedServiceCategories,
-      actionPermissions: isSuperAdmin ? undefined : matchedAdmin?.actionPermissions,
-      loginAt: nowStr,
-      loginTimestampMs: Date.now(),
-      timezoneFixedV2: true,
-    };
-    setAdminSession(trustedSession);
-    sessionStorage.setItem('pnk_admin_session', JSON.stringify(trustedSession));
+    await verifyAndEstablishGoogleAdminProfile(result.profile);
   };
 
   const handleForceTakeover = async (e: React.FormEvent) => {
@@ -4021,7 +4030,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                   <span>
                     {isLoggingIn
                       ? 'Membuka Pilihan Akun Google...'
-                      : 'Masuk dengan Google'}
+                      : 'Masuk dengan Google (Pilih Akun)'}
                   </span>
                 </button>
               </form>

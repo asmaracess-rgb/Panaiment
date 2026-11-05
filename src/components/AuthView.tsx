@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   ArrowLeft,
   UserPlus,
@@ -15,6 +15,8 @@ import {
 import { AppView, AuthenticatedUserProfile, RwGroup } from '../types';
 import {
   signInWithGoogleAccount,
+  signInWithGoogleIdToken,
+  getGoogleOAuthClientId,
   AUTH_SCHEMA_LIMITS,
 } from '../firebase/authService';
 import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
@@ -319,7 +321,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                   ) : (
                     <>
                       <GoogleBrandIcon className="w-5 h-5 shrink-0" />
-                      <span>Lanjutkan dengan Google</span>
+                      <span>Lanjutkan dengan Google (Pilih Akun)</span>
                     </>
                   )}
                 </button>

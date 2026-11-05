@@ -7,11 +7,13 @@ import {
   signInWithEmailLink,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithCredential,
   signOut,
   updateProfile,
   onAuthStateChanged,
   User,
 } from 'firebase/auth';
+import firebaseConfig from '../../firebase-applet-config.json';
 import {
   doc,
   getDoc,
@@ -84,9 +86,13 @@ export function translateFirebaseAuthError(error: unknown): string {
   switch (code) {
     case 'auth/popup-closed-by-user':
     case 'auth/cancelled-popup-request':
-      return 'Jendela login ditutup sebelum proses selesai. Silakan coba lagi.';
+      return 'Jendela pemilihan akun Google ditutup sebelum selesai. Silakan klik kembali tombol Masuk dengan Google.';
     case 'auth/popup-blocked':
-      return 'Jendela pop-up diblokir oleh browser. Mohon izinkan pop-up untuk situs ini lalu coba kembali.';
+      return 'Jendela pop-up pemilihan akun Google diblokir oleh browser perangkat Anda. Mohon izinkan pop-up untuk situs ini di pengaturan browser lalu coba kembali.';
+    case 'auth/unauthorized-domain':
+      return `Domain halaman live ini (${typeof window !== 'undefined' ? window.location.hostname : 'domain saat ini'}) belum terdaftar pada Authorized Domains Firebase Authentication. Silakan gunakan tombol Pilih Akun Google (Mode Langsung) di bawah atau tambahkan domain ini di Firebase Console → Authentication → Settings → Authorized domains.`;
+    case 'auth/operation-not-supported-in-this-environment':
+      return 'Lingkungan browser ini membatasi pop-up standar. Silakan gunakan tombol Pilih Akun Google (Mode Langsung) di bawah.';
     case 'auth/account-exists-with-different-credential':
       return 'Alamat email ini sudah terdaftar pada sistem. Silakan gunakan akun yang sesuai.';
     case 'auth/invalid-email':
@@ -101,9 +107,12 @@ export function translateFirebaseAuthError(error: unknown): string {
       return 'Gagal terhubung ke server. Periksa koneksi internet perangkat Anda.';
     default:
       if (message.includes('popup-closed-by-user')) {
-        return 'Jendela login ditutup sebelum proses selesai. Silakan coba lagi.';
+        return 'Jendela pemilihan akun Google ditutup sebelum selesai. Silakan coba lagi.';
       }
-      return 'Terjadi kendala saat memproses akses masuk. Silakan coba kembali.';
+      if (message.includes('unauthorized-domain')) {
+        return `Domain (${typeof window !== 'undefined' ? window.location.hostname : ''}) belum diizinkan pada Firebase Auth.`;
+      }
+      return `Kendala saat membuka pemilihan akun Google (${code || message || 'error'}). Silakan coba kembali.`;
   }
 }
 
@@ -299,14 +308,65 @@ export async function resolveTrustedUserRoleAndProfile(
 }
 
 /**
+ * Signs in or registers a citizen/admin using a Google ID Token returned directly
+ * from Google Identity Services (GIS) native button or One Tap account chooser.
+ * Works reliably on live domains, mobile browsers, and iframe environments where
+ * cross-origin popups may be blocked.
+ */
+export async function signInWithGoogleIdToken(
+  idToken: string,
+  registrationDefaults?: PendingCitizenRegistration
+): Promise<{
+  ok: boolean;
+  profile?: AuthenticatedUserProfile;
+  error?: string;
+}> {
+  if (!idToken) {
+    return {
+      ok: false,
+      error: 'Token autentikasi Google tidak ditemukan. Silakan pilih akun Google kembali.',
+    };
+  }
+
+  try {
+    const credential = GoogleAuthProvider.credential(idToken);
+    const cred = await signInWithCredential(auth, credential);
+
+    if (registrationDefaults?.fullName) {
+      try {
+        await updateProfile(cred.user, {
+          displayName: sanitizeString(registrationDefaults.fullName, AUTH_SCHEMA_LIMITS.NAME_MAX),
+        });
+      } catch {
+        // Non-fatal
+      }
+    }
+
+    const profile = await resolveTrustedUserRoleAndProfile(cred.user, registrationDefaults);
+    clearSavedSignInLinkData();
+    return { ok: true, profile };
+  } catch (err) {
+    return {
+      ok: false,
+      error: translateFirebaseAuthError(err),
+    };
+  }
+}
+
+export function getGoogleOAuthClientId(): string {
+  return (firebaseConfig as { oAuthClientId?: string })?.oAuthClientId || '';
+}
+
+/**
  * Signs in or registers a citizen/admin using Google Sign-In (`signInWithPopup`).
- * Works immediately without manual Firebase Console provider toggles.
+ * CRITICAL: Calls `signInWithPopup` synchronously on the first tick of the user click
+ * so mobile & live browsers never block the Google Account Chooser popup!
  */
 export async function signInWithGoogleAccount(
   registrationDefaults?: PendingCitizenRegistration,
   options?: {
     loginHint?: string;
-    forceSignOutBeforePopup?: boolean;
+    forceAccountSelection?: boolean;
   }
 ): Promise<{
   ok: boolean;
@@ -324,15 +384,9 @@ export async function signInWithGoogleAccount(
   }
 
   try {
-    if (options?.forceSignOutBeforePopup && auth.currentUser) {
-      try {
-        await signOut(auth);
-      } catch {
-        // Non-fatal
-      }
-    }
-
     const provider = new GoogleAuthProvider();
+    provider.addScope('email');
+    provider.addScope('profile');
     const customParams: Record<string, string> = {
       prompt: 'select_account',
     };
@@ -340,6 +394,8 @@ export async function signInWithGoogleAccount(
       customParams.login_hint = options.loginHint.trim().toLowerCase();
     }
     provider.setCustomParameters(customParams);
+
+    // Must be the VERY FIRST await inside the click handler so browser popup blockers allow the chooser window
     const cred = await signInWithPopup(auth, provider);
 
     if (registrationDefaults?.fullName) {
