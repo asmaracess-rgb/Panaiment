@@ -4,7 +4,25 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { CheckCircle2, Clock, AlertCircle, X, Lock } from 'lucide-react';
+import {
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  X,
+  Lock,
+  UserCheck,
+  LogOut,
+  ShieldCheck,
+} from 'lucide-react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from './firebase/config';
+import {
+  resolveTrustedUserRoleAndProfile,
+  logoutFirebaseUser,
+  checkIsIncomingEmailSignInLink,
+  completePasswordlessEmailSignIn,
+  getSavedEmailForSignIn,
+} from './firebase/authService';
 import {
   AppView,
   CitizenReport,
@@ -23,6 +41,7 @@ import {
   UrbanFarmingSpot,
   SeedRequestItem,
   SiskamlingRwSchedule,
+  AuthenticatedUserProfile,
 } from './types';
 import {
   INITIAL_REPORTS,
@@ -79,6 +98,8 @@ import { MonitoringSampahView } from './components/MonitoringSampahView';
 import { MonitoringKerjaBaktiView } from './components/MonitoringKerjaBaktiView';
 import { UrbanFarmingView } from './components/UrbanFarmingView';
 import { AdminPanelView, AdminTab } from './components/AdminPanelView';
+import { AuthView } from './components/AuthView';
+import { DashboardWargaView } from './components/DashboardWargaView';
 import { EmblemKelurahanPanaikang } from './components/Emblems';
 import { recordTrafficHit, recordRealPwaInstallEvent } from './utils/trafficTracker';
 
@@ -96,9 +117,91 @@ export default function App() {
 
   const [activeView, setActiveView] = useState<AppView>('beranda');
   const [adminInitialTab, setAdminInitialTab] = useState<AdminTab>('dashboard_lurah');
+  const [authUserProfile, setAuthUserProfile] = useState<AuthenticatedUserProfile | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
+  const [authNotice, setAuthNotice] = useState<string>('');
   const [kelurahanProfile, setKelurahanProfile] = useState<KelurahanProfile>(
     initialPersisted?.profile ?? INITIAL_KELURAHAN_PROFILE
   );
+
+  // Subscribe to Firebase Authentication state & resolve trusted role from Firestore (/admins/{uid} & /user_profiles/{uid})
+  // Also automatically process incoming Passwordless Email Verification Links (`isSignInWithEmailLink`)
+  useEffect(() => {
+    let mounted = true;
+
+    if (checkIsIncomingEmailSignInLink(window.location.href)) {
+      const savedEmail = getSavedEmailForSignIn();
+      if (savedEmail) {
+        completePasswordlessEmailSignIn(savedEmail, window.location.href)
+          .then((res) => {
+            if (!mounted) return;
+            if (res.ok && res.profile) {
+              setAuthUserProfile(res.profile);
+              setIsAuthReady(true);
+              setAuthNotice('');
+              if (res.targetView === 'admin') {
+                setActiveView('admin');
+              } else {
+                setActiveView('dashboard_warga');
+              }
+            } else if (res.needsEmailConfirmation) {
+              setAuthNotice(
+                res.error ||
+                  'Konfirmasi alamat email Anda untuk menyelesaikan aktivasi tautan login.'
+              );
+              setActiveView('login');
+            } else if (res.error) {
+              setAuthNotice(res.error);
+              setActiveView('login');
+            }
+          })
+          .catch(() => {
+            if (mounted) {
+              setActiveView('login');
+            }
+          });
+      } else {
+        setAuthNotice(
+          'Masukkan kembali alamat email Anda untuk menyelesaikan validasi tautan dan mengaktifkan akun.'
+        );
+        setActiveView('login');
+      }
+    }
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!mounted) return;
+      if (!firebaseUser) {
+        setAuthUserProfile(null);
+        setIsAuthReady(true);
+        return;
+      }
+      try {
+        const profile = await resolveTrustedUserRoleAndProfile(firebaseUser);
+        if (mounted) {
+          setAuthUserProfile(profile);
+          setIsAuthReady(true);
+        }
+      } catch (err) {
+        console.warn('[Firebase Auth] Gagal memuat profil peran pengguna:', err);
+        if (mounted) {
+          setIsAuthReady(true);
+        }
+      }
+    });
+    return () => {
+      mounted = false;
+      unsubscribeAuth();
+    };
+  }, []);
+
+  const handleFirebaseLogout = useCallback(async () => {
+    await logoutFirebaseUser();
+    setAuthUserProfile(null);
+    setAuthNotice('');
+    if (activeView === 'dashboard_warga') {
+      setActiveView('beranda');
+    }
+  }, [activeView]);
 
   const [reports, setReports] = useState<CitizenReport[]>(() => {
     const deleted = getDeletedItemIds();
@@ -2040,7 +2143,58 @@ export default function App() {
         </nav>
 
         {/* Zone 3: Compact Primary Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {authUserProfile ? (
+            <>
+              <button
+                type="button"
+                onClick={() => handleNavigate('dashboard_warga')}
+                className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-[11px] font-bold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  activeView === 'dashboard_warga'
+                    ? 'bg-[#0D3868] text-white'
+                    : 'bg-sky-50 text-[#0D3868] border border-sky-200 hover:bg-sky-100'
+                }`}
+              >
+                <UserCheck className="w-3.5 h-3.5" />
+                <span>Dashboard Warga</span>
+              </button>
+              {authUserProfile.role === 'admin' && (
+                <button
+                  type="button"
+                  onClick={() => handleNavigate('admin')}
+                  className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold text-amber-900 bg-amber-100 border border-amber-300 rounded-lg hover:bg-amber-200 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Admin</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleFirebaseLogout}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg hover:bg-rose-100 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                title={`Logout (${authUserProfile.email})`}
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Logout</span>
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setAuthNotice('');
+                handleNavigate('login');
+              }}
+              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-[11px] font-bold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                activeView === 'login'
+                  ? 'bg-[#0D3868] text-white'
+                  : 'bg-slate-100 text-[#0D3868] hover:bg-slate-200 border border-slate-200'
+              }`}
+            >
+              <UserCheck className="w-3.5 h-3.5" />
+              <span>Masuk Warga</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => handleNavigate('warga')}
@@ -2098,7 +2252,59 @@ export default function App() {
             onAddReport={handleAddReport}
             onUpvoteReport={handleUpvoteReport}
             onNavigate={handleNavigate}
+            userProfile={authUserProfile}
+            onRequireAuth={(notice) => {
+              setAuthNotice(notice || '');
+              handleNavigate('login');
+            }}
+            onLogout={handleFirebaseLogout}
           />
+        )}
+
+        {activeView === 'login' && (
+          <AuthView
+            rwGroups={rwGroups}
+            initialNotice={authNotice}
+            onNavigate={handleNavigate}
+            onAuthenticated={(profile) => {
+              setAuthUserProfile(profile);
+              setAuthNotice('');
+              // Redirect based on trusted role read from Firestore (/admins/{uid} or /user_profiles/{uid})
+              handleNavigate('dashboard_warga');
+            }}
+          />
+        )}
+
+        {activeView === 'dashboard_warga' && (
+          !isAuthReady ? (
+            <div className="mx-auto max-w-md px-4 py-20 text-center space-y-3">
+              <div className="w-10 h-10 rounded-full border-3 border-[#0D3868] border-t-transparent animate-spin mx-auto" />
+              <p className="text-xs font-bold text-slate-600">
+                Memuat halaman layanan warga...
+              </p>
+            </div>
+          ) : !authUserProfile ? (
+            <AuthView
+              rwGroups={rwGroups}
+              initialNotice="Silakan masuk terlebih dahulu untuk mengakses Dashboard Warga."
+              onNavigate={handleNavigate}
+              onAuthenticated={(profile) => {
+                setAuthUserProfile(profile);
+                setAuthNotice('');
+                handleNavigate('dashboard_warga');
+              }}
+            />
+          ) : (
+            <DashboardWargaView
+              userProfile={authUserProfile}
+              rwGroups={rwGroups}
+              reports={reports}
+              onAddReport={handleAddReport}
+              onNavigate={handleNavigate}
+              onLogout={handleFirebaseLogout}
+              onProfileUpdated={(updatedProfile) => setAuthUserProfile(updatedProfile)}
+            />
+          )
         )}
 
         {activeView === 'lurah' && (
@@ -2219,6 +2425,8 @@ export default function App() {
             onSaveSiskamlingSchedules={handleSaveSiskamlingSchedules}
             onExportDatabase={handleExportDatabase}
             onImportDatabase={handleImportDatabase}
+            firebaseUserProfile={authUserProfile}
+            onFirebaseLogout={handleFirebaseLogout}
           />
         )}
       </main>

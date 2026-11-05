@@ -29,6 +29,10 @@ import {
   Activity,
   History,
   Layers,
+  Mail,
+  UserCheck,
+  Clock,
+  ShieldAlert,
 } from 'lucide-react';
 import {
   AdminUserAccount,
@@ -37,7 +41,12 @@ import {
   AdminActionPermissions,
   KelurahanProfile,
   RwGroup,
+  GoogleAdminVerificationRequest,
 } from '../types';
+import {
+  loadGoogleAdminVerificationRequests,
+  saveGoogleAdminVerificationRequests,
+} from '../firebase/authService';
 import {
   ServiceCategoryGroup,
   OFFICIAL_13_WARGA_SERVICES,
@@ -200,17 +209,17 @@ export const ADMIN_MODULE_OPTIONS: {
     badgeColor: 'bg-cyan-50 text-cyan-800 border-cyan-200',
   },
   {
-    id: 'parameter_user',
-    label: 'Parameter User & Hak Akses (RBAC)',
+    id: 'kelola_admin_warga',
+    label: 'Kelola Admin dan User Warga',
     description:
-      'Manajemen akun pejabat/staf/operator, sinkronisasi otomatis struktur jabatan & matriks hak akses (Khusus Lurah)',
+      'Pusat terpadu 3 Sub-Menu: Otoritas Master Admin, Parameter Admin, dan User Warga Terdaftar',
     subMenus: [
-      'Kelola Akun User Admin',
-      'Sinkronisasi Struktur Perwali 65/2023',
-      'Matriks Hak Akses RBAC',
+      'Otoritas Master Admin',
+      'Parameter Admin',
+      'User Warga Terdaftar',
     ],
-    structuralUnit: 'Khusus Otoritas Lurah',
-    badgeColor: 'bg-rose-50 text-rose-800 border-rose-200',
+    structuralUnit: 'Khusus Otoritas Lurah & Seksi Pemerintahan',
+    badgeColor: 'bg-indigo-50 text-indigo-900 border-indigo-200',
   },
   {
     id: 'log_aktivitas',
@@ -568,6 +577,12 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
     return list;
   }, [profile]);
 
+  const [googleRequests, setGoogleRequests] = useState<GoogleAdminVerificationRequest[]>(() =>
+    loadGoogleAdminVerificationRequests()
+  );
+  const [newGoogleEmail, setNewGoogleEmail] = useState('');
+  const [selectedAdminIdForGoogle, setSelectedAdminIdForGoogle] = useState('');
+
   const [userForm, setUserForm] = useState<{
     username: string;
     password: string;
@@ -576,6 +591,8 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
     jabatan: string;
     unitBidang: string;
     phone: string;
+    googleEmail: string;
+    isGoogleVerified: boolean;
     roleLevel: AdminRoleLevel;
     isMasterLurah: boolean;
     isActive: boolean;
@@ -591,6 +608,8 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
     jabatan: '',
     unitBidang: 'Loket Pelayanan Terpadu Kelurahan Panaikang',
     phone: '',
+    googleEmail: '',
+    isGoogleVerified: false,
     roleLevel: 'operator',
     isMasterLurah: false,
     isActive: true,
@@ -1128,10 +1147,12 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
       jabatan: 'Staf / Operator Pelayanan Kelurahan',
       unitBidang: 'Loket Pelayanan Terpadu Kelurahan Panaikang',
       phone: '',
+      googleEmail: '',
+      isGoogleVerified: false,
       roleLevel: 'operator',
       isMasterLurah: false,
       isActive: true,
-      allowedAdminTabs: ['pengurusan_warga', 'info', 'laporan', 'rtrw'],
+      allowedAdminTabs: ['pengurusan_warga', 'user_warga', 'info', 'laporan', 'rtrw'],
       allowedServiceCategories: [...allCategoryIds],
       actionPermissions: {
         canCreate: true,
@@ -1160,6 +1181,8 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
       jabatan: user.jabatan,
       unitBidang: user.unitBidang,
       phone: user.phone,
+      googleEmail: user.googleEmail || '',
+      isGoogleVerified: Boolean(user.isGoogleVerified),
       roleLevel: user.roleLevel,
       isMasterLurah: Boolean(user.isMasterLurah || user.roleLevel === 'master_admin'),
       isActive: user.isActive,
@@ -1201,6 +1224,121 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
         [key]: !prev.actionPermissions[key],
       },
     }));
+  };
+
+  const handleApproveGoogleRequest = async (
+    req: GoogleAdminVerificationRequest,
+    targetAdminId: string
+  ) => {
+    const targetAdmin = adminUsers.find((u) => u.id === targetAdminId);
+    if (!targetAdmin) return;
+    const nowStr = getRealtimeDateString(new Date());
+    const nextUsers = adminUsers.map((u) =>
+      u.id === targetAdminId
+        ? {
+            ...u,
+            googleEmail: req.email.toLowerCase(),
+            isGoogleVerified: true,
+            googleVerifiedAt: nowStr,
+            googleVerifiedBy: 'Master Admin (Lurah Panaikang)',
+            updatedAt: `${nowStr} · Verifikasi Google Disetujui`,
+          }
+        : u
+    );
+    const res = await onSaveAdminUsers(nextUsers);
+    if (res.ok) {
+      const updatedReqs = googleRequests.map((r) =>
+        r.id === req.id
+          ? {
+              ...r,
+              status: 'Disetujui' as const,
+              processedAt: nowStr,
+              processedBy: 'Master Admin (Lurah)',
+              linkedAdminId: targetAdmin.id,
+              linkedAdminName: targetAdmin.fullName,
+            }
+          : r
+      );
+      saveGoogleAdminVerificationRequests(updatedReqs);
+      setGoogleRequests(updatedReqs);
+      setFeedbackSuccess(
+        `Akun Google "${req.email}" telah disetujui & diverifikasi untuk ${targetAdmin.fullName}. Pejabat ini sekarang dapat masuk via Google.`
+      );
+    }
+  };
+
+  const handleRejectGoogleRequest = (reqId: string) => {
+    const nowStr = getRealtimeDateString(new Date());
+    const updatedReqs = googleRequests.map((r) =>
+      r.id === reqId
+        ? {
+            ...r,
+            status: 'Ditolak' as const,
+            processedAt: nowStr,
+            processedBy: 'Master Admin (Lurah)',
+          }
+        : r
+    );
+    saveGoogleAdminVerificationRequests(updatedReqs);
+    setGoogleRequests(updatedReqs);
+    setFeedbackSuccess('Permohonan verifikasi akun Google berhasil ditolak.');
+  };
+
+  const handleDirectWhitelistGoogle = async () => {
+    if (!newGoogleEmail.trim() || !newGoogleEmail.includes('@')) {
+      setFeedbackErrors(['Masukkan alamat email Google yang valid.']);
+      return;
+    }
+    if (!selectedAdminIdForGoogle) {
+      setFeedbackErrors(['Pilih akun pejabat/staf admin yang akan dihubungkan dengan email Google ini.']);
+      return;
+    }
+    const cleanEmail = newGoogleEmail.trim().toLowerCase();
+    const targetAdmin = adminUsers.find((u) => u.id === selectedAdminIdForGoogle);
+    if (!targetAdmin) return;
+    const nowStr = getRealtimeDateString(new Date());
+    const nextUsers = adminUsers.map((u) =>
+      u.id === selectedAdminIdForGoogle
+        ? {
+            ...u,
+            googleEmail: cleanEmail,
+            isGoogleVerified: true,
+            googleVerifiedAt: nowStr,
+            googleVerifiedBy: 'Master Admin (Lurah Panaikang)',
+            updatedAt: `${nowStr} · Verifikasi Google Master Admin`,
+          }
+        : u
+    );
+    const res = await onSaveAdminUsers(nextUsers);
+    if (res.ok) {
+      setNewGoogleEmail('');
+      setSelectedAdminIdForGoogle('');
+      setFeedbackSuccess(
+        `Email Google "${cleanEmail}" berhasil diverifikasi dan didaftarkan untuk ${targetAdmin.fullName}.`
+      );
+    }
+  };
+
+  const handleRevokeGoogleVerification = async (userId: string) => {
+    const targetAdmin = adminUsers.find((u) => u.id === userId);
+    if (!targetAdmin) return;
+    const nowStr = getRealtimeDateString(new Date());
+    const nextUsers = adminUsers.map((u) =>
+      u.id === userId
+        ? {
+            ...u,
+            isGoogleVerified: false,
+            googleVerifiedAt: undefined,
+            updatedAt: `${nowStr} · Verifikasi Google Dicabut`,
+          }
+        : u
+    );
+    const res = await onSaveAdminUsers(nextUsers);
+    if (res.ok) {
+      setFeedbackSuccess(
+        `Otoritas login Google untuk pejabat "${targetAdmin.fullName}" telah dicabut.`
+      );
+    }
   };
 
   const handleSaveUserForm = async (e: React.FormEvent) => {
@@ -1263,6 +1401,14 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
               jabatan: userForm.jabatan.trim(),
               unitBidang: userForm.unitBidang.trim() || 'Kelurahan Panaikang',
               phone: userForm.phone.trim(),
+              googleEmail: userForm.googleEmail.trim().toLowerCase() || undefined,
+              isGoogleVerified: userForm.isGoogleVerified,
+              googleVerifiedAt: userForm.isGoogleVerified
+                ? u.googleVerifiedAt || nowLabel
+                : undefined,
+              googleVerifiedBy: userForm.isGoogleVerified
+                ? u.googleVerifiedBy || 'Master Admin (Lurah Panaikang)'
+                : undefined,
               roleLevel: userForm.roleLevel,
               isMasterLurah: Boolean(
                 userForm.isMasterLurah || userForm.roleLevel === 'master_admin'
@@ -1300,6 +1446,12 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
         jabatan: userForm.jabatan.trim(),
         unitBidang: userForm.unitBidang.trim() || 'Kelurahan Panaikang',
         phone: userForm.phone.trim(),
+        googleEmail: userForm.googleEmail.trim().toLowerCase() || undefined,
+        isGoogleVerified: userForm.isGoogleVerified,
+        googleVerifiedAt: userForm.isGoogleVerified ? nowLabel : undefined,
+        googleVerifiedBy: userForm.isGoogleVerified
+          ? 'Master Admin (Lurah Panaikang)'
+          : undefined,
         roleLevel: userForm.roleLevel,
         isMasterLurah: Boolean(
           userForm.isMasterLurah || userForm.roleLevel === 'master_admin'
@@ -1412,11 +1564,11 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
             <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/15 text-[11px] font-bold uppercase tracking-wider text-emerald-200 mb-2">
               <ShieldCheck className="w-3.5 h-3.5" />
               <span>
-                Otoritas Master Admin (Lurah) · Struktur Perwali Kota Makassar No. 65 Tahun 2023
+                Sub-Menu 2: Parameter Admin · Struktur Perwali Kota Makassar No. 65 Tahun 2023
               </span>
             </div>
             <h2 className="text-lg sm:text-xl font-extrabold tracking-tight text-white">
-              Parameter User Admin & Konfigurasi Batasan Hak Akses (12 Menu & Sub-Modul Terkini)
+              Parameter Admin: Manajemen Akun Pejabat & Batasan Hak Akses (RBAC)
             </h2>
             <p className="mt-1 text-xs sm:text-sm text-sky-100 max-w-3xl">
               Kelola akun pejabat struktural (Lurah, Sekretaris Lurah, 3 Kasi, Staf Seksi, Ketua
@@ -2096,6 +2248,241 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
         })}
       </div>
 
+      {/* ================= SEKSI VERIFIKASI & WHITELIST LOGIN ADMIN GOOGLE (OTORITAS MASTER ADMIN) ================= */}
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+        <div className="bg-gradient-to-r from-[#0D3868] to-[#1C8237] px-5 sm:px-6 py-4 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-emerald-300">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base sm:text-lg font-extrabold text-white">
+                Otoritas Master Admin: Verifikasi Login Admin Akun Google
+              </h3>
+              <p className="text-xs text-sky-100">
+                Pencegahan Akses Tak Berizin: Hanya akun Google yang telah diverifikasi Master Admin yang dapat masuk ke Panel Admin.
+              </p>
+            </div>
+          </div>
+          <span className="px-3 py-1 rounded-full bg-emerald-400/20 text-emerald-200 text-xs font-bold border border-emerald-400/30 w-fit">
+            Mode Whitelist Ketat
+          </span>
+        </div>
+
+        <div className="p-5 sm:p-6 space-y-6">
+          {/* Penjelasan Keamanan */}
+          <div className="p-4 rounded-xl bg-sky-50/80 border border-sky-200 flex items-start gap-3 text-xs sm:text-sm text-sky-950">
+            <ShieldAlert className="w-5 h-5 text-[#0277BD] shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="font-bold">
+                Mekanisme Keamanan Login Admin dengan Akun Google:
+              </p>
+              <p className="text-slate-600 leading-relaxed text-xs">
+                Secara default, setiap login Google baru diperlakukan sebagai <strong>Warga</strong> dan diblokir dari Panel Admin.
+                Untuk menjadi Administrator, akun Google staf harus <strong>diverifikasi & ditautkan ke akun pejabat</strong> oleh Master Admin Lurah di bawah ini, atau melalui persetujuan permohonan masuk.
+              </p>
+            </div>
+          </div>
+
+          {/* 1. Permohonan Verifikasi Masuk (Pending Requests) */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-600" />
+                <h4 className="text-sm font-extrabold text-slate-900">
+                  Permohonan Verifikasi Akun Google Masuk ({googleRequests.filter((r) => r.status === 'Menunggu Persetujuan').length})
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setGoogleRequests(loadGoogleAdminVerificationRequests())}
+                className="text-xs text-[#0277BD] hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+              >
+                <RefreshCw className="w-3 h-3" /> Refresh Data
+              </button>
+            </div>
+
+            {googleRequests.filter((r) => r.status === 'Menunggu Persetujuan').length === 0 ? (
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
+                Tidak ada permohonan verifikasi baru dari staf yang sedang menunggu persetujuan.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {googleRequests
+                  .filter((r) => r.status === 'Menunggu Persetujuan')
+                  .map((req) => (
+                    <div
+                      key={req.id}
+                      className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/60 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-amber-200 text-amber-900 font-bold flex items-center justify-center shrink-0">
+                          {req.email.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="font-extrabold text-slate-900 flex items-center gap-1.5">
+                            <Mail className="w-3.5 h-3.5 text-slate-500" />
+                            <span>{req.email}</span>
+                          </div>
+                          <div className="text-slate-500 text-[11px] mt-0.5">
+                            Nama Google: {req.displayName || '-'} · Diajukan pada: {req.requestedAt}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <select
+                          id={`select-admin-${req.id}`}
+                          defaultValue=""
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700"
+                        >
+                          <option value="">-- Tautkan ke Akun Pejabat --</option>
+                          {adminUsers.map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.fullName} ({u.jabatan})
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const sel = document.getElementById(
+                              `select-admin-${req.id}`
+                            ) as HTMLSelectElement | null;
+                            if (!sel || !sel.value) {
+                              setFeedbackErrors(['Pilih akun pejabat yang ingin ditautkan terlebih dahulu.']);
+                              return;
+                            }
+                            handleApproveGoogleRequest(req, sel.value);
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1 cursor-pointer shadow-xs"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Setujui & Verifikasi</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRejectGoogleRequest(req.id)}
+                          className="px-2.5 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold cursor-pointer"
+                        >
+                          Tolak
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+
+          {/* 2. Daftarkan Email Google Baru Langsung (Pre-Whitelist) */}
+          <div className="pt-4 border-t border-slate-200">
+            <h4 className="text-sm font-extrabold text-slate-900 mb-2 flex items-center gap-2">
+              <UserCheck className="w-4 h-4 text-emerald-700" />
+              <span>Daftarkan & Verifikasi Email Google Staf Baru (Pre-Registration)</span>
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+              <div className="sm:col-span-5">
+                <input
+                  type="email"
+                  value={newGoogleEmail}
+                  onChange={(e) => setNewGoogleEmail(e.target.value)}
+                  placeholder="Contoh: staf.kelurahan@gmail.com"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 focus:border-[#0D3868] focus:outline-none"
+                />
+              </div>
+              <div className="sm:col-span-4">
+                <select
+                  value={selectedAdminIdForGoogle}
+                  onChange={(e) => setSelectedAdminIdForGoogle(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 bg-white focus:border-[#0D3868] focus:outline-none"
+                >
+                  <option value="">-- Pilih Akun Pejabat/Staf --</option>
+                  {adminUsers.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.fullName} ({u.jabatan})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="sm:col-span-3">
+                <button
+                  type="button"
+                  onClick={handleDirectWhitelistGoogle}
+                  className="w-full py-2 px-3 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition-colors cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Verifikasi Email</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 3. Daftar Akun Admin yang Memiliki Otoritas Login Google */}
+          <div className="pt-4 border-t border-slate-200">
+            <h4 className="text-sm font-extrabold text-slate-900 mb-2 flex items-center gap-2">
+              <Mail className="w-4 h-4 text-[#0D3868]" />
+              <span>Daftar Akun Administrator Terverifikasi Google Saat Ini</span>
+            </h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider text-[10px]">
+                  <tr>
+                    <th className="p-2.5 rounded-l-lg">Pejabat / Staf</th>
+                    <th className="p-2.5">Jabatan & Seksi</th>
+                    <th className="p-2.5">Email Google Tertaut</th>
+                    <th className="p-2.5">Status Verifikasi</th>
+                    <th className="p-2.5 rounded-r-lg text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {adminUsers
+                    .filter((u) => u.googleEmail || u.isMasterLurah)
+                    .map((u) => (
+                      <tr key={u.id} className="hover:bg-slate-50">
+                        <td className="p-2.5 font-bold text-slate-900">
+                          {u.fullName}
+                          {u.isMasterLurah && (
+                            <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-900">
+                              Master Lurah
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-2.5 text-slate-600">{u.jabatan}</td>
+                        <td className="p-2.5 font-mono-num font-semibold text-[#0D3868]">
+                          {u.googleEmail || (u.isMasterLurah ? 'AsmaraCess@gmail.com' : '-')}
+                        </td>
+                        <td className="p-2.5">
+                          {u.isGoogleVerified || u.isMasterLurah ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              Terverifikasi Master Admin
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-bold">
+                              Belum Terverifikasi
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-2.5 text-right">
+                          {!u.isMasterLurah && u.isGoogleVerified && (
+                            <button
+                              type="button"
+                              onClick={() => handleRevokeGoogleVerification(u.id)}
+                              className="text-xs font-semibold text-red-600 hover:text-red-800 hover:underline cursor-pointer"
+                            >
+                              Cabut Izin
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* ================= MODAL ADD / EDIT USER & ACCESS PERMISSIONS ================= */}
       {showUserModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
@@ -2393,6 +2780,62 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                     placeholder="Contoh: 081242108800"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-mono-num text-slate-900 focus:border-[#0D3868] focus:outline-none"
                   />
+                </div>
+
+                {/* Email Akun Google & Otorisasi Login Master Admin */}
+                <div className="sm:col-span-2 p-4 rounded-2xl bg-sky-50/80 border border-sky-200 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-[#0D3868]" />
+                    <span className="text-xs font-bold text-[#0D3868]">
+                      Integrasi Login Admin Akun Google (Otoritas Whitelist Master Admin)
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        Alamat Email Google Resmi Pejabat / Staf
+                      </label>
+                      <input
+                        type="email"
+                        value={userForm.googleEmail}
+                        onChange={(e) =>
+                          setUserForm((prev) => ({
+                            ...prev,
+                            googleEmail: e.target.value.toLowerCase().trim(),
+                          }))
+                        }
+                        placeholder="nama.pejabat@gmail.com"
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 bg-white focus:border-[#0D3868] focus:outline-none font-mono-num"
+                      />
+                      <p className="mt-1 text-[10px] text-slate-500">
+                        Email Google yang diizinkan untuk tombol Masuk dengan Google.
+                      </p>
+                    </div>
+
+                    <div className="pt-2 sm:pt-0">
+                      <label className="flex items-center gap-2.5 p-3 rounded-xl border border-emerald-300 bg-emerald-50/70 hover:bg-emerald-50 cursor-pointer transition">
+                        <input
+                          type="checkbox"
+                          checked={userForm.isGoogleVerified}
+                          onChange={(e) =>
+                            setUserForm((prev) => ({
+                              ...prev,
+                              isGoogleVerified: e.target.checked,
+                            }))
+                          }
+                          className="w-4 h-4 text-emerald-600 rounded-sm focus:ring-emerald-500"
+                        />
+                        <div>
+                          <div className="text-xs font-bold text-emerald-950">
+                            Verifikasi Akun Google Ini (Whitelist Aktif)
+                          </div>
+                          <div className="text-[10px] text-emerald-800">
+                            Hanya akun yang dicentang verifikasinya oleh Lurah yang dapat masuk.
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
                 </div>
               </div>
 

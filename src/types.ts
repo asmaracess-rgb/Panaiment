@@ -8,7 +8,75 @@ export type AppView =
   | 'sampah'
   | 'kerjabakti'
   | 'urbanfarming'
-  | 'admin';
+  | 'admin'
+  | 'login'
+  | 'dashboard_warga';
+
+export type UserRole = 'warga' | 'admin';
+
+export interface AuthenticatedUserProfile {
+  uid: string;
+  email: string;
+  fullName: string;
+  nik: string;
+  phone: string;
+  rw: string;
+  rt: string;
+  address: string;
+  role: UserRole;
+  adminDetails?: {
+    nip: string;
+    jabatan: string;
+    unitBidang: string;
+    roleLevel: AdminRoleLevel;
+    isActive: boolean;
+  };
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AdminRoleRecord {
+  uid: string;
+  email: string;
+  fullName: string;
+  nip: string;
+  jabatan: string;
+  unitBidang: string;
+  roleLevel: AdminRoleLevel;
+  isActive: boolean;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+export type SubmissionStatus =
+  | 'Menunggu Verifikasi'
+  | 'Sedang Ditangani'
+  | 'Selesai'
+  | 'Ditolak';
+
+export interface CitizenSubmission {
+  id: string;
+  ownerId: string;
+  ownerEmail: string;
+  ticketCode: string;
+  submissionType: 'layanan_administrasi' | 'pengaduan_lingkungan';
+  serviceCategoryId: string;
+  serviceName: string;
+  title: string;
+  description: string;
+  applicantName: string;
+  applicantNik: string;
+  applicantPhone: string;
+  rw: string;
+  rt: string;
+  address: string;
+  status: SubmissionStatus;
+  responseNote: string;
+  letterRegisterNumber: string;
+  createdAtDisplay: string;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
 
 export type ReportStatus = 'Menunggu Verifikasi' | 'Sedang Ditangani' | 'Selesai';
 
@@ -22,6 +90,8 @@ export type ReportUrgency = 'Normal' | 'Tinggi' | 'Darurat';
 
 export interface CitizenReport {
   id: string;
+  ownerId?: string;
+  ownerEmail?: string;
   ticketCode: string;
   title: string;
   description: string;
@@ -305,8 +375,15 @@ export type AdminTabId =
   | 'urban_farming'
   | 'rtrw'
   | 'traffic'
+  | 'kelola_admin_warga'
   | 'parameter_user'
+  | 'user_warga'
   | 'log_aktivitas';
+
+export type KelolaAdminWargaSubTab =
+  | 'otoritas_master'
+  | 'parameter_admin'
+  | 'user_warga';
 
 export interface RealtimeTrafficEvent {
   id: string;
@@ -389,6 +466,7 @@ export type AdminActivityModule =
   | 'AUTENTIKASI'
   | 'DASHBOARD_LURAH'
   | 'PENGURUSAN_WARGA'
+  | 'DAFTAR_WARGA'
   | 'PROFIL_KELURAHAN'
   | 'STRUKTUR_RTRW'
   | 'SISKAMLING'
@@ -432,6 +510,21 @@ export interface AdminActionPermissions {
   canExportPrintPdf: boolean;
 }
 
+export interface GoogleAdminVerificationRequest {
+  id: string;
+  email: string;
+  displayName: string;
+  photoUrl?: string;
+  requestedAt: string;
+  requestedAtMs: number;
+  status: 'Menunggu Persetujuan' | 'Disetujui' | 'Ditolak';
+  reviewedBy?: string;
+  reviewedAt?: string;
+  assignedRoleLevel?: AdminRoleLevel;
+  assignedJabatan?: string;
+  notes?: string;
+}
+
 export interface AdminUserAccount {
   id: string;
   username: string;
@@ -451,6 +544,10 @@ export interface AdminUserAccount {
   updatedAt: string;
   lastLoginAt?: string;
   notes?: string;
+  googleEmail?: string;
+  isGoogleVerified?: boolean;
+  googleVerifiedAt?: string;
+  googleVerifiedBy?: string;
 }
 
 export type FarmType =

@@ -79,12 +79,14 @@ export const MODULE_LABELS: Record<AdminActivityModule, string> = {
   PARAMETER_USER: 'Parameter User & Hak Akses RBAC (Perwali 65/2023)',
   KATALOG_SOP: 'Katalog SOP (7 Bidang · 13 Layanan Surat & Pengaduan)',
   PETA_DIGITAL_GIS: 'Peta Digital & Spasial Smart GIS',
+  DAFTAR_WARGA: 'Daftar User Warga (Registrasi Akun Firestore)',
 };
 
 const MODULE_SHORT_LABELS: Record<AdminActivityModule, string> = {
   AUTENTIKASI: 'Login & Sesi',
   DASHBOARD_LURAH: 'Dashboard Lurah',
   PENGURUSAN_WARGA: 'Pengurusan Warga (13 Surat)',
+  DAFTAR_WARGA: 'Daftar Warga',
   PROFIL_KELURAHAN: 'Profil & Bagan Kelurahan',
   STRUKTUR_RTRW: 'Data RT/RW & Bagan LPM',
   SISKAMLING: 'Jadwal Siskamling',

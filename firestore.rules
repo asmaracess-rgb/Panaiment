@@ -1,117 +1,361 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Default deny catch-all
+    // 1. Global Safety Net: Default-deny catch-all
     match /{document=**} {
       allow read, write: if false;
     }
 
+    // ================= GLOBAL PRIMITIVE HELPERS =================
     function isValidId(id) {
-      return id is string && id.size() > 0 && id.size() <= 128;
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
-    // Kelurahan Profile: Public read, administrative updates
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Trusted Admin Verification:
+    // Checks existence of the user's UID in the protected /admins/{uid} collection
+    // OR the bootstrapped verified project owner email.
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (request.auth.token.email_verified == true && request.auth.token.email == 'AsmaraCess@gmail.com')
+      );
+    }
+
+    // ================= VALIDATION BLUEPRINTS =================
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'email', 'fullName', 'nik', 'phone', 'rw', 'rt', 'address', 'role', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'fullName', 'nik', 'phone', 'rw', 'rt', 'address', 'role', 'createdAt', 'updatedAt']) &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
+        data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 120 &&
+        data.nik is string && data.nik.size() <= 32 &&
+        data.phone is string && data.phone.size() <= 32 &&
+        data.rw is string && data.rw.size() >= 2 && data.rw.size() <= 16 &&
+        data.rt is string && data.rt.size() >= 2 && data.rt.size() <= 16 &&
+        data.address is string && data.address.size() <= 300 &&
+        data.role is string && (data.role == 'warga' || data.role == 'admin') &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAdminRoleRecord(data) {
+      return data.keys().hasAll(['uid', 'email', 'fullName', 'nip', 'jabatan', 'unitBidang', 'roleLevel', 'isActive', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'fullName', 'nip', 'jabatan', 'unitBidang', 'roleLevel', 'isActive', 'createdAt', 'updatedAt']) &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
+        data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 120 &&
+        data.nip is string && data.nip.size() <= 40 &&
+        data.jabatan is string && data.jabatan.size() >= 2 && data.jabatan.size() <= 120 &&
+        data.unitBidang is string && data.unitBidang.size() >= 2 && data.unitBidang.size() <= 120 &&
+        data.roleLevel is string && (data.roleLevel == 'master_admin' || data.roleLevel == 'admin_bidang' || data.roleLevel == 'operator' || data.roleLevel == 'viewer') &&
+        data.isActive is bool &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidCitizenSubmission(data) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'ownerEmail', 'ticketCode', 'submissionType',
+          'serviceCategoryId', 'serviceName', 'title', 'description',
+          'applicantName', 'applicantNik', 'applicantPhone', 'rw', 'rt',
+          'address', 'status', 'responseNote', 'letterRegisterNumber',
+          'createdAtDisplay', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'ownerId', 'ownerEmail', 'ticketCode', 'submissionType',
+          'serviceCategoryId', 'serviceName', 'title', 'description',
+          'applicantName', 'applicantNik', 'applicantPhone', 'rw', 'rt',
+          'address', 'status', 'responseNote', 'letterRegisterNumber',
+          'createdAtDisplay', 'createdAt', 'updatedAt'
+        ]) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 && data.id.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 && data.ownerId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.ownerEmail is string && data.ownerEmail.size() >= 3 && data.ownerEmail.size() <= 160 &&
+        data.ticketCode is string && data.ticketCode.size() >= 3 && data.ticketCode.size() <= 64 &&
+        data.submissionType is string && (data.submissionType == 'layanan_administrasi' || data.submissionType == 'pengaduan_lingkungan') &&
+        data.serviceCategoryId is string && data.serviceCategoryId.size() >= 1 && data.serviceCategoryId.size() <= 80 &&
+        data.serviceName is string && data.serviceName.size() >= 2 && data.serviceName.size() <= 160 &&
+        data.title is string && data.title.size() >= 3 && data.title.size() <= 200 &&
+        data.description is string && data.description.size() >= 3 && data.description.size() <= 2000 &&
+        data.applicantName is string && data.applicantName.size() >= 2 && data.applicantName.size() <= 120 &&
+        data.applicantNik is string && data.applicantNik.size() <= 32 &&
+        data.applicantPhone is string && data.applicantPhone.size() <= 32 &&
+        data.rw is string && data.rw.size() >= 2 && data.rw.size() <= 16 &&
+        data.rt is string && data.rt.size() >= 2 && data.rt.size() <= 16 &&
+        data.address is string && data.address.size() >= 2 && data.address.size() <= 300 &&
+        data.status is string && (
+          data.status == 'Menunggu Verifikasi' ||
+          data.status == 'Sedang Ditangani' ||
+          data.status == 'Selesai' ||
+          data.status == 'Ditolak'
+        ) &&
+        data.responseNote is string && data.responseNote.size() <= 1000 &&
+        data.letterRegisterNumber is string && data.letterRegisterNumber.size() <= 120 &&
+        data.createdAtDisplay is string && data.createdAtDisplay.size() >= 1 && data.createdAtDisplay.size() <= 80 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // ================= 1. USER PROFILES (PII ISOLATED & ROLE PROTECTED) =================
+    match /user_profiles/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin() && resource.data.uid is string && resource.data.uid.size() <= 128;
+
+      // Citizens can only register their own profile with role == 'warga'.
+      // Self-promotion to 'admin' is strictly rejected unless the caller is already a verified Admin.
+      allow create: if isSignedIn() &&
+        isValidId(userId) &&
+        request.auth.uid == userId &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (incoming().role == 'warga' || isAdmin());
+
+      // Action-Based Update:
+      // 1) Citizen owner updating contact/address fields (cannot modify uid, email, role, or createdAt)
+      // 2) Admin updating profile or role
+      allow update: if isSignedIn() &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          (
+            request.auth.uid == userId &&
+            incoming().email == existing().email &&
+            incoming().role == existing().role &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'nik', 'phone', 'rw', 'rt', 'address', 'updatedAt'])
+          ) ||
+          isAdmin()
+        );
+
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    // ================= 2. TRUSTED ADMIN ROLES COLLECTION =================
+    match /admins/{adminUid} {
+      // A signed-in user can check their own /admins/{uid} document after login to verify admin role;
+      // only admins can read other admin records or list the collection.
+      allow get: if isSignedIn() && isValidId(adminUid) && (request.auth.uid == adminUid || isAdmin());
+      allow list: if isAdmin() && resource.data.uid is string && resource.data.uid.size() <= 128;
+
+      // Strictly restricted to existing admins (or Firebase Console / Admin SDK)
+      allow create: if isAdmin() &&
+        isValidId(adminUid) &&
+        isValidAdminRoleRecord(incoming()) &&
+        incoming().uid == adminUid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isAdmin() &&
+        isValidId(adminUid) &&
+        isValidAdminRoleRecord(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time;
+
+      allow delete: if isAdmin() && isValidId(adminUid);
+    }
+
+    // ================= 3. CITIZEN SUBMISSIONS (ISOLATED PER WARGA, ADMIN VERIFIED) =================
+    match /citizen_submissions/{submissionId} {
+      // Citizens can ONLY read their own submissions; Admins can read all submissions
+      allow get: if isSignedIn() &&
+        isValidId(submissionId) &&
+        (resource.data.ownerId == request.auth.uid || isAdmin());
+
+      // Query Enforcer: Citizens MUST filter by where('ownerId', '==', request.auth.uid)
+      allow list: if isSignedIn() &&
+        (resource.data.ownerId == request.auth.uid || isAdmin());
+
+      // Citizens can create submissions only for their own UID, in initial 'Menunggu Verifikasi' state,
+      // and must have an existing profile in /user_profiles/{uid}
+      allow create: if isSignedIn() &&
+        isValidId(submissionId) &&
+        isValidCitizenSubmission(incoming()) &&
+        incoming().id == submissionId &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().status == 'Menunggu Verifikasi' &&
+        incoming().letterRegisterNumber == '' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/user_profiles/$(request.auth.uid));
+
+      // Action-Based Update with Terminal State Locking:
+      // - Citizens can only edit their own submission while status == 'Menunggu Verifikasi'
+      //   and cannot change status, responseNote, or letterRegisterNumber.
+      // - Admins can update status, responseNote, and letterRegisterNumber.
+      allow update: if isSignedIn() &&
+        isValidId(submissionId) &&
+        isValidCitizenSubmission(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().ownerEmail == existing().ownerEmail &&
+        incoming().ticketCode == existing().ticketCode &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (
+            request.auth.uid == existing().ownerId &&
+            existing().status == 'Menunggu Verifikasi' &&
+            incoming().status == existing().status &&
+            incoming().responseNote == existing().responseNote &&
+            incoming().letterRegisterNumber == existing().letterRegisterNumber &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'title',
+              'description',
+              'applicantPhone',
+              'address',
+              'updatedAt'
+            ])
+          )
+        );
+
+      allow delete: if isSignedIn() &&
+        isValidId(submissionId) && (
+          isAdmin() ||
+          (request.auth.uid == resource.data.ownerId && resource.data.status == 'Menunggu Verifikasi')
+        );
+    }
+
+    // ================= 4. PUBLIC PORTAL & KELURAHAN DATA COLLECTIONS =================
+    // Public pages remain readable without login; administrative mutations require admin role.
+
     match /kelurahan_profiles/{profileId} {
-      allow read: if true;
-      allow write: if isValidId(profileId);
+      allow get: if isValidId(profileId);
+      allow list: if resource.data.lurahName is string && resource.data.lurahName.size() <= 120;
+      allow create, update, delete: if isAdmin() && isValidId(profileId);
     }
 
-    // RW & RT Groups: Public read, administrative management
     match /rw_groups/{rwId} {
-      allow read: if true;
-      allow write: if isValidId(rwId);
+      allow get: if isValidId(rwId);
+      allow list: if resource.data.rwCode is string && resource.data.rwCode.size() <= 32;
+      allow create, update, delete: if isAdmin() && isValidId(rwId);
     }
 
-    // Citizen Reports: Public read, citizen reporting, administrative verification
     match /citizen_reports/{reportId} {
-      allow read: if true;
-      allow write: if isValidId(reportId);
+      allow get: if isValidId(reportId);
+      allow list: if resource.data.ticketCode is string && resource.data.ticketCode.size() <= 64;
+      allow create: if isSignedIn() &&
+        isValidId(reportId) &&
+        incoming().id == reportId &&
+        incoming().title is string && incoming().title.size() >= 3 && incoming().title.size() <= 200;
+      allow update, delete: if isAdmin() && isValidId(reportId);
     }
 
-    // Bank Sampah Units & Daily Weighing Logs
     match /waste_units/{unitId} {
-      allow read: if true;
-      allow write: if isValidId(unitId);
+      allow get: if isValidId(unitId);
+      allow list: if resource.data.unitName is string && resource.data.unitName.size() <= 160;
+      allow create, update, delete: if isAdmin() && isValidId(unitId);
     }
 
     match /waste_logs/{logId} {
-      allow read: if true;
-      allow write: if isValidId(logId);
+      allow get: if isValidId(logId);
+      allow list: if resource.data.rw is string && resource.data.rw.size() <= 16;
+      allow create, update, delete: if isAdmin() && isValidId(logId);
     }
 
-    // Cleanup Events & News Announcements
     match /cleanup_events/{eventId} {
-      allow read: if true;
-      allow write: if isValidId(eventId);
+      allow get: if isValidId(eventId);
+      allow list: if resource.data.title is string && resource.data.title.size() <= 200;
+      allow create, update, delete: if isAdmin() && isValidId(eventId);
     }
 
     match /kelurahan_infos/{infoId} {
-      allow read: if true;
-      allow write: if isValidId(infoId);
+      allow get: if isValidId(infoId);
+      allow list: if resource.data.title is string && resource.data.title.size() <= 200;
+      allow create, update, delete: if isAdmin() && isValidId(infoId);
     }
 
-    // Environmental Spots: Teba & Biopori
     match /teba_spots/{spotId} {
-      allow read: if true;
-      allow write: if isValidId(spotId);
+      allow get: if isValidId(spotId);
+      allow list: if resource.data.name is string && resource.data.name.size() <= 160;
+      allow create, update, delete: if isAdmin() && isValidId(spotId);
     }
 
     match /biopori_points/{pointId} {
-      allow read: if true;
-      allow write: if isValidId(pointId);
+      allow get: if isValidId(pointId);
+      allow list: if resource.data.name is string && resource.data.name.size() <= 160;
+      allow create, update, delete: if isAdmin() && isValidId(pointId);
     }
 
-    // Urban Farming Spots & Seed Distribution Requests
     match /urban_farming_spots/{spotId} {
-      allow read: if true;
-      allow write: if isValidId(spotId);
+      allow get: if isValidId(spotId);
+      allow list: if resource.data.name is string && resource.data.name.size() <= 160;
+      allow create, update, delete: if isAdmin() && isValidId(spotId);
     }
 
     match /seed_requests/{requestId} {
-      allow read: if true;
-      allow write: if isValidId(requestId);
+      allow get: if isSignedIn() && isValidId(requestId) && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() &&
+        isValidId(requestId) &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().requesterName is string && incoming().requesterName.size() >= 2 && incoming().requesterName.size() <= 120;
+      allow update, delete: if isAdmin() && isValidId(requestId);
     }
 
-    // Siskamling Schedules & Ronda Malam
     match /siskamling_schedules/{scheduleId} {
-      allow read: if true;
-      allow write: if isValidId(scheduleId);
+      allow get: if isValidId(scheduleId);
+      allow list: if resource.data.rw is string && resource.data.rw.size() <= 16;
+      allow create, update, delete: if isAdmin() && isValidId(scheduleId);
     }
 
-    // Administrative Accounts, Activity Audit Logs & Live Session Locks
+    match /service_catalog/{docId} {
+      allow get: if isValidId(docId);
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin() && isValidId(docId);
+    }
+
+    // ================= 5. SENSITIVE ADMINISTRATIVE COLLECTIONS =================
     match /admin_users/{userId} {
-      allow read, write: if isValidId(userId);
+      allow get: if isAdmin() && isValidId(userId);
+      allow list: if isAdmin() && resource.data.username is string && resource.data.username.size() <= 80;
+      allow create, update, delete: if isAdmin() && isValidId(userId);
     }
 
     match /activity_logs/{logId} {
-      allow read: if true;
-      allow write: if isValidId(logId);
-    }
-
-    match /admin_session_locks/{lockId} {
-      allow read: if true;
-      allow write: if isValidId(lockId);
-    }
-
-    // SOP Citizen Service Catalog & WhatsApp Notification Numbers
-    match /service_catalog/{docId} {
-      allow read: if true;
-      allow write: if isValidId(docId);
+      allow get: if isAdmin() && isValidId(logId);
+      allow list: if isAdmin() && resource.data.summary is string && resource.data.summary.size() <= 500;
+      allow create, update, delete: if isAdmin() && isValidId(logId);
     }
 
     match /whatsapp_recipients/{docId} {
-      allow read: if true;
-      allow write: if isValidId(docId);
+      allow get: if isValidId(docId);
+      allow list: if resource.data.phoneNumber is string && resource.data.phoneNumber.size() <= 32;
+      allow create, update, delete: if isAdmin() && isValidId(docId);
     }
 
-    // Full Centralized Application Cloud Realtime Sync Document
+    match /admin_session_locks/{lockId} {
+      allow get: if isValidId(lockId);
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin() && isValidId(lockId);
+    }
+
     match /panaikang_app_data/{docId} {
-      allow read, write: if isValidId(docId);
+      allow get: if isValidId(docId);
+      allow list: if false;
+      allow create, update: if isSignedIn() && isValidId(docId);
+      allow delete: if isAdmin() && isValidId(docId);
     }
 
-    // Connection testing
     match /test/{docId} {
-      allow read, write: if true;
+      allow get: if isValidId(docId);
+      allow list, write: if false;
     }
   }
 }

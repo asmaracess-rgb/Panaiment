@@ -37,7 +37,9 @@ import {
   KelurahanProfile,
   KelurahanInfoItem,
   CleanupEvent,
+  AuthenticatedUserProfile,
 } from '../types';
+import { createCitizenSubmissionInFirestore } from '../firebase/authService';
 import {
   OFFICIAL_13_WARGA_SERVICES,
   REPORT_COMPLAINT_CATEGORIES,
@@ -93,6 +95,9 @@ interface UntukWargaViewProps {
   ) => string;
   onUpvoteReport: (id: string) => void;
   onNavigate: (view: AppView) => void;
+  userProfile?: AuthenticatedUserProfile | null;
+  onRequireAuth?: (notice?: string) => void;
+  onLogout?: () => void;
 }
 
 type SectionKey = 'home' | 'aduan' | 'admin';
@@ -105,6 +110,9 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
   onAddReport,
   onUpvoteReport,
   onNavigate,
+  userProfile,
+  onRequireAuth,
+  onLogout,
 }) => {
   // Navigation section state (matches prototype)
   const [section, setSection] = useState<SectionKey>('home');
@@ -167,6 +175,27 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
     serviceName: string;
     applicantName: string;
   } | null>(null);
+
+  // Pre-fill forms when userProfile is authenticated
+  React.useEffect(() => {
+    if (!userProfile) return;
+    setAduanForm((prev) => ({
+      ...prev,
+      reporterName: prev.reporterName || userProfile.fullName || '',
+      reporterPhone: prev.reporterPhone || userProfile.phone || '',
+      rw: userProfile.rw || prev.rw,
+      rt: userProfile.rt || prev.rt,
+    }));
+    setApplyForm((prev) => ({
+      ...prev,
+      name: prev.name || userProfile.fullName || '',
+      nik: prev.nik || userProfile.nik || '',
+      contact: prev.contact || userProfile.phone || '',
+      rw: userProfile.rw || prev.rw,
+      rt: userProfile.rt || prev.rt,
+      address: prev.address || userProfile.address || '',
+    }));
+  }, [userProfile]);
 
   // Available RT list dynamically based on chosen RW
   const currentRwObj = useMemo(() => {
@@ -237,7 +266,29 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
       imageUrl: aduanForm.photoDataUrl || '',
       serviceCategoryTitle: 'Laporan dan Pengaduan Warga',
       serviceSubItemLabel: aduanForm.category,
+      ownerId: userProfile?.uid,
+      ownerEmail: userProfile?.email,
     });
+
+    if (userProfile) {
+      createCitizenSubmissionInFirestore({
+        id: `sub-${Date.now()}`,
+        ticketCode: createdTicket,
+        submissionType: 'pengaduan_lingkungan',
+        serviceCategoryId: 'masalah_lingkungan',
+        serviceName: aduanForm.category,
+        title: aduanForm.title.trim(),
+        description: aduanForm.description.trim(),
+        applicantName: reporterDisplay,
+        applicantNik: userProfile.nik || '',
+        applicantPhone: contactDisplay || userProfile.phone || '',
+        rw: aduanForm.rw,
+        rt: aduanForm.rt,
+        address: aduanForm.location.trim() || userProfile.address || `Wilayah ${aduanForm.rw} / ${aduanForm.rt}`,
+      }).catch((err) => {
+        console.warn('[Firestore Citizen Submission]', err);
+      });
+    }
 
     setLastSubmittedAduan({
       ticketCode: createdTicket,
@@ -301,7 +352,29 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
       processingUnit: selectedService.processingUnit || 'Seksi Pelayanan Umum & Loket Kelurahan',
       applicantNik: applyForm.nik.trim(),
       citizenAddress: applyForm.address.trim(),
+      ownerId: userProfile?.uid,
+      ownerEmail: userProfile?.email,
     });
+
+    if (userProfile) {
+      createCitizenSubmissionInFirestore({
+        id: `sub-${Date.now()}`,
+        ticketCode: createdTicket,
+        submissionType: 'layanan_administrasi',
+        serviceCategoryId: selectedService.code,
+        serviceName: selectedService.name,
+        title: `${selectedService.name} — ${applyForm.name.trim()}`,
+        description: `Permohonan surat resmi kelurahan: ${selectedService.name} (Kode: ${selectedService.code}). Alamat: ${applyForm.address.trim()}. Catatan: ${applyForm.notes.trim() || '-'}`,
+        applicantName: applyForm.name.trim(),
+        applicantNik: applyForm.nik.trim() || userProfile.nik || '',
+        applicantPhone: applyForm.contact.trim() || userProfile.phone || '',
+        rw: applyForm.rw,
+        rt: applyForm.rt,
+        address: applyForm.address.trim(),
+      }).catch((err) => {
+        console.warn('[Firestore Citizen Submission]', err);
+      });
+    }
 
     setLastSubmittedAdmin({
       ticketCode: createdTicket,
@@ -429,6 +502,81 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* =========================================================================
+          AUTHENTICATION STATUS & DASHBOARD WARGA BAR
+      ========================================================================= */}
+      <div className="mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {userProfile ? (
+          <>
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700 shrink-0">
+                <UserCheck className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-extrabold text-[#0D3868]">
+                    {userProfile.fullName}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                    {userProfile.role === 'admin' ? 'Admin Terverifikasi' : 'Warga Terautentikasi'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  {userProfile.email} · {userProfile.rw || 'RW 01'} / {userProfile.rt || 'RT 01'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 self-start sm:self-center">
+              <button
+                type="button"
+                onClick={() => onNavigate('dashboard_warga')}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition cursor-pointer"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Dashboard Warga</span>
+              </button>
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition cursor-pointer"
+                >
+                  <span>Logout</span>
+                </button>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-sky-50 border border-sky-200 flex items-center justify-center text-[#0277BD] shrink-0">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-xs font-extrabold text-[#0D3868]">
+                  Akses Layanan Warga & Pengajuan Surat Online
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Katalog 13 persyaratan surat dan pelacakan tiket bersifat publik. Untuk mengajukan permohonan surat atau membuat laporan baru, silakan login terlebih dahulu.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                onRequireAuth
+                  ? onRequireAuth('Silakan masuk terlebih dahulu untuk mengakses layanan pengajuan warga.')
+                  : onNavigate('login')
+              }
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0277BD] hover:bg-[#0D3868] text-white text-xs font-extrabold shadow-2xs transition cursor-pointer shrink-0 self-start sm:self-center"
+            >
+              <UserCheck className="w-3.5 h-3.5" />
+              <span>Masuk / Daftar Warga</span>
+            </button>
+          </>
+        )}
       </div>
 
       {/* Breadcrumb & Mobile Tab Bar */}
@@ -801,7 +949,47 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
               </div>
 
               {/* TAB 1: FORMULIR BUAT LAPORAN */}
-              {aduanPage === 'new' && (
+              {aduanPage === 'new' && !userProfile && (
+                <div className="rounded-2xl border-2 border-sky-200 bg-sky-50/60 p-6 sm:p-8 text-center space-y-4">
+                  <div className="w-12 h-12 rounded-2xl bg-[#0D3868] text-white mx-auto flex items-center justify-center shadow-sm">
+                    <ShieldCheck className="w-6 h-6" />
+                  </div>
+                  <div className="max-w-lg mx-auto space-y-1.5">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full bg-sky-100 text-[#0277BD] text-[10px] font-black uppercase tracking-wider">
+                      Layanan Laporan Warga
+                    </span>
+                    <h3 className="text-lg font-extrabold text-[#0D3868]">
+                      Masuk Diperlukan untuk Membuat Laporan Warga
+                    </h3>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Penyampaian laporan baru memerlukan akses akun warga agar riwayat laporan Anda tercatat di <strong>Dashboard Warga</strong> dan dapat dipantau perkembangannya.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onRequireAuth
+                          ? onRequireAuth('Silakan login terlebih dahulu untuk menyampaikan laporan pengaduan warga.')
+                          : onNavigate('login')
+                      }
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-extrabold shadow-sm transition cursor-pointer"
+                    >
+                      <UserCheck className="w-4 h-4" />
+                      <span>Masuk / Daftar Akun Warga →</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAduanPage('track')}
+                      className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 transition cursor-pointer"
+                    >
+                      <span>Lacak Tiket Publik</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {aduanPage === 'new' && userProfile && (
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                   {/* Left: Form Card */}
                   <form
@@ -1607,7 +1795,48 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
               )}
 
               {/* ADMIN VIEW 3: FORMULIR AJUKAN PERMOHONAN */}
-              {adminPage === 'apply' && selectedService && (
+              {adminPage === 'apply' && selectedService && !userProfile && (
+                <div className="max-w-xl mx-auto rounded-2xl border-2 border-sky-200 bg-sky-50/60 p-6 sm:p-8 text-center space-y-4">
+                  <div className="w-12 h-12 rounded-2xl bg-[#0D3868] text-white mx-auto flex items-center justify-center shadow-sm">
+                    <ShieldCheck className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full bg-sky-100 text-[#0277BD] text-[10px] font-black uppercase tracking-wider">
+                      Layanan Administrasi Warga
+                    </span>
+                    <h3 className="text-lg font-extrabold text-[#0D3868]">
+                      Masuk Diperlukan untuk Mengajukan Permohonan Surat
+                    </h3>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Pengajuan permohonan <strong>{selectedService.name} ({selectedService.code})</strong> secara online membutuhkan akses akun warga agar berkas dan status surat Anda dapat dipantau langsung melalui <strong>Dashboard Warga</strong>.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onRequireAuth
+                          ? onRequireAuth(`Silakan login untuk mengajukan permohonan ${selectedService.name}.`)
+                          : onNavigate('login')
+                      }
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-extrabold shadow-sm transition cursor-pointer"
+                    >
+                      <UserCheck className="w-4 h-4" />
+                      <span>Masuk / Daftar Akun Warga →</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdminPage('detail')}
+                      className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 transition cursor-pointer"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                      <span>Kembali ke Checklist Persyaratan</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {adminPage === 'apply' && selectedService && userProfile && (
                 <div className="max-w-2xl mx-auto space-y-5">
                   <div className="flex items-center justify-between gap-3">
                     <button

@@ -305,6 +305,7 @@ export const INITIAL_ADMIN_USERS: AdminUserAccount[] = [
       'traffic',
       'parameter_user',
       'log_aktivitas',
+      'user_warga',
     ],
     allowedServiceCategories: [
       'administrasi_kependudukan',
@@ -327,7 +328,11 @@ export const INITIAL_ADMIN_USERS: AdminUserAccount[] = [
     createdAt: '01 Jan 2026',
     updatedAt: '04 Nov 2026',
     lastLoginAt: 'Belum login',
-    notes: 'Akun Master Admin / Super Admin Lurah Panaikang dengan otoritas penuh seluruh 12 modul, bagan struktur dinamis, dan pengaturan batasan akses user.',
+    notes: 'Akun Master Admin / Super Admin Lurah Panaikang dengan otoritas penuh seluruh modul, bagan struktur dinamis, dan pengaturan batasan akses user.',
+    googleEmail: 'AsmaraCess@gmail.com',
+    isGoogleVerified: true,
+    googleVerifiedAt: '04 Nov 2026',
+    googleVerifiedBy: 'Master Admin Utama',
   },
   {
     id: 'usr-sekretaris',

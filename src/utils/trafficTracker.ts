@@ -85,6 +85,8 @@ const PAGE_METADATA: Record<AppView, { path: string; title: string }> = {
   profil: { path: '/profil', title: 'Profil & Kelembagaan Kelurahan' },
   rtrw: { path: '/rtrw', title: 'Direktori RT/RW & Jadwal Siskamling' },
   warga: { path: '/warga', title: 'Layanan Pengurusan & E-Lapor Warga' },
+  dashboard_warga: { path: '/dashboard_warga', title: 'Dashboard Akun Warga' },
+  login: { path: '/login', title: 'Portal Masuk & Registrasi Warga' },
   lurah: { path: '/lurah', title: 'Dashboard Eksekutif Lurah' },
   peta: { path: '/peta', title: 'Peta GIS Interaktif Panaikang' },
   sampah: { path: '/sampah', title: 'Monitoring Bank Sampah & Konservasi' },

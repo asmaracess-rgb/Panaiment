@@ -78,7 +78,14 @@ import {
   AdminActivityModule,
   UrbanFarmingSpot,
   SeedRequestItem,
+  AuthenticatedUserProfile,
+  KelolaAdminWargaSubTab,
 } from '../types';
+import {
+  signInWithGoogleAccount,
+  logoutFirebaseUser,
+  submitGoogleAdminVerificationRequest,
+} from '../firebase/authService';
 import {
   HERO_IMAGE_PATH,
   IMG_NIPAH_MALL,
@@ -118,7 +125,9 @@ import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
 import { DashboardLurahView } from './DashboardLurahView';
 import { MonthlyArchivePdfPanel } from './MonthlyArchivePdfPanel';
 import { AdminPengurusanWargaPanel } from './AdminPengurusanWargaPanel';
+import { AdminDaftarWargaPanel } from './AdminDaftarWargaPanel';
 import { AdminParameterUserPanel } from './AdminParameterUserPanel';
+import { AdminOtoritasMasterPanel } from './AdminOtoritasMasterPanel';
 import { AdminActivityLogPanel } from './AdminActivityLogPanel';
 import { AdminSiskamlingPanel } from './AdminSiskamlingPanel';
 import { INITIAL_SISKAMLING_SCHEDULES } from '../data/siskamlingData';
@@ -290,11 +299,14 @@ interface AdminPanelViewProps {
   onSaveSiskamlingSchedules?: (updated: SiskamlingRwSchedule[]) => Promise<{ ok: boolean; errors?: string[] }>;
   onExportDatabase?: () => void;
   onImportDatabase?: (jsonString: string) => { ok: boolean; message: string };
+  firebaseUserProfile?: AuthenticatedUserProfile | null;
+  onFirebaseLogout?: () => Promise<void>;
 }
 
 export type AdminTab =
   | 'dashboard_lurah'
   | 'pengurusan_warga'
+  | 'user_warga'
   | 'profil'
   | 'rtrw'
   | 'info'
@@ -303,6 +315,7 @@ export type AdminTab =
   | 'kerjabakti'
   | 'urban_farming'
   | 'traffic'
+  | 'kelola_admin_warga'
   | 'parameter_user'
   | 'log_aktivitas';
 
@@ -386,6 +399,8 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   onSaveSiskamlingSchedules,
   onExportDatabase,
   onImportDatabase,
+  firebaseUserProfile,
+  onFirebaseLogout,
 }) => {
   // ================= AUTHENTICATION STATE =================
   const [adminSession, setAdminSession] = useState<AdminSession | null>(() => {
@@ -438,11 +453,77 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<AdminTab>(initialTab || 'dashboard_lurah');
+  // Firebase Email & Password Admin Login State
+  const [adminLoginMethod, setAdminLoginMethod] = useState<'firebase_email' | 'nip_username'>('firebase_email');
+  const [firebaseAdminEmail, setFirebaseAdminEmail] = useState('');
+  const [firebaseAdminPassword, setFirebaseAdminPassword] = useState('');
+  const [showFirebaseReset, setShowFirebaseReset] = useState(false);
+  const [firebaseResetSuccess, setFirebaseResetSuccess] = useState('');
+  const [pendingGoogleAdminRequestEmail, setPendingGoogleAdminRequestEmail] = useState<string | null>(null);
+  const [googleRequestSentNotice, setGoogleRequestSentNotice] = useState('');
+
+  // Auto-establish AdminSession when user is authenticated via Firebase Auth with trusted Master Admin or whitelisted adminUsers
+  useEffect(() => {
+    if (firebaseUserProfile && !adminSession) {
+      const emailLower = (firebaseUserProfile.email || '').toLowerCase();
+      const isSuperAdminEmail = emailLower === 'asmaracess@gmail.com';
+      const matchedAdmin = adminUsers.find(
+        (u) =>
+          u.googleEmail &&
+          u.googleEmail.toLowerCase() === emailLower &&
+          u.isGoogleVerified &&
+          u.isActive
+      );
+
+      // Only allow session if explicitly verified by Master Admin or is Lurah Master Admin
+      if (isSuperAdminEmail || matchedAdmin) {
+        const nowStr = getRealtimeDateTimeString(new Date());
+        const trustedSession: AdminSession = {
+          token: `fb-admin-${firebaseUserProfile.uid}`,
+          userId: matchedAdmin ? matchedAdmin.id : firebaseUserProfile.uid,
+          username: matchedAdmin ? matchedAdmin.username : (firebaseUserProfile.email.split('@')[0] || 'admin'),
+          fullName: matchedAdmin ? matchedAdmin.fullName : (firebaseUserProfile.fullName || 'Muthmainnah, SE, MM'),
+          nip: matchedAdmin ? matchedAdmin.nip : (firebaseUserProfile.nik || '198607092015042001'),
+          role: matchedAdmin ? matchedAdmin.jabatan : 'Lurah Panaikang (Master Admin Terverifikasi)',
+          roleLevel: isSuperAdminEmail ? 'master_admin' : (matchedAdmin?.roleLevel || 'admin_bidang'),
+          isMasterLurah: isSuperAdminEmail || Boolean(matchedAdmin?.isMasterLurah),
+          allowedAdminTabs: isSuperAdminEmail ? undefined : (matchedAdmin?.allowedAdminTabs as AdminTab[] | undefined),
+          allowedServiceCategories: isSuperAdminEmail ? undefined : matchedAdmin?.allowedServiceCategories,
+          actionPermissions: isSuperAdminEmail ? undefined : matchedAdmin?.actionPermissions,
+          loginAt: nowStr,
+          loginTimestampMs: Date.now(),
+          timezoneFixedV2: true,
+        };
+        setAdminSession(trustedSession);
+        sessionStorage.setItem('pnk_admin_session', JSON.stringify(trustedSession));
+      }
+    }
+  }, [firebaseUserProfile, adminSession, adminUsers]);
+
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => {
+    if (initialTab === 'parameter_user' || initialTab === 'user_warga') {
+      return 'kelola_admin_warga';
+    }
+    return initialTab || 'dashboard_lurah';
+  });
   const [rtrwSubTab, setRtrwSubTab] = useState<'wilayah' | 'siskamling'>('wilayah');
+  const [kelolaAdminWargaSubTab, setKelolaAdminWargaSubTab] = useState<KelolaAdminWargaSubTab>(() => {
+    if (initialTab === 'user_warga') return 'user_warga';
+    if (initialTab === 'parameter_user') return 'parameter_admin';
+    return 'otoritas_master';
+  });
+
   useEffect(() => {
     if (initialTab) {
-      setActiveTab(initialTab);
+      if (initialTab === 'user_warga') {
+        setActiveTab('kelola_admin_warga');
+        setKelolaAdminWargaSubTab('user_warga');
+      } else if (initialTab === 'parameter_user') {
+        setActiveTab('kelola_admin_warga');
+        setKelolaAdminWargaSubTab('parameter_admin');
+      } else {
+        setActiveTab(initialTab);
+      }
     }
   }, [initialTab]);
 
@@ -589,7 +670,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         'urban_farming',
         'rtrw',
         'traffic',
+        'kelola_admin_warga',
         'parameter_user',
+        'user_warga',
         'log_aktivitas',
       ];
     }
@@ -617,6 +700,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       'urban_farming',
       'rtrw',
       'traffic',
+      'kelola_admin_warga',
     ];
   }, [isLurahSession, currentAdminAccount, adminSession]);
 
@@ -656,6 +740,19 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
   const isTabAllowed = (tabId: AdminTab) => {
     if (isLurahSession) return true;
+    if (tabId === 'kelola_admin_warga') {
+      return (
+        effectiveAllowedTabs.includes('kelola_admin_warga') ||
+        effectiveAllowedTabs.includes('parameter_user') ||
+        effectiveAllowedTabs.includes('user_warga')
+      );
+    }
+    if (tabId === 'parameter_user' || tabId === 'user_warga') {
+      return (
+        effectiveAllowedTabs.includes('kelola_admin_warga') ||
+        effectiveAllowedTabs.includes(tabId)
+      );
+    }
     return effectiveAllowedTabs.includes(tabId);
   };
 
@@ -1333,6 +1430,63 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     }
   };
 
+  const handleFirebaseAdminLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
+    setFirebaseResetSuccess('');
+    setGoogleRequestSentNotice('');
+    setPendingGoogleAdminRequestEmail(null);
+
+    setIsLoggingIn(true);
+    const result = await signInWithGoogleAccount();
+    setIsLoggingIn(false);
+
+    if (!result.ok || !result.profile) {
+      setLoginError(
+        result.error || 'Gagal memproses login administrator dengan akun Google.'
+      );
+      return;
+    }
+
+    const emailLower = (result.profile.email || '').toLowerCase();
+    const isSuperAdmin = emailLower === 'asmaracess@gmail.com';
+    const matchedAdmin = adminUsers.find(
+      (u) =>
+        u.googleEmail &&
+        u.googleEmail.toLowerCase() === emailLower &&
+        u.isGoogleVerified &&
+        u.isActive
+    );
+
+    if (!isSuperAdmin && !matchedAdmin) {
+      setPendingGoogleAdminRequestEmail(result.profile.email);
+      setLoginError(
+        `Akun Google "${result.profile.email}" belum diverifikasi oleh Master Admin (Lurah) sebagai akun Administrator. Akses ditolak demi keamanan portal kelurahan.`
+      );
+      return;
+    }
+
+    const nowStr = getRealtimeDateTimeString(new Date());
+    const trustedSession: AdminSession = {
+      token: `fb-admin-${result.profile.uid}`,
+      userId: matchedAdmin ? matchedAdmin.id : result.profile.uid,
+      username: matchedAdmin ? matchedAdmin.username : (result.profile.email.split('@')[0] || 'admin'),
+      fullName: matchedAdmin ? matchedAdmin.fullName : (result.profile.fullName || 'Muthmainnah, SE, MM'),
+      nip: matchedAdmin ? matchedAdmin.nip : (result.profile.nik || '198607092015042001'),
+      role: matchedAdmin ? matchedAdmin.jabatan : 'Lurah Panaikang (Master Admin Terverifikasi)',
+      roleLevel: isSuperAdmin ? 'master_admin' : (matchedAdmin?.roleLevel || 'admin_bidang'),
+      isMasterLurah: isSuperAdmin || Boolean(matchedAdmin?.isMasterLurah),
+      allowedAdminTabs: isSuperAdmin ? undefined : (matchedAdmin?.allowedAdminTabs as AdminTab[] | undefined),
+      allowedServiceCategories: isSuperAdmin ? undefined : matchedAdmin?.allowedServiceCategories,
+      actionPermissions: isSuperAdmin ? undefined : matchedAdmin?.actionPermissions,
+      loginAt: nowStr,
+      loginTimestampMs: Date.now(),
+      timezoneFixedV2: true,
+    };
+    setAdminSession(trustedSession);
+    sessionStorage.setItem('pnk_admin_session', JSON.stringify(trustedSession));
+  };
+
   const handleForceTakeover = async (e: React.FormEvent) => {
     e.preventDefault();
     setTakeoverError('');
@@ -1432,7 +1586,13 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     setAdminSession(null);
     setLoginUsername('');
     setLoginPassword('');
+    setFirebaseAdminPassword('');
     setLoginError('');
+    if (onFirebaseLogout) {
+      await onFirebaseLogout();
+    } else {
+      await logoutFirebaseUser();
+    }
     checkSessionStatus();
   };
 
@@ -1822,7 +1982,15 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   };
 
   const handleTabSwitch = (tab: AdminTab) => {
-    setActiveTab(tab);
+    if (tab === 'user_warga') {
+      setActiveTab('kelola_admin_warga');
+      setKelolaAdminWargaSubTab('user_warga');
+    } else if (tab === 'parameter_user') {
+      setActiveTab('kelola_admin_warga');
+      setKelolaAdminWargaSubTab('parameter_admin');
+    } else {
+      setActiveTab(tab);
+    }
     clearFeedback();
   };
 
@@ -3724,68 +3892,179 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               </div>
             )}
 
-            <form onSubmit={handleLoginSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Username / NIP Pejabat *
-                </label>
-                <div className="relative">
-                  <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={loginUsername}
-                    onChange={(e) => setLoginUsername(e.target.value)}
-                    placeholder="Masukkan Username atau NIP"
-                    autoComplete="username"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-900 focus:border-[#0D3868] focus:outline-none"
-                  />
-                </div>
+            {firebaseResetSuccess && (
+              <div className="mb-5 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-medium text-emerald-900 flex items-start gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span>{firebaseResetSuccess}</span>
               </div>
+            )}
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Kata Sandi Administrator *
-                </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    placeholder="Masukkan kata sandi"
-                    autoComplete="current-password"
-                    className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-900 focus:border-[#0D3868] focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((prev) => !prev)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
-                    aria-label="Tampilkan atau sembunyikan kata sandi"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
+            {/* Mode Switcher: Google Sign-In vs NIP/Username Pejabat */}
+            <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 rounded-xl mb-5">
               <button
-                type="submit"
-                disabled={isLoggingIn}
-                className="w-full mt-2 inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-sm font-bold shadow-sm transition-colors cursor-pointer disabled:opacity-75 disabled:cursor-wait"
+                type="button"
+                onClick={() => {
+                  setAdminLoginMethod('firebase_email');
+                  setShowFirebaseReset(false);
+                  setLoginError('');
+                  setFirebaseResetSuccess('');
+                }}
+                className={`py-2 px-2.5 rounded-lg text-[11px] font-extrabold transition cursor-pointer ${
+                  adminLoginMethod === 'firebase_email'
+                    ? 'bg-[#0D3868] text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
               >
-                <ShieldCheck className="w-4 h-4" />
-                <span>
-                  {isLoggingIn
-                    ? 'Memverifikasi Kredensial...'
-                    : activeAdminLockInfo.isLocked
-                    ? 'Masuk & Ambil Alih Slot Login'
-                    : 'Masuk ke Panel Administrator'}
-                </span>
+                Akun Google
               </button>
-            </form>
+              <button
+                type="button"
+                onClick={() => {
+                  setAdminLoginMethod('nip_username');
+                  setShowFirebaseReset(false);
+                  setLoginError('');
+                  setFirebaseResetSuccess('');
+                }}
+                className={`py-2 px-2.5 rounded-lg text-[11px] font-extrabold transition cursor-pointer ${
+                  adminLoginMethod === 'nip_username'
+                    ? 'bg-[#0D3868] text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Username / NIP Pejabat
+              </button>
+            </div>
+
+            {adminLoginMethod === 'firebase_email' ? (
+              <form onSubmit={handleFirebaseAdminLoginSubmit} className="space-y-4">
+                <div className="p-3 rounded-xl bg-sky-50 border border-sky-200 text-[11px] text-[#0D3868] leading-relaxed">
+                  <div className="font-bold flex items-center gap-1.5 mb-1">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>Proteksi Whitelist Master Admin:</span>
+                  </div>
+                  Login Admin dengan akun Google dibatasi ketat. Hanya akun Google yang telah diverifikasi & ditautkan oleh Lurah di menu <strong>Parameter User</strong> yang dapat mengakses panel ini.
+                </div>
+
+                {firebaseUserProfile && firebaseUserProfile.role !== 'admin' && (
+                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 leading-relaxed">
+                    Saat ini Anda masuk dengan akun{' '}
+                    <strong>{firebaseUserProfile.email}</strong> yang berstatus{' '}
+                    <strong>Warga</strong> dan belum diverifikasi sebagai Administrator oleh Master Admin.
+                  </div>
+                )}
+
+                {googleRequestSentNotice && (
+                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-950 leading-relaxed flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <span>{googleRequestSentNotice}</span>
+                  </div>
+                )}
+
+                {pendingGoogleAdminRequestEmail && !googleRequestSentNotice && (
+                  <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-xs space-y-2">
+                    <div className="font-bold text-amber-950 flex items-center gap-1.5">
+                      <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                      <span>Ajukan Permohonan Akses Admin ke Lurah</span>
+                    </div>
+                    <p className="text-[11px] text-amber-900">
+                      Apakah Anda staf kelurahan dan ingin mengajukan verifikasi untuk email{' '}
+                      <strong>{pendingGoogleAdminRequestEmail}</strong>?
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const res = submitGoogleAdminVerificationRequest({
+                          email: pendingGoogleAdminRequestEmail,
+                          displayName: firebaseUserProfile?.fullName || undefined,
+                        });
+                        if (res.ok) {
+                          setGoogleRequestSentNotice(res.message);
+                        }
+                      }}
+                      className="w-full py-2 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition cursor-pointer shadow-xs"
+                    >
+                      Kirim Permohonan Verifikasi ke Master Admin
+                    </button>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isLoggingIn}
+                  className="w-full mt-2 inline-flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-sm font-bold shadow-sm transition-colors cursor-pointer disabled:opacity-75 disabled:cursor-wait"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>
+                    {isLoggingIn
+                      ? 'Memproses Login Google...'
+                      : 'Masuk dengan Google'}
+                  </span>
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleLoginSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Username / NIP Pejabat *
+                  </label>
+                  <div className="relative">
+                    <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={loginUsername}
+                      onChange={(e) => setLoginUsername(e.target.value)}
+                      placeholder="Masukkan Username atau NIP"
+                      autoComplete="username"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-900 focus:border-[#0D3868] focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Kata Sandi Administrator *
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      placeholder="Masukkan kata sandi"
+                      autoComplete="current-password"
+                      className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-900 focus:border-[#0D3868] focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+                      aria-label="Tampilkan atau sembunyikan kata sandi"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isLoggingIn}
+                  className="w-full mt-2 inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-sm font-bold shadow-sm transition-colors cursor-pointer disabled:opacity-75 disabled:cursor-wait"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>
+                    {isLoggingIn
+                      ? 'Memverifikasi Kredensial...'
+                      : activeAdminLockInfo.isLocked
+                      ? 'Masuk & Ambil Alih Slot Login'
+                      : 'Masuk ke Panel Administrator'}
+                  </span>
+                </button>
+              </form>
+            )}
 
             <div className="mt-5 pt-4 border-t border-slate-100 text-center">
               <p className="text-[11px] text-slate-500 font-medium">
@@ -4291,34 +4570,38 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
               <button
                 type="button"
-                onClick={() => handleTabSwitch('parameter_user')}
+                onClick={() => handleTabSwitch('kelola_admin_warga')}
                 className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                  activeTab === 'parameter_user'
+                  activeTab === 'kelola_admin_warga' || activeTab === 'parameter_user' || activeTab === 'user_warga'
                     ? 'bg-[#0D3868] border-[#0D3868] text-white shadow-xs'
-                    : !isTabAllowed('parameter_user')
+                    : !isTabAllowed('kelola_admin_warga')
                     ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-75'
-                    : 'bg-amber-50/80 border-amber-300 text-[#0D3868] hover:bg-amber-100/70'
+                    : 'bg-indigo-50/80 border-indigo-200 text-[#0D3868] hover:bg-indigo-100/70'
                 }`}
               >
                 <div className="flex items-center justify-between gap-1">
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <Sliders
+                    <Users
                       className={`w-4 h-4 shrink-0 ${
-                        activeTab === 'parameter_user' ? 'text-amber-300' : 'text-amber-700'
+                        activeTab === 'kelola_admin_warga' || activeTab === 'parameter_user' || activeTab === 'user_warga'
+                          ? 'text-emerald-300'
+                          : 'text-indigo-700'
                       }`}
                     />
-                    <span className="text-xs font-bold truncate">Parameter User</span>
+                    <span className="text-xs font-bold truncate">Kelola Admin & User Warga</span>
                   </div>
-                  {!isTabAllowed('parameter_user') && (
+                  {!isTabAllowed('kelola_admin_warga') && (
                     <Lock className="w-3 h-3 text-slate-400 shrink-0" />
                   )}
                 </div>
                 <span
                   className={`mt-1 text-[10px] font-medium truncate font-mono-num ${
-                    activeTab === 'parameter_user' ? 'text-amber-200' : 'text-amber-800'
+                    activeTab === 'kelola_admin_warga' || activeTab === 'parameter_user' || activeTab === 'user_warga'
+                      ? 'text-emerald-200'
+                      : 'text-indigo-900'
                   }`}
                 >
-                  {adminUsers.length} Akun & Hak Akses
+                  3 Sub-Menu · Otoritas & Warga
                 </span>
               </button>
 
@@ -4406,20 +4689,213 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         </div>
       )}
 
-      {/* ================= TAB PARAMETER USER & HAK AKSES (KHUSUS MASTER ADMIN / LURAH) ================= */}
-      {activeTab === 'parameter_user' && (
-        <div className="mt-6">
-          <AdminParameterUserPanel
-            adminUsers={adminUsers}
-            serviceCatalog={serviceCatalog}
-            profile={profile}
-            rwGroups={rwGroups}
-            currentUsername={adminSession?.username || ''}
-            isMasterLurah={isLurahSession}
-            onSaveAdminUsers={auditedOnSaveAdminUsers}
-          />
-        </div>
-      )}
+      {/* ================= TAB KELOLA ADMIN DAN USER WARGA (3 SUB-MENU) ================= */}
+      {(activeTab === 'kelola_admin_warga' || activeTab === 'parameter_user' || activeTab === 'user_warga') &&
+        isTabAllowed('kelola_admin_warga') && (
+          <div className="mt-6 space-y-5">
+            {/* Header Navigasi 3 Sub-Menu */}
+            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-4 sm:p-5">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-linear-to-br from-[#0D3868] to-indigo-900 text-white flex items-center justify-center shadow-xs shrink-0">
+                    <Users className="w-5 h-5 text-emerald-300" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base sm:text-lg font-black text-[#0D3868]">
+                        Kelola Admin dan User Warga
+                      </h2>
+                      <span className="px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-black uppercase tracking-wider">
+                        3 Sub-Menu Terpadu
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Pusat kendali akun struktural, verifikasi login Google, dan database user warga terdaftar Kelurahan Panaikang.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 shrink-0">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                  <span className="font-semibold text-slate-700">{isLurahSession ? 'Otoritas Master Lurah Aktif' : 'Akses Admin Terbatas'}</span>
+                </div>
+              </div>
+
+              {/* Pilihan 3 Sub-Menu */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-4">
+                {/* Sub Menu 1 */}
+                <button
+                  type="button"
+                  onClick={() => setKelolaAdminWargaSubTab('otoritas_master')}
+                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
+                    kelolaAdminWargaSubTab === 'otoritas_master'
+                      ? 'bg-linear-to-br from-[#0D3868] to-indigo-950 border-[#0D3868] text-white shadow-md'
+                      : 'bg-slate-50 hover:bg-indigo-50/70 border-slate-200 hover:border-indigo-300 text-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck
+                        className={`w-4 h-4 shrink-0 ${
+                          kelolaAdminWargaSubTab === 'otoritas_master' ? 'text-amber-300' : 'text-indigo-600'
+                        }`}
+                      />
+                      <span className="text-xs sm:text-sm font-black">Otoritas Master Admin</span>
+                    </div>
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                        kelolaAdminWargaSubTab === 'otoritas_master'
+                          ? 'bg-white/20 text-white'
+                          : 'bg-indigo-100 text-indigo-800'
+                      }`}
+                    >
+                      Lurah
+                    </span>
+                  </div>
+                  <p
+                    className={`text-[11px] line-clamp-1 ${
+                      kelolaAdminWargaSubTab === 'otoritas_master' ? 'text-indigo-200' : 'text-slate-500'
+                    }`}
+                  >
+                    Verifikasi Login Google, Whitelist & Force Sesi
+                  </p>
+                </button>
+
+                {/* Sub Menu 2 */}
+                <button
+                  type="button"
+                  onClick={() => setKelolaAdminWargaSubTab('parameter_admin')}
+                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
+                    kelolaAdminWargaSubTab === 'parameter_admin'
+                      ? 'bg-linear-to-br from-[#0D3868] to-indigo-950 border-[#0D3868] text-white shadow-md'
+                      : 'bg-slate-50 hover:bg-indigo-50/70 border-slate-200 hover:border-indigo-300 text-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Sliders
+                        className={`w-4 h-4 shrink-0 ${
+                          kelolaAdminWargaSubTab === 'parameter_admin' ? 'text-amber-300' : 'text-indigo-600'
+                        }`}
+                      />
+                      <span className="text-xs sm:text-sm font-black">Parameter Admin</span>
+                    </div>
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                        kelolaAdminWargaSubTab === 'parameter_admin'
+                          ? 'bg-white/20 text-white'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}
+                    >
+                      Struktural
+                    </span>
+                  </div>
+                  <p
+                    className={`text-[11px] line-clamp-1 ${
+                      kelolaAdminWargaSubTab === 'parameter_admin' ? 'text-indigo-200' : 'text-slate-500'
+                    }`}
+                  >
+                    Manajemen Akun Pejabat & Hak Akses (RBAC)
+                  </p>
+                </button>
+
+                {/* Sub Menu 3 */}
+                <button
+                  type="button"
+                  onClick={() => setKelolaAdminWargaSubTab('user_warga')}
+                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
+                    kelolaAdminWargaSubTab === 'user_warga'
+                      ? 'bg-linear-to-br from-[#0D3868] to-indigo-950 border-[#0D3868] text-white shadow-md'
+                      : 'bg-slate-50 hover:bg-indigo-50/70 border-slate-200 hover:border-indigo-300 text-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Users
+                        className={`w-4 h-4 shrink-0 ${
+                          kelolaAdminWargaSubTab === 'user_warga' ? 'text-amber-300' : 'text-emerald-600'
+                        }`}
+                      />
+                      <span className="text-xs sm:text-sm font-black">User Warga Terdaftar</span>
+                    </div>
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                        kelolaAdminWargaSubTab === 'user_warga'
+                          ? 'bg-white/20 text-white'
+                          : 'bg-emerald-100 text-emerald-800'
+                      }`}
+                    >
+                      Database
+                    </span>
+                  </div>
+                  <p
+                    className={`text-[11px] line-clamp-1 ${
+                      kelolaAdminWargaSubTab === 'user_warga' ? 'text-indigo-200' : 'text-slate-500'
+                    }`}
+                  >
+                    Database Profil Warga & Alamat Email Terdaftar
+                  </p>
+                </button>
+              </div>
+            </div>
+
+            {/* Sub-Panel 1: Otoritas Master Admin */}
+            {kelolaAdminWargaSubTab === 'otoritas_master' && (
+              <AdminOtoritasMasterPanel
+                adminUsers={adminUsers}
+                isMasterLurah={isLurahSession}
+                currentUsername={adminSession?.username || ''}
+                onSaveAdminUsers={auditedOnSaveAdminUsers}
+                onForceTakeover={async (pwd) => {
+                  return await forceLogoutFirestore(pwd);
+                }}
+                onRecordAudit={(audit) => {
+                  recordAudit({
+                    actionType: audit.actionType,
+                    module: 'PARAMETER_USER',
+                    targetLabel: audit.targetLabel,
+                    summary: audit.summary,
+                    details: audit.details,
+                    severity: 'warning',
+                  });
+                }}
+                onSwitchSubTab={(sub) => setKelolaAdminWargaSubTab(sub)}
+              />
+            )}
+
+            {/* Sub-Panel 2: Parameter Admin */}
+            {kelolaAdminWargaSubTab === 'parameter_admin' && (
+              <AdminParameterUserPanel
+                adminUsers={adminUsers}
+                serviceCatalog={serviceCatalog}
+                profile={profile}
+                rwGroups={rwGroups}
+                currentUsername={adminSession?.username || ''}
+                isMasterLurah={isLurahSession}
+                onSaveAdminUsers={auditedOnSaveAdminUsers}
+              />
+            )}
+
+            {/* Sub-Panel 3: User Warga Terdaftar */}
+            {kelolaAdminWargaSubTab === 'user_warga' && (
+              <AdminDaftarWargaPanel
+                reports={reports}
+                rwGroups={rwGroups}
+                onRecordAudit={(audit) => {
+                  recordAudit({
+                    actionType: audit.actionType,
+                    module: 'DAFTAR_WARGA',
+                    targetId: audit.targetId,
+                    targetLabel: audit.targetLabel,
+                    summary: audit.summary,
+                    details: audit.details,
+                    severity: 'info',
+                  });
+                }}
+              />
+            )}
+          </div>
+        )}
 
       {/* ================= TAB LOG AKTIVITAS & AUDIT TRAIL (PENGAWASAN LURAH) ================= */}
       {activeTab === 'log_aktivitas' && isTabAllowed('log_aktivitas') && (
@@ -4468,7 +4944,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       )}
 
       {/* ================= PROTEKSI BATASAN AKSES MODUL OLEH SUPER ADMIN (LURAH) ================= */}
-      {activeTab !== 'parameter_user' &&
+      {activeTab !== 'kelola_admin_warga' &&
+        activeTab !== 'parameter_user' &&
+        activeTab !== 'user_warga' &&
         activeTab !== 'dashboard_lurah' &&
         !isTabAllowed(activeTab) && (
           <div className="mt-6 bg-white rounded-2xl border border-amber-200 p-6 sm:p-8 text-center shadow-xs">
