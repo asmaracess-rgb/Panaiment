@@ -83,7 +83,10 @@ export const AdminSiskamlingPanel: React.FC<AdminSiskamlingPanelProps> = ({
         ...item,
         rw: item?.rw || `RW ${idx + 1}`,
         rwName: '',
-        poskoLocation: (item?.poskoLocation || '').replace(/kawasan\s+/gi, ''),
+        poskoLocation: (item?.poskoLocation || '')
+          .replace(/kawasan\s+/gi, '')
+          .replace(/\s*\([^)]*\)/g, '')
+          .trim(),
         notes: (item?.notes || '').replace(/kawasan\s+/gi, ''),
         schedules: {
           Senin: toOfficerArray(schedObj?.Senin),
@@ -342,7 +345,10 @@ export const AdminSiskamlingPanel: React.FC<AdminSiskamlingPanelProps> = ({
   const handleSaveSinglePosko = async (rwCode: string, newLocation: string, newNotes: string) => {
     if (!onSaveSchedules) return;
     setIsSaving(true);
-    const cleanLocation = newLocation.replace(/kawasan\s+/gi, '').trim();
+    const cleanLocation = newLocation
+      .replace(/kawasan\s+/gi, '')
+      .replace(/\s*\([^)]*\)/g, '')
+      .trim();
     const cleanNotes = newNotes.replace(/kawasan\s+/gi, '').trim();
     const nextList = currentSchedules.map((s) =>
       s.rw === rwCode
@@ -411,7 +417,10 @@ export const AdminSiskamlingPanel: React.FC<AdminSiskamlingPanelProps> = ({
       return {
         ...s,
         rwName: '',
-        poskoLocation: draft.poskoLocation.replace(/kawasan\s+/gi, '').trim(),
+        poskoLocation: draft.poskoLocation
+          .replace(/kawasan\s+/gi, '')
+          .replace(/\s*\([^)]*\)/g, '')
+          .trim(),
         notes: draft.notes.replace(/kawasan\s+/gi, '').trim(),
       };
     });
@@ -506,7 +515,10 @@ export const AdminSiskamlingPanel: React.FC<AdminSiskamlingPanelProps> = ({
     const finalizedSchedule: SiskamlingRwSchedule = {
       ...editingRwSchedule,
       rwName: '',
-      poskoLocation: (editingRwSchedule.poskoLocation || '').replace(/kawasan\s+/gi, '').trim(),
+      poskoLocation: (editingRwSchedule.poskoLocation || '')
+        .replace(/kawasan\s+/gi, '')
+        .replace(/\s*\([^)]*\)/g, '')
+        .trim(),
       notes: (editingRwSchedule.notes || '').replace(/kawasan\s+/gi, '').trim(),
       schedules: {
         ...editingRwSchedule.schedules,
@@ -1587,7 +1599,7 @@ export const AdminSiskamlingPanel: React.FC<AdminSiskamlingPanelProps> = ({
                   onChange={(e) =>
                     setEditingPoskoRw({ ...editingPoskoRw, poskoLocation: e.target.value })
                   }
-                  placeholder={`Contoh: Posko Terpadu ${editingPoskoRw.rw} (Jl. Poros Utama)`}
+                  placeholder={`Contoh: Posko Terpadu ${editingPoskoRw.rw}`}
                   className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500"
                 />
                 {/* Quick Presets */}
@@ -1598,7 +1610,7 @@ export const AdminSiskamlingPanel: React.FC<AdminSiskamlingPanelProps> = ({
                     onClick={() =>
                       setEditingPoskoRw({
                         ...editingPoskoRw,
-                        poskoLocation: `Posko Terpadu ${editingPoskoRw.rw} (Panaikang)`,
+                        poskoLocation: `Posko Terpadu ${editingPoskoRw.rw}`,
                       })
                     }
                     className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-0.5 rounded cursor-pointer"
@@ -1769,7 +1781,7 @@ export const AdminSiskamlingPanel: React.FC<AdminSiskamlingPanelProps> = ({
                                   ...poskoDrafts,
                                   [item.rw]: {
                                     ...draft,
-                                    poskoLocation: `Posko Kamtibmas ${item.rw} (Panaikang)`,
+                                    poskoLocation: `Posko Kamtibmas ${item.rw}`,
                                   },
                                 });
                               }}
@@ -1820,7 +1832,7 @@ export const AdminSiskamlingPanel: React.FC<AdminSiskamlingPanelProps> = ({
                                 },
                               })
                             }
-                            placeholder={`Contoh: Posko Terpadu ${item.rw} (Jl. Poros Utama)`}
+                            placeholder={`Contoh: Posko Terpadu ${item.rw}`}
                             className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-900 bg-white focus:ring-2 focus:ring-emerald-500"
                           />
                         </div>

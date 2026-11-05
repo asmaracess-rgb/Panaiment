@@ -96,7 +96,10 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
         ...item,
         rw: item?.rw || `RW ${idx + 1}`,
         rwName: '',
-        poskoLocation: (item?.poskoLocation || '').replace(/kawasan\s+/gi, ''),
+        poskoLocation: (item?.poskoLocation || '')
+          .replace(/kawasan\s+/gi, '')
+          .replace(/\s*\([^)]*\)/g, '')
+          .trim(),
         notes: (item?.notes || '').replace(/kawasan\s+/gi, ''),
         schedules: {
           Senin: toOfficerArray(schedulesObj?.Senin),

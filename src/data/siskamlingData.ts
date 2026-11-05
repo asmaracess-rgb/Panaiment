@@ -18,7 +18,7 @@ export const INITIAL_SISKAMLING_SCHEDULES: SiskamlingRwSchedule[] = [
   {
     rw: 'RW 1',
     rwName: '',
-    poskoLocation: 'Posko Terpadu RW 01 (Jl. Racing Centre)',
+    poskoLocation: 'Posko Terpadu RW 01',
     schedules: {
       Senin: ['EDWIN BURHANUDDIN', 'SYAMSUL BAHRI', 'IVAN RUDI', 'SYARIFUDDIN'],
       Selasa: ['AKBP PURN ISHAK IFA', 'DANIEL SUWANDI', 'SUGIANTO', 'YUNE PALLOAN'],
@@ -33,7 +33,7 @@ export const INITIAL_SISKAMLING_SCHEDULES: SiskamlingRwSchedule[] = [
   {
     rw: 'RW 2',
     rwName: '',
-    poskoLocation: 'Posko Keamanan RW 02 (Poros Urip Sumoharjo)',
+    poskoLocation: 'Posko Keamanan RW 02',
     schedules: {
       Senin: ['MARKUS PAPI', 'SENTOSA SUCIPTO', 'DESY ARLIN NUSU', 'NASRUDDIN'],
       Selasa: ['GATOT SUBROTO', 'BESSE IRAWATY', 'MUHAMMAD NAWIR', 'RESTI YULIANTI BONGGA'],
@@ -48,7 +48,7 @@ export const INITIAL_SISKAMLING_SCHEDULES: SiskamlingRwSchedule[] = [
   {
     rw: 'RW 3',
     rwName: '',
-    poskoLocation: 'Posko Kamtibmas RW 03 (Samping Kampus UMI)',
+    poskoLocation: 'Posko Kamtibmas RW 03',
     schedules: {
       Senin: ['MUH. YUSUF R', 'SUDIRMAN', 'MATIUS RAMDAN PASEDA', 'SERTU BAHARUDDIN'],
       Selasa: ['MUHAMMAD AMIR', 'SRIMATI A', 'GANDING', 'MARTHEN SONDA'],
@@ -63,7 +63,7 @@ export const INITIAL_SISKAMLING_SCHEDULES: SiskamlingRwSchedule[] = [
   {
     rw: 'RW 4',
     rwName: '',
-    poskoLocation: 'Posko Siskamling RW 04 (Jl. Sukaria Raya)',
+    poskoLocation: 'Posko Siskamling RW 04',
     schedules: {
       Senin: ['RUDY KARODO', 'AGUSTINA MAGA', 'M. ARIL SYAHRIL', 'HARLINA'],
       Selasa: ['MARTHEN SONDA', 'WAHYU', 'MUHAMMAD NATSIR', 'MIZWAR MANSYUR'],
@@ -78,7 +78,7 @@ export const INITIAL_SISKAMLING_SCHEDULES: SiskamlingRwSchedule[] = [
   {
     rw: 'RW 5',
     rwName: '',
-    poskoLocation: 'Pos Ronda RW 05 (Kompleks Kejaksaan)',
+    poskoLocation: 'Pos Ronda RW 05',
     schedules: {
       Senin: ['HAERUDDIN TAIRAS', 'GITA OKTRIAT', 'FATMAWATI', 'SURAINI'],
       Selasa: ['HAERUDDIN TAIRAS', 'SYAMSIAH', 'SOPYAN', 'TAMRIN'],
@@ -93,7 +93,7 @@ export const INITIAL_SISKAMLING_SCHEDULES: SiskamlingRwSchedule[] = [
   {
     rw: 'RW 6',
     rwName: '',
-    poskoLocation: 'Posko Siaga Bencana & Ronda RW 06 (Tepi Kanal)',
+    poskoLocation: 'Posko Siaga Bencana & Ronda RW 06',
     schedules: {
       Senin: ['HIDAYAT MIHARJA', 'HASMIANTI', 'M. IRSANDI NURLAN', 'ANNA MARIANA'],
       Selasa: ['HIDAYAT MIHARJA', 'MUH. RIDWAN', 'ANDI HAMRIAN', 'SAMAD'],
@@ -108,7 +108,7 @@ export const INITIAL_SISKAMLING_SCHEDULES: SiskamlingRwSchedule[] = [
   {
     rw: 'RW 7',
     rwName: '',
-    poskoLocation: 'Pos Ronda RW 07 (Jl. Flamboyan)',
+    poskoLocation: 'Pos Ronda RW 07',
     schedules: {
       Senin: ['ANNA MARIANA', 'FUAD HASAN', 'MARTHEN TINRI', 'SUDARMIN'],
       Selasa: ['SAMAD', 'ASPIR', 'ACHMAD SUNTARI', 'RUSLAN'],
@@ -123,13 +123,13 @@ export const INITIAL_SISKAMLING_SCHEDULES: SiskamlingRwSchedule[] = [
 ];
 
 export const POSKO_SISKAMLING_COORDINATES: Record<string, { lat: number; lng: number; address: string }> = {
-  'RW 1': { lat: -5.137821, lng: 119.448856, address: 'Posko Terpadu RW 01 (Koridor Urip Sumoharjo / Kampus UMI & Nipah Mall)' },
-  'RW 2': { lat: -5.138479, lng: 119.454205, address: 'Posko Keamanan RW 02 (Poros Urip Sumoharjo / Kawasan TMP Panaikang)' },
-  'RW 3': { lat: -5.138332, lng: 119.458783, address: 'Posko Kamtibmas RW 03 (Jl. H. Kalla / Kompleks Panaikang Indah)' },
-  'RW 4': { lat: -5.13819, lng: 119.462875, address: 'Posko Siskamling RW 04 (Kawasan Campagaya / Kompleks Kesehatan & PDAM)' },
-  'RW 5': { lat: -5.141592, lng: 119.467214, address: 'Pos Ronda RW 05 (Poros Urip Sumoharjo Timur / Kawasan Jembatan Tello)' },
-  'RW 6': { lat: -5.133306, lng: 119.467755, address: 'Posko Siaga Bencana & Ronda RW 06 (Kawasan Panaikang Utara / Tepi Kanal)' },
-  'RW 7': { lat: -5.132737, lng: 119.472771, address: 'Pos Ronda RW 07 (Kawasan Panaikang Timur / Bantaran Sungai Tello)' },
+  'RW 1': { lat: -5.137821, lng: 119.448856, address: 'Posko Terpadu RW 01' },
+  'RW 2': { lat: -5.138479, lng: 119.454205, address: 'Posko Keamanan RW 02' },
+  'RW 3': { lat: -5.138332, lng: 119.458783, address: 'Posko Kamtibmas RW 03' },
+  'RW 4': { lat: -5.13819, lng: 119.462875, address: 'Posko Siskamling RW 04' },
+  'RW 5': { lat: -5.141592, lng: 119.467214, address: 'Pos Ronda RW 05' },
+  'RW 6': { lat: -5.133306, lng: 119.467755, address: 'Posko Siaga Bencana & Ronda RW 06' },
+  'RW 7': { lat: -5.132737, lng: 119.472771, address: 'Pos Ronda RW 07' },
 };
 
 /**

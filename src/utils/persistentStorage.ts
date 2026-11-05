@@ -653,6 +653,11 @@ export function smartMergeDatabases(
     resolvedSiskamlingSchedules = Array.from(schedMap.values());
   }
 
+  resolvedSiskamlingSchedules = resolvedSiskamlingSchedules.map((s) => ({
+    ...s,
+    poskoLocation: (s.poskoLocation || '').replace(/\s*\([^)]*\)/g, '').trim(),
+  }));
+
   // 9. Resolve Registered Citizen Users (zero-loss merge + auto-discovery from user-submitted reports)
   const citizensMap = new Map<string, AuthenticatedUserProfile>();
   const upsertCitizen = (c: AuthenticatedUserProfile | undefined | null) => {
