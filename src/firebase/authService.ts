@@ -89,10 +89,13 @@ export function translateFirebaseAuthError(error: unknown): string {
       return 'Jendela pemilihan akun Google ditutup sebelum selesai. Silakan klik kembali tombol Masuk dengan Google.';
     case 'auth/popup-blocked':
       return 'Jendela pop-up pemilihan akun Google diblokir oleh browser perangkat Anda. Mohon izinkan pop-up untuk situs ini di pengaturan browser lalu coba kembali.';
-    case 'auth/unauthorized-domain':
-      return `Domain halaman live ini (${typeof window !== 'undefined' ? window.location.hostname : 'domain saat ini'}) belum terdaftar pada Authorized Domains Firebase Authentication. Silakan gunakan tombol Pilih Akun Google (Mode Langsung) di bawah atau tambahkan domain ini di Firebase Console → Authentication → Settings → Authorized domains.`;
+    case 'auth/unauthorized-domain': {
+      const host = typeof window !== 'undefined' ? window.location.hostname : 'smartpanaikang.vercel.app';
+      const projId = (firebaseConfig as { projectId?: string })?.projectId || 'panaikang-smart-environment';
+      return `Domain halaman live ini (${host}) belum didaftarkan pada Firebase Authentication. Solusi: Buka Firebase Console (Project ID: ${projId}) → Authentication → Settings → Authorized domains → klik Add domain → ketik "${host}" lalu simpan. Sementara itu, untuk halaman Admin Anda juga dapat langsung masuk melalui tab "Username / NIP Pejabat" di sebelahnya.`;
+    }
     case 'auth/operation-not-supported-in-this-environment':
-      return 'Lingkungan browser ini membatasi pop-up standar. Silakan gunakan tombol Pilih Akun Google (Mode Langsung) di bawah.';
+      return 'Lingkungan browser ini membatasi pop-up standar. Silakan buka di browser Chrome/Safari atau gunakan tab Username / NIP Pejabat.';
     case 'auth/account-exists-with-different-credential':
       return 'Alamat email ini sudah terdaftar pada sistem. Silakan gunakan akun yang sesuai.';
     case 'auth/invalid-email':
@@ -110,7 +113,9 @@ export function translateFirebaseAuthError(error: unknown): string {
         return 'Jendela pemilihan akun Google ditutup sebelum selesai. Silakan coba lagi.';
       }
       if (message.includes('unauthorized-domain')) {
-        return `Domain (${typeof window !== 'undefined' ? window.location.hostname : ''}) belum diizinkan pada Firebase Auth.`;
+        const host = typeof window !== 'undefined' ? window.location.hostname : 'smartpanaikang.vercel.app';
+        const projId = (firebaseConfig as { projectId?: string })?.projectId || 'panaikang-smart-environment';
+        return `Domain "${host}" belum didaftarkan di Firebase Console (Project: ${projId}) → Authentication → Settings → Authorized domains.`;
       }
       return `Kendala saat membuka pemilihan akun Google (${code || message || 'error'}). Silakan coba kembali.`;
   }

@@ -1,12 +1,12 @@
 {
-  "projectId": "enduring-slate-r61jg",
-  "appId": "1:476820880959:web:45703202a10e50db58028a",
-  "apiKey": "AIzaSyCMEAB6mCRgP4calM7ZmKwOeNPjk_F6eH4",
-  "authDomain": "enduring-slate-r61jg.firebaseapp.com",
+  "projectId": "panaikang-smart-environment",
+  "appId": "1:949258148353:web:62c98e95f0b4e6f077fe00",
+  "apiKey": "AIzaSyAflU20xBnhBlV6QRXWPXmAFUycvi_vUdg",
+  "authDomain": "panaikang-smart-environment.firebaseapp.com",
   "firestoreDatabaseId": "ai-studio-panaikangsmarten-4feb23ef-f14d-4f7d-ab34-e0951be3a4fd",
-  "storageBucket": "enduring-slate-r61jg.firebasestorage.app",
-  "messagingSenderId": "476820880959",
+  "storageBucket": "panaikang-smart-environment.firebasestorage.app",
+  "messagingSenderId": "949258148353",
   "measurementId": "",
-  "oAuthClientId": "476820880959-hkca9nrfo8k86vmp171lp86bcrm83uvo.apps.googleusercontent.com",
+  "oAuthClientId": "949258148353-aisltpi8rrpjbhk3c1v22v8nfb5dg4vh.apps.googleusercontent.com",
   "recaptchaSiteKey": ""
 }
