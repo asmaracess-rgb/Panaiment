@@ -123,6 +123,7 @@ export default function App() {
   const [kelurahanProfile, setKelurahanProfile] = useState<KelurahanProfile>(
     initialPersisted?.profile ?? INITIAL_KELURAHAN_PROFILE
   );
+  const [showPublicWargaCatalog, setShowPublicWargaCatalog] = useState<boolean>(false);
 
   // Subscribe to Firebase Authentication state & resolve trusted role from Firestore (/admins/{uid} & /user_profiles/{uid})
   // Also automatically process incoming Passwordless Email Verification Links (`isSignInWithEmailLink`)
@@ -783,6 +784,7 @@ export default function App() {
 
   const handleNavigate = (view: AppView) => {
     setActiveView(view);
+    setShowPublicWargaCatalog(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     try {
       recordTrafficHit(view);
@@ -2240,25 +2242,39 @@ export default function App() {
         )}
 
         {activeView === 'warga' && (
-          <UntukWargaView
-            reports={reports}
-            wasteUnits={wasteUnits}
-            rwGroups={rwGroups}
-            whatsappRecipients={whatsappRecipients}
-            kelurahanProfile={kelurahanProfile}
-            kelurahanInfos={kelurahanInfos}
-            cleanupEvents={cleanupEvents}
-            serviceCatalog={serviceCatalog}
-            onAddReport={handleAddReport}
-            onUpvoteReport={handleUpvoteReport}
-            onNavigate={handleNavigate}
-            userProfile={authUserProfile}
-            onRequireAuth={(notice) => {
-              setAuthNotice(notice || '');
-              handleNavigate('login');
-            }}
-            onLogout={handleFirebaseLogout}
-          />
+          !authUserProfile && !showPublicWargaCatalog ? (
+            <AuthView
+              rwGroups={rwGroups}
+              initialNotice=""
+              onNavigate={handleNavigate}
+              onAuthenticated={(profile) => {
+                setAuthUserProfile(profile);
+                setAuthNotice('');
+                handleNavigate('dashboard_warga');
+              }}
+              onViewPublicCatalog={() => setShowPublicWargaCatalog(true)}
+            />
+          ) : (
+            <UntukWargaView
+              reports={reports}
+              wasteUnits={wasteUnits}
+              rwGroups={rwGroups}
+              whatsappRecipients={whatsappRecipients}
+              kelurahanProfile={kelurahanProfile}
+              kelurahanInfos={kelurahanInfos}
+              cleanupEvents={cleanupEvents}
+              serviceCatalog={serviceCatalog}
+              onAddReport={handleAddReport}
+              onUpvoteReport={handleUpvoteReport}
+              onNavigate={handleNavigate}
+              userProfile={authUserProfile}
+              onRequireAuth={(notice) => {
+                setAuthNotice(notice || '');
+                handleNavigate('login');
+              }}
+              onLogout={handleFirebaseLogout}
+            />
+          )
         )}
 
         {activeView === 'login' && (
@@ -2271,6 +2287,10 @@ export default function App() {
               setAuthNotice('');
               // Redirect based on trusted role read from Firestore (/admins/{uid} or /user_profiles/{uid})
               handleNavigate('dashboard_warga');
+            }}
+            onViewPublicCatalog={() => {
+              setShowPublicWargaCatalog(true);
+              handleNavigate('warga');
             }}
           />
         )}

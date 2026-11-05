@@ -24,7 +24,10 @@ import {
   Calendar,
   Layers,
   Sparkles,
+  LogIn,
+  UserPlus,
 } from 'lucide-react';
+import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
 import {
   CitizenReport,
   ReportCategory,
@@ -453,116 +456,84 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8 font-sans">
       {/* =========================================================================
-          SLIM & COMPACT TOP BANNER (Dirampingkan agar tidak menutupi menu di mobile)
+          TOP INSTITUTIONAL PORTAL BANNER (SESUAI GAMBAR 2)
       ========================================================================= */}
-      <div className="bg-gradient-to-r from-[#0D3868] via-[#114984] to-[#0277BD] rounded-2xl p-4 sm:p-5 text-white shadow-sm mb-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full bg-white/15 border border-white/20 text-sky-200 text-[10px] font-black tracking-wider uppercase">
-                Portal Pelayanan Publik
-              </span>
-              <span className="text-[11px] text-sky-100 font-medium">· Kelurahan Panaikang</span>
+      <div className="mb-6">
+        {/* Top Back Navigation Link (Gambar 2) */}
+        <div className="mb-4">
+          <button
+            type="button"
+            onClick={() => onNavigate('beranda')}
+            className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-[#0D3868] hover:text-[#0277BD] transition cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Kembali ke Halaman Publik</span>
+          </button>
+        </div>
+
+        {/* Main Blue Institutional Card (Gambar 2) */}
+        <div className="bg-gradient-to-br from-[#072647] via-[#0D3868] to-[#0277BD] text-white rounded-3xl p-6 sm:p-8 shadow-[0_20px_50px_-15px_rgba(13,56,104,0.16)] relative overflow-hidden">
+          <div className="relative z-10">
+            {/* Logos / Emblems */}
+            <div className="inline-flex items-center gap-3.5 mb-5">
+              <EmblemKotaMakassar className="w-12 h-14 drop-shadow-md" />
+              <div className="h-10 w-[1.5px] bg-white/25 rounded-full" />
+              <EmblemKelurahanPanaikang className="w-12 h-14 drop-shadow-md" />
             </div>
-            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">
-              Layanan Warga
+
+            {/* Chip Badge */}
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/10 border border-white/20 text-sky-200 text-[10px] font-extrabold uppercase tracking-wider mb-3">
+              <Building2 className="w-3.5 h-3.5" />
+              <span>Portal Pelayanan Warga</span>
+            </div>
+
+            {/* Title */}
+            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white leading-snug">
+              Pelayanan Administrasi & Pengaduan Warga Kelurahan Panaikang
             </h1>
-            <p className="text-xs text-sky-100 max-w-xl leading-snug">
-              Pengaduan masalah lingkungan dan 13 layanan administrasi surat resmi kelurahan.
+
+            {/* Description */}
+            <p className="mt-3 text-xs sm:text-sm text-sky-100/90 leading-relaxed max-w-3xl">
+              Akses pengajuan surat keterangan resmi, penyampaian laporan lingkungan, serta
+              pemantauan status berkas secara terpadu melalui Dashboard Warga.
             </p>
+
+            {/* 3 Key Feature Bullets */}
+            <div className="mt-6 space-y-3 border-t border-white/15 pt-5 text-xs text-sky-100">
+              <div className="flex items-start gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0 mt-0.5" />
+                <span>
+                  <strong className="text-white">13 Layanan Persuratan Resmi:</strong> Ajukan
+                  permohonan surat pengantar dan keterangan sesuai standar pelayanan kelurahan.
+                </span>
+              </div>
+              <div className="flex items-start gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0 mt-0.5" />
+                <span>
+                  <strong className="text-white">Riwayat & Status Real-Time:</strong> Pantau
+                  perkembangan verifikasi berkas dan tindak lanjut laporan Anda di satu halaman.
+                </span>
+              </div>
+              <div className="flex items-start gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0 mt-0.5" />
+                <span>
+                  <strong className="text-white">Privasi Berkas Warga:</strong> Setiap warga
+                  hanya dapat mengakses riwayat permohonan dan data domisili miliknya sendiri.
+                </span>
+              </div>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0 pt-1 sm:pt-0">
-            {/* Lontara+ Quick Access Button */}
-            <a
-              href={LONTARA_PLUS_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-900 text-xs font-bold shadow-xs transition cursor-pointer border border-amber-300"
-              title="Lontara+ Super App Makassar"
-            >
-              <img
-                src={LONTARA_LOGO_URL}
-                alt="Lontara+"
-                className="h-4 sm:h-5 object-contain"
-              />
-              <span className="text-[11px] text-slate-800">Lontara+</span>
-              <ExternalLink className="w-3 h-3 text-slate-500" />
-            </a>
-
-            <div className="flex items-center gap-1.5">
-              <div className="bg-white/10 px-2.5 py-1 rounded-xl border border-white/20 text-center">
-                <span className="text-xs font-black text-amber-300 font-mono-num">13</span>
-                <span className="text-[10px] text-sky-100 ml-1 font-semibold">Surat</span>
-              </div>
-              <div className="bg-white/10 px-2.5 py-1 rounded-xl border border-white/20 text-center">
-                <span className="text-xs font-black text-emerald-300 font-mono-num">{reports.length}</span>
-                <span className="text-[10px] text-sky-100 ml-1 font-semibold">Laporan</span>
-              </div>
-            </div>
+          {/* Bottom Card Strip */}
+          <div className="relative z-10 mt-8 pt-4 border-t border-white/15 text-[11px] text-sky-200/80 flex items-center justify-between">
+            <span>Kecamatan Panakkukang · Kota Makassar</span>
+            <span className="font-mono-num font-bold">Kode Pos 90231</span>
           </div>
         </div>
-      </div>
 
-      {/* =========================================================================
-          AUTHENTICATION STATUS & DASHBOARD WARGA BAR
-      ========================================================================= */}
-      <div className="mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        {userProfile ? (
-          <>
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700 shrink-0">
-                <UserCheck className="w-4 h-4" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-extrabold text-[#0D3868]">
-                    {userProfile.fullName}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                    {userProfile.role === 'admin' ? 'Admin Terverifikasi' : 'Warga Terautentikasi'}
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500">
-                  {userProfile.email} · {userProfile.rw || 'RW 01'} / {userProfile.rt || 'RT 01'}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 self-start sm:self-center">
-              <button
-                type="button"
-                onClick={() => onNavigate('dashboard_warga')}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition cursor-pointer"
-              >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Dashboard Warga</span>
-              </button>
-              {onLogout && (
-                <button
-                  type="button"
-                  onClick={onLogout}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition cursor-pointer"
-                >
-                  <span>Logout</span>
-                </button>
-              )}
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-sky-50 border border-sky-200 flex items-center justify-center text-[#0277BD] shrink-0">
-                <ShieldCheck className="w-4 h-4" />
-              </div>
-              <div>
-                <div className="text-xs font-extrabold text-[#0D3868]">
-                  Akses Layanan Warga & Pengajuan Surat Online
-                </div>
-                <p className="text-[11px] text-slate-500">
-                  Katalog 13 persyaratan surat dan pelacakan tiket bersifat publik. Untuk mengajukan permohonan surat atau membuat laporan baru, silakan login terlebih dahulu.
-                </p>
-              </div>
-            </div>
+        {/* Action Mode Switch Buttons (Gambar 2) */}
+        {!userProfile ? (
+          <div className="grid grid-cols-2 gap-2 p-1.5 rounded-2xl bg-slate-100 border border-slate-200/80 mt-4 shadow-2xs">
             <button
               type="button"
               onClick={() =>
@@ -570,12 +541,47 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
                   ? onRequireAuth('Silakan masuk terlebih dahulu untuk mengakses layanan pengajuan warga.')
                   : onNavigate('login')
               }
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0277BD] hover:bg-[#0D3868] text-white text-xs font-extrabold shadow-2xs transition cursor-pointer shrink-0 self-start sm:self-center"
+              className="py-3 px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer bg-[#0D3868] hover:bg-[#072647] text-white shadow-xs"
             >
-              <UserCheck className="w-3.5 h-3.5" />
-              <span>Masuk / Daftar Warga</span>
+              <LogIn className="w-4 h-4" />
+              <span>Masuk Warga</span>
             </button>
-          </>
+            <button
+              type="button"
+              onClick={() => onNavigate('login')}
+              className="py-3 px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-200"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>Pendaftaran Warga Baru</span>
+            </button>
+          </div>
+        ) : (
+          <div className="mt-4 p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
+                ✓
+              </div>
+              <div>
+                <div className="text-xs font-extrabold text-[#0D3868]">
+                  {userProfile.fullName}
+                  <span className="ml-2 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                    {userProfile.role === 'admin' ? 'Admin Terverifikasi' : 'Warga Terautentikasi'}
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+                  {userProfile.email} · {userProfile.rw || 'RW 01'} / {userProfile.rt || 'RT 01'}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => onNavigate('dashboard_warga')}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition shadow-xs cursor-pointer self-start sm:self-center"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Buka Dashboard Warga</span>
+            </button>
+          </div>
         )}
       </div>
 
