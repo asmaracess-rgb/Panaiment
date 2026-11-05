@@ -465,14 +465,14 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   // Auto-establish AdminSession when user is authenticated via Firebase Auth with trusted Master Admin or whitelisted adminUsers
   useEffect(() => {
     if (firebaseUserProfile && !adminSession) {
-      const emailLower = (firebaseUserProfile.email || '').toLowerCase();
+      const emailLower = (firebaseUserProfile.email || '').trim().toLowerCase();
       const isSuperAdminEmail = emailLower === 'asmaracess@gmail.com';
       const matchedAdmin = adminUsers.find(
         (u) =>
           u.googleEmail &&
-          u.googleEmail.toLowerCase() === emailLower &&
-          u.isGoogleVerified &&
-          u.isActive
+          u.googleEmail.trim().toLowerCase() === emailLower &&
+          u.isActive !== false &&
+          u.isGoogleVerified !== false
       );
 
       // Only allow session if explicitly verified by Master Admin or is Lurah Master Admin
@@ -1438,7 +1438,10 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     setPendingGoogleAdminRequestEmail(null);
 
     setIsLoggingIn(true);
-    const result = await signInWithGoogleAccount();
+    const result = await signInWithGoogleAccount(undefined, {
+      loginHint: firebaseAdminEmail.trim() || undefined,
+      forceSignOutBeforePopup: true,
+    });
     setIsLoggingIn(false);
 
     if (!result.ok || !result.profile) {
@@ -1448,20 +1451,27 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       return;
     }
 
-    const emailLower = (result.profile.email || '').toLowerCase();
+    const emailLower = (result.profile.email || '').trim().toLowerCase();
     const isSuperAdmin = emailLower === 'asmaracess@gmail.com';
     const matchedAdmin = adminUsers.find(
       (u) =>
         u.googleEmail &&
-        u.googleEmail.toLowerCase() === emailLower &&
-        u.isGoogleVerified &&
-        u.isActive
+        u.googleEmail.trim().toLowerCase() === emailLower &&
+        u.isActive !== false &&
+        u.isGoogleVerified !== false
     );
 
     if (!isSuperAdmin && !matchedAdmin) {
-      setPendingGoogleAdminRequestEmail(result.profile.email);
+      const rejectedEmail = result.profile.email;
+      setPendingGoogleAdminRequestEmail(rejectedEmail);
+      // Sign out the unverified account so the browser doesn't stay locked to it on the next click
+      try {
+        await logoutFirebaseUser();
+      } catch {
+        // Non-fatal
+      }
       setLoginError(
-        `Akun Google "${result.profile.email}" belum diverifikasi oleh Master Admin (Lurah) sebagai akun Administrator. Akses ditolak demi keamanan portal kelurahan.`
+        `Akun Google "${rejectedEmail}" belum terdaftar atau belum diverifikasi oleh Master Admin (Lurah) sebagai Administrator. Silakan pilih akun Gmail yang telah didaftarkan oleh Administrator atau ketik alamat Gmail Anda pada kolom di bawah sebelum menekan Masuk dengan Google.`
       );
       return;
     }
@@ -3942,14 +3952,107 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
                     <span>Proteksi Whitelist Master Admin:</span>
                   </div>
-                  Login Admin dengan akun Google dibatasi ketat. Hanya akun Google yang telah diverifikasi & ditautkan oleh Lurah di menu <strong>Parameter User</strong> yang dapat mengakses panel ini.
+                  Login Admin dengan akun Google dibatasi ketat. Hanya akun Gmail yang telah didaftarkan & diverifikasi di menu <strong>Kelola Admin dan User Warga → Otoritas Master Admin / Parameter Admin</strong> yang dapat mengakses panel ini.
+                </div>
+
+                {/* Pilihan / Input Email Gmail Admin Terdaftar (Login Hint agar Popup Google langsung mengarah ke akun yang benar) */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Pilih / Ketik Akun Gmail Admin yang Didaftarkan (Opsional)
+                  </label>
+                  <input
+                    type="email"
+                    value={firebaseAdminEmail}
+                    onChange={(e) => setFirebaseAdminEmail(e.target.value)}
+                    placeholder="Contoh: nama.admin@gmail.com (atau pilih di bawah)"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-900 font-mono-num focus:border-[#0D3868] focus:outline-none"
+                  />
+                  {(() => {
+                    const registeredEmails = Array.from(
+                      new Set(
+                        [
+                          'asmaracess@gmail.com',
+                          ...adminUsers
+                            .filter(
+                              (u) =>
+                                u.googleEmail &&
+                                u.isActive !== false &&
+                                u.isGoogleVerified !== false
+                            )
+                            .map((u) => (u.googleEmail || '').trim().toLowerCase()),
+                        ].filter(Boolean)
+                      )
+                    );
+                    if (registeredEmails.length === 0) return null;
+                    return (
+                      <div className="mt-2">
+                        <div className="text-[10px] font-semibold text-slate-500 mb-1.5">
+                          Daftar Gmail Administrator Terdaftar (Klik untuk memilih cepat):
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {registeredEmails.map((em) => {
+                            const isSelected =
+                              firebaseAdminEmail.trim().toLowerCase() === em;
+                            const matchedUser = adminUsers.find(
+                              (u) =>
+                                (u.googleEmail || '').trim().toLowerCase() === em
+                            );
+                            return (
+                              <button
+                                key={em}
+                                type="button"
+                                onClick={() => {
+                                  setFirebaseAdminEmail(em);
+                                  setLoginError('');
+                                }}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-mono-num font-bold border transition cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-[#0D3868] text-white border-[#0D3868] shadow-2xs'
+                                    : 'bg-slate-50 hover:bg-sky-50 text-slate-700 border-slate-200 hover:border-sky-300'
+                                }`}
+                                title={
+                                  matchedUser
+                                    ? `${matchedUser.fullName} (${matchedUser.jabatan})`
+                                    : 'Master Admin Lurah'
+                                }
+                              >
+                                <CheckCircle2
+                                  className={`w-3 h-3 shrink-0 ${
+                                    isSelected ? 'text-emerald-300' : 'text-emerald-600'
+                                  }`}
+                                />
+                                <span>{em}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {firebaseUserProfile && firebaseUserProfile.role !== 'admin' && (
-                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 leading-relaxed">
-                    Saat ini Anda masuk dengan akun{' '}
-                    <strong>{firebaseUserProfile.email}</strong> yang berstatus{' '}
-                    <strong>Warga</strong> dan belum diverifikasi sebagai Administrator oleh Master Admin.
+                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 leading-relaxed flex flex-col gap-2">
+                    <div>
+                      Saat ini sesi browser Anda masih tersangkut pada akun{' '}
+                      <strong>{firebaseUserProfile.email}</strong> (status{' '}
+                      <strong>Warga</strong>).
+                    </div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setLoginError('');
+                        setPendingGoogleAdminRequestEmail(null);
+                        if (onFirebaseLogout) {
+                          await onFirebaseLogout();
+                        } else {
+                          await logoutFirebaseUser();
+                        }
+                      }}
+                      className="self-start px-3 py-1.5 rounded-lg bg-amber-200 hover:bg-amber-300 text-amber-950 font-bold text-[11px] transition cursor-pointer"
+                    >
+                      Putuskan Akun Ini & Ganti Akun Gmail Lain
+                    </button>
                   </div>
                 )}
 
@@ -3996,8 +4099,10 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                   <ShieldCheck className="w-4 h-4" />
                   <span>
                     {isLoggingIn
-                      ? 'Memproses Login Google...'
-                      : 'Masuk dengan Google'}
+                      ? 'Membuka Pilihan Akun Google...'
+                      : firebaseAdminEmail.trim()
+                      ? `Pilih & Masuk sebagai ${firebaseAdminEmail.trim()}`
+                      : 'Pilih Akun Gmail & Masuk dengan Google'}
                   </span>
                 </button>
               </form>

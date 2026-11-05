@@ -2798,12 +2798,14 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                       <input
                         type="email"
                         value={userForm.googleEmail}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const nextVal = e.target.value.toLowerCase().trim();
                           setUserForm((prev) => ({
                             ...prev,
-                            googleEmail: e.target.value.toLowerCase().trim(),
-                          }))
-                        }
+                            googleEmail: nextVal,
+                            isGoogleVerified: nextVal.includes('@') ? true : prev.isGoogleVerified,
+                          }));
+                        }}
                         placeholder="nama.pejabat@gmail.com"
                         className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 bg-white focus:border-[#0D3868] focus:outline-none font-mono-num"
                       />

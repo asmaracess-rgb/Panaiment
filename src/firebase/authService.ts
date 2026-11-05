@@ -303,7 +303,11 @@ export async function resolveTrustedUserRoleAndProfile(
  * Works immediately without manual Firebase Console provider toggles.
  */
 export async function signInWithGoogleAccount(
-  registrationDefaults?: PendingCitizenRegistration
+  registrationDefaults?: PendingCitizenRegistration,
+  options?: {
+    loginHint?: string;
+    forceSignOutBeforePopup?: boolean;
+  }
 ): Promise<{
   ok: boolean;
   profile?: AuthenticatedUserProfile;
@@ -320,8 +324,22 @@ export async function signInWithGoogleAccount(
   }
 
   try {
+    if (options?.forceSignOutBeforePopup && auth.currentUser) {
+      try {
+        await signOut(auth);
+      } catch {
+        // Non-fatal
+      }
+    }
+
     const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
+    const customParams: Record<string, string> = {
+      prompt: 'select_account',
+    };
+    if (options?.loginHint && options.loginHint.trim().includes('@')) {
+      customParams.login_hint = options.loginHint.trim().toLowerCase();
+    }
+    provider.setCustomParameters(customParams);
     const cred = await signInWithPopup(auth, provider);
 
     if (registrationDefaults?.fullName) {
