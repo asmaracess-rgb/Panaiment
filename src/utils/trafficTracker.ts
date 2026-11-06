@@ -1,4 +1,8 @@
 import { AppView } from '../types';
+import {
+  fetchLocalExpressOnly,
+  isLocalExpressAvailable,
+} from './runtimeEnv';
 
 export interface DailyTrafficPoint {
   date: string; // e.g., "04 Nov"
@@ -315,29 +319,33 @@ export async function fetchRealTrafficAnalytics(): Promise<{
   fromServer: boolean;
 }> {
   const startMs = performance.now();
-  try {
-    const res = await fetch('/api/traffic', { cache: 'no-store' });
-    const latencyMs = Math.max(1, Math.round(performance.now() - startMs));
-    if (res.ok) {
-      const payload = await res.json();
-      if (payload?.ok && payload.data) {
-        const serverData = payload.data as TrafficAnalyticsData;
-        saveTrafficAnalytics(serverData);
-        return { data: serverData, latencyMs, fromServer: true };
+  if (isLocalExpressAvailable()) {
+    try {
+      const res = await fetchLocalExpressOnly('/api/traffic', { cache: 'no-store' });
+      const latencyMs = Math.max(1, Math.round(performance.now() - startMs));
+      if (res && res.ok) {
+        const payload = await res.json();
+        if (payload?.ok && payload.data) {
+          const serverData = payload.data as TrafficAnalyticsData;
+          saveTrafficAnalytics(serverData);
+          return { data: serverData, latencyMs, fromServer: true };
+        }
       }
+    } catch {
+      // Fallback to local real cache
     }
-  } catch {
-    // Fallback to local real cache if offline
   }
   const latencyMs = Math.max(1, Math.round(performance.now() - startMs));
   return { data: loadTrafficAnalytics(), latencyMs, fromServer: false };
 }
 
 /**
- * Records a 100% real page navigation hit from the user's browser and syncs with the server.
+ * Records a 100% real page navigation hit from the user's browser and syncs with local Express if active.
  */
 export function recordTrafficHit(view: AppView): TrafficAnalyticsData {
-  const nowMs = Date.now();
+  const now = new Date();
+  const nowMs = now.getTime();
+  const todayIso = getLocalIsoDate(now);
   const visitorId = getOrCreateRealVisitorId();
   const sessionId = getOrCreateRealSessionId();
   const { deviceType, platform, browser } = detectRealDeviceAndBrowser();
@@ -359,6 +367,61 @@ export function recordTrafficHit(view: AppView): TrafficAnalyticsData {
     sessionStorage.setItem(LAST_VIEW_ENTER_MS_KEY, String(nowMs));
   } catch {}
 
+  // Update local analytics snapshot so traffic metrics stay accurate even without local Express backend
+  const current = loadTrafficAnalytics();
+  const meta = PAGE_METADATA[view] || PAGE_METADATA.beranda;
+  current.totalPageviews = (current.totalPageviews || 0) + 1;
+  current.todayPageviews = (current.todayPageviews || 0) + 1;
+  current.uniqueVisitors = Math.max(1, current.uniqueVisitors || 1);
+  current.activeVisitorsNow = Math.max(1, current.activeVisitorsNow || 1);
+  current.lastUpdated = now.toISOString();
+
+  if (Array.isArray(current.dailyPoints)) {
+    const todayPoint = current.dailyPoints.find((pt) => pt.isoDate === todayIso);
+    if (todayPoint) {
+      todayPoint.pageviews += 1;
+      todayPoint.uniqueVisitors = Math.max(1, todayPoint.uniqueVisitors);
+      todayPoint.sessions = Math.max(1, todayPoint.sessions);
+    }
+  }
+
+  if (Array.isArray(current.topPages)) {
+    const targetPage = current.topPages.find((p) => p.path === meta.path);
+    if (targetPage) {
+      targetPage.views += 1;
+      targetPage.uniqueUsers = Math.max(1, targetPage.uniqueUsers);
+    }
+    const totalPageViewsSum = current.topPages.reduce((acc, p) => acc + p.views, 0) || 1;
+    for (const p of current.topPages) {
+      p.percentage = Math.round((p.views / totalPageViewsSum) * 100);
+    }
+  }
+
+  if (deviceType === 'Mobile') current.deviceBreakdown.mobile += 1;
+  else if (deviceType === 'Tablet') current.deviceBreakdown.tablet += 1;
+  else current.deviceBreakdown.desktop += 1;
+
+  const newLog: RealtimeVisitorLog = {
+    id: `LOG-${nowMs.toString(36).toUpperCase()}`,
+    timestamp: now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    dateStr: formatShortDate(now),
+    visitorId,
+    page: meta.path,
+    pageTitle: meta.title,
+    deviceType,
+    platform,
+    browser,
+    locationHint,
+    referrer,
+    ipMasked: 'Warga Terverifikasi',
+  };
+  current.realtimeLogs = [newLog, ...(current.realtimeLogs || [])].slice(0, 40);
+  saveTrafficAnalytics(current);
+
+  if (!isLocalExpressAvailable()) {
+    return current;
+  }
+
   // Check if running as installed standalone PWA for the first time on this device
   try {
     const isStandalone =
@@ -366,7 +429,7 @@ export function recordTrafficHit(view: AppView): TrafficAnalyticsData {
       (window.navigator as unknown as { standalone?: boolean }).standalone === true;
     if (isStandalone && !localStorage.getItem(PWA_RECORDED_KEY)) {
       localStorage.setItem(PWA_RECORDED_KEY, '1');
-      fetch('/api/traffic/pwa-install', {
+      fetchLocalExpressOnly('/api/traffic/pwa-install', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ standalone: true }),
@@ -374,8 +437,8 @@ export function recordTrafficHit(view: AppView): TrafficAnalyticsData {
     }
   } catch {}
 
-  // Send real telemetry hit to server
-  fetch('/api/traffic/hit', {
+  // Send real telemetry hit to local Express server when available
+  fetchLocalExpressOnly('/api/traffic/hit', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -391,7 +454,7 @@ export function recordTrafficHit(view: AppView): TrafficAnalyticsData {
       prevPageDurationSec,
     }),
   })
-    .then((res) => (res.ok ? res.json() : null))
+    .then((res) => (res && res.ok ? res.json() : null))
     .then((payload) => {
       if (payload?.ok && payload.data) {
         saveTrafficAnalytics(payload.data as TrafficAnalyticsData);
@@ -399,18 +462,24 @@ export function recordTrafficHit(view: AppView): TrafficAnalyticsData {
     })
     .catch(() => {});
 
-  return loadTrafficAnalytics();
+  return current;
 }
 
 export async function recordRealPwaInstallEvent(): Promise<void> {
   try {
     localStorage.setItem(PWA_RECORDED_KEY, '1');
-    const res = await fetch('/api/traffic/pwa-install', {
+    const current = loadTrafficAnalytics();
+    current.pwaInstalls = (current.pwaInstalls || 0) + 1;
+    saveTrafficAnalytics(current);
+
+    if (!isLocalExpressAvailable()) return;
+
+    const res = await fetchLocalExpressOnly('/api/traffic/pwa-install', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ event: 'appinstalled', standalone: true }),
     });
-    if (res.ok) {
+    if (res && res.ok) {
       const payload = await res.json();
       if (payload?.ok && payload.data) {
         saveTrafficAnalytics(payload.data as TrafficAnalyticsData);
@@ -420,20 +489,22 @@ export async function recordRealPwaInstallEvent(): Promise<void> {
 }
 
 export async function resetRealTrafficAnalytics(): Promise<TrafficAnalyticsData> {
-  try {
-    const res = await fetch('/api/traffic/reset', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
-    if (res.ok) {
-      const payload = await res.json();
-      if (payload?.ok && payload.data) {
-        const fresh = payload.data as TrafficAnalyticsData;
-        saveTrafficAnalytics(fresh);
-        return fresh;
+  if (isLocalExpressAvailable()) {
+    try {
+      const res = await fetchLocalExpressOnly('/api/traffic/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (res && res.ok) {
+        const payload = await res.json();
+        if (payload?.ok && payload.data) {
+          const fresh = payload.data as TrafficAnalyticsData;
+          saveTrafficAnalytics(fresh);
+          return fresh;
+        }
       }
-    }
-  } catch {}
+    } catch {}
+  }
   const empty = createInitialEmptyAnalytics();
   saveTrafficAnalytics(empty);
   return empty;

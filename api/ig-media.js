@@ -2,6 +2,8 @@ import fs from 'fs';
 import path from 'path';
 
 const SHORTCODE_MAP = {
+  ig_post_kerjabakti_1: 'DfYirNrJjaT',
+  ig_post_kerjabakti_2: 'DfHDLK2vqk0',
   ig_post_latest_1: 'DfT7acUJdwh',
   ig_post_latest_2: 'DfM0_MZvZON',
   ig_post_latest_3: 'DfM0LNqPFR5',
@@ -21,6 +23,8 @@ const SHORTCODE_MAP = {
 
 const FILE_BY_CODE = {
   profile: 'ig_profile_panaikang.jpg',
+  DfYirNrJjaT: 'ig_post_kerjabakti_1_DfYirNrJjaT.jpg',
+  DfHDLK2vqk0: 'ig_post_kerjabakti_2_DfHDLK2vqk0.jpg',
   DfT7acUJdwh: 'ig_post_latest_1_DfT7acUJdwh.jpg',
   DfM0_MZvZON: 'ig_post_latest_2_DfM0_MZvZON.jpg',
   DfM0LNqPFR5: 'ig_post_latest_3_DfM0LNqPFR5.jpg',
@@ -41,12 +45,26 @@ const FILE_BY_CODE = {
 export default async function handler(req, res) {
   try {
     const rawCode = String(req.query?.code || 'DeJpFcVJ6jq').trim();
+    const forceRemote = req.query?.remote === '1';
     const isProfile = rawCode === 'profile' || rawCode.includes('ig_profile');
     const shortcode = isProfile
       ? 'DeJpFcVJ6jq'
       : SHORTCODE_MAP[rawCode] || rawCode.replace(/[^A-Za-z0-9_-]/g, '') || 'DeJpFcVJ6jq';
 
     const localFilename = isProfile ? FILE_BY_CODE.profile : FILE_BY_CODE[shortcode];
+
+    // If static file is mapped and not forcing remote fallback, redirect to static CDN path
+    // so Vercel serves the image from Static Edge Network instead of Serverless Function FOT.
+    if (localFilename && !forceRemote) {
+      res.setHeader(
+        'Cache-Control',
+        'public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400'
+      );
+      res.writeHead(302, { Location: `/images/${localFilename}` });
+      res.end();
+      return;
+    }
+
     if (localFilename) {
       const candidatePaths = [
         path.join(process.cwd(), 'public', 'images', localFilename),
@@ -58,7 +76,7 @@ export default async function handler(req, res) {
           res.setHeader('Content-Type', 'image/jpeg');
           res.setHeader(
             'Cache-Control',
-            'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800'
+            'public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400'
           );
           res.status(200).send(buf);
           return;
@@ -123,7 +141,10 @@ export default async function handler(req, res) {
     const buffer = Buffer.from(arrayBuffer);
 
     res.setHeader('Content-Type', contentType);
-    res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800');
+    res.setHeader(
+      'Cache-Control',
+      'public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400'
+    );
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.status(200).send(buffer);
   } catch (err) {

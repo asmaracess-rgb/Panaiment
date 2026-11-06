@@ -158,6 +158,7 @@ import {
 } from '../data/wargaServiceCatalog';
 import { recordDeletedItemId, PersistedDatabase, savePersistedDatabase } from '../utils/persistentStorage';
 import { pushFullDatabaseToFirestore } from '../firebase/firestoreService';
+import { isLocalExpressAvailable } from '../utils/runtimeEnv';
 import {
   getFirestoreSessionStatus,
   subscribeToFirestoreSessionLock,
@@ -573,26 +574,30 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
   const checkSessionStatus = React.useCallback(async () => {
     try {
-      const res = await fetch('/api/auth/session-status', { cache: 'no-store' });
-      const contentType = res.headers.get('content-type') || '';
-      if (res.ok && contentType.includes('application/json')) {
-        const json = await res.json();
-        if (json?.ok) {
-          setActiveAdminLockInfo({
-            isLocked: Boolean(json.isLocked),
-            activeAdmin: json.activeAdmin || null,
-          });
-          return;
-        }
-      }
-    } catch {}
-
-    try {
       const fsStatus = await getFirestoreSessionStatus();
       setActiveAdminLockInfo({
         isLocked: fsStatus.isLocked,
         activeAdmin: fsStatus.activeAdmin || null,
       });
+      if (!isLocalExpressAvailable()) {
+        return;
+      }
+    } catch {}
+
+    if (!isLocalExpressAvailable()) return;
+
+    try {
+      const res = await fetch('/api/auth/session-status', { cache: 'no-store' });
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        const json = await res.json();
+        if (json?.ok && json.isLocked) {
+          setActiveAdminLockInfo({
+            isLocked: Boolean(json.isLocked),
+            activeAdmin: json.activeAdmin || null,
+          });
+        }
+      }
     } catch {}
   }, []);
 
@@ -626,35 +631,49 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     checkSessionStatus();
   }, [checkSessionStatus]);
 
-  // Keep heartbeat active while admin session is live
+  // Keep Single-Admin Lock heartbeat active while admin session is live
   useEffect(() => {
     if (!adminSession?.token) return;
 
     const sendHeartbeat = async () => {
-      try {
-        await fetch('/api/auth/heartbeat', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-admin-token': adminSession.token,
-          },
-          body: JSON.stringify({
-            token: adminSession.token,
-            loginAt: adminSession.loginAt,
-          }),
-        });
-      } catch {}
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
 
       try {
         await heartbeatFirestore(adminSession.token, adminSession.loginAt);
       } catch {}
+
+      if (isLocalExpressAvailable()) {
+        try {
+          await fetch('/api/auth/heartbeat', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-admin-token': adminSession.token,
+            },
+            body: JSON.stringify({
+              token: adminSession.token,
+              loginAt: adminSession.loginAt,
+            }),
+          });
+        } catch {}
+      }
     };
 
     sendHeartbeat();
-    const heartbeatTimer = setInterval(sendHeartbeat, 15000);
+    const heartbeatTimer = setInterval(sendHeartbeat, 20000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        sendHeartbeat();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       clearInterval(heartbeatTimer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [adminSession?.token, adminSession?.loginAt]);
 

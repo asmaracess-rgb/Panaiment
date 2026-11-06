@@ -115,6 +115,12 @@ import { AuthView } from './components/AuthView';
 import { DashboardWargaView } from './components/DashboardWargaView';
 import { EmblemKelurahanPanaikang } from './components/Emblems';
 import { recordTrafficHit, recordRealPwaInstallEvent } from './utils/trafficTracker';
+import {
+  fetchLocalExpressOnly,
+  isLocalExpressAvailable,
+  isVercelServerlessRuntime,
+  markLocalExpressUnavailable,
+} from './utils/runtimeEnv';
 
 interface ToastNotification {
   id: string;
@@ -468,6 +474,9 @@ export default function App() {
     citizenMenuConfig,
   ]);
 
+  const serverSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastDataEtagRef = useRef<string>('');
+
   const commitPersistence = useCallback(
     (partial: Partial<Omit<PersistedDatabase, 'updatedAt'>>, syncServer = true) => {
       const deletedSet = getDeletedItemIds();
@@ -524,17 +533,23 @@ export default function App() {
 
       savePersistedDatabase(nextSnapshot);
 
-      // Instantly sync to Firebase Firestore Cloud Database (for permanent cross-device sync)
+      // Primary Cloud Sync: Firebase Firestore Cloud Database (permanent cross-device sync)
       pushFullDatabaseToFirestore(nextSnapshot).catch((err) => {
         console.warn('[Firestore Sync Notice]', err);
       });
 
-      if (syncServer) {
-        fetch('/api/data', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(nextSnapshot),
-        }).catch(() => {});
+      // Secondary Local Sync: Only send to /api/data when local Express server is active (debounced)
+      if (syncServer && isLocalExpressAvailable()) {
+        if (serverSyncTimerRef.current) {
+          clearTimeout(serverSyncTimerRef.current);
+        }
+        serverSyncTimerRef.current = setTimeout(() => {
+          fetch('/api/data', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(nextSnapshot),
+          }).catch(() => {});
+        }, 1200);
       }
     },
     []
@@ -558,20 +573,45 @@ export default function App() {
       let nextList: AuthenticatedUserProfile[];
       if (existingIdx >= 0) {
         const existing = currentList[existingIdx];
+        const nextUid = existing.uid.startsWith('warga_') ? profile.uid : existing.uid;
+        const nextFullName =
+          (profile.fullName && profile.fullName !== 'Warga Panaikang'
+            ? profile.fullName
+            : existing.fullName) || 'Warga Panaikang';
+        const nextEmail = profile.email || existing.email || '';
+        const nextNik = profile.nik || existing.nik || '';
+        const nextPhone = (profile.phone && profile.phone !== '-' ? profile.phone : existing.phone) || '';
+        const nextRw = profile.rw || existing.rw || 'RW 01';
+        const nextRt = profile.rt || existing.rt || 'RT 01';
+        const nextAddress = profile.address || existing.address || 'Kelurahan Panaikang';
+
+        // Skip redundant full-database write if citizen profile fields are already identical
+        const isUnchanged =
+          existing.uid === nextUid &&
+          existing.fullName === nextFullName &&
+          existing.email === nextEmail &&
+          (existing.nik || '') === nextNik &&
+          (existing.phone || '') === nextPhone &&
+          (existing.rw || 'RW 01') === nextRw &&
+          (existing.rt || 'RT 01') === nextRt &&
+          (existing.address || 'Kelurahan Panaikang') === nextAddress &&
+          existing.role === 'warga';
+
+        if (isUnchanged) {
+          return;
+        }
+
         const mergedItem: AuthenticatedUserProfile = {
           ...existing,
           ...profile,
-          uid: existing.uid.startsWith('warga_') ? profile.uid : existing.uid,
-          fullName:
-            (profile.fullName && profile.fullName !== 'Warga Panaikang'
-              ? profile.fullName
-              : existing.fullName) || 'Warga Panaikang',
-          email: profile.email || existing.email || '',
-          nik: profile.nik || existing.nik || '',
-          phone: (profile.phone && profile.phone !== '-' ? profile.phone : existing.phone) || '',
-          rw: profile.rw || existing.rw || 'RW 01',
-          rt: profile.rt || existing.rt || 'RT 01',
-          address: profile.address || existing.address || 'Kelurahan Panaikang',
+          uid: nextUid,
+          fullName: nextFullName,
+          email: nextEmail,
+          nik: nextNik,
+          phone: nextPhone,
+          rw: nextRw,
+          rt: nextRt,
+          address: nextAddress,
           role: 'warga',
           updatedAt: getRealtimeDateTimeString(),
         };
@@ -696,30 +736,9 @@ export default function App() {
       if (initialLocal.citizenMenuConfig) setCitizenMenuConfig(initialLocal.citizenMenuConfig);
     }
 
-    // Seed Firestore if this is the first deployment
-    seedInitialFirestoreIfEmpty(
-      initialLocal || {
-        profile: INITIAL_KELURAHAN_PROFILE,
-        rwGroups: INITIAL_RW_GROUPS,
-        reports: INITIAL_REPORTS,
-        wasteUnits: INITIAL_WASTE_UNITS,
-        wasteLogs: INITIAL_WASTE_LOGS,
-        tebaSpots: INITIAL_TEBA_SPOTS,
-        bioporiPoints: INITIAL_BIOPORI_POINTS,
-        cleanupEvents: INITIAL_CLEANUP_EVENTS,
-        kelurahanInfos: INITIAL_KELURAHAN_INFOS,
-        whatsappRecipients: INITIAL_WHATSAPP_RECIPIENTS,
-        serviceCatalog: SERVICE_CATEGORY_GROUPS,
-        adminUsers: INITIAL_ADMIN_USERS,
-        activityLogs: INITIAL_ACTIVITY_LOGS,
-        urbanFarmingSpots: INITIAL_URBAN_FARMING_SPOTS,
-        seedRequests: INITIAL_SEED_REQUESTS,
-        deletedItemIds: [],
-        updatedAt: Date.now(),
-      }
-    );
-
     // 2. Real-time Firestore Subscription (instant push across all devices/smartphones/computers)
+    // Also seeds initial Firestore document on first deployment only if snapshot does not exist yet,
+    // avoiding a duplicate getDoc() read on every page load.
     const unsubscribeFirestore = subscribeToFirestoreDatabase(
       (firestoreDb) => {
         if (!mounted || !firestoreDb) return;
@@ -727,6 +746,29 @@ export default function App() {
       },
       (err) => {
         console.warn('[Firestore] Realtime subscription notice:', err.message);
+      },
+      () => {
+        pushFullDatabaseToFirestore(
+          initialLocal || {
+            profile: INITIAL_KELURAHAN_PROFILE,
+            rwGroups: INITIAL_RW_GROUPS,
+            reports: INITIAL_REPORTS,
+            wasteUnits: INITIAL_WASTE_UNITS,
+            wasteLogs: INITIAL_WASTE_LOGS,
+            tebaSpots: INITIAL_TEBA_SPOTS,
+            bioporiPoints: INITIAL_BIOPORI_POINTS,
+            cleanupEvents: INITIAL_CLEANUP_EVENTS,
+            kelurahanInfos: INITIAL_KELURAHAN_INFOS,
+            whatsappRecipients: INITIAL_WHATSAPP_RECIPIENTS,
+            serviceCatalog: SERVICE_CATEGORY_GROUPS,
+            adminUsers: INITIAL_ADMIN_USERS,
+            activityLogs: INITIAL_ACTIVITY_LOGS,
+            urbanFarmingSpots: INITIAL_URBAN_FARMING_SPOTS,
+            seedRequests: INITIAL_SEED_REQUESTS,
+            deletedItemIds: [],
+            updatedAt: Date.now(),
+          }
+        ).catch(() => {});
       }
     );
 
@@ -770,16 +812,19 @@ export default function App() {
       }
     });
 
-    // 3. Connect to Server-Sent Events (SSE) for instant live push whenever any admin updates data
+    // 3. Connect to Server-Sent Events (SSE) only when local Express backend is active.
+    // On Vercel Serverless Production, real-time cross-device updates are handled by Firestore onSnapshot above.
     let es: EventSource | null = null;
     let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+    let sseConnectedOnce = false;
 
     const initEventSource = () => {
-      if (!mounted) return;
+      if (!mounted || isVercelServerlessRuntime()) return;
       try {
         es = new EventSource('/api/realtime/stream');
 
         es.addEventListener('init', (e) => {
+          sseConnectedOnce = true;
           try {
             const parsed = JSON.parse(e.data);
             if (parsed?.data && mounted) {
@@ -789,6 +834,7 @@ export default function App() {
         });
 
         es.addEventListener('data_update', (e) => {
+          sseConnectedOnce = true;
           try {
             const parsed = JSON.parse(e.data);
             if (parsed?.data && mounted) {
@@ -798,6 +844,7 @@ export default function App() {
         });
 
         es.addEventListener('admin_session', (e) => {
+          sseConnectedOnce = true;
           try {
             const parsed = JSON.parse(e.data);
             window.dispatchEvent(new CustomEvent('pnk_admin_session_sse', { detail: parsed }));
@@ -805,6 +852,7 @@ export default function App() {
         });
 
         es.addEventListener('traffic_update', (e) => {
+          sseConnectedOnce = true;
           try {
             const parsed = JSON.parse(e.data);
             if (parsed?.data) {
@@ -818,24 +866,27 @@ export default function App() {
             es.close();
             es = null;
           }
-          if (mounted && !reconnectTimeout) {
+          // If SSE failed on first connection attempt, /api/realtime/stream is not available (serverless hosting).
+          // Trip circuit breaker to prevent infinite 3-second reconnect loops.
+          if (!sseConnectedOnce) {
+            markLocalExpressUnavailable();
+            return;
+          }
+          if (mounted && !reconnectTimeout && isLocalExpressAvailable()) {
             reconnectTimeout = setTimeout(() => {
               reconnectTimeout = null;
               initEventSource();
-            }, 3000);
+            }, 5000);
           }
         };
       } catch {
-        if (mounted && !reconnectTimeout) {
-          reconnectTimeout = setTimeout(() => {
-            reconnectTimeout = null;
-            initEventSource();
-          }, 4000);
-        }
+        markLocalExpressUnavailable();
       }
     };
 
-    initEventSource();
+    if (isLocalExpressAvailable()) {
+      initEventSource();
+    }
 
     // Record initial real page visit on first mount
     try {
@@ -923,15 +974,27 @@ export default function App() {
       recordTrafficHit(view);
     } catch {}
 
-    // Instant non-blocking sync on view transition to reflect changes from other devices
-    fetch('/api/data', { cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((payload) => {
-        if (!payload?.ok || !payload.data) return;
-        const serverDb = payload.data as Partial<PersistedDatabase>;
-        applyRemoteDatabase(serverDb);
-      })
-      .catch(() => {});
+    // On Vercel Production, Firestore onSnapshot already keeps state synchronized in real-time.
+    // Only poll /api/data if running against local Express server, with ETag 304 support.
+    if (isLocalExpressAvailable()) {
+      const headers: Record<string, string> = {};
+      if (lastDataEtagRef.current) {
+        headers['If-None-Match'] = lastDataEtagRef.current;
+      }
+      fetch('/api/data', { headers })
+        .then((res) => {
+          if (res.status === 304 || !res.ok) return null;
+          const etag = res.headers.get('etag');
+          if (etag) lastDataEtagRef.current = etag;
+          return res.json();
+        })
+        .then((payload) => {
+          if (!payload?.ok || !payload.data) return;
+          const serverDb = payload.data as Partial<PersistedDatabase>;
+          applyRemoteDatabase(serverDb);
+        })
+        .catch(() => {});
+    }
   };
 
   // ================= DATABASE BACKUP & RESTORE HANDLERS =================
@@ -1041,15 +1104,17 @@ export default function App() {
     });
 
     try {
-      const response = await fetch('/api/profile', {
+      const response = await fetchLocalExpressOnly('/api/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(nextProfile),
       });
-      const json = await response.json();
-      if (response.ok && json?.ok && json.data) {
-        setKelurahanProfile(json.data);
-        commitPersistence({ profile: json.data }, false);
+      if (response && response.ok) {
+        const json = await response.json();
+        if (json?.ok && json.data) {
+          setKelurahanProfile(json.data);
+          commitPersistence({ profile: json.data }, false);
+        }
       }
     } catch {
       // Fallback already saved in local state & Firestore
@@ -1061,7 +1126,7 @@ export default function App() {
     async (updated: SiskamlingRwSchedule[]): Promise<{ ok: boolean; errors?: string[] }> => {
       setSiskamlingSchedules(updated);
       commitPersistence({ siskamlingSchedules: updated });
-      fetch('/api/siskamling', {
+      fetchLocalExpressOnly('/api/siskamling', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updated),
@@ -1253,7 +1318,7 @@ export default function App() {
       setCitizenMenuConfig(normalized);
       commitPersistence({ citizenMenuConfig: normalized });
       try {
-        await fetch('/api/citizen-menu-config', {
+        await fetchLocalExpressOnly('/api/citizen-menu-config', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ citizenMenuConfig: normalized }),
@@ -1578,7 +1643,7 @@ export default function App() {
     const nextUnits = stateRef.current.wasteUnits.filter((u) => u.id !== id);
     setWasteUnits(nextUnits);
     commitPersistence({ wasteUnits: nextUnits }, true);
-    fetch('/api/waste-units/' + id, { method: 'DELETE' }).catch(() => {});
+    fetchLocalExpressOnly('/api/waste-units/' + id, { method: 'DELETE' }).catch(() => {});
     return { ok: true };
   };
 
@@ -1656,7 +1721,7 @@ export default function App() {
     const nextLogs = stateRef.current.wasteLogs.filter((l) => l.id !== id);
     setWasteLogs(nextLogs);
     commitPersistence({ wasteLogs: nextLogs }, true);
-    fetch('/api/waste-logs/' + id, { method: 'DELETE' }).catch(() => {});
+    fetchLocalExpressOnly('/api/waste-logs/' + id, { method: 'DELETE' }).catch(() => {});
     return { ok: true };
   };
 
@@ -1693,7 +1758,7 @@ export default function App() {
     setTebaSpots(next);
     commitPersistence({ tebaSpots: next }, true);
 
-    fetch('/api/teba-spots', {
+    fetchLocalExpressOnly('/api/teba-spots', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newSpot),
@@ -1712,7 +1777,7 @@ export default function App() {
     setTebaSpots(next);
     commitPersistence({ tebaSpots: next }, true);
 
-    fetch('/api/teba-spots/' + id, {
+    fetchLocalExpressOnly('/api/teba-spots/' + id, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(spot),
@@ -1729,7 +1794,7 @@ export default function App() {
     setTebaSpots(next);
     commitPersistence({ tebaSpots: next }, true);
 
-    fetch('/api/teba-spots/' + id, {
+    fetchLocalExpressOnly('/api/teba-spots/' + id, {
       method: 'DELETE',
     }).catch(() => {});
 
@@ -1771,7 +1836,7 @@ export default function App() {
     setBioporiPoints(next);
     commitPersistence({ bioporiPoints: next }, true);
 
-    fetch('/api/biopori-points', {
+    fetchLocalExpressOnly('/api/biopori-points', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newPoint),
@@ -1790,7 +1855,7 @@ export default function App() {
     setBioporiPoints(next);
     commitPersistence({ bioporiPoints: next }, true);
 
-    fetch('/api/biopori-points/' + id, {
+    fetchLocalExpressOnly('/api/biopori-points/' + id, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(point),
@@ -1807,7 +1872,7 @@ export default function App() {
     setBioporiPoints(next);
     commitPersistence({ bioporiPoints: next }, true);
 
-    fetch('/api/biopori-points/' + id, {
+    fetchLocalExpressOnly('/api/biopori-points/' + id, {
       method: 'DELETE',
     }).catch(() => {});
 
@@ -2061,12 +2126,14 @@ export default function App() {
 
   const handleSyncInstagram = async (): Promise<{ ok: boolean; syncedAt?: string }> => {
     try {
-      const res = await fetch('/api/infos/sync-instagram', { method: 'POST' });
-      const json = await res.json();
-      if (json.ok && Array.isArray(json.data) && json.data.length > 0) {
-        setKelurahanInfos(json.data);
-        commitPersistence({ kelurahanInfos: json.data });
-        return { ok: true, syncedAt: json.syncedAt || getRealtimeTimeString(new Date()) };
+      const res = await fetchLocalExpressOnly('/api/infos/sync-instagram', { method: 'POST' });
+      if (res && res.ok) {
+        const json = await res.json();
+        if (json.ok && Array.isArray(json.data) && json.data.length > 0) {
+          setKelurahanInfos(json.data);
+          commitPersistence({ kelurahanInfos: json.data });
+          return { ok: true, syncedAt: json.syncedAt || getRealtimeTimeString(new Date()) };
+        }
       }
     } catch {
       // Fallback to local sync below
@@ -2086,16 +2153,18 @@ export default function App() {
     syncedAt?: string;
   }> => {
     try {
-      const res = await fetch('/api/cleanup-events/sync-ig-highlights', { method: 'POST' });
-      const json = await res.json();
-      if (json.ok && Array.isArray(json.data) && json.data.length > 0) {
-        const top3 = (json.data as KerjaBaktiIgHighlightItem[]).slice(0, 3);
-        const syncedAt =
-          json.syncedAt || `${getRealtimeDateTimeString(new Date())} WITA`;
-        setKerjaBaktiHighlights(top3);
-        setKerjaBaktiHighlightsSyncedAt(syncedAt);
-        saveKerjaBaktiIgHighlights(top3, syncedAt);
-        return { ok: true, syncedAt };
+      const res = await fetchLocalExpressOnly('/api/cleanup-events/sync-ig-highlights', { method: 'POST' });
+      if (res && res.ok) {
+        const json = await res.json();
+        if (json.ok && Array.isArray(json.data) && json.data.length > 0) {
+          const top3 = (json.data as KerjaBaktiIgHighlightItem[]).slice(0, 3);
+          const syncedAt =
+            json.syncedAt || `${getRealtimeDateTimeString(new Date())} WITA`;
+          setKerjaBaktiHighlights(top3);
+          setKerjaBaktiHighlightsSyncedAt(syncedAt);
+          saveKerjaBaktiIgHighlights(top3, syncedAt);
+          return { ok: true, syncedAt };
+        }
       }
     } catch {
       // Fallback to local sync below
@@ -2120,7 +2189,7 @@ export default function App() {
     setRwGroups(updatedGroups);
     setKelurahanProfile(nextProfile);
     commitPersistence({ rwGroups: updatedGroups, profile: nextProfile });
-    fetch('/api/rw-groups', {
+    fetchLocalExpressOnly('/api/rw-groups', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedGroups),
@@ -2144,13 +2213,13 @@ export default function App() {
     setServiceCatalog(updatedCatalog);
     commitPersistence({ serviceCatalog: updatedCatalog });
     try {
-      await fetch('/api/warga-services/catalog', {
+      await fetchLocalExpressOnly('/api/warga-services/catalog', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ serviceCatalog: updatedCatalog }),
       });
     } catch {
-      // Fallback already persisted via localStorage & /api/data
+      // Fallback already persisted via localStorage & Firestore
     }
     return { ok: true };
   };
@@ -2163,13 +2232,13 @@ export default function App() {
     setAdminUsers(updatedUsers);
     commitPersistence({ adminUsers: updatedUsers });
     try {
-      await fetch('/api/admin-users', {
+      await fetchLocalExpressOnly('/api/admin-users', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminUsers: updatedUsers }),
       });
     } catch {
-      // Fallback already persisted via localStorage & /api/data
+      // Fallback already persisted via localStorage & Firestore
     }
     return { ok: true };
   };
@@ -2187,7 +2256,7 @@ export default function App() {
       const nextLogs = [newLog, ...stateRef.current.activityLogs].slice(0, 500);
       setActivityLogs(nextLogs);
       commitPersistence({ activityLogs: nextLogs });
-      fetch('/api/activity-logs', {
+      fetchLocalExpressOnly('/api/activity-logs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newLog),
@@ -2202,7 +2271,7 @@ export default function App() {
       const nextLogs = stateRef.current.activityLogs.filter((l) => l.id !== logId);
       setActivityLogs(nextLogs);
       commitPersistence({ activityLogs: nextLogs });
-      fetch(`/api/activity-logs/${encodeURIComponent(logId)}`, {
+      fetchLocalExpressOnly(`/api/activity-logs/${encodeURIComponent(logId)}`, {
         method: 'DELETE',
       }).catch(() => {});
     },
@@ -2213,7 +2282,7 @@ export default function App() {
     setActivityLogs(INITIAL_ACTIVITY_LOGS);
     commitPersistence({ activityLogs: INITIAL_ACTIVITY_LOGS });
     try {
-      await fetch('/api/activity-logs/reset', {
+      await fetchLocalExpressOnly('/api/activity-logs/reset', {
         method: 'POST',
       });
     } catch {
@@ -2229,13 +2298,13 @@ export default function App() {
       setUrbanFarmingSpots(nextSpots);
       commitPersistence({ urbanFarmingSpots: nextSpots });
       try {
-        await fetch('/api/urban-farming', {
+        await fetchLocalExpressOnly('/api/urban-farming', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(spot),
         });
       } catch {
-        // Fallback persisted via localStorage & PUT /api/data
+        // Fallback persisted via localStorage & Firestore
       }
       return { ok: true };
     },
@@ -2256,7 +2325,7 @@ export default function App() {
       setUrbanFarmingSpots(nextSpots);
       commitPersistence({ urbanFarmingSpots: nextSpots });
       try {
-        await fetch(`/api/urban-farming/${id}`, {
+        await fetchLocalExpressOnly(`/api/urban-farming/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(merged),
@@ -2276,7 +2345,7 @@ export default function App() {
       setUrbanFarmingSpots(nextSpots);
       commitPersistence({ urbanFarmingSpots: nextSpots });
       try {
-        await fetch(`/api/urban-farming/${id}`, {
+        await fetchLocalExpressOnly(`/api/urban-farming/${id}`, {
           method: 'DELETE',
         });
       } catch {
@@ -2293,7 +2362,7 @@ export default function App() {
       setSeedRequests(nextReqs);
       commitPersistence({ seedRequests: nextReqs });
       try {
-        await fetch('/api/seed-requests', {
+        await fetchLocalExpressOnly('/api/seed-requests', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(req),
@@ -2320,7 +2389,7 @@ export default function App() {
       setSeedRequests(nextReqs);
       commitPersistence({ seedRequests: nextReqs });
       try {
-        await fetch(`/api/seed-requests/${id}`, {
+        await fetchLocalExpressOnly(`/api/seed-requests/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(merged),
@@ -2340,7 +2409,7 @@ export default function App() {
       setSeedRequests(nextReqs);
       commitPersistence({ seedRequests: nextReqs });
       try {
-        await fetch(`/api/seed-requests/${id}`, {
+        await fetchLocalExpressOnly(`/api/seed-requests/${id}`, {
           method: 'DELETE',
         });
       } catch {

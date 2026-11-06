@@ -33,6 +33,7 @@ import {
   exportTrafficCsv,
   saveTrafficAnalytics,
 } from '../utils/trafficTracker';
+import { isLocalExpressAvailable } from '../utils/runtimeEnv';
 
 interface AdminTrafficViewProps {
   onNavigateToView?: (view: AppView) => void;
@@ -85,15 +86,20 @@ export const AdminTrafficView: React.FC<AdminTrafficViewProps> = ({ onNavigateTo
     window.addEventListener('pnk_traffic_updated', handleLocalTrafficUpdated);
     window.addEventListener('pnk_traffic_sse', handleSseTrafficUpdate);
 
-    // Periodic real server poll every 15s to keep active visitor heartbeats & uptime accurate
-    const interval = setInterval(() => {
-      syncWithServer(false);
-    }, 15000);
+    // Periodic real server poll only when local Express backend is active and tab is visible
+    let interval: ReturnType<typeof setInterval> | null = null;
+    if (isLocalExpressAvailable()) {
+      interval = setInterval(() => {
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+        if (!isLocalExpressAvailable()) return;
+        syncWithServer(false);
+      }, 15000);
+    }
 
     return () => {
       window.removeEventListener('pnk_traffic_updated', handleLocalTrafficUpdated);
       window.removeEventListener('pnk_traffic_sse', handleSseTrafficUpdate);
-      clearInterval(interval);
+      if (interval) clearInterval(interval);
     };
   }, [syncWithServer]);
 

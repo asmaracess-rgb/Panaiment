@@ -986,8 +986,14 @@ async function startServer() {
   });
 
   // 1. Get & Sync Full Application Data
-  app.get('/api/data', (_req, res) => {
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  app.get('/api/data', (req, res) => {
+    res.setHeader('Cache-Control', 'private, no-cache, max-age=0, must-revalidate');
+    const etag = `W/"pnk-db-${db.updatedAt || db.lastModified || 0}"`;
+    res.setHeader('ETag', etag);
+    if (req.headers['if-none-match'] === etag) {
+      res.status(304).end();
+      return;
+    }
     res.json({
       ok: true,
       data: db,
@@ -1110,7 +1116,7 @@ async function startServer() {
     }
 
     saveDatabase(db, incoming.updatedAt);
-    res.json({ ok: true, data: db });
+    res.json({ ok: true, updatedAt: db.updatedAt, lastModified: db.lastModified });
   });
 
   // 1AC. Parameter Batasan Akses Menu Warga (CitizenMenuAccessConfig) CRUD

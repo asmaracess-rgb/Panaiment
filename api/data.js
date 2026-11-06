@@ -7,7 +7,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, If-None-Match'
   );
 
   if (req.method === 'OPTIONS') {
@@ -49,39 +49,53 @@ export default async function handler(req, res) {
   };
 
   if (req.method === 'GET') {
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    // Private cache only (never public-cache citizen/admin database payloads)
+    res.setHeader('Cache-Control', 'private, no-cache, max-age=0, must-revalidate');
     try {
+      let parsed = null;
+
       // 1. Check /tmp first for latest runtime modifications on serverless
       if (fs.existsSync(tmpPath)) {
         const raw = fs.readFileSync(tmpPath, 'utf8');
-        const parsed = JSON.parse(raw);
-        return res.status(200).json({ ok: true, data: sanitizeData(parsed) });
-      }
-
-      // 2. Fallback to static repo db
-      if (fs.existsSync(repoPath)) {
+        parsed = JSON.parse(raw);
+      } else if (fs.existsSync(repoPath)) {
+        // 2. Fallback to static repo db
         const raw = fs.readFileSync(repoPath, 'utf8');
-        const parsed = JSON.parse(raw);
-        return res.status(200).json({ ok: true, data: sanitizeData(parsed) });
+        parsed = JSON.parse(raw);
       }
 
-      return res.status(200).json({ ok: true, data: null });
+      if (!parsed) {
+        return res.status(200).json({ ok: true, data: null });
+      }
+
+      const sanitized = sanitizeData(parsed);
+      const etag = `W/"pnk-db-${sanitized.updatedAt || sanitized.lastModified || 0}"`;
+      res.setHeader('ETag', etag);
+
+      if (req.headers['if-none-match'] === etag) {
+        return res.status(304).end();
+      }
+
+      return res.status(200).json({ ok: true, data: sanitized });
     } catch (err) {
       return res.status(500).json({ ok: false, error: err.message });
     }
   }
 
   if (req.method === 'PUT' || req.method === 'POST') {
+    res.setHeader('Cache-Control', 'private, no-store, max-age=0');
     try {
       const body = req.body;
       const dataToSave = typeof body === 'string' ? JSON.parse(body) : (body || {});
-      dataToSave.updatedAt = Date.now();
+      const nowMs = Date.now();
+      dataToSave.updatedAt = nowMs;
+      dataToSave.lastModified = new Date(nowMs).toISOString();
 
       sanitizeData(dataToSave);
 
       // In serverless, write to /tmp for subsequent reads within the lambda container
       try {
-        fs.writeFileSync(tmpPath, JSON.stringify(dataToSave, null, 2));
+        fs.writeFileSync(tmpPath, JSON.stringify(dataToSave));
       } catch {}
 
       // Also try writing to data/ directory if writable in local environment
@@ -89,7 +103,12 @@ export default async function handler(req, res) {
         fs.writeFileSync(repoPath, JSON.stringify(dataToSave, null, 2));
       } catch {}
 
-      return res.status(200).json({ ok: true, data: dataToSave });
+      // Minimal response payload to eliminate redundant Fast Origin Transfer (FOT)
+      return res.status(200).json({
+        ok: true,
+        updatedAt: dataToSave.updatedAt,
+        lastModified: dataToSave.lastModified,
+      });
     } catch (err) {
       return res.status(400).json({ ok: false, error: 'Invalid payload' });
     }

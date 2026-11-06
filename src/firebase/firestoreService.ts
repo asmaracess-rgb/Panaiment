@@ -377,10 +377,13 @@ export async function fetchFullDatabaseFromFirestore(): Promise<PersistedDatabas
 
 /**
  * Subscribe to real-time changes of the full application database.
+ * Also supports one-pass initial seeding via onEmpty when the document does not exist yet on server,
+ * avoiding a duplicate getDoc() read on application boot.
  */
 export function subscribeToFirestoreDatabase(
   onData: (data: PersistedDatabase) => void,
-  onError?: (err: Error) => void
+  onError?: (err: Error) => void,
+  onEmpty?: () => void
 ): Unsubscribe {
   if (isQuotaPaused()) {
     return () => {};
@@ -388,6 +391,7 @@ export function subscribeToFirestoreDatabase(
 
   const docRef = doc(db, APP_STORE_COLLECTION, FULL_DB_DOC_ID);
   let unsub: Unsubscribe = () => {};
+  let seededOnce = false;
 
   try {
     unsub = onSnapshot(
@@ -396,6 +400,9 @@ export function subscribeToFirestoreDatabase(
         if (snapshot.exists()) {
           const data = snapshot.data() as PersistedDatabase;
           onData(data);
+        } else if (!snapshot.metadata.fromCache && !seededOnce && onEmpty) {
+          seededOnce = true;
+          onEmpty();
         }
       },
       (error) => {

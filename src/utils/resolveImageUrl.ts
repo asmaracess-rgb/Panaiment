@@ -1,32 +1,9 @@
-const BUNDLED_HERO_NIPAH = new URL(
-  '../assets/images/hero_nipah_mall_panaikang_1791355921119.jpg',
-  import.meta.url
-).href;
-
-const BUNDLED_NIPAH_MALL = new URL(
-  '../assets/images/gedung_nipah_mall_makassar_1791355936725.jpg',
-  import.meta.url
-).href;
-
-const BUNDLED_KERJA_BAKTI = new URL(
-  '../assets/images/dokumentasi_kerja_bakti_1_1791349247077.jpg',
-  import.meta.url
-).href;
-
-const BUNDLED_BANK_SAMPAH = new URL(
-  '../assets/images/dokumentasi_bank_sampah_1791349262115.jpg',
-  import.meta.url
-).href;
-
-const BUNDLED_DRAINASE = new URL(
-  '../assets/images/dokumentasi_drainase_bersih_1791349273322.jpg',
-  import.meta.url
-).href;
-
-const BUNDLED_HERO_PANAIKANG = new URL(
-  '../assets/images/hero_panaikang_makassar_1791349230903.jpg',
-  import.meta.url
-).href;
+const BUNDLED_HERO_NIPAH = '/images/hero_nipah_mall_panaikang_1791355921119.jpg';
+const BUNDLED_NIPAH_MALL = '/images/gedung_nipah_mall_makassar_1791355936725.jpg';
+const BUNDLED_KERJA_BAKTI = '/images/dokumentasi_kerja_bakti_1_1791349247077.jpg';
+const BUNDLED_BANK_SAMPAH = '/images/dokumentasi_bank_sampah_1791349262115.jpg';
+const BUNDLED_DRAINASE = '/images/dokumentasi_drainase_bersih_1791349273322.jpg';
+const BUNDLED_HERO_PANAIKANG = '/images/hero_panaikang_makassar_1791349230903.jpg';
 
 /**
  * Extracts the official Instagram shortcode (e.g., "DdrMaapvrr4") from either an image path
@@ -109,11 +86,11 @@ export function getInstagramProxyUrl(
 ): string | null {
   const trimmed = (rawUrl || '').trim();
   if (trimmed.includes('ig_profile_panaikang')) {
-    return '/api/ig-media?code=profile';
+    return '/api/ig-media?code=profile&remote=1';
   }
   const code = extractInstagramShortcode(rawUrl, instagramPostUrl);
   if (!code) return null;
-  return `/api/ig-media?code=${code}`;
+  return `/api/ig-media?code=${code}&remote=1`;
 }
 
 /**
