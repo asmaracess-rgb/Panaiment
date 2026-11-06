@@ -137,8 +137,8 @@ export const CITIZEN_MENU_DEFINITIONS: CitizenMenuDefinition[] = [
       },
       {
         key: 'rtrw_bagan_struktur',
-        label: 'Bagan Struktur RT/RW (Modal & Interaktif)',
-        description: 'Akses melihat bagan pohon struktur organisasi RT/RW Kelurahan Panaikang.',
+        label: 'Bagan Struktur Organisasi RT/RW',
+        description: 'Akses melihat bagan struktur organisasi RT dan RW Kelurahan Panaikang (di halaman maupun layar penuh).',
       },
       {
         key: 'rtrw_kontak_pengurus',
@@ -262,6 +262,11 @@ export const CITIZEN_MENU_DEFINITIONS: CitizenMenuDefinition[] = [
         description: 'Agenda kerja bakti yang terencana beserta titik lokasi dan target peserta.',
       },
       {
+        key: 'kerjabakti_usulan',
+        label: '+ Usulan Kerja Bakti',
+        description: 'Tombol & formulir pengajuan usulan jadwal kerja bakti lingkungan oleh warga.',
+      },
+      {
         key: 'kerjabakti_daftar_relawan',
         label: 'Formulir Pendaftaran Partisipasi Relawan',
         description: 'Form pendaftaran warga untuk ikut serta gotong royong lingkungan.',
@@ -297,8 +302,13 @@ export const CITIZEN_MENU_DEFINITIONS: CitizenMenuDefinition[] = [
       },
       {
         key: 'urbanfarming_bibit',
-        label: 'Formulir Permohonan Bibit & Sarana Tani Gratis',
-        description: 'Pengajuan bantuan bibit sayuran dan media tanam bagi warga lorong.',
+        label: 'Katalog Bibit Gratis & Daftar Permohonan',
+        description: 'Katalog jenis bibit sayuran, TOGA, sarana tani gratis, dan daftar permohonan terverifikasi.',
+      },
+      {
+        key: 'urbanfarming_ajukan_bibit',
+        label: '+ Ajukan Paket Bibit Sekarang',
+        description: 'Tombol & formulir pengajuan paket bibit sayuran dan kompos gratis oleh warga.',
       },
     ],
   },
@@ -365,6 +375,7 @@ export interface CitizenMenuAccessConfig {
   /** Kustomisasi sub-item detail menu per UID warga */
   perCitizenAllowedSubItems?: Record<string, string[]>;
   updatedAt?: string;
+  updatedAtMs?: number;
   updatedBy?: string;
 }
 

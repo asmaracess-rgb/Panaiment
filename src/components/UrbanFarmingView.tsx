@@ -446,12 +446,12 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
 
           <button
             type="button"
-            onClick={() => handleSubItemClick('urbanfarming_bibit', 'Ajukan Bibit Gratis', () => setShowSeedFormModal(true))}
+            onClick={() => handleSubItemClick('urbanfarming_ajukan_bibit', '+ Ajukan Paket Bibit Sekarang', () => setShowSeedFormModal(true))}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#059669] hover:bg-[#047857] text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
           >
             <Sprout className="w-3.5 h-3.5" />
             <span>Ajukan Bibit Gratis</span>
-            {!isAllowed('urbanfarming_bibit') && (
+            {!isAllowed('urbanfarming_ajukan_bibit') && (
               <span className="text-xs ml-0.5" title="Akses Dibatasi">🔒</span>
             )}
           </button>
@@ -990,11 +990,11 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
 
               <button
                 type="button"
-                onClick={() => setShowSeedFormModal(true)}
+                onClick={() => handleSubItemClick('urbanfarming_ajukan_bibit', '+ Ajukan Paket Bibit Sekarang', () => setShowSeedFormModal(true))}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#059669] hover:bg-[#047857] text-white text-xs font-bold cursor-pointer self-start sm:self-auto"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Ajukan Paket Bibit Sekarang</span>
+                <span>Ajukan Paket Bibit Sekarang {!isAllowed('urbanfarming_ajukan_bibit') && '🔒'}</span>
               </button>
             </div>
 
@@ -1020,13 +1020,15 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
                     <span>Masa Panen: <strong>{seed.estHarvestDays}</strong></span>
                     <button
                       type="button"
-                      onClick={() => {
-                        setSelectedSeeds([seed.name]);
-                        setShowSeedFormModal(true);
-                      }}
+                      onClick={() =>
+                        handleSubItemClick('urbanfarming_ajukan_bibit', '+ Ajukan Paket Bibit Sekarang', () => {
+                          setSelectedSeeds([seed.name]);
+                          setShowSeedFormModal(true);
+                        })
+                      }
                       className="text-xs font-bold text-[#059669] hover:underline cursor-pointer"
                     >
-                      Pilih Bibit Ini →
+                      Pilih Bibit Ini → {!isAllowed('urbanfarming_ajukan_bibit') && '🔒'}
                     </button>
                   </div>
                 </div>
@@ -1180,7 +1182,7 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
       )}
 
       {/* ================= MODAL PENGAJUAN BIBIT ================= */}
-      {showSeedFormModal && (
+      {isAllowed('urbanfarming_ajukan_bibit') && showSeedFormModal && (
         <div
           className="fixed inset-0 z-50 bg-slate-900/80 flex items-center justify-center p-4 overflow-y-auto"
           onClick={() => setShowSeedFormModal(false)}

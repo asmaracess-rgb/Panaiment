@@ -102,7 +102,21 @@ const JOURNAL_REPORTS_KEY = 'pnk_smart_env_user_reports_v2';
 const JOURNAL_LOGS_KEY = 'pnk_smart_env_user_logs_v2';
 const JOURNAL_CITIZENS_KEY = 'pnk_smart_env_user_citizens_v2';
 const CITIZEN_MENU_ACCESS_KEY = 'pnk_citizen_menu_access_v1';
+const ADMIN_USERS_JOURNAL_KEY = 'pnk_admin_users_journal_v1';
 const DELETED_IDS_KEY = 'pnk_smart_env_deleted_ids_v2';
+
+export function saveCitizenMenuAccessJournal(config: CitizenMenuAccessConfig): void {
+  if (typeof window === 'undefined' || !config) return;
+  try {
+    const stamped: CitizenMenuAccessConfig = {
+      ...config,
+      updatedAtMs: config.updatedAtMs || Date.now(),
+    };
+    window.localStorage.setItem(CITIZEN_MENU_ACCESS_KEY, JSON.stringify(stamped));
+  } catch {
+    // Ignore storage write errors
+  }
+}
 
 export function loadCitizenMenuAccessJournal(): CitizenMenuAccessConfig | null {
   if (typeof window === 'undefined') return null;
@@ -112,6 +126,36 @@ export function loadCitizenMenuAccessJournal(): CitizenMenuAccessConfig | null {
     const parsed = JSON.parse(raw);
     if (parsed && Array.isArray(parsed.guestAllowedMenus) && Array.isArray(parsed.registeredAllowedMenus)) {
       return parsed as CitizenMenuAccessConfig;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveAdminUsersJournal(users: AdminUserAccount[], updatedAtMs = Date.now()): void {
+  if (typeof window === 'undefined' || !Array.isArray(users)) return;
+  try {
+    window.localStorage.setItem(
+      ADMIN_USERS_JOURNAL_KEY,
+      JSON.stringify({ updatedAtMs, users })
+    );
+  } catch {
+    // Ignore storage write errors
+  }
+}
+
+export function loadAdminUsersJournal(): { updatedAtMs: number; users: AdminUserAccount[] } | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(ADMIN_USERS_JOURNAL_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && Array.isArray(parsed.users) && parsed.users.length > 0) {
+      return {
+        updatedAtMs: typeof parsed.updatedAtMs === 'number' ? parsed.updatedAtMs : 0,
+        users: parsed.users as AdminUserAccount[],
+      };
     }
     return null;
   } catch {
@@ -629,13 +673,20 @@ export function smartMergeDatabases(
     ? incoming!.serviceCatalog
     : (localDb?.serviceCatalog || SERVICE_CATEGORY_GROUPS);
 
-  const resolvedAdminUsers = mergeEntityCollection(
-    localDb?.adminUsers,
-    incoming?.adminUsers,
-    INITIAL_ADMIN_USERS,
-    deletedIds,
-    localIsNewer
-  );
+  const adminJournal = loadAdminUsersJournal();
+  const adminJournalIsNewer =
+    Boolean(adminJournal) &&
+    adminJournal!.updatedAtMs >= Math.max(localUpdatedAt, incomingUpdatedAt - 5000);
+
+  const resolvedAdminUsers = adminJournalIsNewer
+    ? adminJournal!.users.filter((u) => u && u.id && !deletedIds.has(u.id))
+    : mergeEntityCollection(
+        localDb?.adminUsers,
+        incoming?.adminUsers,
+        INITIAL_ADMIN_USERS,
+        deletedIds,
+        localIsNewer
+      );
 
   const resolvedActivityLogs = Array.isArray(incoming?.activityLogs) && incoming!.activityLogs.length > 0
     ? incoming!.activityLogs
@@ -771,12 +822,16 @@ export function smartMergeDatabases(
   const resolvedCitizenUsers = Array.from(citizensMap.values());
 
   const journalMenuConfig = loadCitizenMenuAccessJournal();
-  const primaryMenuConfig = localIsNewer
-    ? (localDb?.citizenMenuConfig || journalMenuConfig || incoming?.citizenMenuConfig)
-    : (incoming?.citizenMenuConfig || localDb?.citizenMenuConfig || journalMenuConfig);
-  const secondaryMenuConfig = localIsNewer
-    ? (incoming?.citizenMenuConfig || journalMenuConfig)
-    : (localDb?.citizenMenuConfig || journalMenuConfig);
+  const menuCandidates = [
+    { cfg: journalMenuConfig, ts: journalMenuConfig?.updatedAtMs || (localIsNewer ? localUpdatedAt : 0) },
+    { cfg: localDb?.citizenMenuConfig, ts: localDb?.citizenMenuConfig?.updatedAtMs || localUpdatedAt },
+    { cfg: incoming?.citizenMenuConfig, ts: incoming?.citizenMenuConfig?.updatedAtMs || incomingUpdatedAt },
+  ]
+    .filter((c) => Boolean(c.cfg && Array.isArray(c.cfg.guestAllowedMenus)))
+    .sort((a, b) => b.ts - a.ts);
+
+  const primaryMenuConfig = menuCandidates[0]?.cfg || journalMenuConfig || localDb?.citizenMenuConfig || incoming?.citizenMenuConfig;
+  const secondaryMenuConfig = menuCandidates[1]?.cfg || incoming?.citizenMenuConfig || localDb?.citizenMenuConfig || journalMenuConfig;
 
   const resolvedCitizenMenuConfig: CitizenMenuAccessConfig = {
     guestAllowedMenus: Array.isArray(primaryMenuConfig?.guestAllowedMenus)
@@ -808,10 +863,11 @@ export function smartMergeDatabases(
       ...(primaryMenuConfig?.perCitizenAllowedSubItems || {}),
     },
     updatedAt: primaryMenuConfig?.updatedAt || secondaryMenuConfig?.updatedAt,
+    updatedAtMs: primaryMenuConfig?.updatedAtMs || secondaryMenuConfig?.updatedAtMs,
     updatedBy: primaryMenuConfig?.updatedBy || secondaryMenuConfig?.updatedBy,
   };
 
-  const maxUpdatedAt = Math.max(localUpdatedAt, incomingUpdatedAt, Date.now());
+  const maxUpdatedAt = Math.max(localUpdatedAt, incomingUpdatedAt) || Date.now();
 
   return {
     profile: resolvedProfile,
@@ -871,7 +927,9 @@ export function loadPersistedDatabase(): PersistedDatabase | null {
     }
 
     // Pass through smartMerge to ensure any journal reports or official RW structure are fully intact
-    return smartMergeDatabases(parsed as PersistedDatabase, null);
+    const merged = smartMergeDatabases(parsed as PersistedDatabase, null);
+    merged.updatedAt = typeof parsed.updatedAt === 'number' ? parsed.updatedAt : merged.updatedAt;
+    return merged;
   } catch {
     return null;
   }

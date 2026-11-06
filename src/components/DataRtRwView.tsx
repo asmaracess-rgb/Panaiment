@@ -253,14 +253,14 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
           <button
             type="button"
             onClick={() =>
-              handleSubItemClick('rtrw_bagan_struktur', 'Bagan Struktur RT/RW', () =>
+              handleSubItemClick('rtrw_bagan_struktur', 'Bagan Struktur Organisasi RT/RW', () =>
                 setShowBaganRtRw(true)
               )
             }
             className="px-3.5 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold transition-colors cursor-pointer whitespace-nowrap shadow-xs inline-flex items-center gap-1.5"
           >
             <Users className="w-4 h-4" />
-            <span>Bagan Struktur RT/RW {!isAllowed('rtrw_bagan_struktur') && '🔒'}</span>
+            <span>Bagan Struktur Organisasi RT/RW {!isAllowed('rtrw_bagan_struktur') && '🔒'}</span>
           </button>
 
           <button
@@ -399,8 +399,13 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
                   <Layers className="w-4 h-4" />
                   <span>BAGAN STRUKTUR ORGANISASI RT/RW & LPM (RESPONSIF HP · TABLET · PC)</span>
                 </div>
-                <h2 className="text-sm sm:text-base font-extrabold text-[#0D3868] mt-0.5">
-                  Bagan Struktur Organisasi RT dan RW Kelurahan Panaikang
+                <h2 className="text-sm sm:text-base font-extrabold text-[#0D3868] mt-0.5 flex items-center gap-2">
+                  <span>Bagan Struktur Organisasi RT dan RW Kelurahan Panaikang</span>
+                  {!isAllowed('rtrw_bagan_struktur') && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-bold">
+                      🔒 Perlu Login
+                    </span>
+                  )}
                 </h2>
                 <p className="text-xs text-slate-500">
                   Dilengkapi fitur <strong>Perkecil (-)</strong>, <strong>Perbesar (+)</strong>, dan{' '}
@@ -410,22 +415,37 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
               <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
                 <button
                   type="button"
-                  onClick={() => setShowInlineRtRwChart((prev) => !prev)}
+                  onClick={() =>
+                    handleSubItemClick(
+                      'rtrw_bagan_struktur',
+                      'Bagan Struktur Organisasi RT/RW',
+                      () => setShowInlineRtRwChart((prev) => !prev)
+                    )
+                  }
                   className="px-3.5 py-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-[#146329] text-xs font-bold transition cursor-pointer"
                 >
-                  {showInlineRtRwChart ? 'Sembunyikan Pratinjau' : 'Tampilkan Bagan di Halaman Ini'}
+                  {isAllowed('rtrw_bagan_struktur') && showInlineRtRwChart
+                    ? 'Sembunyikan Pratinjau'
+                    : 'Tampilkan Bagan di Halaman Ini'}
+                  {!isAllowed('rtrw_bagan_struktur') && ' 🔒'}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowBaganRtRw(true)}
+                  onClick={() =>
+                    handleSubItemClick(
+                      'rtrw_bagan_struktur',
+                      'Bagan Struktur Organisasi RT/RW',
+                      () => setShowBaganRtRw(true)
+                    )
+                  }
                   className="px-3.5 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold transition cursor-pointer shadow-2xs"
                 >
-                  Buka Layar Penuh
+                  Buka Layar Penuh {!isAllowed('rtrw_bagan_struktur') && '🔒'}
                 </button>
               </div>
             </div>
 
-            {showInlineRtRwChart && (
+            {isAllowed('rtrw_bagan_struktur') && showInlineRtRwChart && (
               <div className="pt-2 border-t border-slate-100">
                 <BaganStrukturRtRwInteractiveViewer
                   rwGroups={rwGroups}

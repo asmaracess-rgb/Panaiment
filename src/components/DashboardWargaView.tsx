@@ -16,6 +16,8 @@ import {
   Mail,
   CreditCard,
   ArrowRight,
+  ArrowLeft,
+  Home,
   X,
   Loader2,
   Building2,
@@ -449,6 +451,30 @@ export const DashboardWargaView: React.FC<DashboardWargaViewProps> = ({
 
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8 space-y-6">
+      {/* Top Back to Public Portal Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => onNavigate('beranda')}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-[#0D3868] text-xs sm:text-sm font-extrabold shadow-2xs transition-colors cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4 text-[#0277BD]" />
+          <span>Kembali ke Halaman Publik (Beranda Utama)</span>
+        </button>
+
+        <div className="flex items-center gap-2 text-xs text-slate-500">
+          <span>Portal Resmi Kelurahan Panaikang</span>
+          <span>·</span>
+          <button
+            type="button"
+            onClick={() => onNavigate('beranda')}
+            className="font-bold text-[#0277BD] hover:underline cursor-pointer"
+          >
+            Lihat Beranda Publik
+          </button>
+        </div>
+      </div>
+
       {/* Top Citizen Identity Banner */}
       <div className="rounded-3xl bg-gradient-to-r from-[#072647] via-[#0D3868] to-[#0277BD] text-white p-6 sm:p-8 shadow-lg">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -491,6 +517,15 @@ export const DashboardWargaView: React.FC<DashboardWargaViewProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => onNavigate('beranda')}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-extrabold transition shadow-xs cursor-pointer"
+            >
+              <Home className="w-4 h-4" />
+              <span>Kembali ke Halaman Publik</span>
+            </button>
+
             {userProfile.role === 'admin' && (
               <button
                 type="button"

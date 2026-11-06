@@ -88,6 +88,8 @@ import {
   PersistedDatabase,
   DEFAULT_CITIZEN_MENU_ACCESS_CONFIG,
   loadCitizenMenuAccessJournal,
+  saveCitizenMenuAccessJournal,
+  saveAdminUsersJournal,
 } from './utils/persistentStorage';
 import {
   getRealtimeDateTimeString,
@@ -898,25 +900,7 @@ export default function App() {
       .then((payload) => {
         if (!payload?.ok || !payload.data) return;
         const serverDb = payload.data as Partial<PersistedDatabase>;
-        const currentLocal = loadPersistedDatabase();
-        const merged = smartMergeDatabases(currentLocal, serverDb);
-        setKelurahanProfile(merged.profile);
-        setRwGroups(merged.rwGroups);
-        setReports(merged.reports);
-        setWasteUnits(merged.wasteUnits);
-        setWasteLogs(merged.wasteLogs);
-        setCleanupEvents(merged.cleanupEvents);
-        setKelurahanInfos(merged.kelurahanInfos);
-        setWhatsappRecipients(merged.whatsappRecipients);
-        if (merged.serviceCatalog) setServiceCatalog(merged.serviceCatalog);
-        if (merged.adminUsers) setAdminUsers(merged.adminUsers);
-        if (merged.activityLogs) setActivityLogs(merged.activityLogs);
-        if (merged.urbanFarmingSpots) setUrbanFarmingSpots(merged.urbanFarmingSpots);
-        if (merged.seedRequests) setSeedRequests(merged.seedRequests);
-        if (merged.siskamlingSchedules) setSiskamlingSchedules(merged.siskamlingSchedules);
-        setTebaSpots(merged.tebaSpots ?? []);
-        setBioporiPoints(merged.bioporiPoints ?? []);
-        savePersistedDatabase(merged);
+        applyRemoteDatabase(serverDb);
       })
       .catch(() => {});
   };
@@ -1230,12 +1214,24 @@ export default function App() {
 
   const handleSaveCitizenMenuConfig = useCallback(
     async (config: CitizenMenuAccessConfig): Promise<{ ok: boolean; error?: string }> => {
+      const nowMs = Date.now();
       const normalized: CitizenMenuAccessConfig = {
         ...config,
         updatedAt: config.updatedAt || getRealtimeDateTimeString(),
+        updatedAtMs: nowMs,
       };
+      saveCitizenMenuAccessJournal(normalized);
       setCitizenMenuConfig(normalized);
       commitPersistence({ citizenMenuConfig: normalized });
+      try {
+        await fetch('/api/citizen-menu-config', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ citizenMenuConfig: normalized }),
+        });
+      } catch {
+        // Fallback already persisted in localStorage, journal, and Firestore
+      }
       return { ok: true };
     },
     [commitPersistence]
@@ -2107,6 +2103,7 @@ export default function App() {
   const handleSaveAdminUsers = async (
     updatedUsers: AdminUserAccount[]
   ): Promise<{ ok: boolean; errors?: string[] }> => {
+    saveAdminUsersJournal(updatedUsers, Date.now());
     setAdminUsers(updatedUsers);
     commitPersistence({ adminUsers: updatedUsers });
     try {
@@ -2544,8 +2541,16 @@ export default function App() {
                     <span>Masuk / Daftar Akun Warga</span>
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => handleNavigate('beranda')}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold transition-colors cursor-pointer"
+                >
+                  <span>Kembali ke Halaman Publik (Beranda)</span>
+                </button>
                 {effectiveCitizenMenus.length > 0 &&
-                  effectiveCitizenMenus[0] !== activeView && (
+                  effectiveCitizenMenus[0] !== activeView &&
+                  effectiveCitizenMenus[0] !== 'beranda' && (
                     <button
                       type="button"
                       onClick={() => handleNavigate(effectiveCitizenMenus[0] as AppView)}

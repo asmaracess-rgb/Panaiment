@@ -44,6 +44,7 @@ import {
   loadCitizensJournal,
   DEFAULT_CITIZEN_MENU_ACCESS_CONFIG,
   loadCitizenMenuAccessJournal,
+  saveCitizenMenuAccessJournal,
 } from '../utils/persistentStorage';
 import { getRealtimeDateTimeString } from '../utils/realtimeDate';
 
@@ -210,9 +211,11 @@ export const AdminDaftarWargaPanel: React.FC<AdminDaftarWargaPanelProps> = ({
       perCitizenAllowedSubItems:
         nextPerCitizenSubs ?? effectiveMenuConfig.perCitizenAllowedSubItems ?? {},
       updatedAt: getRealtimeDateTimeString(),
+      updatedAtMs: Date.now(),
       updatedBy: 'Administrator Kelurahan',
     };
 
+    saveCitizenMenuAccessJournal(updatedConfig);
     setDraftGuestMenus(safeGuest);
     setDraftRegisteredMenus(safeRegistered);
     setDraftGuestSubItems(safeGuestSubs);
@@ -2055,17 +2058,31 @@ export const AdminDaftarWargaPanel: React.FC<AdminDaftarWargaPanelProps> = ({
               <div className="flex items-center gap-2 text-xs text-slate-500">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span>
-                  Centang menu tersimpan langsung secara real-time ke Cloud Firestore & Journal.
+                  Centang menu tersimpan langsung secara real-time ke Cloud Firestore, Server & Journal.
                 </span>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setIsGlobalAccessModalOpen(false)}
-                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold shadow-xs transition cursor-pointer"
-              >
-                Selesai & Tutup
-              </button>
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  disabled={isSavingMenuConfig}
+                  onClick={async () => {
+                    await persistMenuAccessChanges(
+                      draftGuestMenus,
+                      draftRegisteredMenus,
+                      undefined,
+                      `Parameter batasan akses warga berhasil disimpan (${draftGuestMenus.length}/10 menu Pengunjung · ${draftRegisteredMenus.length}/10 menu Warga Login).`,
+                      draftGuestSubItems,
+                      draftRegisteredSubItems
+                    );
+                    setIsGlobalAccessModalOpen(false);
+                  }}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-extrabold shadow-xs transition cursor-pointer disabled:opacity-60"
+                >
+                  <Check className="w-4 h-4 stroke-[3]" />
+                  <span>{isSavingMenuConfig ? 'Menyimpan...' : 'Simpan Parameter & Tutup'}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

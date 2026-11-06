@@ -157,11 +157,22 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
         <div className="flex items-center gap-2.5 self-start">
           <button
             type="button"
-            onClick={() => setShowAddForm((prev) => !prev)}
+            onClick={() =>
+              handleSubItemClick(
+                'kerjabakti_usulan',
+                '+ Usulan Kerja Bakti',
+                () => setShowAddForm((prev) => !prev)
+              )
+            }
             className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#5E35B1] hover:bg-[#4527A0] text-white text-xs sm:text-sm font-bold transition-colors cursor-pointer whitespace-nowrap"
           >
             <Plus className="w-4 h-4" />
-            <span>{showAddForm ? 'Tutup Formulir' : 'Usulkan Jadwal Kerja Bakti'}</span>
+            <span>
+              {isAllowed('kerjabakti_usulan') && showAddForm
+                ? 'Tutup Formulir'
+                : 'Usulkan Jadwal Kerja Bakti'}
+              {!isAllowed('kerjabakti_usulan') && ' 🔒'}
+            </span>
           </button>
         </div>
       </div>
@@ -202,7 +213,7 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
       </div>
 
       {/* Optional Add Schedule Form (Scheduled = No Photo) */}
-      {showAddForm && (
+      {isAllowed('kerjabakti_usulan') && showAddForm && (
         <div className="mt-6 bg-white rounded-2xl border border-purple-200 p-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
             <div>

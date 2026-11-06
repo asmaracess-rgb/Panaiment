@@ -39,6 +39,8 @@ import type {
   FarmingInventoryItem,
   SupplyRequestItem,
   SiskamlingRwSchedule,
+  AuthenticatedUserProfile,
+  CitizenMenuAccessConfig,
 } from './src/types.ts';
 import {
   INITIAL_TEBA_SPOTS,
@@ -91,6 +93,8 @@ interface DatabaseSchema {
   farmingInventories: FarmingInventoryItem[];
   supplyRequests: SupplyRequestItem[];
   siskamlingSchedules?: SiskamlingRwSchedule[];
+  citizenUsers?: AuthenticatedUserProfile[];
+  citizenMenuConfig?: CitizenMenuAccessConfig;
   deletedItemIds?: string[];
   lastModified: string;
   updatedAt?: number;
@@ -220,6 +224,10 @@ function loadDatabase(): DatabaseSchema {
             Array.isArray(parsed.siskamlingSchedules) && parsed.siskamlingSchedules.length > 0
               ? parsed.siskamlingSchedules
               : INITIAL_SISKAMLING_SCHEDULES,
+          citizenUsers: Array.isArray(parsed.citizenUsers)
+            ? parsed.citizenUsers.filter((c) => c && c.uid && !deletedSet.has(c.uid))
+            : [],
+          citizenMenuConfig: parsed.citizenMenuConfig,
           deletedItemIds: Array.from(deletedSet),
           lastModified: parsed.lastModified || new Date().toISOString(),
           updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : 0,
@@ -1061,6 +1069,15 @@ async function startServer() {
       db.supplyRequests = incoming.supplyRequests;
     if (Array.isArray(incoming.siskamlingSchedules))
       db.siskamlingSchedules = incoming.siskamlingSchedules;
+    if (Array.isArray(incoming.citizenUsers))
+      db.citizenUsers = incoming.citizenUsers;
+    if (incoming.citizenMenuConfig && typeof incoming.citizenMenuConfig === 'object') {
+      const incMs = incoming.citizenMenuConfig.updatedAtMs || 0;
+      const curMs = db.citizenMenuConfig?.updatedAtMs || 0;
+      if (!db.citizenMenuConfig || incMs >= curMs) {
+        db.citizenMenuConfig = incoming.citizenMenuConfig;
+      }
+    }
 
     // Prune any items that were permanently deleted
     if (deletedSet.size > 0) {
@@ -1081,10 +1098,43 @@ async function startServer() {
       db.seedRequests = db.seedRequests.filter((s) => s && s.id && !deletedSet.has(s.id));
       db.crops = db.crops.filter((c) => c && c.id && !deletedSet.has(c.id));
       db.farmerGroups = db.farmerGroups.filter((f) => f && f.id && !deletedSet.has(f.id));
+      if (Array.isArray(db.citizenUsers)) {
+        db.citizenUsers = db.citizenUsers.filter((c) => c && c.uid && !deletedSet.has(c.uid));
+      }
     }
 
     saveDatabase(db, incoming.updatedAt);
     res.json({ ok: true, data: db });
+  });
+
+  // 1AC. Parameter Batasan Akses Menu Warga (CitizenMenuAccessConfig) CRUD
+  app.get('/api/citizen-menu-config', (_req, res) => {
+    res.json({
+      ok: true,
+      data: db.citizenMenuConfig || null,
+    });
+  });
+
+  app.put('/api/citizen-menu-config', (req, res) => {
+    const incoming = (req.body?.citizenMenuConfig || req.body) as CitizenMenuAccessConfig | null;
+    if (
+      !incoming ||
+      !Array.isArray(incoming.guestAllowedMenus) ||
+      !Array.isArray(incoming.registeredAllowedMenus)
+    ) {
+      res.status(400).json({
+        ok: false,
+        errors: ['Format konfigurasi parameter batasan akses warga tidak valid.'],
+      });
+      return;
+    }
+    db.citizenMenuConfig = {
+      ...incoming,
+      updatedAt: incoming.updatedAt || getRealtimeDateTimeString(new Date()),
+      updatedAtMs: incoming.updatedAtMs || Date.now(),
+    };
+    saveDatabase(db);
+    res.json({ ok: true, data: db.citizenMenuConfig });
   });
 
   // 1AB. Log Aktivitas / Audit Trail Admin Endpoints

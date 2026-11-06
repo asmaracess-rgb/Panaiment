@@ -53,6 +53,7 @@ import {
   REPORT_COMPLAINT_CATEGORIES,
 } from '../data/wargaServiceCatalog';
 import { getRealtimeDateString } from '../utils/realtimeDate';
+import { saveAdminUsersJournal } from '../utils/persistentStorage';
 
 interface AdminParameterUserPanelProps {
   adminUsers: AdminUserAccount[];
@@ -1508,6 +1509,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
     summaryText: string
   ) => {
     const nextUsers = adminUsers.map((u) => (u.id === userId ? updater(u) : u));
+    saveAdminUsersJournal(nextUsers, Date.now());
     await onSaveAdminUsers(nextUsers);
     setFeedbackSuccess(summaryText);
   };
@@ -2239,6 +2241,33 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                           </button>
                         );
                       })}
+                    </div>
+                  </div>
+
+                  {/* Action Footer in Quick Access Matrix */}
+                  <div className="pt-3 border-t border-sky-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-xs text-emerald-800 font-semibold">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>
+                        Setiap perubahan centang pada modul, bidang layanan & kewenangan otomatis tersimpan.
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 justify-end">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          saveAdminUsersJournal(adminUsers, Date.now());
+                          await onSaveAdminUsers(adminUsers);
+                          setFeedbackSuccess(
+                            `Parameter hak akses untuk pejabat "${user.fullName}" (@${user.username}) berhasil disimpan.`
+                          );
+                          setExpandedPermissionUserId(null);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-extrabold shadow-xs transition cursor-pointer"
+                      >
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        <span>Simpan Parameter & Tutup Panel</span>
+                      </button>
                     </div>
                   </div>
                 </div>
