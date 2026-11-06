@@ -11,10 +11,15 @@ import {
   Image as ImageIcon,
   Clock,
   X,
+  Instagram,
+  ExternalLink,
+  Play,
+  Sparkles,
 } from 'lucide-react';
-import { CleanupEvent, AppView } from '../types';
-import { resolveImageUrl } from '../utils/resolveImageUrl';
+import { CleanupEvent, KerjaBaktiIgHighlightItem, AppView } from '../types';
+import { resolveImageUrl, getInstagramEmbedUrl } from '../utils/resolveImageUrl';
 import { getRealtimeFullDateString } from '../utils/realtimeDate';
+import { INITIAL_KERJABAKTI_IG_HIGHLIGHTS } from '../data/initialData';
 import { RestrictedAccessModal } from './RestrictedAccessModal';
 
 interface MonitoringKerjaBaktiViewProps {
@@ -23,6 +28,8 @@ interface MonitoringKerjaBaktiViewProps {
   onAddCleanupEvent: (newEvent: Omit<CleanupEvent, 'id'>) => void;
   onNavigate: (view: AppView) => void;
   allowedSubItems?: string[];
+  igHighlights?: KerjaBaktiIgHighlightItem[];
+  igHighlightsSyncedAt?: string;
 }
 
 export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> = ({
@@ -31,6 +38,8 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
   onAddCleanupEvent,
   onNavigate,
   allowedSubItems,
+  igHighlights = INITIAL_KERJABAKTI_IG_HIGHLIGHTS,
+  igHighlightsSyncedAt = '06 Nov 2026 · 12:00 WITA',
 }) => {
   const isAllowed = (subKey: string) => !allowedSubItems || allowedSubItems.includes(subKey);
   const [restrictedModal, setRestrictedModal] = useState<{ isOpen: boolean; title: string } | null>(null);
@@ -55,6 +64,12 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
     photoIndex: number;
     totalPhotos: number;
   } | null>(null);
+  const [selectedHighlightStory, setSelectedHighlightStory] = useState<{
+    story: KerjaBaktiIgHighlightItem;
+    showEmbed: boolean;
+  } | null>(null);
+
+  const topThreeHighlights = (igHighlights || INITIAL_KERJABAKTI_IG_HIGHLIGHTS).slice(0, 3);
 
   // Add new scheduled cleanup state (scheduled events do NOT use photos)
   const [showAddForm, setShowAddForm] = useState(false);
@@ -544,7 +559,7 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
         </section>
       )}
 
-      {/* ================= BAGIAN 2: KERJA BAKTI YANG TELAH DILAKSANAKAN (DENGAN LAMPIRAN FOTO) ================= */}
+      {/* ================= BAGIAN 2: KERJA BAKTI YANG TELAH DILAKSANAKAN (DENGAN LAMPIRAN FOTO, TANPA INSTAGRAM) ================= */}
       {(filterStatus === 'Semua' || filterStatus === 'Tuntas') && (
         <section className="mt-10">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b-2 border-emerald-200">
@@ -565,7 +580,11 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
           </div>
 
           {/* Galeri Foto Dokumentasi Khusus Kegiatan yang Telah Dilaksanakan */}
-          {allDocumentationGallery.length > 0 && (
+          {allDocumentationGallery.length === 0 ? (
+            <div className="mt-5 bg-white rounded-2xl border border-slate-200 p-6 text-center text-sm text-slate-500">
+              Belum ada foto dokumentasi kegiatan kerja bakti selesai yang diunggah oleh admin.
+            </div>
+          ) : (
             <div className="mt-5 bg-white rounded-2xl border border-slate-200 p-5 sm:p-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2">
@@ -628,153 +647,262 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
             </div>
           )}
 
-          {/* Detailed Completed Event Cards with Attached Photos */}
-          <div className="mt-5 space-y-5">
-            {completedEvents.map((ev) => {
-              const eventPhotos =
-                Array.isArray(ev.documentationPhotos) && ev.documentationPhotos.length > 0
-                  ? ev.documentationPhotos.filter(Boolean)
-                  : ev.imageUrl
-                  ? [ev.imageUrl]
-                  : [];
-              const currentMainPhoto = activePhotoByEvent[ev.id] || ev.imageUrl || eventPhotos[0];
+          {/* Detailed Completed Event Cards with Attached Photos (Pure Kerja Bakti Documentation) */}
+          {completedEvents.length > 0 && (
+            <div className="mt-5 space-y-5">
+              {completedEvents.map((ev) => {
+                const eventPhotos =
+                  Array.isArray(ev.documentationPhotos) && ev.documentationPhotos.length > 0
+                    ? ev.documentationPhotos.filter(Boolean)
+                    : ev.imageUrl
+                    ? [ev.imageUrl]
+                    : [];
+                const currentMainPhoto = activePhotoByEvent[ev.id] || ev.imageUrl || eventPhotos[0];
 
-              return (
-                <div
-                  key={ev.id}
-                  className="bg-white rounded-2xl border border-slate-200 overflow-hidden grid grid-cols-1 lg:grid-cols-12 shadow-xs"
-                >
-                  {/* Documentary Photo & Album Thumbnails Column (Only on Completed Events) */}
-                  <div className="lg:col-span-5 bg-slate-950 border-b lg:border-b-0 lg:border-r border-slate-100 flex flex-col">
-                    {currentMainPhoto ? (
-                      <div
-                        onClick={() =>
-                          setLightboxItem({
-                            photoUrl: currentMainPhoto,
-                            event: ev,
-                            photoIndex: Math.max(1, eventPhotos.indexOf(currentMainPhoto) + 1),
-                            totalPhotos: eventPhotos.length,
-                          })
-                        }
-                        className="relative h-60 sm:h-64 lg:flex-1 bg-slate-950 cursor-pointer group overflow-hidden flex items-center justify-center"
-                      >
-                        <img
-                          src={resolveImageUrl(currentMainPhoto)}
-                          alt=""
-                          aria-hidden="true"
-                          referrerPolicy="no-referrer"
-                          className="absolute inset-0 w-full h-full object-cover blur-xl opacity-45 scale-110"
-                        />
-                        <img
-                          src={resolveImageUrl(currentMainPhoto)}
-                          alt={ev.title}
-                          referrerPolicy="no-referrer"
-                          className="relative z-10 max-h-full max-w-full object-contain group-hover:scale-[1.02] transition-transform duration-200"
-                        />
-                        <div className="absolute bottom-2.5 right-2.5 z-20 px-2.5 py-1 rounded-lg bg-slate-900/80 text-white text-[11px] font-semibold flex items-center gap-1">
-                          <ImageIcon className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>{eventPhotos.length} Foto Pelaksanaan</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="h-56 flex items-center justify-center text-xs text-slate-400">
-                        Belum ada foto dokumentasi
-                      </div>
-                    )}
-
-                    {eventPhotos.length > 1 && (
-                      <div className="p-2.5 bg-white border-t border-slate-100 flex items-center gap-2 overflow-x-auto">
-                        {eventPhotos.map((photo, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() =>
-                              setActivePhotoByEvent((prev) => ({ ...prev, [ev.id]: photo }))
-                            }
-                            className={`relative w-12 h-12 rounded-lg overflow-hidden shrink-0 border-2 transition-all cursor-pointer ${
-                              currentMainPhoto === photo
-                                ? 'border-[#1C8237] scale-105'
-                                : 'border-slate-200 opacity-75 hover:opacity-100'
-                            }`}
-                          >
-                            <img
-                              src={resolveImageUrl(photo)}
-                              alt={`Dokumentasi ${idx + 1}`}
-                              referrerPolicy="no-referrer"
-                              className="w-full h-full object-cover"
-                            />
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Completed Event Content Column */}
-                  <div className="lg:col-span-7 p-6 flex flex-col justify-between">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                        <span className="font-bold text-[#0D3868]">{ev.rw}</span>
-                        <span aria-hidden="true">·</span>
-                        <span>{ev.rtScope}</span>
-                        <span aria-hidden="true">·</span>
-                        <span className="font-mono-num font-medium text-slate-700">
-                          {ev.date} ({ev.timeRange})
-                        </span>
-                        <span aria-hidden="true">·</span>
-                        <span className="text-emerald-700 font-bold inline-flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          Telah Selesai Dilaksanakan ({ev.collectedWasteKg} kg sampah terangkat)
-                        </span>
-                      </div>
-
-                      <h3 className="mt-2 text-lg sm:text-xl font-extrabold text-[#0D3868]">
-                        {ev.title}
-                      </h3>
-                      <p className="mt-1.5 text-xs sm:text-sm text-slate-600 leading-relaxed">
-                        {ev.summaryNote}
-                      </p>
-
-                      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-700">
-                        <span className="inline-flex items-center gap-1 font-medium">
-                          <MapPin className="w-3.5 h-3.5 text-[#1C8237]" />
-                          {ev.locationName}
-                        </span>
-                        <span aria-hidden="true">·</span>
-                        <span>Penanggung Jawab: {ev.coordinator}</span>
-                      </div>
-
-                      <div className="mt-4 pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                        <div>
-                          <div className="font-semibold text-slate-800 mb-1">
-                            Hasil & Sasaran yang Diselesaikan:
+                return (
+                  <div
+                    key={ev.id}
+                    className="bg-white rounded-2xl border border-slate-200 overflow-hidden grid grid-cols-1 lg:grid-cols-12 shadow-xs"
+                  >
+                    {/* Documentary Photo & Album Thumbnails Column */}
+                    <div className="lg:col-span-5 bg-slate-950 border-b lg:border-b-0 lg:border-r border-slate-100 flex flex-col">
+                      {currentMainPhoto ? (
+                        <div
+                          onClick={() =>
+                            handleSubItemClick(
+                              'kerjabakti_dokumentasi',
+                              'Dokumentasi Kerja Bakti',
+                              () =>
+                                setLightboxItem({
+                                  photoUrl: currentMainPhoto,
+                                  event: ev,
+                                  photoIndex: Math.max(1, eventPhotos.indexOf(currentMainPhoto) + 1),
+                                  totalPhotos: eventPhotos.length,
+                                })
+                            )
+                          }
+                          className="relative h-60 sm:h-64 lg:flex-1 bg-slate-950 cursor-pointer group overflow-hidden flex items-center justify-center"
+                        >
+                          <img
+                            src={resolveImageUrl(currentMainPhoto)}
+                            alt=""
+                            aria-hidden="true"
+                            referrerPolicy="no-referrer"
+                            className="absolute inset-0 w-full h-full object-cover blur-xl opacity-45 scale-110"
+                          />
+                          <img
+                            src={resolveImageUrl(currentMainPhoto)}
+                            alt={ev.title}
+                            referrerPolicy="no-referrer"
+                            className="relative z-10 max-h-full max-w-full object-contain group-hover:scale-[1.02] transition-transform duration-200"
+                          />
+                          <div className="absolute bottom-2.5 right-2.5 z-20 px-2.5 py-1 rounded-lg bg-slate-900/80 text-white text-[11px] font-semibold flex items-center gap-1">
+                            <ImageIcon className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>{eventPhotos.length} Foto Pelaksanaan</span>
                           </div>
-                          <ul className="space-y-1 text-slate-600 list-disc list-inside">
-                            {ev.focusAreas.map((fa) => (
-                              <li key={fa}>{fa}</li>
-                            ))}
-                          </ul>
                         </div>
-                        <div>
-                          <div className="font-semibold text-slate-800 mb-1">
-                            Capaian Pelaksanaan:
+                      ) : (
+                        <div className="h-56 flex items-center justify-center text-xs text-slate-400">
+                          Belum ada foto dokumentasi
+                        </div>
+                      )}
+
+                      {eventPhotos.length > 1 && (
+                        <div className="p-2.5 bg-white border-t border-slate-100 flex items-center gap-2 overflow-x-auto">
+                          {eventPhotos.map((photo, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() =>
+                                setActivePhotoByEvent((prev) => ({ ...prev, [ev.id]: photo }))
+                              }
+                              className={`relative w-12 h-12 rounded-lg overflow-hidden shrink-0 border-2 transition-all cursor-pointer ${
+                                currentMainPhoto === photo
+                                  ? 'border-[#1C8237] scale-105'
+                                  : 'border-slate-200 opacity-75 hover:opacity-100'
+                              }`}
+                            >
+                              <img
+                                src={resolveImageUrl(photo)}
+                                alt={`Dokumentasi ${idx + 1}`}
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full object-cover"
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Completed Event Content Column */}
+                    <div className="lg:col-span-7 p-6 flex flex-col justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                          <span className="font-bold text-[#0D3868]">{ev.rw}</span>
+                          <span aria-hidden="true">·</span>
+                          <span>{ev.rtScope}</span>
+                          <span aria-hidden="true">·</span>
+                          <span className="font-mono-num font-medium text-slate-700">
+                            {ev.date} ({ev.timeRange})
+                          </span>
+                          <span aria-hidden="true">·</span>
+                          <span className="text-emerald-700 font-bold inline-flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Telah Selesai Dilaksanakan ({ev.collectedWasteKg} kg sampah terangkat)
+                          </span>
+                        </div>
+
+                        <h3 className="mt-2 text-lg sm:text-xl font-extrabold text-[#0D3868]">
+                          {ev.title}
+                        </h3>
+                        <p className="mt-1.5 text-xs sm:text-sm text-slate-600 leading-relaxed">
+                          {ev.summaryNote}
+                        </p>
+
+                        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-700">
+                          <span className="inline-flex items-center gap-1 font-medium">
+                            <MapPin className="w-3.5 h-3.5 text-[#1C8237]" />
+                            {ev.locationName}
+                          </span>
+                          <span aria-hidden="true">·</span>
+                          <span>Penanggung Jawab: {ev.coordinator}</span>
+                        </div>
+
+                        <div className="mt-4 pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                          <div>
+                            <div className="font-semibold text-slate-800 mb-1">
+                              Hasil & Sasaran yang Diselesaikan:
+                            </div>
+                            <ul className="space-y-1 text-slate-600 list-disc list-inside">
+                              {ev.focusAreas.map((fa) => (
+                                <li key={fa}>{fa}</li>
+                              ))}
+                            </ul>
                           </div>
-                          <div className="space-y-1 text-slate-600 font-mono-num">
-                            <div>Peserta Hadir: {ev.registeredParticipants} Warga & Petugas</div>
-                            <div>Total Sampah Diangkut: {ev.collectedWasteKg} kg</div>
-                            <div>Lampiran Dokumentasi: {eventPhotos.length} Foto</div>
+                          <div>
+                            <div className="font-semibold text-slate-800 mb-1">
+                              Capaian Pelaksanaan:
+                            </div>
+                            <div className="space-y-1 text-slate-600 font-mono-num">
+                              <div>Peserta Hadir: {ev.registeredParticipants} Warga & Petugas</div>
+                              <div>Total Sampah Diangkut: {ev.collectedWasteKg} kg</div>
+                              <div>Lampiran Dokumentasi: {eventPhotos.length} Foto</div>
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
                   </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ================= BILAH TERSENDIRI DI BAWAH FOTO KERJA BAKTI: 3 STORY SOROTAN KERJA BAKTI @KELURAHAN.PANAIKANG ================= */}
+          <div className="mt-8 bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="p-0.5 rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-purple-600 shrink-0">
+                  <img
+                    src={resolveImageUrl('/images/ig_profile_panaikang.jpg')}
+                    alt="@kelurahan.panaikang"
+                    className="w-10 h-10 rounded-full object-cover border-2 border-white bg-white"
+                  />
                 </div>
-              );
-            })}
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-[#E1306C] inline-flex items-center gap-1">
+                      <Instagram className="w-3.5 h-3.5" />
+                      Sorotan Instagram · Kerja Bakti
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px] font-bold">
+                      @kelurahan.panaikang
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-bold">
+                      3 Story Terbaru
+                    </span>
+                  </div>
+                  <h3 className="text-sm sm:text-base font-extrabold text-[#0D3868] mt-0.5">
+                    Postingan Sorotan &ldquo;Kerja Bakti&rdquo; Terbaru (Disinkronisasi Admin Kerja Bakti)
+                  </h3>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
+                {igHighlightsSyncedAt && (
+                  <span className="text-[11px] text-slate-500 font-mono-num">
+                    Sinkron: {igHighlightsSyncedAt}
+                  </span>
+                )}
+                <a
+                  href="https://www.instagram.com/kelurahan.panaikang/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#833AB4] via-[#FD1D1D] to-[#F56040] text-white text-xs font-bold hover:opacity-95 transition-opacity"
+                >
+                  <Instagram className="w-3.5 h-3.5" />
+                  <span>@kelurahan.panaikang</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {topThreeHighlights.map((story, idx) => (
+                <div
+                  key={story.id}
+                  onClick={() =>
+                    handleSubItemClick(
+                      'kerjabakti_dokumentasi',
+                      'Sorotan Instagram Kerja Bakti',
+                      () => setSelectedHighlightStory({ story, showEmbed: false })
+                    )
+                  }
+                  className="group rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-white hover:border-pink-300 transition-all overflow-hidden cursor-pointer flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="relative h-44 w-full bg-slate-900 overflow-hidden">
+                      <img
+                        src={resolveImageUrl(story.imageUrl, story.instagramPostUrl)}
+                        alt={story.title}
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-200"
+                      />
+                      <div className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-lg bg-black/70 backdrop-blur-xs text-white text-[10px] font-bold inline-flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-amber-300" />
+                        <span>Story Sorotan #{idx + 1}</span>
+                      </div>
+                      <div className="absolute bottom-2.5 right-2.5 w-8 h-8 rounded-full bg-gradient-to-tr from-[#833AB4] via-[#FD1D1D] to-[#F56040] text-white flex items-center justify-center shadow-md">
+                        <Play className="w-3.5 h-3.5 fill-white" />
+                      </div>
+                    </div>
+
+                    <div className="p-3.5">
+                      <div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-slate-500">
+                        <span className="text-[#0D3868] font-bold">{story.rwScope}</span>
+                        <span className="font-mono-num">{story.publishedAt}</span>
+                      </div>
+                      <h4 className="mt-1 text-xs sm:text-sm font-extrabold text-slate-900 line-clamp-2">
+                        {story.title}
+                      </h4>
+                      <p className="mt-1 text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                        {story.caption}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="px-3.5 py-2.5 border-t border-slate-200/80 bg-white flex items-center justify-between text-[11px] font-bold text-[#E1306C]">
+                    <span>Lihat Story & Reel Sorotan</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
       )}
 
-      {/* Lightbox Modal for Viewing Uploaded Kerja Bakti Documentation Photos */}
+      {/* Lightbox Modal for Viewing Uploaded Kerja Bakti Documentation Photos (Pure Kerja Bakti) */}
       {lightboxItem && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs"
@@ -822,6 +950,114 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
                 {lightboxItem.event.registeredParticipants} Peserta ·{' '}
                 {lightboxItem.event.collectedWasteKg} kg Sampah
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal for Viewing 1 of the 3 Sorotan Kerja Bakti Instagram Stories */}
+      {selectedHighlightStory && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs"
+          onClick={() => setSelectedHighlightStory(null)}
+        >
+          <div
+            className="bg-white rounded-3xl max-w-2xl w-full overflow-hidden shadow-2xl border border-slate-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-3">
+              <div>
+                <div className="text-xs font-bold text-[#E1306C] flex items-center gap-1.5">
+                  <Instagram className="w-3.5 h-3.5" />
+                  <span>
+                    {selectedHighlightStory.story.highlightName} · @kelurahan.panaikang ·{' '}
+                    {selectedHighlightStory.story.publishedAt}
+                  </span>
+                </div>
+                <h3 className="text-base font-extrabold text-[#0D3868] line-clamp-1">
+                  {selectedHighlightStory.story.title}
+                </h3>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {getInstagramEmbedUrl(
+                  selectedHighlightStory.story.imageUrl,
+                  selectedHighlightStory.story.instagramPostUrl
+                ) && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelectedHighlightStory((prev) =>
+                        prev ? { ...prev, showEmbed: !prev.showEmbed } : null
+                      )
+                    }
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#833AB4] via-[#FD1D1D] to-[#F56040] text-white text-xs font-bold cursor-pointer"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-white" />
+                    <span>
+                      {selectedHighlightStory.showEmbed ? 'Lihat Gambar Story' : 'Putar Reel IG'}
+                    </span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSelectedHighlightStory(null)}
+                  className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-700 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {selectedHighlightStory.showEmbed &&
+            getInstagramEmbedUrl(
+              selectedHighlightStory.story.imageUrl,
+              selectedHighlightStory.story.instagramPostUrl
+            ) ? (
+              <div className="relative h-96 sm:h-[460px] w-full bg-white">
+                <iframe
+                  src={
+                    getInstagramEmbedUrl(
+                      selectedHighlightStory.story.imageUrl,
+                      selectedHighlightStory.story.instagramPostUrl
+                    )!
+                  }
+                  title={selectedHighlightStory.story.title}
+                  className="w-full h-full border-0"
+                  allow="encrypted-media"
+                />
+              </div>
+            ) : (
+              <div className="relative h-80 sm:h-[420px] w-full bg-slate-900 flex items-center justify-center">
+                <img
+                  src={resolveImageUrl(
+                    selectedHighlightStory.story.imageUrl,
+                    selectedHighlightStory.story.instagramPostUrl
+                  )}
+                  alt={selectedHighlightStory.story.title}
+                  referrerPolicy="no-referrer"
+                  className="max-h-full max-w-full object-contain"
+                />
+              </div>
+            )}
+
+            <div className="p-5 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-600">
+              <div>
+                <div className="font-bold text-slate-900">
+                  {selectedHighlightStory.story.rwScope}
+                </div>
+                <p className="mt-0.5 text-slate-600">{selectedHighlightStory.story.caption}</p>
+              </div>
+              <a
+                href={selectedHighlightStory.story.instagramPostUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#833AB4] via-[#FD1D1D] to-[#F56040] text-white font-bold shrink-0 self-start sm:self-center"
+              >
+                <Instagram className="w-3.5 h-3.5" />
+                <span>Buka di Instagram</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
             </div>
           </div>
         </div>

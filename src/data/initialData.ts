@@ -5,6 +5,7 @@ import type {
   TebaSpot,
   BioporiPoint,
   CleanupEvent,
+  KerjaBaktiIgHighlightItem,
   MonthlyReportTrend,
   KelurahanProfile,
   StructuralOfficial,
@@ -32,6 +33,8 @@ export const IMG_DRAINASE = '/images/dokumentasi_drainase_bersih_1791349273322.j
 
 // Official @kelurahan.panaikang Instagram Image Assets
 export const IG_PROFILE_PANAIKANG = '/images/ig_profile_panaikang.jpg';
+export const IG_POST_KERJABAKTI_1 = '/images/ig_post_kerjabakti_1_DfYirNrJjaT.jpg';
+export const IG_POST_KERJABAKTI_2 = '/images/ig_post_kerjabakti_2_DfHDLK2vqk0.jpg';
 export const IG_POST_LATEST_1 = '/images/ig_post_latest_1_DfT7acUJdwh.jpg';
 export const IG_POST_LATEST_2 = '/images/ig_post_latest_2_DfM0_MZvZON.jpg';
 export const IG_POST_LATEST_3 = '/images/ig_post_latest_3_DfM0LNqPFR5.jpg';
@@ -48,9 +51,6 @@ export const IG_POST_10 = '/images/ig_post_10_DdfhgGQPaJX.jpg';
 export const IG_POST_11 = '/images/ig_post_11_DdfU_r-PUM3.jpg';
 export const IG_POST_12 = '/images/ig_post_12_Dda51qXP4nb.jpg';
 
-// Seluruh data bawaan sistem dikosongkan sesuai permintaan pengguna.
-// Administrator kelurahan akan menginput seluruh data dari awal melalui Panel Admin.
-
 export const INITIAL_REPORTS: CitizenReport[] = [];
 
 export const INITIAL_WASTE_UNITS: WasteBankUnit[] = [];
@@ -62,6 +62,46 @@ export const INITIAL_TEBA_SPOTS: TebaSpot[] = [];
 export const INITIAL_BIOPORI_POINTS: BioporiPoint[] = [];
 
 export const INITIAL_CLEANUP_EVENTS: CleanupEvent[] = [];
+
+// 3 Postingan Story Sorotan Kerja Bakti Terbaru dari Akun Resmi @kelurahan.panaikang
+export const INITIAL_KERJABAKTI_IG_HIGHLIGHTS: KerjaBaktiIgHighlightItem[] = [
+  {
+    id: 'kb-ig-story-1-DfYirNrJjaT',
+    shortcode: 'DfYirNrJjaT',
+    title: 'Kerja Bakti Kolaborasi & Toleransi di Kelurahan Panaikang',
+    caption:
+      'Camat Panakkukang Syahril turun langsung memantau pelaksanaan kegiatan kerja bakti di wilayah Kelurahan Panaikang, Jumat (06/11/2026) bersama PKBGT Klasis Makassar Tengah, jajaran pemerintah kelurahan, serta warga setempat.',
+    publishedAt: '06 November 2026',
+    rwScope: 'RW 01 – RW 07',
+    imageUrl: IG_POST_KERJABAKTI_1,
+    instagramPostUrl: 'https://www.instagram.com/reel/DfYirNrJjaT/',
+    highlightName: 'Sorotan: Kerja Bakti',
+  },
+  {
+    id: 'kb-ig-story-2-DfHDLK2vqk0',
+    shortcode: 'DfHDLK2vqk0',
+    title: 'Giat Jumat ASRI Aspol Tello Baru Kelurahan Panaikang',
+    caption:
+      'Giat Jumat ASRI tanggal 30 Oktober 2026 di Aspol Tello Baru (RW 01) Kelurahan Panaikang. Aksi gotong royong jajaran kelurahan bersama pengurus RT/RW dan warga menjaga kebersihan lingkungan.',
+    publishedAt: '30 Oktober 2026',
+    rwScope: 'RW 01 · Aspol Tello Baru',
+    imageUrl: IG_POST_KERJABAKTI_2,
+    instagramPostUrl: 'https://www.instagram.com/reel/DfHDLK2vqk0/',
+    highlightName: 'Sorotan: Kerja Bakti',
+  },
+  {
+    id: 'kb-ig-story-3-Dd-xlSLvXKn',
+    shortcode: 'Dd-xlSLvXKn',
+    title: 'Jumat ASRI RW 05: Jebolkan Drainase Mampet',
+    caption:
+      'Jumat ASRI 2 Oktober 2026 RT-RW Kelurahan Panaikang melaksanakan kerja bakti. Saluran yang mampet dibersihkan, endapan dan sampah diangkat agar aliran air kembali lancar dan potensi genangan diminimalkan.',
+    publishedAt: '02 Oktober 2026',
+    rwScope: 'RW 05 Kelurahan Panaikang',
+    imageUrl: IG_POST_6,
+    instagramPostUrl: 'https://www.instagram.com/reel/Dd-xlSLvXKn/',
+    highlightName: 'Sorotan: Kerja Bakti',
+  },
+];
 
 export const INITIAL_RW_GROUPS: RwGroup[] = [
   {

@@ -47,6 +47,7 @@ import {
   ALL_CITIZEN_MENU_KEYS,
   CITIZEN_MENU_DEFINITIONS,
   ALL_CITIZEN_SUB_ITEM_KEYS,
+  KerjaBaktiIgHighlightItem,
 } from './types';
 import {
   INITIAL_REPORTS,
@@ -55,6 +56,7 @@ import {
   INITIAL_TEBA_SPOTS,
   INITIAL_BIOPORI_POINTS,
   INITIAL_CLEANUP_EVENTS,
+  INITIAL_KERJABAKTI_IG_HIGHLIGHTS,
   INITIAL_KELURAHAN_PROFILE,
   INITIAL_KELURAHAN_INFOS,
   INITIAL_RW_GROUPS,
@@ -90,6 +92,8 @@ import {
   loadCitizenMenuAccessJournal,
   saveCitizenMenuAccessJournal,
   saveAdminUsersJournal,
+  loadKerjaBaktiIgHighlights,
+  saveKerjaBaktiIgHighlights,
 } from './utils/persistentStorage';
 import {
   getRealtimeDateTimeString,
@@ -239,11 +243,36 @@ export default function App() {
 
   const [cleanupEvents, setCleanupEvents] = useState<CleanupEvent[]>(() => {
     const deleted = getDeletedItemIds();
-    const source = Array.isArray(initialPersisted?.cleanupEvents)
-      ? initialPersisted.cleanupEvents
-      : INITIAL_CLEANUP_EVENTS;
-    return source.filter((e) => e && e.id && !deleted.has(e.id));
+    const persistedList = Array.isArray(initialPersisted?.cleanupEvents)
+      ? initialPersisted.cleanupEvents.filter(
+          (e) => e && e.id && !deleted.has(e.id) && !String(e.id).startsWith('ig-kb-')
+        )
+      : [];
+    const map = new Map<string, CleanupEvent>();
+    for (const item of persistedList) {
+      map.set(item.id, item);
+    }
+    for (const initItem of INITIAL_CLEANUP_EVENTS) {
+      if (
+        initItem &&
+        initItem.id &&
+        !deleted.has(initItem.id) &&
+        !String(initItem.id).startsWith('ig-kb-') &&
+        !map.has(initItem.id)
+      ) {
+        map.set(initItem.id, initItem);
+      }
+    }
+    return Array.from(map.values());
   });
+
+  const initialKbHighlights = useMemo(() => loadKerjaBaktiIgHighlights(), []);
+  const [kerjaBaktiHighlights, setKerjaBaktiHighlights] = useState<KerjaBaktiIgHighlightItem[]>(
+    () => initialKbHighlights.items.slice(0, 3)
+  );
+  const [kerjaBaktiHighlightsSyncedAt, setKerjaBaktiHighlightsSyncedAt] = useState<string>(
+    () => initialKbHighlights.syncedAt
+  );
 
   const [kelurahanInfos, setKelurahanInfos] = useState<KelurahanInfoItem[]>(() => {
     const deleted = getDeletedItemIds();
@@ -2052,6 +2081,33 @@ export default function App() {
     return { ok: true, syncedAt };
   };
 
+  const handleSyncKerjaBaktiHighlights = async (): Promise<{
+    ok: boolean;
+    syncedAt?: string;
+  }> => {
+    try {
+      const res = await fetch('/api/cleanup-events/sync-ig-highlights', { method: 'POST' });
+      const json = await res.json();
+      if (json.ok && Array.isArray(json.data) && json.data.length > 0) {
+        const top3 = (json.data as KerjaBaktiIgHighlightItem[]).slice(0, 3);
+        const syncedAt =
+          json.syncedAt || `${getRealtimeDateTimeString(new Date())} WITA`;
+        setKerjaBaktiHighlights(top3);
+        setKerjaBaktiHighlightsSyncedAt(syncedAt);
+        saveKerjaBaktiIgHighlights(top3, syncedAt);
+        return { ok: true, syncedAt };
+      }
+    } catch {
+      // Fallback to local sync below
+    }
+    const top3 = INITIAL_KERJABAKTI_IG_HIGHLIGHTS.slice(0, 3);
+    const syncedAt = `${getRealtimeDateTimeString(new Date())} WITA`;
+    setKerjaBaktiHighlights(top3);
+    setKerjaBaktiHighlightsSyncedAt(syncedAt);
+    saveKerjaBaktiIgHighlights(top3, syncedAt);
+    return { ok: true, syncedAt };
+  };
+
   // 6. Data RT & RW CRUD
   const handleSaveRwGroups = async (
     updatedGroups: RwGroup[]
@@ -2735,6 +2791,8 @@ export default function App() {
             onAddCleanupEvent={handleAddCleanupEvent}
             onNavigate={handleNavigate}
             allowedSubItems={effectiveCitizenSubItems}
+            igHighlights={kerjaBaktiHighlights}
+            igHighlightsSyncedAt={kerjaBaktiHighlightsSyncedAt}
           />
         )}
 
@@ -2788,6 +2846,9 @@ export default function App() {
             onUpdateInfo={handleAdminUpdateInfo}
             onDeleteInfo={handleAdminDeleteInfo}
             onSyncInstagram={handleSyncInstagram}
+            kerjaBaktiHighlights={kerjaBaktiHighlights}
+            kerjaBaktiHighlightsSyncedAt={kerjaBaktiHighlightsSyncedAt}
+            onSyncKerjaBaktiHighlights={handleSyncKerjaBaktiHighlights}
             onNavigate={handleNavigate}
             initialTab={adminInitialTab}
             onUpdateReportStatus={handleUpdateReportStatus}

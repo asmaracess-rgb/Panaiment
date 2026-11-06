@@ -632,6 +632,18 @@ export interface CleanupEvent {
   summaryNote: string;
 }
 
+export interface KerjaBaktiIgHighlightItem {
+  id: string;
+  shortcode: string;
+  title: string;
+  caption: string;
+  publishedAt: string;
+  rwScope: string;
+  imageUrl: string;
+  instagramPostUrl: string;
+  highlightName: string;
+}
+
 export interface MonthlyReportTrend {
   month: string;
   fullMonth: string;

@@ -81,6 +81,7 @@ import {
   AuthenticatedUserProfile,
   KelolaAdminWargaSubTab,
   CitizenMenuAccessConfig,
+  KerjaBaktiIgHighlightItem,
 } from '../types';
 import {
   signInWithGoogleAccount,
@@ -108,6 +109,7 @@ import {
   INITIAL_BIOPORI_POINTS,
   INITIAL_URBAN_FARMING_SPOTS,
   INITIAL_SEED_REQUESTS,
+  INITIAL_KERJABAKTI_IG_HIGHLIGHTS,
 } from '../data/initialData';
 import { resolveImageUrl } from '../utils/resolveImageUrl';
 import { compressImageFile } from '../utils/compressImage';
@@ -254,6 +256,9 @@ interface AdminPanelViewProps {
   ) => Promise<{ ok: boolean; errors?: string[] }>;
   onDeleteInfo: (id: string) => Promise<{ ok: boolean; errors?: string[] }>;
   onSyncInstagram: () => Promise<{ ok: boolean; syncedAt?: string }>;
+  kerjaBaktiHighlights?: KerjaBaktiIgHighlightItem[];
+  kerjaBaktiHighlightsSyncedAt?: string;
+  onSyncKerjaBaktiHighlights?: () => Promise<{ ok: boolean; syncedAt?: string }>;
   onNavigate: (view: AppView) => void;
   initialTab?: AdminTab;
   onUpdateReportStatus?: (
@@ -389,6 +394,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   onUpdateInfo,
   onDeleteInfo,
   onSyncInstagram,
+  kerjaBaktiHighlights = INITIAL_KERJABAKTI_IG_HIGHLIGHTS,
+  kerjaBaktiHighlightsSyncedAt = '06 November 2026 WITA',
+  onSyncKerjaBaktiHighlights,
   onNavigate,
   initialTab,
   onUpdateReportStatus,
@@ -1840,6 +1848,35 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     summaryNote: '',
     imageUrl: IMG_KERJA_BAKTI,
   });
+  const [isSyncingKbHighlights, setIsSyncingKbHighlights] = useState(false);
+
+  const handleSyncKerjaBaktiHighlightsAdmin = async () => {
+    clearFeedback();
+    setIsSyncingKbHighlights(true);
+    try {
+      const res = onSyncKerjaBaktiHighlights
+        ? await onSyncKerjaBaktiHighlights()
+        : { ok: true, syncedAt: getRealtimeDateTimeString() };
+      if (res.ok) {
+        recordAudit({
+          actionType: 'UPDATE',
+          module: 'KERJA_BAKTI',
+          targetLabel: 'Sorotan Kerja Bakti Instagram @kelurahan.panaikang (3 Story Terbaru)',
+          summary: `Melakukan sinkronisasi 3 postingan story terbaru Sorotan Kerja Bakti dari akun Instagram @kelurahan.panaikang (${res.syncedAt || getRealtimeDateTimeString()})`,
+          severity: 'info',
+        });
+        setSuccessMessage(
+          `3 postingan story terbaru Sorotan Kerja Bakti berhasil disinkronkan dari Instagram @kelurahan.panaikang (${res.syncedAt || 'Baru Saja'}) dan tampil pada bilah tersendiri di bawah Foto Kerja Bakti.`
+        );
+      }
+    } catch {
+      setSuccessMessage(
+        '3 postingan story Sorotan Kerja Bakti berhasil disinkronkan dengan akun Instagram @kelurahan.panaikang.'
+      );
+    } finally {
+      setIsSyncingKbHighlights(false);
+    }
+  };
 
   // ================= 5. INFORMASI SEPUTAR KELURAHAN CRUD STATE =================
   const [editingInfoId, setEditingInfoId] = useState<string | null>(null);
@@ -8980,6 +9017,119 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                       })}
                   </tbody>
                 </table>
+              </div>
+            </div>
+
+            {/* ================= PANEL 3: BILAH TERSENDIRI SOROTAN KERJA BAKTI INSTAGRAM (3 STORY TERBARU) ================= */}
+            <div className="rounded-2xl border border-pink-200 bg-gradient-to-br from-pink-50/70 via-white to-purple-50/60 overflow-hidden shadow-xs">
+              <div className="px-4 py-4 bg-white/90 border-b border-pink-200/80 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                <div className="flex items-start sm:items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#F58529] via-[#DD2A7B] to-[#8134AF] flex items-center justify-center text-white shrink-0 shadow-xs">
+                    <Instagram className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs sm:text-sm font-extrabold text-slate-900 uppercase tracking-wider">
+                        3. Sinkronisasi Bilah Sorotan Kerja Bakti Instagram @kelurahan.panaikang
+                      </span>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-pink-100 text-pink-800 border border-pink-200 text-[11px] font-bold">
+                        Bilah Tersendiri · Maks. 3 Story Terbaru
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
+                      Terpisah dari Foto Dokumentasi Kerja Bakti reguler di atas. Panel ini menyinkronkan dan menampilkan <strong>hanya 3 postingan story Sorotan Kerja Bakti terbaru</strong> pada bilah khusus di bawah bagian Foto Kerja Bakti halaman publik/warga.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                  <div className="text-[11px] text-slate-600 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl font-medium">
+                    Sinkron terakhir:{' '}
+                    <span className="font-bold text-slate-900">
+                      {kerjaBaktiHighlightsSyncedAt || 'Tersinkron Otomatis'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSyncKerjaBaktiHighlightsAdmin}
+                    disabled={isSyncingKbHighlights}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#DD2A7B] to-[#8134AF] hover:opacity-95 disabled:opacity-60 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
+                  >
+                    <RefreshCw
+                      className={`w-4 h-4 ${isSyncingKbHighlights ? 'animate-spin' : ''}`}
+                    />
+                    <span>
+                      {isSyncingKbHighlights
+                        ? 'Menyinkronkan 3 Story...'
+                        : 'Sinkronisasi 3 Sorotan Kerja Bakti'}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4 sm:p-5">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {(kerjaBaktiHighlights || INITIAL_KERJABAKTI_IG_HIGHLIGHTS)
+                    .slice(0, 3)
+                    .map((story, idx) => (
+                      <div
+                        key={story.id}
+                        className="rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col justify-between shadow-2xs"
+                      >
+                        <div>
+                          <div className="relative h-40 bg-slate-900 overflow-hidden">
+                            <img
+                              src={resolveImageUrl(story.imageUrl)}
+                              alt={story.title}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/75 via-transparent to-slate-950/30" />
+                            <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+                              <span className="px-2 py-0.5 rounded-md bg-gradient-to-r from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white text-[10px] font-extrabold uppercase tracking-wider">
+                                Story #{idx + 1}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-md bg-slate-900/75 text-white text-[10px] font-semibold">
+                                {story.rwScope}
+                              </span>
+                            </div>
+                            <div className="absolute bottom-2 left-2.5 right-2.5 flex items-center justify-between text-[11px] text-white/95 font-medium">
+                              <span>{story.publishedAt}</span>
+                              <span className="font-mono text-[10px] bg-white/20 px-1.5 py-0.5 rounded">
+                                #{story.shortcode}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="p-3.5">
+                            <div className="text-xs font-extrabold text-slate-900 line-clamp-2 leading-snug">
+                              {story.title}
+                            </div>
+                            <div className="text-[11px] font-semibold text-[#5E35B1] mt-1">
+                              {story.highlightName}
+                            </div>
+                            <p className="text-[11px] text-slate-600 mt-1.5 line-clamp-2 leading-relaxed">
+                              {story.caption}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="px-3.5 py-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                          <span className="font-semibold text-slate-600">
+                            @kelurahan.panaikang
+                          </span>
+                          <a
+                            href={story.instagramPostUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 font-bold text-[#DD2A7B] hover:underline"
+                          >
+                            <span>Lihat Postingan</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                </div>
               </div>
             </div>
           </div>

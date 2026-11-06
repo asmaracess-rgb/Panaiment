@@ -11,6 +11,8 @@ const SRC_ASSETS_DIR = path.join(ROOT_DIR, 'src', 'assets', 'images');
 
 const IG_ASSETS = [
   { filename: 'ig_profile_panaikang.jpg', shortcode: 'DfT7acUJdwh', isProfile: true },
+  { filename: 'ig_post_kerjabakti_1_DfYirNrJjaT.jpg', shortcode: 'DfYirNrJjaT', isProfile: false },
+  { filename: 'ig_post_kerjabakti_2_DfHDLK2vqk0.jpg', shortcode: 'DfHDLK2vqk0', isProfile: false },
   { filename: 'ig_post_latest_1_DfT7acUJdwh.jpg', shortcode: 'DfT7acUJdwh', isProfile: false },
   { filename: 'ig_post_latest_2_DfM0_MZvZON.jpg', shortcode: 'DfM0_MZvZON', isProfile: false },
   { filename: 'ig_post_latest_3_DfM0LNqPFR5.jpg', shortcode: 'DfM0LNqPFR5', isProfile: false },

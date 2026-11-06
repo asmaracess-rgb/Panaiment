@@ -25,6 +25,7 @@ import {
   CitizenMenuAccessConfig,
   ALL_CITIZEN_MENU_KEYS,
   ALL_CITIZEN_SUB_ITEM_KEYS,
+  KerjaBaktiIgHighlightItem,
 } from '../types';
 import {
   INITIAL_KELURAHAN_PROFILE,
@@ -36,6 +37,7 @@ import {
   INITIAL_TEBA_SPOTS,
   INITIAL_BIOPORI_POINTS,
   INITIAL_CLEANUP_EVENTS,
+  INITIAL_KERJABAKTI_IG_HIGHLIGHTS,
   INITIAL_KELURAHAN_INFOS,
   INITIAL_WHATSAPP_RECIPIENTS,
   INITIAL_ADMIN_USERS,
@@ -160,6 +162,51 @@ export function loadAdminUsersJournal(): { updatedAtMs: number; users: AdminUser
     return null;
   } catch {
     return null;
+  }
+}
+
+const KERJABAKTI_IG_HIGHLIGHTS_KEY = 'pnk_kerjabakti_ig_highlights_v1';
+
+export function loadKerjaBaktiIgHighlights(): {
+  items: KerjaBaktiIgHighlightItem[];
+  syncedAt: string;
+} {
+  const defaultRes = {
+    items: INITIAL_KERJABAKTI_IG_HIGHLIGHTS.slice(0, 3),
+    syncedAt: '06 Nov 2026 · 12:00 WITA',
+  };
+  if (typeof window === 'undefined') return defaultRes;
+  try {
+    const raw = window.localStorage.getItem(KERJABAKTI_IG_HIGHLIGHTS_KEY);
+    if (!raw) return defaultRes;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed?.items) && parsed.items.length > 0) {
+      return {
+        items: (parsed.items as KerjaBaktiIgHighlightItem[]).slice(0, 3),
+        syncedAt: parsed.syncedAt || defaultRes.syncedAt,
+      };
+    }
+    return defaultRes;
+  } catch {
+    return defaultRes;
+  }
+}
+
+export function saveKerjaBaktiIgHighlights(
+  items: KerjaBaktiIgHighlightItem[],
+  syncedAt: string
+): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(
+      KERJABAKTI_IG_HIGHLIGHTS_KEY,
+      JSON.stringify({
+        items: items.slice(0, 3),
+        syncedAt,
+      })
+    );
+  } catch {
+    // Ignore storage quota errors
   }
 }
 
@@ -613,14 +660,14 @@ export function smartMergeDatabases(
     localIsNewer
   );
 
-  // 6. Cleanup Events
+  // 6. Cleanup Events (purely admin/citizen Kerja Bakti events, not mixed with Instagram)
   const resolvedCleanupEvents = mergeEntityCollection(
     localDb?.cleanupEvents,
     incoming?.cleanupEvents,
     INITIAL_CLEANUP_EVENTS,
     deletedIds,
     localIsNewer
-  );
+  ).filter((item) => item && item.id && !item.id.startsWith('ig-kb-'));
 
   // 7. Urban Farming Spots & Seed Requests
   const resolvedUrbanFarmingSpots = mergeEntityCollection(

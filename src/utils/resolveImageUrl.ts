@@ -39,6 +39,8 @@ export function extractInstagramShortcode(
 ): string | null {
   const combined = `${rawUrl || ''} ${instagramPostUrl || ''}`;
 
+  if (combined.includes('DfYirNrJjaT') || combined.includes('ig_post_kerjabakti_1_')) return 'DfYirNrJjaT';
+  if (combined.includes('DfHDLK2vqk0') || combined.includes('ig_post_kerjabakti_2_')) return 'DfHDLK2vqk0';
   if (combined.includes('DfT7acUJdwh') || combined.includes('ig_post_latest_1_')) return 'DfT7acUJdwh';
   if (combined.includes('DfM0_MZvZON') || combined.includes('ig_post_latest_2_')) return 'DfM0_MZvZON';
   if (combined.includes('DfM0LNqPFR5') || combined.includes('ig_post_latest_3_')) return 'DfM0LNqPFR5';
@@ -65,6 +67,8 @@ export function extractInstagramShortcode(
 }
 
 const SHORTCODE_TO_STATIC_PATH: Record<string, string> = {
+  DfYirNrJjaT: '/images/ig_post_kerjabakti_1_DfYirNrJjaT.jpg',
+  DfHDLK2vqk0: '/images/ig_post_kerjabakti_2_DfHDLK2vqk0.jpg',
   DfT7acUJdwh: '/images/ig_post_latest_1_DfT7acUJdwh.jpg',
   DfM0_MZvZON: '/images/ig_post_latest_2_DfM0_MZvZON.jpg',
   DfM0LNqPFR5: '/images/ig_post_latest_3_DfM0LNqPFR5.jpg',
