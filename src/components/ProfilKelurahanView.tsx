@@ -16,6 +16,7 @@ import { KelurahanProfile, WasteBankUnit, RwGroup, AppView } from '../types';
 import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
 import { BaganStrukturKelurahanModal } from './BaganStrukturKelurahanModal';
 import { BaganStrukturRtRwModal } from './BaganStrukturRtRwModal';
+import { RestrictedAccessModal } from './RestrictedAccessModal';
 
 interface ProfilKelurahanViewProps {
   profile: KelurahanProfile;
@@ -34,8 +35,17 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
 }) => {
   const [showBaganKelurahan, setShowBaganKelurahan] = useState<boolean>(false);
   const [showBaganRtRw, setShowBaganRtRw] = useState<boolean>(false);
+  const [restrictedModal, setRestrictedModal] = useState<{ isOpen: boolean; title: string } | null>(null);
 
   const isAllowed = (subKey: string) => !allowedSubItems || allowedSubItems.includes(subKey);
+
+  const handleSubItemClick = (subKey: string, title: string, allowedAction: () => void) => {
+    if (isAllowed(subKey)) {
+      allowedAction();
+    } else {
+      setRestrictedModal({ isOpen: true, title });
+    }
+  };
 
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8">
@@ -60,27 +70,31 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 self-start">
-          {isAllowed('profil_bagan_kelurahan') && (
-            <button
-              type="button"
-              onClick={() => setShowBaganKelurahan(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-semibold transition-all shadow-xs cursor-pointer whitespace-nowrap"
-            >
-              <Building2 className="w-3.5 h-3.5" />
-              <span>Bagan Struktur Kelurahan</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() =>
+              handleSubItemClick('profil_bagan_kelurahan', 'Bagan Struktur Kelurahan', () =>
+                setShowBaganKelurahan(true)
+              )
+            }
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-semibold transition-all shadow-xs cursor-pointer whitespace-nowrap"
+          >
+            <Building2 className="w-3.5 h-3.5" />
+            <span>Bagan Struktur Kelurahan {!isAllowed('profil_bagan_kelurahan') && '🔒'}</span>
+          </button>
 
-          {isAllowed('profil_bagan_rtrw') && (
-            <button
-              type="button"
-              onClick={() => setShowBaganRtRw(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-semibold transition-all shadow-xs cursor-pointer whitespace-nowrap"
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>Bagan Struktur RT / RW</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() =>
+              handleSubItemClick('profil_bagan_rtrw', 'Bagan Struktur RT / RW', () =>
+                setShowBaganRtRw(true)
+              )
+            }
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-semibold transition-all shadow-xs cursor-pointer whitespace-nowrap"
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>Bagan Struktur RT / RW {!isAllowed('profil_bagan_rtrw') && '🔒'}</span>
+          </button>
 
           <button
             type="button"
@@ -117,79 +131,98 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
               </div>
 
               {/* Data Pejabat Lurah */}
-              {isAllowed('profil_data_lurah') && (
-                <div className="mt-6">
-                  <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0277BD]">
-                    <UserCheck className="w-4 h-4" />
-                    <span>DATA PIMPINAN LURAH PANAIKANG</span>
-                  </div>
+              <div
+                className={`mt-6 transition-all ${
+                  !isAllowed('profil_data_lurah')
+                    ? 'cursor-pointer p-4 rounded-2xl bg-amber-50/50 border border-amber-200 hover:border-amber-400'
+                    : ''
+                }`}
+                onClick={
+                  !isAllowed('profil_data_lurah')
+                    ? () => handleSubItemClick('profil_data_lurah', 'Data Pimpinan Lurah', () => {})
+                    : undefined
+                }
+              >
+                <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0277BD]">
+                  <UserCheck className="w-4 h-4" />
+                  <span>DATA PIMPINAN LURAH PANAIKANG {!isAllowed('profil_data_lurah') && '🔒 [Akses Dibatasi]'}</span>
+                </div>
 
-                  <div className="mt-3 p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-slate-50 via-white to-sky-50/40 border border-slate-200/90 shadow-xs">
-                    <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
-                      {/* Foto Lurah Resmi */}
-                      <div className="relative shrink-0">
-                        <div className="w-28 h-36 sm:w-32 sm:h-40 rounded-xl overflow-hidden border-2 border-[#0D3868]/40 shadow-sm bg-white">
-                          <img
-                            src={
-                              profile.lurahPhotoUrl?.trim() ||
-                              '/images/lurah_muthmainnah_panaikang_1791548085422.jpg'
-                            }
-                            alt={`Foto Resmi ${profile.lurahName || 'Lurah Panaikang'}`}
-                            className="w-full h-full object-cover object-top"
-                          />
-                        </div>
-                        <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-[#0D3868] text-white text-[10px] font-bold tracking-wider uppercase whitespace-nowrap shadow-xs">
-                          Lurah
-                        </div>
+                <div className="mt-3 p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-slate-50 via-white to-sky-50/40 border border-slate-200/90 shadow-xs">
+                  <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
+                    {/* Foto Lurah Resmi */}
+                    <div className="relative shrink-0">
+                      <div className="w-28 h-36 sm:w-32 sm:h-40 rounded-xl overflow-hidden border-2 border-[#0D3868]/40 shadow-sm bg-white">
+                        <img
+                          src={
+                            profile.lurahPhotoUrl?.trim() ||
+                            '/images/lurah_muthmainnah_panaikang_1791548085422.jpg'
+                          }
+                          alt={`Foto Resmi ${profile.lurahName || 'Lurah Panaikang'}`}
+                          className="w-full h-full object-cover object-top"
+                        />
                       </div>
+                      <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-[#0D3868] text-white text-[10px] font-bold tracking-wider uppercase whitespace-nowrap shadow-xs">
+                        Lurah
+                      </div>
+                    </div>
 
-                      {/* Biodata & Sambutan Pejabat Lurah */}
-                      <div className="flex-1 min-w-0 text-center sm:text-left">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                          <div>
-                            <div className="text-lg sm:text-xl font-extrabold text-[#0D3868]">
-                              {profile.lurahName || 'MUTHMAINNAH, S.E., M.M'}
-                            </div>
-                            <div className="mt-1 flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs text-slate-600">
-                              <span className="font-semibold text-emerald-700">Lurah Panaikang</span>
-                              {profile.lurahNip && (
-                                <>
-                                  <span aria-hidden="true">·</span>
-                                  <span className="font-mono-num font-medium">NIP. {profile.lurahNip}</span>
-                                </>
-                              )}
-                              {profile.lurahRank && (
-                                <>
-                                  <span aria-hidden="true">·</span>
-                                  <span>{profile.lurahRank}</span>
-                                </>
-                              )}
-                            </div>
+                    {/* Biodata & Sambutan Pejabat Lurah */}
+                    <div className="flex-1 min-w-0 text-center sm:text-left">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <div className="text-lg sm:text-xl font-extrabold text-[#0D3868]">
+                            {profile.lurahName || 'MUTHMAINNAH, S.E., M.M'}
                           </div>
-                          {profile.lurahPeriod && (
-                            <div className="text-xs font-mono-num font-semibold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 self-center sm:self-start">
-                              Masa Tugas: {profile.lurahPeriod}
-                            </div>
-                          )}
+                          <div className="mt-1 flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs text-slate-600">
+                            <span className="font-semibold text-emerald-700">Lurah Panaikang</span>
+                            {profile.lurahNip && (
+                              <>
+                                <span aria-hidden="true">·</span>
+                                <span className="font-mono-num font-medium">NIP. {profile.lurahNip}</span>
+                              </>
+                            )}
+                            {profile.lurahRank && (
+                              <>
+                                <span aria-hidden="true">·</span>
+                                <span>{profile.lurahRank}</span>
+                              </>
+                            )}
+                          </div>
                         </div>
-
-                        {profile.lurahMessage ? (
-                          <p className="mt-4 pt-3 border-t border-slate-200/80 text-xs sm:text-sm italic text-slate-700 leading-relaxed bg-white/70 p-3.5 rounded-xl border border-slate-100">
-                            "{profile.lurahMessage}"
-                          </p>
-                        ) : null}
+                        {profile.lurahPeriod && (
+                          <div className="text-xs font-mono-num font-semibold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 self-center sm:self-start">
+                            Masa Tugas: {profile.lurahPeriod}
+                          </div>
+                        )}
                       </div>
+
+                      {profile.lurahMessage ? (
+                        <p className="mt-4 pt-3 border-t border-slate-200/80 text-xs sm:text-sm italic text-slate-700 leading-relaxed bg-white/70 p-3.5 rounded-xl border border-slate-100">
+                          "{profile.lurahMessage}"
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                 </div>
-              )}
+              </div>
 
               {/* Perangkat Struktural Kelurahan */}
-              {isAllowed('profil_perangkat_seksi') && (
-                <div className="mt-6">
+              <div
+                className={`mt-6 transition-all ${
+                  !isAllowed('profil_perangkat_seksi')
+                    ? 'cursor-pointer p-4 rounded-2xl bg-amber-50/50 border border-amber-200 hover:border-amber-400'
+                    : ''
+                }`}
+                onClick={
+                  !isAllowed('profil_perangkat_seksi')
+                    ? () => handleSubItemClick('profil_perangkat_seksi', 'Pejabat Struktural & Staf Seksi', () => {})
+                    : undefined
+                }
+              >
                 <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                   <div className="text-xs font-bold text-slate-700 tracking-wide uppercase">
-                    Struktur Jabatan & Perangkat Kelurahan
+                    Struktur Jabatan & Perangkat Kelurahan {!isAllowed('profil_perangkat_seksi') && '🔒 [Akses Dibatasi]'}
                   </div>
                   <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
                     {profile.officials?.length || 0} Pejabat Terdaftar
@@ -264,18 +297,27 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
                   </div>
                 )}
               </div>
-              )}
             </div>
           </div>
 
           {/* Right Card (5 cols): Alamat Kantor Kelurahan & Wilayah Geografis */}
-          {isAllowed('profil_alamat_kontak') && (
-            <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 flex flex-col justify-between space-y-6">
-              <div>
-                <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1C8237]">
-                  <Building2 className="w-4 h-4" />
-                  <span>ALAMAT & KONTAK KANTOR KELURAHAN</span>
-                </div>
+          <div
+            className={`lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 flex flex-col justify-between space-y-6 ${
+              !isAllowed('profil_alamat_kontak')
+                ? 'cursor-pointer bg-amber-50/50 border-amber-200 hover:border-amber-400'
+                : ''
+            }`}
+            onClick={
+              !isAllowed('profil_alamat_kontak')
+                ? () => handleSubItemClick('profil_alamat_kontak', 'Alamat & Kontak Kantor Kelurahan', () => {})
+                : undefined
+            }
+          >
+            <div>
+              <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1C8237]">
+                <Building2 className="w-4 h-4" />
+                <span>ALAMAT & KONTAK KANTOR KELURAHAN {!isAllowed('profil_alamat_kontak') && '🔒 [Akses Dibatasi]'}</span>
+              </div>
 
               <h3 className="mt-2 text-base sm:text-lg font-bold text-[#0D3868]">
                 Kantor Lurah Panaikang
@@ -367,18 +409,27 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
               </div>
             </div>
           </div>
-          )}
         </div>
 
         {/* VISI & MISI KELURAHAN PANAIKANG SECTION */}
-        {isAllowed('profil_visi_misi') && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Visi Card (5 cols) */}
-            <div className="lg:col-span-5 bg-gradient-to-b from-[#0D3868] to-[#072647] text-white rounded-2xl p-6 sm:p-8 flex flex-col justify-between">
+        <div
+          className={`grid grid-cols-1 lg:grid-cols-12 gap-6 ${
+            !isAllowed('profil_visi_misi')
+              ? 'cursor-pointer bg-amber-50/50 p-3 rounded-3xl border border-amber-200 hover:border-amber-400'
+              : ''
+          }`}
+          onClick={
+            !isAllowed('profil_visi_misi')
+              ? () => handleSubItemClick('profil_visi_misi', 'Visi & Misi Kelurahan', () => {})
+              : undefined
+          }
+        >
+          {/* Visi Card (5 cols) */}
+          <div className="lg:col-span-5 bg-gradient-to-b from-[#0D3868] to-[#072647] text-white rounded-2xl p-6 sm:p-8 flex flex-col justify-between">
             <div>
               <div className="inline-flex items-center gap-2 text-xs font-bold text-emerald-300 tracking-wider">
                 <Target className="w-4 h-4" />
-                <span>VISI KELURAHAN PANAIKANG</span>
+                <span>VISI KELURAHAN PANAIKANG {!isAllowed('profil_visi_misi') && '🔒 [Akses Dibatasi]'}</span>
               </div>
 
               <blockquote className="mt-4 text-base sm:text-lg font-extrabold leading-relaxed text-white text-balance">
@@ -395,7 +446,7 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
           {/* Misi List Card (7 cols) */}
           <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-6 sm:p-8">
             <h2 className="text-lg font-extrabold text-[#0D3868]">
-              Misi Pembangunan & Pengelolaan Lingkungan Kelurahan Panaikang
+              Misi Pembangunan & Pengelolaan Lingkungan Kelurahan Panaikang {!isAllowed('profil_visi_misi') && '🔒'}
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
               Langkah strategis pelaksanaan program Panaikang Smart Environment
@@ -425,15 +476,24 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
             )}
           </div>
         </div>
-        )}
 
         {/* Direktori Koordinator RW & Unit Bank Sampah Kelurahan Panaikang */}
-        {isAllowed('profil_direktori_rw') && (
-          <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <div
+          className={`bg-white rounded-2xl border border-slate-200 p-6 ${
+            !isAllowed('profil_direktori_rw')
+              ? 'cursor-pointer bg-amber-50/50 border-amber-200 hover:border-amber-400'
+              : ''
+          }`}
+          onClick={
+            !isAllowed('profil_direktori_rw')
+              ? () => handleSubItemClick('profil_direktori_rw', 'Direktori Wilayah RW 01 - RW 07', () => {})
+              : undefined
+          }
+        >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
             <div>
               <h2 className="text-base font-bold text-[#0D3868]">
-                Direktori Wilayah RW 01 – RW 07 & Koordinator Lingkungan Kelurahan Panaikang
+                Direktori Wilayah RW 01 – RW 07 & Koordinator Lingkungan {!isAllowed('profil_direktori_rw') && '🔒 [Akses Dibatasi]'}
               </h2>
               <p className="text-xs text-slate-500">
                 Jajaran pelaksana lapangan program kebersihan dan Bank Sampah Unit (BSU) tiap RW
@@ -475,7 +535,6 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
             ))}
           </div>
         </div>
-        )}
       </div>
 
       {/* Bagan Struktur Organisasi Kelurahan Modal */}
@@ -493,6 +552,14 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
         rwGroups={rwGroups}
         profile={profile}
         onNavigateToRtRw={() => onNavigate('rtrw')}
+      />
+
+      {/* Modal Prompt untuk Fitur yang Dibatasi Aksesnya */}
+      <RestrictedAccessModal
+        isOpen={Boolean(restrictedModal?.isOpen)}
+        onClose={() => setRestrictedModal(null)}
+        title={restrictedModal?.title || ''}
+        onNavigateToLogin={() => onNavigate('login')}
       />
     </div>
   );

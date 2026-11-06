@@ -31,6 +31,7 @@ import {
   AppView,
 } from '../types';
 import { resolveImageUrl } from '../utils/resolveImageUrl';
+import { RestrictedAccessModal } from './RestrictedAccessModal';
 
 interface MonitoringSampahViewProps {
   wasteUnits: WasteBankUnit[];
@@ -59,6 +60,15 @@ export const MonitoringSampahView: React.FC<MonitoringSampahViewProps> = ({
   allowedSubItems,
 }) => {
   const isAllowed = (subKey: string) => !allowedSubItems || allowedSubItems.includes(subKey);
+  const [restrictedModal, setRestrictedModal] = useState<{ isOpen: boolean; title: string } | null>(null);
+
+  const handleSubItemClick = (subKey: string, title: string, allowedAction: () => void) => {
+    if (isAllowed(subKey)) {
+      allowedAction();
+    } else {
+      setRestrictedModal({ isOpen: true, title });
+    }
+  };
 
   // Main Sub-menu Switcher: 'bsu' | 'teba' | 'biopori'
   const [activeSubMenu, setActiveSubMenu] = useState<'bsu' | 'teba' | 'biopori'>('bsu');
@@ -178,73 +188,76 @@ export const MonitoringSampahView: React.FC<MonitoringSampahViewProps> = ({
       {/* Sub Menu Navigation (3 Sub Menus: Bank Sampah Unit (BSU), Teba, Biopori) */}
       <div className="mt-6 flex flex-wrap items-center gap-2 sm:gap-3 p-1.5 rounded-2xl bg-slate-100 border border-slate-200">
         {/* Sub-menu 1: BSU */}
-        {isAllowed('sampah_bsu_units') && (
-          <button
-            type="button"
-            onClick={() => setActiveSubMenu('bsu')}
-            className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-              activeSubMenu === 'bsu'
-                ? 'bg-[#EF6C00] text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+        <button
+          type="button"
+          onClick={() => handleSubItemClick('sampah_bsu_units', 'Bank Sampah Unit (BSU)', () => setActiveSubMenu('bsu'))}
+          className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+            activeSubMenu === 'bsu'
+              ? 'bg-[#EF6C00] text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+          }`}
+        >
+          <Recycle className="w-4 h-4 shrink-0" />
+          <span>Bank Sampah Unit (BSU)</span>
+          {!isAllowed('sampah_bsu_units') && (
+            <span className="text-xs" title="Akses Dibatasi">🔒</span>
+          )}
+          <span
+            className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono-num ${
+              activeSubMenu === 'bsu' ? 'bg-amber-800/40 text-white' : 'bg-slate-200 text-slate-700'
             }`}
           >
-            <Recycle className="w-4 h-4 shrink-0" />
-            <span>Bank Sampah Unit (BSU)</span>
-            <span
-              className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono-num ${
-                activeSubMenu === 'bsu' ? 'bg-amber-800/40 text-white' : 'bg-slate-200 text-slate-700'
-              }`}
-            >
-              {wasteUnits.length} Unit
-            </span>
-          </button>
-        )}
+            {wasteUnits.length} Unit
+          </span>
+        </button>
 
         {/* Sub-menu 2: Teba */}
-        {isAllowed('sampah_teba_komunal') && (
-          <button
-            type="button"
-            onClick={() => setActiveSubMenu('teba')}
-            className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-              activeSubMenu === 'teba'
-                ? 'bg-[#1C8237] text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+        <button
+          type="button"
+          onClick={() => handleSubItemClick('sampah_teba_komunal', 'Teba Komunal', () => setActiveSubMenu('teba'))}
+          className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+            activeSubMenu === 'teba'
+              ? 'bg-[#1C8237] text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+          }`}
+        >
+          <Sprout className="w-4 h-4 shrink-0" />
+          <span>Teba</span>
+          {!isAllowed('sampah_teba_komunal') && (
+            <span className="text-xs" title="Akses Dibatasi">🔒</span>
+          )}
+          <span
+            className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono-num ${
+              activeSubMenu === 'teba' ? 'bg-emerald-800/40 text-white' : 'bg-slate-200 text-slate-700'
             }`}
           >
-            <Sprout className="w-4 h-4 shrink-0" />
-            <span>Teba</span>
-            <span
-              className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono-num ${
-                activeSubMenu === 'teba' ? 'bg-emerald-800/40 text-white' : 'bg-slate-200 text-slate-700'
-              }`}
-            >
-              {tebaList.length} Titik
-            </span>
-          </button>
-        )}
+            {tebaList.length} Titik
+          </span>
+        </button>
 
-        {/* Sub-menu 3: Biopori (New requested sub-menu) */}
-        {isAllowed('sampah_biopori') && (
-          <button
-            type="button"
-            onClick={() => setActiveSubMenu('biopori')}
-            className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-              activeSubMenu === 'biopori'
-                ? 'bg-[#0277BD] text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+        {/* Sub-menu 3: Biopori */}
+        <button
+          type="button"
+          onClick={() => handleSubItemClick('sampah_biopori', 'Biopori', () => setActiveSubMenu('biopori'))}
+          className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+            activeSubMenu === 'biopori'
+              ? 'bg-[#0277BD] text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+          }`}
+        >
+          <Droplets className="w-4 h-4 shrink-0" />
+          <span>Biopori</span>
+          {!isAllowed('sampah_biopori') && (
+            <span className="text-xs" title="Akses Dibatasi">🔒</span>
+          )}
+          <span
+            className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono-num ${
+              activeSubMenu === 'biopori' ? 'bg-sky-800/40 text-white' : 'bg-slate-200 text-slate-700'
             }`}
           >
-            <Droplets className="w-4 h-4 shrink-0" />
-            <span>Biopori</span>
-            <span
-              className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono-num ${
-                activeSubMenu === 'biopori' ? 'bg-sky-800/40 text-white' : 'bg-slate-200 text-slate-700'
-              }`}
-            >
-              {bioporiList.length} Zona · {totalBioporiHoles} Lubang
-            </span>
-          </button>
-        )}
+            {bioporiList.length} Zona · {totalBioporiHoles} Lubang
+          </span>
+        </button>
       </div>
 
       {/* ==================== SUB MENU 1: BANK SAMPAH UNIT (BSU) ==================== */}
@@ -533,84 +546,102 @@ export const MonitoringSampahView: React.FC<MonitoringSampahViewProps> = ({
             </div>
 
             {/* Interactive Waste Bank Savings Calculator for Citizens */}
-            {isAllowed('sampah_kalkulator') && (
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center gap-2 pb-3 border-b border-slate-200">
+            <div
+              onClick={() => {
+                if (!isAllowed('sampah_kalkulator')) {
+                  handleSubItemClick('sampah_kalkulator', 'Kalkulator Simulasi Tabungan', () => {});
+                }
+              }}
+              className={`bg-white rounded-2xl border border-slate-200 p-6 shadow-xs flex flex-col justify-between relative ${
+                !isAllowed('sampah_kalkulator') ? 'cursor-pointer hover:border-amber-400' : ''
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                  <div className="flex items-center gap-2">
                     <Calculator className="w-4 h-4 text-emerald-700" />
                     <h2 className="text-base font-bold text-[#0D3868]">
                       Simulasi Tabungan Bank Sampah Warga
                     </h2>
                   </div>
-                  <p className="mt-2 text-xs text-slate-600">
-                    Hitung nilai ekonomis sampah terpilah rumah tangga Anda berdasarkan harga acuan BSU
-                    Kelurahan Panaikang:
-                  </p>
-
-                  <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">
-                        Botol Plastik PET (kg)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={petKg}
-                        onChange={(e) => setPetKg(Math.max(0, Number(e.target.value) || 0))}
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono-num"
-                      />
-                    </div>
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">
-                        Kardus & Kertas (kg)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={cardboardKg}
-                        onChange={(e) => setCardboardKg(Math.max(0, Number(e.target.value) || 0))}
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono-num"
-                      />
-                    </div>
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">
-                        Kaleng Aluminium (kg)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={aluminumKg}
-                        onChange={(e) => setAluminumKg(Math.max(0, Number(e.target.value) || 0))}
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono-num"
-                      />
-                    </div>
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">
-                        Minyak Jelantah (Liter)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={cookingOilLiters}
-                        onChange={(e) =>
-                          setCookingOilLiters(Math.max(0, Number(e.target.value) || 0))
-                        }
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono-num"
-                      />
-                    </div>
-                  </div>
+                  {!isAllowed('sampah_kalkulator') && (
+                    <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-xs font-bold flex items-center gap-1">
+                      🔒 Akses Dibatasi
+                    </span>
+                  )}
                 </div>
+                <p className="mt-2 text-xs text-slate-600">
+                  Hitung nilai ekonomis sampah terpilah rumah tangga Anda berdasarkan harga acuan BSU
+                  Kelurahan Panaikang:
+                </p>
 
-                <div className="mt-6 p-4 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
-                  <div className="text-xs font-semibold text-emerald-900">
-                    Estimasi Saldo Tabungan BSU:
+                <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Botol Plastik PET (kg)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={petKg}
+                      onChange={(e) => setPetKg(Math.max(0, Number(e.target.value) || 0))}
+                      disabled={!isAllowed('sampah_kalkulator')}
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono-num disabled:bg-slate-50"
+                    />
                   </div>
-                  <div className="text-xl font-extrabold text-emerald-800 font-mono-num">
-                    Rp {estimatedRupiah.toLocaleString('id-ID')}
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Kardus & Kertas (kg)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={cardboardKg}
+                      onChange={(e) => setCardboardKg(Math.max(0, Number(e.target.value) || 0))}
+                      disabled={!isAllowed('sampah_kalkulator')}
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono-num disabled:bg-slate-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Kaleng Aluminium (kg)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={aluminumKg}
+                      onChange={(e) => setAluminumKg(Math.max(0, Number(e.target.value) || 0))}
+                      disabled={!isAllowed('sampah_kalkulator')}
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono-num disabled:bg-slate-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Minyak Jelantah (Liter)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={cookingOilLiters}
+                      onChange={(e) =>
+                        setCookingOilLiters(Math.max(0, Number(e.target.value) || 0))
+                      }
+                      disabled={!isAllowed('sampah_kalkulator')}
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono-num disabled:bg-slate-50"
+                    />
                   </div>
                 </div>
               </div>
-            )}
+
+              <div className="mt-6 p-4 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
+                <div className="text-xs font-semibold text-emerald-900">
+                  Estimasi Saldo Tabungan BSU:
+                </div>
+                <div className="text-xl font-extrabold text-emerald-800 font-mono-num">
+                  Rp {estimatedRupiah.toLocaleString('id-ID')}
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Weighing History Table */}
@@ -1753,6 +1784,19 @@ export const MonitoringSampahView: React.FC<MonitoringSampahViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Restricted Access Modal */}
+      {restrictedModal && (
+        <RestrictedAccessModal
+          isOpen={restrictedModal.isOpen}
+          title={restrictedModal.title}
+          onClose={() => setRestrictedModal(null)}
+          onLogin={() => {
+            setRestrictedModal(null);
+            onNavigate('login');
+          }}
+        />
       )}
     </div>
   );

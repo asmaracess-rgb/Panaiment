@@ -5229,9 +5229,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     {/* Lurah Photo */}
                     <div className="relative group shrink-0 mx-auto sm:mx-0">
                       <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden border-2 border-slate-200 bg-slate-100 flex items-center justify-center shadow-xs">
-                        {profileDraft.lurahPhotoUrl ? (
+                        {Boolean(profileDraft.lurahPhotoUrl?.trim()) ? (
                           <img
-                            src={profileDraft.lurahPhotoUrl}
+                            src={profileDraft.lurahPhotoUrl!}
                             alt={profileDraft.lurahName}
                             className="w-full h-full object-cover object-top"
                           />
@@ -10128,9 +10128,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 </label>
                 <div className="flex items-center gap-3">
                   <div className="w-14 h-14 rounded-xl border border-slate-200 bg-slate-100 overflow-hidden flex items-center justify-center shrink-0">
-                    {lurahForm.lurahPhotoUrl ? (
+                    {Boolean(lurahForm.lurahPhotoUrl?.trim()) ? (
                       <img
-                        src={lurahForm.lurahPhotoUrl}
+                        src={lurahForm.lurahPhotoUrl!}
                         alt="Preview"
                         className="w-full h-full object-cover object-top"
                       />

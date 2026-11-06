@@ -28,6 +28,7 @@ import {
   UserPlus,
 } from 'lucide-react';
 import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
+import { RestrictedAccessModal } from './RestrictedAccessModal';
 import {
   CitizenReport,
   ReportCategory,
@@ -120,6 +121,15 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
   allowedSubItems,
 }) => {
   const isAllowed = (key: string) => !allowedSubItems || allowedSubItems.includes(key);
+  const [restrictedModal, setRestrictedModal] = useState<{ isOpen: boolean; title: string } | null>(null);
+
+  const handleSubItemClick = (subKey: string, title: string, allowedAction: () => void) => {
+    if (isAllowed(subKey)) {
+      allowedAction();
+    } else {
+      setRestrictedModal({ isOpen: true, title });
+    }
+  };
   // Navigation section state (matches prototype)
   const [section, setSection] = useState<SectionKey>('home');
   const [aduanPage, setAduanPage] = useState<AduanTab>('new');
@@ -922,45 +932,56 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
 
               {/* Sub-Tabs: Buat Laporan | Lacak Laporan | Daftar Laporan */}
               <div className="flex flex-wrap items-center gap-2 pb-2">
-                {isAllowed('warga_aduan_baru') && (
-                  <button
-                    type="button"
-                    onClick={() => setAduanPage('new')}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                      aduanPage === 'new'
-                        ? 'bg-[#0277BD] text-white shadow-xs'
-                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                    }`}
-                  >
-                    ＋ Buat Laporan
-                  </button>
-                )}
-                {isAllowed('warga_lacak_tiket') && (
-                  <button
-                    type="button"
-                    onClick={() => setAduanPage('track')}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                      aduanPage === 'track'
-                        ? 'bg-[#0277BD] text-white shadow-xs'
-                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                    }`}
-                  >
-                    ⌕ Lacak Laporan
-                  </button>
-                )}
-                {isAllowed('warga_daftar_laporan') && (
-                  <button
-                    type="button"
-                    onClick={() => setAduanPage('list')}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                      aduanPage === 'list'
-                        ? 'bg-[#0277BD] text-white shadow-xs'
-                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                    }`}
-                  >
-                    ☷ Daftar Laporan ({reports.length})
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleSubItemClick('warga_aduan_baru', 'Buat Laporan Baru', () => setAduanPage('new'))
+                  }
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    aduanPage === 'new'
+                      ? 'bg-[#0277BD] text-white shadow-xs'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  <span>＋ Buat Laporan</span>
+                  {!isAllowed('warga_aduan_baru') && (
+                    <span className="text-xs ml-1" title="Akses Dibatasi">🔒</span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleSubItemClick('warga_lacak_tiket', 'Lacak Laporan / Tiket', () => setAduanPage('track'))
+                  }
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    aduanPage === 'track'
+                      ? 'bg-[#0277BD] text-white shadow-xs'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  <span>⌕ Lacak Laporan</span>
+                  {!isAllowed('warga_lacak_tiket') && (
+                    <span className="text-xs ml-1" title="Akses Dibatasi">🔒</span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleSubItemClick('warga_daftar_laporan', 'Daftar Laporan Publik', () => setAduanPage('list'))
+                  }
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    aduanPage === 'list'
+                      ? 'bg-[#0277BD] text-white shadow-xs'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  <span>☷ Daftar Laporan ({reports.length})</span>
+                  {!isAllowed('warga_daftar_laporan') && (
+                    <span className="text-xs ml-1" title="Akses Dibatasi">🔒</span>
+                  )}
+                </button>
               </div>
 
               {/* TAB 1: FORMULIR BUAT LAPORAN */}
@@ -1159,7 +1180,7 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
                             Mengompres foto...
                           </span>
                         )}
-                        {aduanForm.photoDataUrl && (
+                        {Boolean(aduanForm.photoDataUrl && aduanForm.photoDataUrl.trim()) && (
                           <div className="flex items-center gap-2">
                             <img
                               src={aduanForm.photoDataUrl}
@@ -1756,15 +1777,20 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
                           <span>Cetak Checklist</span>
                         </button>
 
-                        {isAllowed('warga_pengajuan_surat') && (
-                          <button
-                            type="button"
-                            onClick={() => setAdminPage('apply')}
-                            className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#0277BD] hover:bg-[#0D3868] text-white text-xs font-extrabold shadow-sm cursor-pointer transition"
-                          >
-                            <span>Ajukan Permohonan Ini →</span>
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleSubItemClick('warga_pengajuan_surat', `Ajukan Permohonan ${selectedService.name}`, () =>
+                              setAdminPage('apply')
+                            )
+                          }
+                          className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#0277BD] hover:bg-[#0D3868] text-white text-xs font-extrabold shadow-sm cursor-pointer transition"
+                        >
+                          <span>Ajukan Permohonan Ini →</span>
+                          {!isAllowed('warga_pengajuan_surat') && (
+                            <span className="text-xs ml-0.5" title="Akses Dibatasi">🔒</span>
+                          )}
+                        </button>
                       </div>
                     </div>
 
@@ -2097,6 +2123,19 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
           )}
         </section>
       </div>
+
+      {/* Restricted Access Modal */}
+      {restrictedModal && (
+        <RestrictedAccessModal
+          isOpen={restrictedModal.isOpen}
+          title={restrictedModal.title}
+          onClose={() => setRestrictedModal(null)}
+          onLogin={() => {
+            setRestrictedModal(null);
+            onNavigate('login');
+          }}
+        />
+      )}
     </div>
   );
 };

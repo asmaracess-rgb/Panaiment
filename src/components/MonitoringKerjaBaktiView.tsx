@@ -15,6 +15,7 @@ import {
 import { CleanupEvent, AppView } from '../types';
 import { resolveImageUrl } from '../utils/resolveImageUrl';
 import { getRealtimeFullDateString } from '../utils/realtimeDate';
+import { RestrictedAccessModal } from './RestrictedAccessModal';
 
 interface MonitoringKerjaBaktiViewProps {
   cleanupEvents: CleanupEvent[];
@@ -32,6 +33,15 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
   allowedSubItems,
 }) => {
   const isAllowed = (subKey: string) => !allowedSubItems || allowedSubItems.includes(subKey);
+  const [restrictedModal, setRestrictedModal] = useState<{ isOpen: boolean; title: string } | null>(null);
+
+  const handleSubItemClick = (subKey: string, title: string, allowedAction: () => void) => {
+    if (isAllowed(subKey)) {
+      allowedAction();
+    } else {
+      setRestrictedModal({ isOpen: true, title });
+    }
+  };
   const [filterStatus, setFilterStatus] = useState<'Semua' | 'Terjadwal' | 'Tuntas'>('Semua');
   const [joiningEventId, setJoiningEventId] = useState<string | null>(null);
   const [participantName, setParticipantName] = useState('');
@@ -444,18 +454,21 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
                           </span>
                         )}
 
-                        {isAllowed('kerjabakti_daftar_relawan') && (
-                          <button
-                            type="button"
-                            onClick={() =>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleSubItemClick('kerjabakti_daftar_relawan', 'Daftar Hadir Warga', () =>
                               setJoiningEventId(joiningEventId === ev.id ? null : ev.id)
-                            }
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#5E35B1] hover:bg-[#4527A0] text-white text-xs font-bold transition-colors cursor-pointer"
-                          >
-                            <UserPlus className="w-3.5 h-3.5" />
-                            <span>Daftar Hadir Warga</span>
-                          </button>
-                        )}
+                            )
+                          }
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#5E35B1] hover:bg-[#4527A0] text-white text-xs font-bold transition-colors cursor-pointer"
+                        >
+                          <UserPlus className="w-3.5 h-3.5" />
+                          <span>Daftar Hadir Warga</span>
+                          {!isAllowed('kerjabakti_daftar_relawan') && (
+                            <span className="text-xs ml-0.5" title="Akses Dibatasi">🔒</span>
+                          )}
+                        </button>
                       </div>
 
                       {isAllowed('kerjabakti_daftar_relawan') && joiningEventId === ev.id && (
@@ -541,7 +554,7 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
           </div>
 
           {/* Galeri Foto Dokumentasi Khusus Kegiatan yang Telah Dilaksanakan */}
-          {isAllowed('kerjabakti_dokumentasi') && allDocumentationGallery.length > 0 && (
+          {allDocumentationGallery.length > 0 && (
             <div className="mt-5 bg-white rounded-2xl border border-slate-200 p-5 sm:p-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2">
@@ -549,6 +562,11 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
                   <h3 className="text-sm sm:text-base font-extrabold text-[#0D3868]">
                     Galeri Foto Kerja Bakti yang Telah Selesai Dilaksanakan
                   </h3>
+                  {!isAllowed('kerjabakti_dokumentasi') && (
+                    <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-xs font-bold">
+                      🔒 Akses Dibatasi
+                    </span>
+                  )}
                 </div>
                 <span className="text-xs font-semibold text-emerald-700 font-mono-num">
                   {allDocumentationGallery.length} Foto Dokumentasi Terlampir
@@ -560,12 +578,14 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
                   <div
                     key={item.id}
                     onClick={() =>
-                      setLightboxItem({
-                        photoUrl: item.photoUrl,
-                        event: item.event,
-                        photoIndex: item.photoIndex,
-                        totalPhotos: item.totalPhotos,
-                      })
+                      handleSubItemClick('kerjabakti_dokumentasi', 'Galeri Foto Dokumentasi Kerja Bakti', () =>
+                        setLightboxItem({
+                          photoUrl: item.photoUrl,
+                          event: item.event,
+                          photoIndex: item.photoIndex,
+                          totalPhotos: item.totalPhotos,
+                        })
+                      )
                     }
                     className="group relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100 cursor-pointer flex flex-col"
                   >
@@ -794,6 +814,19 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
             </div>
           </div>
         </div>
+      )}
+
+      {/* Restricted Access Modal */}
+      {restrictedModal && (
+        <RestrictedAccessModal
+          isOpen={restrictedModal.isOpen}
+          title={restrictedModal.title}
+          onClose={() => setRestrictedModal(null)}
+          onLogin={() => {
+            setRestrictedModal(null);
+            onNavigate('login');
+          }}
+        />
       )}
     </div>
   );
