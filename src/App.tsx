@@ -129,6 +129,7 @@ import { UrbanFarmingView } from './components/UrbanFarmingView';
 import { AdminPanelView, AdminTab } from './components/AdminPanelView';
 import { AuthView } from './components/AuthView';
 import { DashboardWargaView } from './components/DashboardWargaView';
+import { PelayananKelurahanModule } from './components/PelayananKelurahanModule';
 import { EmblemKelurahanPanaikang } from './components/Emblems';
 import { recordTrafficHit, recordRealPwaInstallEvent } from './utils/trafficTracker';
 import {
@@ -1912,27 +1913,32 @@ export default function App() {
 
   // Compute effective allowed citizen menus outside Administrator
   const effectiveCitizenMenus = useMemo<CitizenMenuKey[]>(() => {
+    const ensureCoreMenus = (menus: CitizenMenuKey[]): CitizenMenuKey[] => {
+      const coreMenus: CitizenMenuKey[] = ['beranda', 'warga', 'dashboard_warga'];
+      return Array.from(new Set([...coreMenus, ...menus]));
+    };
+
     if (authUserProfile?.role === 'admin') {
       return ALL_CITIZEN_MENU_KEYS;
     }
     if (authUserProfile && authUserProfile.uid) {
       const perUserOverride = citizenMenuConfig?.perCitizenAllowedMenus?.[authUserProfile.uid];
       if (Array.isArray(perUserOverride)) {
-        return perUserOverride;
+        return ensureCoreMenus(perUserOverride);
       }
       const matchedDirectoryUser = citizenUsers.find((u) => u.uid === authUserProfile.uid);
       if (Array.isArray(matchedDirectoryUser?.allowedMenus)) {
-        return matchedDirectoryUser.allowedMenus;
+        return ensureCoreMenus(matchedDirectoryUser.allowedMenus);
       }
       if (Array.isArray(authUserProfile.allowedMenus)) {
-        return authUserProfile.allowedMenus;
+        return ensureCoreMenus(authUserProfile.allowedMenus);
       }
       return Array.isArray(citizenMenuConfig?.registeredAllowedMenus)
-        ? citizenMenuConfig.registeredAllowedMenus
+        ? ensureCoreMenus(citizenMenuConfig.registeredAllowedMenus)
         : ALL_CITIZEN_MENU_KEYS;
     }
     return Array.isArray(citizenMenuConfig?.guestAllowedMenus)
-      ? citizenMenuConfig.guestAllowedMenus
+      ? ensureCoreMenus(citizenMenuConfig.guestAllowedMenus)
       : ALL_CITIZEN_MENU_KEYS;
   }, [authUserProfile, citizenMenuConfig, citizenUsers]);
 
@@ -3109,7 +3115,7 @@ export default function App() {
                 activeView === 'warga' ? 'text-[#0277BD] font-bold underline' : ''
               }`}
             >
-              Menu Warga
+              Pelayanan Kelurahan
             </a>
           )}
           {isCitizenMenuAllowed('peta') && (
@@ -3229,9 +3235,9 @@ export default function App() {
             type="button"
             onClick={() => handleNavigate('warga')}
             className="px-3 py-1.5 text-[11px] font-bold text-white bg-[#1C8237] rounded-lg hover:bg-[#146329] transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-xs"
-            title="Lapor Masalah Lingkungan Warga"
+            title="Pelayanan Kelurahan: Pra Registrasi Online & Pengaduan Online"
           >
-            Lapor Masalah
+            Pelayanan Kelurahan
           </button>
         </div>
       </header>
@@ -3337,40 +3343,72 @@ export default function App() {
         )}
 
         {activeView === 'warga' && (
-          !authUserProfile && !showPublicWargaCatalog ? (
-            <AuthView
-              rwGroups={rwGroups}
-              initialNotice=""
-              onNavigate={handleNavigate}
-              onAuthenticated={(profile) => {
-                setAuthUserProfile(profile);
-                setAuthNotice('');
-                handleNavigate('dashboard_warga');
-              }}
-              onViewPublicCatalog={() => setShowPublicWargaCatalog(true)}
-            />
-          ) : (
-            <UntukWargaView
-              reports={reports}
-              wasteUnits={wasteUnits}
-              rwGroups={rwGroups}
-              whatsappRecipients={whatsappRecipients}
-              kelurahanProfile={kelurahanProfile}
-              kelurahanInfos={kelurahanInfos}
-              cleanupEvents={cleanupEvents}
-              serviceCatalog={serviceCatalog}
-              onAddReport={handleAddReport}
-              onUpvoteReport={handleUpvoteReport}
-              onNavigate={handleNavigate}
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+            {/* Top Navigation & Account Status Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleNavigate('beranda')}
+                  className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
+                >
+                  ← Beranda
+                </button>
+                <div>
+                  <div className="text-xs font-extrabold text-[#0D3868]">
+                    Portal Pelayanan Kelurahan Panaikang
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    📝 Pra Registrasi Online (13 Layanan Administrasi) &amp; 📢 Pengaduan Online Warga
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {authUserProfile ? (
+                  <>
+                    <span className="px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
+                      ✓ {authUserProfile.fullName} ({authUserProfile.rw || 'RW 01'})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleNavigate('dashboard_warga')}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-extrabold transition cursor-pointer shadow-xs"
+                    >
+                      <UserCheck className="w-3.5 h-3.5" />
+                      <span>Buka Dashboard Warga Lengkap</span>
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthNotice('');
+                      handleNavigate('login');
+                    }}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-extrabold transition cursor-pointer shadow-xs"
+                  >
+                    <UserCheck className="w-3.5 h-3.5" />
+                    <span>Masuk / Daftar Akun Dashboard Warga</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Main Pelayanan Kelurahan Module (2 Cards: Pra Registrasi Online & Pengaduan Online) */}
+            <PelayananKelurahanModule
               userProfile={authUserProfile}
-              onRequireAuth={(notice) => {
-                setAuthNotice(notice || '');
-                handleNavigate('login');
-              }}
-              onLogout={handleFirebaseLogout}
-              allowedSubItems={effectiveCitizenSubItems}
+              rwGroups={rwGroups}
+              praRegistrasiList={praRegistrasiList}
+              pengaduanList={pengaduanOnlineList}
+              masterLayananList={masterLayananList}
+              masterPersyaratanList={masterPersyaratanList}
+              kategoriPengaduanList={kategoriPengaduanList}
+              onAddPraRegistrasi={handleAddPraRegistrasi}
+              onAddPengaduan={handleAddPengaduan}
+              onNavigate={handleNavigate}
             />
-          )
+          </div>
         )}
 
         {activeView === 'login' && (

@@ -82,6 +82,10 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
 }) => {
   // Navigation within module
   const [activeModule, setActiveModule] = useState<'hub' | 'pra_registrasi' | 'pengaduan'>(defaultActiveModule);
+
+  React.useEffect(() => {
+    setActiveModule(defaultActiveModule);
+  }, [defaultActiveModule]);
   
   // Pra Registrasi Submenus: 'daftar' | 'form' | 'saya' | 'sukses'
   const [praSubmenu, setPraSubmenu] = useState<'daftar' | 'form' | 'saya' | 'sukses'>('daftar');
@@ -183,13 +187,18 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
     return Array.from(set);
   }, [masterLayananList]);
 
-  // Citizen's Own Submissions
+  // Citizen's Own Submissions (with fallback to all records if guest or admin/demo account)
   const myPraList = useMemo(() => {
-    return praRegistrasiList.filter((r) => {
-      if (userProfile?.uid && r.applicantUid === userProfile.uid) return true;
+    if (!userProfile) return praRegistrasiList;
+    const matched = praRegistrasiList.filter((r) => {
+      if (userProfile.uid && r.applicantUid === userProfile.uid) return true;
+      if (userProfile.email && r.applicantEmail?.toLowerCase() === userProfile.email.toLowerCase()) return true;
       if (applicantNik && r.applicantNik === applicantNik) return true;
+      if (userProfile.fullName && r.applicantName?.toLowerCase() === userProfile.fullName.toLowerCase()) return true;
+      if (userProfile.phone && r.applicantPhone === userProfile.phone) return true;
       return false;
     });
+    return matched.length > 0 ? matched : praRegistrasiList;
   }, [praRegistrasiList, userProfile, applicantNik]);
 
   const filteredMyPra = useMemo(() => {
@@ -214,11 +223,14 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
   }, [myPraList, praStatusFilter]);
 
   const myPengaduanList = useMemo(() => {
-    return pengaduanList.filter((p) => {
-      if (userProfile?.uid && p.reporterUid === userProfile.uid) return true;
-      if (userProfile?.phone && p.reporterPhone === userProfile.phone) return true;
+    if (!userProfile) return pengaduanList;
+    const matched = pengaduanList.filter((p) => {
+      if (userProfile.uid && p.reporterUid === userProfile.uid) return true;
+      if (userProfile.phone && p.reporterPhone === userProfile.phone) return true;
+      if (userProfile.fullName && p.reporterName?.toLowerCase() === userProfile.fullName.toLowerCase()) return true;
       return false;
     });
+    return matched.length > 0 ? matched : pengaduanList;
   }, [pengaduanList, userProfile]);
 
   const filteredMyPengaduan = useMemo(() => {
@@ -611,7 +623,7 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
             </div>
 
             {/* Submenu Tabs */}
-            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl self-start sm:self-auto">
+            <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1.5 rounded-xl self-start sm:self-auto">
               <button
                 type="button"
                 onClick={() => setPraSubmenu('daftar')}
@@ -625,14 +637,76 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
               </button>
               <button
                 type="button"
-                onClick={() => setPraSubmenu('saya')}
+                onClick={() => {
+                  if (!selectedService && filteredServices.length > 0) {
+                    handleSelectServiceToRegister(filteredServices[0]);
+                  } else {
+                    setPraSubmenu('form');
+                  }
+                }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  praSubmenu === 'saya'
+                  praSubmenu === 'form'
+                    ? 'bg-white text-[#0D3868] shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Registrasi Baru
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPraSubmenu('saya');
+                  setPraStatusFilter('ALL');
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  praSubmenu === 'saya' && praStatusFilter === 'ALL'
                     ? 'bg-white text-[#0D3868] shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 Registrasi Saya ({myPraList.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPraSubmenu('saya');
+                  setPraStatusFilter('MENUNGGU_KEDATANGAN');
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  praSubmenu === 'saya' && praStatusFilter === 'MENUNGGU_KEDATANGAN'
+                    ? 'bg-white text-[#0D3868] shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Menunggu Kedatangan
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPraSubmenu('saya');
+                  setPraStatusFilter('SEDANG_DIPROSES');
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  praSubmenu === 'saya' && praStatusFilter === 'SEDANG_DIPROSES'
+                    ? 'bg-white text-[#0D3868] shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Sedang Diproses
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPraSubmenu('saya');
+                  setPraStatusFilter('SELESAI');
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  praSubmenu === 'saya' && praStatusFilter === 'SELESAI'
+                    ? 'bg-white text-[#0D3868] shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Selesai
               </button>
             </div>
           </div>
@@ -1657,7 +1731,7 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
             </div>
 
             {/* Submenu Tabs */}
-            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl self-start sm:self-auto">
+            <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1.5 rounded-xl self-start sm:self-auto">
               <button
                 type="button"
                 onClick={() => setPengaduanSubmenu('buat')}
@@ -1671,14 +1745,45 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
               </button>
               <button
                 type="button"
-                onClick={() => setPengaduanSubmenu('saya')}
+                onClick={() => {
+                  setPengaduanSubmenu('saya');
+                  setPengaduanStatusFilter('ALL');
+                }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  pengaduanSubmenu === 'saya'
+                  pengaduanSubmenu === 'saya' && pengaduanStatusFilter === 'ALL'
                     ? 'bg-white text-[#0D3868] shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 Pengaduan Saya ({myPengaduanList.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPengaduanSubmenu('saya');
+                  setPengaduanStatusFilter('SEDANG_DIPROSES');
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  pengaduanSubmenu === 'saya' && pengaduanStatusFilter === 'SEDANG_DIPROSES'
+                    ? 'bg-white text-[#0D3868] shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Pengaduan Diproses
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPengaduanSubmenu('saya');
+                  setPengaduanStatusFilter('SELESAI');
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  pengaduanSubmenu === 'saya' && pengaduanStatusFilter === 'SELESAI'
+                    ? 'bg-white text-[#0D3868] shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Pengaduan Selesai
               </button>
             </div>
           </div>

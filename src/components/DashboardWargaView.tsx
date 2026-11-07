@@ -478,12 +478,42 @@ export const DashboardWargaView: React.FC<DashboardWargaViewProps> = ({
             setPelayananSubModule('hub');
           }}
           className={`px-4 py-2.5 rounded-xl text-xs font-black transition flex items-center gap-2 cursor-pointer ${
-            activeTab === 'pelayanan'
+            activeTab === 'pelayanan' && pelayananSubModule === 'hub'
               ? 'bg-[#0277BD] text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
           <span>Pelayanan Kelurahan</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('pelayanan');
+            setPelayananSubModule('pra_registrasi');
+          }}
+          className={`px-3.5 py-2.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer ${
+            activeTab === 'pelayanan' && pelayananSubModule === 'pra_registrasi'
+              ? 'bg-[#0D3868] text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <span>📝 Pra Registrasi Online</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('pelayanan');
+            setPelayananSubModule('pengaduan');
+          }}
+          className={`px-3.5 py-2.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer ${
+            activeTab === 'pelayanan' && pelayananSubModule === 'pengaduan'
+              ? 'bg-[#E65100] text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <span>📢 Pengaduan Online</span>
         </button>
 
         <button
