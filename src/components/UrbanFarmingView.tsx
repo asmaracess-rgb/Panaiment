@@ -40,6 +40,7 @@ import {
 } from '../data/initialData';
 import { buildOfficialKopSuratHtml } from '../utils/officialKopSurat';
 import { resolveImageUrl } from '../utils/resolveImageUrl';
+import { buildWhatsAppUrl } from '../utils/whatsappHelper';
 import { RestrictedAccessModal } from './RestrictedAccessModal';
 
 interface UrbanFarmingViewProps {
@@ -285,7 +286,7 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
       locationAddress: newSpotAddress.trim(),
       groupName: newGroupName.trim() || `Kelompok Tani ${newSpotRw}`,
       coordinatorName: newCoordName.trim(),
-      coordinatorPhone: newCoordPhone.trim() || '0812-xxxx-xxxx',
+      coordinatorPhone: newCoordPhone.trim(),
       farmingType: newFarmType,
       commodities: newCommodities.split(',').map((c) => c.trim()).filter(Boolean),
       activeMembers: Number(newMembers) || 10,
@@ -1160,7 +1161,10 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
 
             <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
               <a
-                href={`https://wa.me/${selectedSpotModal.coordinatorPhone.replace(/[^0-9]/g, '')}?text=Halo%20${encodeURIComponent(selectedSpotModal.coordinatorName)},%20saya%20warga%20Panaikang%20ingin%20bertanya%20tentang%20hasil%20panen%20kebun%20${encodeURIComponent(selectedSpotModal.name)}`}
+                href={buildWhatsAppUrl(
+                  selectedSpotModal.coordinatorPhone,
+                  `Halo ${selectedSpotModal.coordinatorName}, saya warga Panaikang ingin bertanya tentang hasil panen kebun ${selectedSpotModal.name}`
+                )}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#128C7E] hover:bg-[#075E54] text-white text-xs font-bold transition-colors"

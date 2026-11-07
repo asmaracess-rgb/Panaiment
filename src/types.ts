@@ -450,7 +450,11 @@ export type ReportCategory =
   | 'Sampah Liar & TPS'
   | 'Drainase & Genangan'
   | 'Pohon & Ruang Hijau'
-  | 'Ketertiban & Fasum';
+  | 'Ketertiban & Fasum'
+  | 'Surat Keterangan'
+  | 'Administrasi Kependudukan'
+  | 'Laporan Pengaduan'
+  | string;
 
 export type ReportUrgency = 'Normal' | 'Tinggi' | 'Darurat';
 
@@ -761,7 +765,8 @@ export type AdminTabId =
 export type KelolaAdminWargaSubTab =
   | 'otoritas_master'
   | 'parameter_admin'
-  | 'user_warga';
+  | 'user_warga'
+  | 'master_data_layanan';
 
 export interface RealtimeTrafficEvent {
   id: string;
@@ -1164,7 +1169,159 @@ export interface SiskamlingRwSchedule {
   schedules: Record<SiskamlingDay, string[]>; // list of officer names for each day
   notes?: string;
 }
+// ============================================================================
+// PELAYANAN KELURAHAN (PRA REGISTRASI ONLINE & PENGADUAN ONLINE DEDICATED ARCHITECTURE)
+// ============================================================================
 
+export type PraRegistrasiStatus =
+  | 'DRAFT'
+  | 'DIAJUKAN'
+  | 'MENUNGGU_KEDATANGAN'
+  | 'VERIFIKASI_PETUGAS'
+  | 'PERLU_PERBAIKAN'
+  | 'BERKAS_LENGKAP'
+  | 'DIPROSES'
+  | 'MENUNGGU_PERSETUJUAN'
+  | 'DISETUJUI'
+  | 'SURAT_SELESAI'
+  | 'DITUTUP';
 
+export type PengaduanOnlineStatus =
+  | 'DIAJUKAN'
+  | 'DITERIMA'
+  | 'DIVERIFIKASI'
+  | 'DITINDAKLANJUTI'
+  | 'MENUNGGU_INFORMASI'
+  | 'SELESAI';
 
+export type PengaduanKategori =
+  | 'Infrastruktur'
+  | 'Kebersihan'
+  | 'Lingkungan'
+  | 'Administrasi Pelayanan'
+  | 'Fasilitas Umum'
+  | 'Ketertiban'
+  | 'Sosial'
+  | 'Pelayanan Pemerintahan'
+  | 'Aspirasi'
+  | 'Lainnya';
 
+export type FormFieldType =
+  | 'text'
+  | 'number'
+  | 'date'
+  | 'select'
+  | 'checkbox'
+  | 'radio'
+  | 'textarea'
+  | 'file'
+  | 'address'
+  | 'nik';
+
+export interface DynamicFormField {
+  id: string;
+  label: string;
+  type: FormFieldType;
+  placeholder?: string;
+  required: boolean;
+  options?: string[];
+  helpText?: string;
+}
+
+export interface MasterPersyaratanItem {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  requirementType: 'Wajib' | 'Tidak wajib' | 'Kondisional';
+  fileFormatAccepted?: string;
+  maxSizeMb?: number;
+}
+
+export interface MasterLayananItem {
+  id: string;
+  code: string;
+  name: string;
+  category: string;
+  description: string;
+  estimatedProcessingTime: string;
+  isActive: boolean;
+  requiredDocs: Array<{
+    persyaratanId: string;
+    persyaratanName: string;
+    requirementType: 'Wajib' | 'Tidak wajib' | 'Kondisional';
+  }>;
+  dynamicFields?: DynamicFormField[];
+  assignedOfficers?: string[];
+  approverRole?: string;
+}
+
+export interface UploadedDocFile {
+  persyaratanId: string;
+  docName: string;
+  persyaratanLabel?: string;
+  fileUrl: string;
+  fileName: string;
+  fileSizeKb?: number;
+  uploadedAt: string;
+  verificationStatus?: 'Belum Diperiksa' | 'Sesuai' | 'Tidak Sesuai / Buram';
+  verificationNotes?: string;
+}
+
+export interface PraRegistrasiRecord {
+  id: string;
+  ticketCode: string;
+  serviceId: string;
+  serviceCode: string;
+  serviceName: string;
+  applicantUid?: string;
+  applicantEmail?: string;
+  applicantName: string;
+  applicantNik: string;
+  applicantPhone: string;
+  applicantRw: string;
+  applicantRt: string;
+  applicantAddress: string;
+  formData: Record<string, any>;
+  uploadedDocs: UploadedDocFile[];
+  status: PraRegistrasiStatus;
+  submittedAt: string;
+  updatedAt: string;
+  scheduledArrivalDate?: string;
+  assignedOfficerName?: string;
+  officerVerificationResult?: 'LENGKAP' | 'PERLU_PERBAIKAN' | 'TIDAK_LENGKAP';
+  officerNotes?: string;
+  physicalDocsChecked?: boolean;
+  lurahApprovalStatus?: 'MENUNGGU' | 'DISETUJUI' | 'DITOLAK' | 'KEMBALIKAN_PERBAIKAN';
+  lurahNotes?: string;
+  lurahActionAt?: string;
+  letterRegisterNumber?: string;
+  letterCompletedAt?: string;
+  qrCodeUrl?: string;
+}
+
+export interface PengaduanOnlineRecord {
+  id: string;
+  ticketCode: string;
+  category: PengaduanKategori;
+  title: string;
+  content: string;
+  locationAddress: string;
+  incidentDate: string;
+  proofPhotos: string[];
+  isAnonymous: boolean;
+  reporterUid?: string;
+  reporterName: string;
+  reporterPhone: string;
+  reporterRw: string;
+  reporterRt: string;
+  status: PengaduanOnlineStatus;
+  isPriority?: boolean;
+  submittedAt: string;
+  updatedAt: string;
+  assignedUnit?: string;
+  assignedOfficer?: string;
+  followUpNotes?: string;
+  followUpPhotos?: string[];
+  completedAt?: string;
+}

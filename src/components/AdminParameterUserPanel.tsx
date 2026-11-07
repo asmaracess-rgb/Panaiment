@@ -96,16 +96,17 @@ export const ADMIN_MODULE_OPTIONS: {
   },
   {
     id: 'pengurusan_warga',
-    label: 'Pengurusan Warga (13 Surat & 9 Aduan)',
+    label: 'Admin Pelayanan Kelurahan (Pra Registrasi & Pengaduan)',
     description:
-      'Back-end 13 Layanan Administrasi Surat Resmi (PM-01 s/d SL-13), 7 Bidang Katalog SOP & 9 Kategori Aduan Warga',
+      'Operasional Pelayanan Kelurahan terpadu: Pra Registrasi Online (13 Layanan Surat), Pengaduan Online (10 Kategori), Verifikasi Berkas Fisik, Scan QR / Cek Tiket & Koordinasi Petugas',
     subMenus: [
-      '13 Layanan Surat Resmi (PM-01 s/d SL-13)',
-      '9 Kategori Pengaduan Warga',
-      '7 Bidang Katalog SOP',
-      'Cetak Kop Surat Resmi',
+      'Pra Registrasi Online',
+      'Pengaduan Online',
+      'Scan QR / Cek Tiket',
+      'Verifikasi Dokumen Fisik',
+      'Notifikasi & Riwayat Aktivitas',
     ],
-    structuralUnit: 'Loket PTSP & 3 Seksi Kelurahan',
+    structuralUnit: 'Operator Admin Pelayanan Kelurahan & Loket PTSP',
     badgeColor: 'bg-sky-50 text-[#0D3868] border-sky-200',
   },
   {
@@ -130,19 +131,6 @@ export const ADMIN_MODULE_OPTIONS: {
     subMenus: ['Artikel & Pengumuman Warga', 'Sinkronisasi IG @kelurahan.panaikang'],
     structuralUnit: 'Sekretariat & Seksi Pemberdayaan',
     badgeColor: 'bg-teal-50 text-teal-800 border-teal-200',
-  },
-  {
-    id: 'laporan',
-    label: 'Laporan Warga & Notifikasi WA',
-    description:
-      'Tindak lanjut laporan lapangan, unggah foto bukti penyelesaian & direktori nomor WhatsApp koordinator',
-    subMenus: [
-      'Verifikasi & Tindak Lanjut Laporan',
-      'Foto Bukti Penyelesaian',
-      'Direktori Nomor WA Penerima',
-    ],
-    structuralUnit: 'Seluruh Seksi & Koordinator RW',
-    badgeColor: 'bg-blue-50 text-blue-800 border-blue-200',
   },
   {
     id: 'sampah',
@@ -211,15 +199,16 @@ export const ADMIN_MODULE_OPTIONS: {
   },
   {
     id: 'kelola_admin_warga',
-    label: 'Kelola Admin dan User Warga',
+    label: 'Kelola Admin, User & Master Data Layanan',
     description:
-      'Pusat terpadu 3 Sub-Menu: Otoritas Master Admin, Parameter Admin, dan User Warga Terdaftar',
+      'Pusat terpadu: Otoritas Master Admin, Parameter Admin, User Warga, serta Manajemen Pelayanan & Master Data Layanan (Form Builder Dinamis, Persyaratan, Template Surat, & Kategori Aduan)',
     subMenus: [
       'Otoritas Master Admin',
       'Parameter Admin',
       'User Warga Terdaftar',
+      'Manajemen Pelayanan & Master Data Layanan',
     ],
-    structuralUnit: 'Khusus Otoritas Lurah & Seksi Pemerintahan',
+    structuralUnit: 'Khusus Otoritas Lurah & Administrator',
     badgeColor: 'bg-indigo-50 text-indigo-900 border-indigo-200',
   },
   {
@@ -614,7 +603,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
     roleLevel: 'operator',
     isMasterLurah: false,
     isActive: true,
-    allowedAdminTabs: ['pengurusan_warga', 'laporan', 'rtrw'],
+    allowedAdminTabs: ['pengurusan_warga', 'rtrw'],
     allowedServiceCategories: ['administrasi_kependudukan', 'surat_keterangan'],
     actionPermissions: {
       canCreate: true,
@@ -688,7 +677,6 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
           'pengurusan_warga',
           'profil',
           'info',
-          'laporan',
           'sampah',
           'kerjabakti',
           'urban_farming',
@@ -716,7 +704,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
         isMasterLurah: false,
         jabatan: 'Kasi Pemerintahan, Ketentraman dan Ketertiban Umum',
         unitBidang: 'Seksi Pemerintahan, Ketentraman & Ketertiban Umum',
-        allowedAdminTabs: ['pengurusan_warga', 'profil', 'laporan', 'rtrw', 'traffic'],
+        allowedAdminTabs: ['pengurusan_warga', 'profil', 'rtrw', 'traffic'],
         allowedServiceCategories: [
           'administrasi_kependudukan',
           'surat_keterangan',
@@ -741,7 +729,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
         isMasterLurah: false,
         jabatan: 'Kasi Pemberdayaan Masyarakat, Pembangunan dan Sosial',
         unitBidang: 'Seksi Pemberdayaan Masyarakat, Pembangunan & Sosial',
-        allowedAdminTabs: ['pengurusan_warga', 'info', 'laporan', 'urban_farming', 'rtrw'],
+        allowedAdminTabs: ['pengurusan_warga', 'info', 'urban_farming', 'rtrw'],
         allowedServiceCategories: [
           'pelayanan_usaha',
           'bantuan_sosial',
@@ -767,7 +755,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
         isMasterLurah: false,
         jabatan: 'Kasi Pengelolaan Kebersihan dan Pertamanan',
         unitBidang: 'Seksi Pengelolaan Kebersihan & Pertamanan',
-        allowedAdminTabs: ['pengurusan_warga', 'laporan', 'sampah', 'kerjabakti', 'urban_farming'],
+        allowedAdminTabs: ['pengurusan_warga', 'sampah', 'kerjabakti', 'urban_farming'],
         allowedServiceCategories: [
           'masalah_lingkungan',
           'pengaduan_permasalahan_warga',
@@ -791,7 +779,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
         isMasterLurah: false,
         jabatan: 'Staf Seksi Pemerintahan, Ketentraman dan Ketertiban Umum',
         unitBidang: 'Seksi Pemerintahan, Ketentraman & Ketertiban Umum',
-        allowedAdminTabs: ['pengurusan_warga', 'laporan', 'rtrw'],
+        allowedAdminTabs: ['pengurusan_warga', 'rtrw'],
         allowedServiceCategories: [
           'administrasi_kependudukan',
           'surat_keterangan',
@@ -842,7 +830,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
         isMasterLurah: false,
         jabatan: 'Staf Seksi Pengelolaan Kebersihan dan Pertamanan',
         unitBidang: 'Seksi Pengelolaan Kebersihan & Pertamanan',
-        allowedAdminTabs: ['laporan', 'sampah', 'kerjabakti', 'urban_farming'],
+        allowedAdminTabs: ['sampah', 'kerjabakti', 'urban_farming'],
         allowedServiceCategories: [
           'masalah_lingkungan',
           'pengaduan_permasalahan_warga',
@@ -866,7 +854,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
         isMasterLurah: false,
         jabatan: 'Ketua LPM Kelurahan Panaikang',
         unitBidang: 'Lembaga Pemberdayaan Masyarakat (LPM) & Mitra RT/RW',
-        allowedAdminTabs: ['info', 'laporan', 'kerjabakti', 'urban_farming', 'rtrw'],
+        allowedAdminTabs: ['info', 'kerjabakti', 'urban_farming', 'rtrw'],
         allowedServiceCategories: [
           'pelayanan_usaha',
           'bantuan_sosial',
@@ -892,7 +880,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
         isMasterLurah: false,
         jabatan: 'Operator Pelayanan Terpadu Satu Pintu (PTSP)',
         unitBidang: 'Loket Pelayanan Terpadu Kelurahan Panaikang',
-        allowedAdminTabs: ['pengurusan_warga', 'info', 'laporan', 'rtrw'],
+        allowedAdminTabs: ['pengurusan_warga', 'info', 'rtrw'],
         allowedServiceCategories: [...allCategoryIds],
         actionPermissions: {
           canCreate: true,
@@ -917,7 +905,6 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
           'pengurusan_warga',
           'profil',
           'info',
-          'laporan',
           'sampah',
           'kerjabakti',
           'urban_farming',
@@ -980,11 +967,10 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
           jabatan: 'Sekretaris Lurah · Koordinator Satu Data',
           allowedAdminTabs: Array.from(
             new Set([
-              ...u.allowedAdminTabs,
+              ...u.allowedAdminTabs.filter((t) => t !== 'laporan'),
               'pengurusan_warga',
               'profil',
               'info',
-              'laporan',
               'sampah',
               'kerjabakti',
               'urban_farming',
@@ -1011,7 +997,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
           jabatan: 'Kasi Pemerintahan, Ketentraman dan Ketertiban Umum',
           unitBidang: 'Seksi Pemerintahan, Ketentraman & Ketertiban Umum',
           allowedAdminTabs: Array.from(
-            new Set([...u.allowedAdminTabs, 'pengurusan_warga', 'profil', 'laporan', 'rtrw', 'traffic'])
+            new Set([...u.allowedAdminTabs, 'pengurusan_warga', 'profil', 'rtrw', 'traffic'])
           ) as AdminTabId[],
           allowedServiceCategories: normalizeCategoryList([
             ...normalizedCats,
@@ -1037,7 +1023,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
           jabatan: 'Kasi Pemberdayaan Masyarakat, Pembangunan dan Sosial',
           unitBidang: 'Seksi Pemberdayaan Masyarakat, Pembangunan & Sosial',
           allowedAdminTabs: Array.from(
-            new Set([...u.allowedAdminTabs, 'pengurusan_warga', 'info', 'laporan', 'urban_farming', 'rtrw'])
+            new Set([...u.allowedAdminTabs, 'pengurusan_warga', 'info', 'urban_farming', 'rtrw'])
           ) as AdminTabId[],
           allowedServiceCategories: normalizeCategoryList([
             ...normalizedCats,
@@ -1063,7 +1049,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
           jabatan: 'Kasi Pengelolaan Kebersihan dan Pertamanan',
           unitBidang: 'Seksi Pengelolaan Kebersihan & Pertamanan',
           allowedAdminTabs: Array.from(
-            new Set([...u.allowedAdminTabs, 'pengurusan_warga', 'laporan', 'sampah', 'kerjabakti', 'urban_farming'])
+            new Set([...u.allowedAdminTabs, 'pengurusan_warga', 'sampah', 'kerjabakti', 'urban_farming'])
           ) as AdminTabId[],
           allowedServiceCategories: normalizeCategoryList([
             ...normalizedCats,
@@ -1100,7 +1086,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
         roleLevel: 'admin_bidang',
         isMasterLurah: false,
         isActive: true,
-        allowedAdminTabs: ['pengurusan_warga', 'info', 'laporan', 'urban_farming', 'rtrw'],
+        allowedAdminTabs: ['pengurusan_warga', 'info', 'urban_farming', 'rtrw'],
         allowedServiceCategories: [
           'pelayanan_usaha',
           'bantuan_sosial',
@@ -1128,7 +1114,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
     setIsSaving(false);
     if (res.ok) {
       setFeedbackSuccess(
-        'Seluruh akun pejabat struktural, daftar 12 modul admin, dan 7 bidang layanan (13 Surat Resmi & 9 Kategori Aduan) berhasil disinkronkan dengan struktur data terbaru.'
+        'Seluruh akun pejabat struktural, daftar modul admin (termasuk Admin Pelayanan Kelurahan & Master Data Layanan), serta bidang layanan berhasil disinkronkan dengan struktur terbaru.'
       );
     } else {
       setFeedbackErrors(res.errors || ['Gagal menyinkronkan data parameter user.']);
@@ -1153,7 +1139,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
       roleLevel: 'operator',
       isMasterLurah: false,
       isActive: true,
-      allowedAdminTabs: ['pengurusan_warga', 'user_warga', 'info', 'laporan', 'rtrw'],
+      allowedAdminTabs: ['pengurusan_warga', 'user_warga', 'info', 'rtrw'],
       allowedServiceCategories: [...allCategoryIds],
       actionPermissions: {
         canCreate: true,

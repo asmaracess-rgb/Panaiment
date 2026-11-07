@@ -86,18 +86,17 @@ export function getInstagramProxyUrl(
 ): string | null {
   const trimmed = (rawUrl || '').trim();
   if (trimmed.includes('ig_profile_panaikang')) {
-    return '/api/ig-media?code=profile&remote=1';
+    return '/images/ig_profile_panaikang.jpg';
   }
   const code = extractInstagramShortcode(rawUrl, instagramPostUrl);
   if (!code) return null;
-  return `/api/ig-media?code=${code}&remote=1`;
+  return SHORTCODE_TO_STATIC_PATH[code] || '/images/ig_post_latest_1_DfT7acUJdwh.jpg';
 }
 
 /**
  * Resolves any stored or initial image path (including legacy `/src/assets/images/...`,
- * `/images/...`, Instagram shortcodes, or data URLs) to a production-ready URL
- * that works on Vercel (`dist/images/...` populated by `scripts/sync-ig-assets.mjs`
- * plus `/api/ig-media?code=...` fallback), static builds, and local development.
+ * `/images/...`, Instagram shortcodes, or data URLs) to a production-ready static URL
+ * that works on Vercel (`dist/images/...`), static builds, and local development.
  */
 export function resolveImageUrl(
   rawUrl?: string | null,
@@ -110,10 +109,10 @@ export function resolveImageUrl(
     return '/images/ig_profile_panaikang.jpg';
   }
 
-  // Map @kelurahan.panaikang Instagram post images to static build path (or proxy for custom IG links)
+  // Map @kelurahan.panaikang Instagram post images to static build path
   const shortcode = extractInstagramShortcode(trimmed, instagramPostUrl);
   if (shortcode) {
-    return SHORTCODE_TO_STATIC_PATH[shortcode] || `/api/ig-media?code=${shortcode}`;
+    return SHORTCODE_TO_STATIC_PATH[shortcode] || '/images/ig_post_latest_1_DfT7acUJdwh.jpg';
   }
 
   if (!trimmed) {

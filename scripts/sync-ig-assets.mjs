@@ -7,7 +7,6 @@ const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 
 const PUBLIC_IMAGES_DIR = path.join(ROOT_DIR, 'public', 'images');
-const SRC_ASSETS_DIR = path.join(ROOT_DIR, 'src', 'assets', 'images');
 
 const IG_ASSETS = [
   { filename: 'ig_profile_panaikang.jpg', shortcode: 'DfT7acUJdwh', isProfile: true },
@@ -91,22 +90,12 @@ async function fetchInstagramMediaBuffer(shortcode, isProfile) {
 
 async function syncAllInstagramAssets() {
   fs.mkdirSync(PUBLIC_IMAGES_DIR, { recursive: true });
-  fs.mkdirSync(SRC_ASSETS_DIR, { recursive: true });
 
   await Promise.allSettled(
     IG_ASSETS.map(async (item) => {
       const publicPath = path.join(PUBLIC_IMAGES_DIR, item.filename);
-      const srcAssetPath = path.join(SRC_ASSETS_DIR, item.filename);
 
-      if (hasValidFile(publicPath) && !hasValidFile(srcAssetPath)) {
-        fs.copyFileSync(publicPath, srcAssetPath);
-        return;
-      }
-      if (hasValidFile(srcAssetPath) && !hasValidFile(publicPath)) {
-        fs.copyFileSync(srcAssetPath, publicPath);
-        return;
-      }
-      if (hasValidFile(publicPath) && hasValidFile(srcAssetPath)) {
+      if (hasValidFile(publicPath)) {
         return;
       }
 
@@ -114,7 +103,6 @@ async function syncAllInstagramAssets() {
         const buffer = await fetchInstagramMediaBuffer(item.shortcode, item.isProfile);
         if (buffer && buffer.length > 1500) {
           fs.writeFileSync(publicPath, buffer);
-          fs.writeFileSync(srcAssetPath, buffer);
           console.log(`[sync-ig-assets] Synced ${item.filename} (${buffer.length} bytes)`);
         }
       } catch (err) {

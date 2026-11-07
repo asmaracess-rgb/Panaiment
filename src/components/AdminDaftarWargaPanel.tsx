@@ -22,6 +22,7 @@ import {
   Check,
   RotateCcw,
   LayoutGrid,
+  MessageCircle,
 } from 'lucide-react';
 import {
   AuthenticatedUserProfile,
@@ -47,6 +48,12 @@ import {
   saveCitizenMenuAccessJournal,
 } from '../utils/persistentStorage';
 import { getRealtimeDateTimeString } from '../utils/realtimeDate';
+import {
+  buildWhatsAppUrl,
+  formatDisplayPhone,
+  isValidWhatsAppPhone,
+  normalizeWhatsAppPhone,
+} from '../utils/whatsappHelper';
 
 const INITIAL_SAMPLE_REPORT_IDS = new Set(INITIAL_REPORTS.map((r) => r.id));
 
@@ -529,8 +536,15 @@ export const AdminDaftarWargaPanel: React.FC<AdminDaftarWargaPanelProps> = ({
               : existing.fullName) || 'Warga Panaikang',
           email: candidate.email || existing.email || '',
           nik: candidate.nik || existing.nik || '',
-          phone:
-            (candidate.phone && candidate.phone !== '-' ? candidate.phone : existing.phone) || '',
+          phone: isValidWhatsAppPhone(candidate.phone)
+            ? candidate.phone.trim()
+            : isValidWhatsAppPhone(existing.phone)
+            ? existing.phone.trim()
+            : (candidate.phone && candidate.phone !== '-' && !/x/i.test(candidate.phone)
+                ? candidate.phone
+                : existing.phone && existing.phone !== '-' && !/x/i.test(existing.phone)
+                ? existing.phone
+                : ''),
           rw: candidate.rw || existing.rw || 'RW 01',
           rt: candidate.rt || existing.rt || 'RT 01',
           address: candidate.address || existing.address || 'Kelurahan Panaikang',
@@ -577,7 +591,7 @@ export const AdminDaftarWargaPanel: React.FC<AdminDaftarWargaPanelProps> = ({
         email: rep.ownerEmail || '',
         fullName: cleanReporter,
         nik: rep.applicantNik || '',
-        phone: rep.reporterPhone && rep.reporterPhone !== '-' ? rep.reporterPhone : '',
+        phone: isValidWhatsAppPhone(rep.reporterPhone) ? rep.reporterPhone.trim() : '',
         rw: rep.rw || 'RW 01',
         rt: rep.rt || 'RT 01',
         address: rep.citizenAddress || rep.locationName || 'Kelurahan Panaikang',
@@ -1258,19 +1272,38 @@ export const AdminDaftarWargaPanel: React.FC<AdminDaftarWargaPanelProps> = ({
 
                           {/* Phone / WA */}
                           <td className="px-4 py-3.5 whitespace-nowrap">
-                            {citizen.phone ? (
-                              <a
-                                href={`https://wa.me/${citizen.phone.replace(/\D/g, '')}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 text-[#1C8237] hover:text-[#146329] font-bold font-mono hover:underline"
-                                title="Hubungi via WhatsApp"
-                              >
-                                <Phone className="w-3.5 h-3.5" />
-                                <span>{citizen.phone}</span>
-                              </a>
+                            {isValidWhatsAppPhone(citizen.phone) ? (
+                              <div className="flex flex-col gap-1">
+                                <span className="font-mono font-bold text-slate-800 text-[11px]">
+                                  {formatDisplayPhone(citizen.phone)}
+                                </span>
+                                <a
+                                  href={buildWhatsAppUrl(
+                                    citizen.phone,
+                                    `Halo Bapak/Ibu *${citizen.fullName}* (${citizen.rw || 'RW 01'}/${citizen.rt || 'RT 01'}), salam hangat dari Pemerintah Kelurahan Panaikang.\n\nKami menghubungi Bapak/Ibu terkait informasi pelayanan warga di Portal Satu Data Kelurahan Panaikang.`
+                                  )}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] w-fit shadow-2xs transition"
+                                  title={`Kirim pesan WhatsApp ke +${normalizeWhatsAppPhone(citizen.phone)}`}
+                                >
+                                  <MessageCircle className="w-3 h-3" />
+                                  <span>Kirim Pesan WA</span>
+                                </a>
+                              </div>
                             ) : (
-                              <span className="text-slate-400 italic">-</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleOpenDetail(citizen);
+                                  setIsEditing(true);
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[10px] cursor-pointer transition"
+                                title="Klik untuk mengisi atau memperbaiki format nomor WhatsApp warga ini"
+                              >
+                                <Phone className="w-3 h-3 text-amber-600" />
+                                <span>Isi / Perbaiki No. WA</span>
+                              </button>
                             )}
                           </td>
 
@@ -1701,16 +1734,28 @@ export const AdminDaftarWargaPanel: React.FC<AdminDaftarWargaPanelProps> = ({
                       <span>Edit Profil & Batasan Menu</span>
                     </button>
 
-                    {selectedCitizen.phone && (
+                    {isValidWhatsAppPhone(selectedCitizen.phone) ? (
                       <a
-                        href={`https://wa.me/${selectedCitizen.phone.replace(/\D/g, '')}`}
+                        href={buildWhatsAppUrl(
+                          selectedCitizen.phone,
+                          `Halo Bapak/Ibu *${selectedCitizen.fullName}* (${selectedCitizen.rw || 'RW 01'}/${selectedCitizen.rt || 'RT 01'}), salam hangat dari Pemerintah Kelurahan Panaikang.\n\nKami menghubungi Bapak/Ibu terkait informasi pelayanan warga di Portal Satu Data Kelurahan Panaikang.`
+                        )}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        <span>Kirim Pesan WhatsApp ({formatDisplayPhone(selectedCitizen.phone)})</span>
+                      </a>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setIsEditing(true)}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold transition cursor-pointer"
                       >
                         <Phone className="w-3.5 h-3.5" />
-                        <span>Kirim WhatsApp</span>
-                      </a>
+                        <span>Perbaiki Nomor WhatsApp</span>
+                      </button>
                     )}
                   </div>
                 </div>

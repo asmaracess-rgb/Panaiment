@@ -19,6 +19,14 @@ export function isVercelServerlessRuntime(): boolean {
   if (host.endsWith('.vercel.app')) {
     return true;
   }
+  const isLocalOrAiStudio =
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    host === '0.0.0.0' ||
+    host.endsWith('.run.app');
+  if (!isLocalOrAiStudio) {
+    return true;
+  }
   if (expressBackendDetected === false) {
     return true;
   }

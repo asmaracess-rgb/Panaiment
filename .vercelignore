@@ -1,0 +1,8 @@
+api
+api/**
+server.ts
+data
+data/**
+firestore.rules.test.ts
+public/assets/aistudio/Image_*
+public/assets/aistudio/Screenshot_*

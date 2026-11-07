@@ -261,8 +261,10 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
 
     const reporterDisplay = aduanForm.isAnonymous
       ? 'Warga Anonim'
-      : aduanForm.reporterName.trim() || 'Warga Kelurahan Panaikang';
-    const contactDisplay = aduanForm.isAnonymous ? '' : aduanForm.reporterPhone.trim();
+      : aduanForm.reporterName.trim() || userProfile?.fullName || 'Warga Kelurahan Panaikang';
+    const contactDisplay = aduanForm.isAnonymous
+      ? ''
+      : aduanForm.reporterPhone.trim() || userProfile?.phone || '';
 
     const createdTicket = onAddReport({
       title: aduanForm.title.trim(),
@@ -351,7 +353,7 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
       category: 'Ketertiban & Fasum',
       urgency: 'Normal',
       reporterName: applyForm.name.trim(),
-      reporterPhone: applyForm.contact.trim() || '0813-xxxx-xxxx',
+      reporterPhone: applyForm.contact.trim() || userProfile?.phone || '',
       rw: applyForm.rw,
       rt: applyForm.rt,
       locationName: `${applyForm.address.trim()} (${applyForm.rw} / ${applyForm.rt})`,
@@ -725,29 +727,12 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
                 >
                   <Layers className="w-3.5 h-3.5" />
                 </div>
-                <span>Menu Warga</span>
+                <span>Pelayanan Kelurahan</span>
               </div>
               <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
             </button>
 
-            {/* Sub-Menu 1 */}
-            <button
-              type="button"
-              onClick={() => {
-                setSection('aduan');
-                setAduanPage('new');
-              }}
-              className={`w-full flex items-center gap-2 pl-6 pr-3 py-2 rounded-xl text-xs transition cursor-pointer text-left ${
-                section === 'aduan'
-                  ? 'bg-[#0277BD]/10 text-[#0277BD] font-bold border-l-4 border-[#0277BD]'
-                  : 'text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-[#0277BD]" />
-              <span className="line-clamp-1">1. Laporan & Pengaduan Warga</span>
-            </button>
-
-            {/* Sub-Menu 2 */}
+            {/* Sub-Menu 1: Pra Registrasi Online */}
             <button
               type="button"
               onClick={() => {
@@ -757,12 +742,29 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
               }}
               className={`w-full flex items-center gap-2 pl-6 pr-3 py-2 rounded-xl text-xs transition cursor-pointer text-left ${
                 section === 'admin'
-                  ? 'bg-[#1C8237]/10 text-[#1C8237] font-bold border-l-4 border-[#1C8237]'
+                  ? 'bg-[#0277BD]/10 text-[#0277BD] font-bold border-l-4 border-[#0277BD]'
                   : 'text-slate-600 hover:bg-slate-50'
               }`}
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-[#1C8237]" />
-              <span className="line-clamp-1">2. Layanan Administrasi Warga</span>
+              <span className="text-sm">📝</span>
+              <span className="line-clamp-1">Pra Registrasi Online</span>
+            </button>
+
+            {/* Sub-Menu 2: Pengaduan Online */}
+            <button
+              type="button"
+              onClick={() => {
+                setSection('aduan');
+                setAduanPage('new');
+              }}
+              className={`w-full flex items-center gap-2 pl-6 pr-3 py-2 rounded-xl text-xs transition cursor-pointer text-left ${
+                section === 'aduan'
+                  ? 'bg-emerald-600/10 text-emerald-800 font-bold border-l-4 border-emerald-600'
+                  : 'text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <span className="text-sm">📢</span>
+              <span className="line-clamp-1">Pengaduan Online</span>
             </button>
           </div>
         </aside>
@@ -778,13 +780,13 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
               <div className="pb-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <div className="text-xs font-black tracking-wider text-[#0277BD] uppercase">
-                    LAYANAN WARGA
+                    PELAYANAN KELURAHAN
                   </div>
                   <h2 className="text-2xl font-extrabold text-[#0D3868] mt-0.5">
-                    Menu Warga
+                    Pelayanan Kelurahan
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl">
-                    Pilih layanan yang ingin Anda gunakan. Akses pengaduan permasalahan lingkungan serta layanan administrasi pengurusan surat resmi dalam satu tempat.
+                    Pilih modul pelayanan yang ingin Anda gunakan. Daftar layanan administrasi sebelum datang ke kantor kelurahan atau sampaikan pengaduan secara online.
                   </p>
                 </div>
                 <span className="inline-flex items-center px-3 py-1 rounded-full bg-sky-100 text-[#0D3868] text-xs font-bold self-start">
@@ -794,7 +796,7 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
 
               {/* 2 Main Cards (Exact Prototype Layout) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {/* Feature Card 1: Laporan & Pengaduan Warga */}
+                {/* Feature Card 1: 📝 Pra Registrasi Online */}
                 <article className="rounded-2xl border-2 border-slate-200 hover:border-[#0277BD] p-6 bg-white hover:shadow-lg transition-all flex flex-col justify-between group">
                   <div className="space-y-3.5">
                     <div className="w-12 h-12 rounded-2xl bg-sky-50 border border-sky-200 flex items-center justify-center text-2xl group-hover:scale-105 transition-transform">
@@ -802,58 +804,20 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
                     </div>
                     <div>
                       <span className="text-[10px] font-black tracking-wider uppercase text-[#0277BD] bg-sky-50 px-2 py-0.5 rounded-md border border-sky-100">
-                        Sub-Menu 1
+                        Modul 1
                       </span>
                       <h3 className="text-lg font-extrabold text-[#0D3868] mt-1.5">
-                        1. Laporan dan Pengaduan Warga
+                        Pra Registrasi Online
                       </h3>
                     </div>
                     <p className="text-xs text-slate-600 leading-relaxed">
-                      Sampaikan masalah lingkungan, keluhan pelayanan, atau kebutuhan tindak lanjut.
-                      Dilengkapi nomor tiket otomatis, formulir terintegrasi, dan fitur pelacakan status penanganan.
+                      Daftar layanan administrasi sebelum datang ke kantor kelurahan. Lengkapi formulir dan berkas persyaratan secara mandiri untuk mempercepat proses di loket.
                     </p>
                   </div>
 
                   <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
                     <span className="text-xs font-semibold text-slate-500 font-mono-num">
-                      {reports.length} Laporan terdata
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSection('aduan');
-                        setAduanPage('new');
-                      }}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0277BD] hover:bg-[#0D3868] text-white text-xs font-bold transition shadow-xs cursor-pointer"
-                    >
-                      <span>Buka Menu →</span>
-                    </button>
-                  </div>
-                </article>
-
-                {/* Feature Card 2: Layanan Administrasi Warga */}
-                <article className="rounded-2xl border-2 border-slate-200 hover:border-[#1C8237] p-6 bg-white hover:shadow-lg transition-all flex flex-col justify-between group">
-                  <div className="space-y-3.5">
-                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-2xl group-hover:scale-105 transition-transform">
-                      📄
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-black tracking-wider uppercase text-[#1C8237] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
-                        Sub-Menu 2
-                      </span>
-                      <h3 className="text-lg font-extrabold text-[#0D3868] mt-1.5">
-                        2. Layanan Administrasi Warga
-                      </h3>
-                    </div>
-                    <p className="text-xs text-slate-600 leading-relaxed">
-                      Pilih pengurusan surat resmi kelurahan, periksa checklist persyaratan dokumen,
-                      tandai berkas yang sudah siap, cetak lembar checklist, dan ajukan permohonan secara online.
-                    </p>
-                  </div>
-
-                  <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-500 font-mono-num">
-                      13 Layanan resmi
+                      13 Layanan Administrasi
                     </span>
                     <button
                       type="button"
@@ -862,9 +826,45 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
                         setAdminPage('catalog');
                         setSelectedService(null);
                       }}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0277BD] hover:bg-[#0D3868] text-white text-xs font-bold transition shadow-xs cursor-pointer"
                     >
-                      <span>Buka Menu →</span>
+                      <span>Buka Layanan →</span>
+                    </button>
+                  </div>
+                </article>
+
+                {/* Feature Card 2: 📢 Pengaduan Online */}
+                <article className="rounded-2xl border-2 border-slate-200 hover:border-emerald-600 p-6 bg-white hover:shadow-lg transition-all flex flex-col justify-between group">
+                  <div className="space-y-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-2xl group-hover:scale-105 transition-transform">
+                      📢
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black tracking-wider uppercase text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                        Modul 2
+                      </span>
+                      <h3 className="text-lg font-extrabold text-[#0D3868] mt-1.5">
+                        Pengaduan Online
+                      </h3>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Sampaikan pengaduan, keluhan, aspirasi, atau laporan kepada Kelurahan Panaikang. Lampirkan foto bukti dan pantau status tindak lanjut petugas secara transparan.
+                    </p>
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-500 font-mono-num">
+                      {reports.length} Pengaduan terdata
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSection('aduan');
+                        setAduanPage('new');
+                      }}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                    >
+                      <span>Buat Pengaduan →</span>
                     </button>
                   </div>
                 </article>

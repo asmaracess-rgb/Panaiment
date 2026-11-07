@@ -82,7 +82,18 @@ import {
   KelolaAdminWargaSubTab,
   CitizenMenuAccessConfig,
   KerjaBaktiIgHighlightItem,
+  MasterLayananItem,
+  MasterPersyaratanItem,
+  PengaduanKategori,
+  PraRegistrasiRecord,
+  PengaduanOnlineRecord,
 } from '../types';
+import {
+  INITIAL_MASTER_LAYANAN,
+  INITIAL_MASTER_PERSYARATAN,
+  DAFTAR_KATEGORI_PENGADUAN,
+} from '../data/pelayananMasterData';
+import { AdminMasterDataLayananPanel } from './AdminMasterDataLayananPanel';
 import {
   signInWithGoogleAccount,
   signInWithGoogleIdToken,
@@ -320,6 +331,19 @@ interface AdminPanelViewProps {
     updates: Partial<AuthenticatedUserProfile>
   ) => Promise<{ ok: boolean; error?: string }>;
   onDeleteCitizenUser?: (uid: string) => Promise<{ ok: boolean; error?: string }>;
+  masterLayananList?: MasterLayananItem[];
+  masterPersyaratanList?: MasterPersyaratanItem[];
+  kategoriPengaduanList?: PengaduanKategori[];
+  praRegistrasiList?: PraRegistrasiRecord[];
+  pengaduanList?: PengaduanOnlineRecord[];
+  onSaveMasterLayanan?: (list: MasterLayananItem[]) => Promise<{ ok: boolean; errors?: string[] }>;
+  onSaveMasterPersyaratan?: (list: MasterPersyaratanItem[]) => Promise<{ ok: boolean; errors?: string[] }>;
+  onSaveKategoriPengaduan?: (list: PengaduanKategori[]) => Promise<{ ok: boolean; errors?: string[] }>;
+  onLurahApproveService?: (
+    ticketCode: string,
+    action: 'SETUJUI' | 'TOLAK' | 'KEMBALIKAN',
+    lurahNote: string
+  ) => Promise<void>;
 }
 
 export type AdminTab =
@@ -428,6 +452,15 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   onSaveCitizenMenuConfig,
   onUpdateCitizenUser,
   onDeleteCitizenUser,
+  masterLayananList = INITIAL_MASTER_LAYANAN,
+  masterPersyaratanList = INITIAL_MASTER_PERSYARATAN,
+  kategoriPengaduanList = DAFTAR_KATEGORI_PENGADUAN,
+  praRegistrasiList = [],
+  pengaduanList = [],
+  onSaveMasterLayanan,
+  onSaveMasterPersyaratan,
+  onSaveKategoriPengaduan,
+  onLurahApproveService,
 }) => {
   // ================= AUTHENTICATION STATE =================
   const [adminSession, setAdminSession] = useState<AdminSession | null>(() => {
@@ -709,7 +742,6 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         'pengurusan_warga',
         'profil',
         'info',
-        'laporan',
         'sampah',
         'kerjabakti',
         'urban_farming',
@@ -726,20 +758,19 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       Array.isArray(currentAdminAccount.allowedAdminTabs) &&
       currentAdminAccount.allowedAdminTabs.length > 0
     ) {
-      return currentAdminAccount.allowedAdminTabs as AdminTab[];
+      return currentAdminAccount.allowedAdminTabs.filter((t) => t !== 'laporan') as AdminTab[];
     }
     if (
       adminSession &&
       Array.isArray(adminSession.allowedAdminTabs) &&
       adminSession.allowedAdminTabs.length > 0
     ) {
-      return adminSession.allowedAdminTabs;
+      return adminSession.allowedAdminTabs.filter((t) => t !== 'laporan');
     }
     return [
       'pengurusan_warga',
       'profil',
       'info',
-      'laporan',
       'sampah',
       'kerjabakti',
       'urban_farming',
@@ -1393,55 +1424,57 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
     const shouldForceTakeover = cleanUser === 'lurah' || cleanUser === 'admin' || Boolean(activeAdminLockInfo.isLocked);
 
-    // 1. First attempt login via server API
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: cleanUser,
-          password: cleanPass,
-          clientToken: adminSession?.token,
-          forceTakeover: shouldForceTakeover,
-          clientLoginAt,
-        }),
-      });
+    // 1. First attempt login via local Express server API if running locally
+    if (isLocalExpressAvailable()) {
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: cleanUser,
+            password: cleanPass,
+            clientToken: adminSession?.token,
+            forceTakeover: shouldForceTakeover,
+            clientLoginAt,
+          }),
+        });
 
-      const contentType = res.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
-        const json = await res.json();
-        // If server actively locked by another admin (409 Conflict)
-        if (res.status === 409 || (json.isLocked && !json.ok)) {
-          setIsLoggingIn(false);
-          setActiveAdminLockInfo({
-            isLocked: true,
-            activeAdmin: json.activeAdmin || null,
-          });
-          setLoginError(
-            json.error ||
-              'Akses ditolak: Administrator lain sedang aktif di perangkat lain. Hanya 1 admin yang dapat online dalam satu waktu.'
-          );
-          return;
-        }
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const json = await res.json();
+          // If server actively locked by another admin (409 Conflict)
+          if (res.status === 409 || (json.isLocked && !json.ok)) {
+            setIsLoggingIn(false);
+            setActiveAdminLockInfo({
+              isLocked: true,
+              activeAdmin: json.activeAdmin || null,
+            });
+            setLoginError(
+              json.error ||
+                'Akses ditolak: Administrator lain sedang aktif di perangkat lain. Hanya 1 admin yang dapat online dalam satu waktu.'
+            );
+            return;
+          }
 
-        // If credentials invalid (401 or 403)
-        if (res.status === 401 || res.status === 403 || (!json.ok && !json.session)) {
-          setIsLoggingIn(false);
-          setLoginError(
-            json.error || 'Username/NIP atau kata sandi yang dimasukkan tidak valid.'
-          );
-          return;
-        }
+          // If credentials invalid (401 or 403)
+          if (res.status === 401 || res.status === 403 || (!json.ok && !json.session)) {
+            setIsLoggingIn(false);
+            setLoginError(
+              json.error || 'Username/NIP atau kata sandi yang dimasukkan tidak valid.'
+            );
+            return;
+          }
 
-        // If server authenticated successfully
-        if (res.ok && json.ok && json.session) {
-          setIsLoggingIn(false);
-          applySuccessfulSession(json.session);
-          return;
+          // If server authenticated successfully
+          if (res.ok && json.ok && json.session) {
+            setIsLoggingIn(false);
+            applySuccessfulSession(json.session);
+            return;
+          }
         }
+      } catch {
+        // Server unreachable, fallback directly to Firestore cloud auth
       }
-    } catch {
-      // Server unreachable, fallback directly to Firestore cloud auth
     }
 
     // 2. Resilient Firestore Cloud Authentication & Single-Admin Lock
@@ -1556,20 +1589,22 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     setIsTakingOver(true);
     let handled = false;
 
-    try {
-      const res = await fetch('/api/auth/force-logout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ masterPassword: takeoverPassword.trim() }),
-      });
-      const contentType = res.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
-        const json = await res.json().catch(() => ({}));
-        if (res.ok && json.ok) {
-          handled = true;
+    if (isLocalExpressAvailable()) {
+      try {
+        const res = await fetch('/api/auth/force-logout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ masterPassword: takeoverPassword.trim() }),
+        });
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const json = await res.json().catch(() => ({}));
+          if (res.ok && json.ok) {
+            handled = true;
+          }
         }
-      }
-    } catch {}
+      } catch {}
+    }
 
     try {
       const fsRes = await forceLogoutFirestore(takeoverPassword.trim());
@@ -1617,13 +1652,15 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         },
       });
     }
-    try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token }),
-      });
-    } catch {}
+    if (isLocalExpressAvailable()) {
+      try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token }),
+        });
+      } catch {}
+    }
 
     try {
       if (token) {
@@ -2076,6 +2113,8 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     } else if (tab === 'parameter_user') {
       setActiveTab('kelola_admin_warga');
       setKelolaAdminWargaSubTab('parameter_admin');
+    } else if (tab === 'laporan') {
+      setActiveTab('pengurusan_warga');
     } else {
       setActiveTab(tab);
     }
@@ -4394,7 +4433,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                         activeTab === 'pengurusan_warga' ? 'text-amber-300' : 'text-[#0277BD]'
                       }`}
                     />
-                    <span className="text-xs font-bold truncate">Pengurusan Warga</span>
+                    <span className="text-xs font-bold truncate">Admin Pelayanan Kelurahan</span>
                   </div>
                   {!isTabAllowed('pengurusan_warga') && (
                     <Lock className="w-3 h-3 text-slate-400 shrink-0" />
@@ -4405,7 +4444,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     activeTab === 'pengurusan_warga' ? 'text-sky-100' : 'text-[#0277BD]'
                   }`}
                 >
-                  13 Layanan Surat & Laporan Warga
+                  Pra Registrasi & Pengaduan Online
                 </span>
               </button>
 
@@ -4472,39 +4511,6 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                   }`}
                 >
                   {kelurahanInfos.length} Postingan Aktif
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleTabSwitch('laporan')}
-                className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                  activeTab === 'laporan'
-                    ? 'bg-[#0277BD] border-[#0277BD] text-white shadow-xs'
-                    : !isTabAllowed('laporan')
-                    ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-75'
-                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-1">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <FileText
-                      className={`w-4 h-4 shrink-0 ${
-                        activeTab === 'laporan' ? 'text-sky-200' : 'text-[#0277BD]'
-                      }`}
-                    />
-                    <span className="text-xs font-bold truncate">Laporan Warga</span>
-                  </div>
-                  {!isTabAllowed('laporan') && (
-                    <Lock className="w-3 h-3 text-slate-400 shrink-0" />
-                  )}
-                </div>
-                <span
-                  className={`mt-1 text-[10px] font-medium truncate font-mono-num ${
-                    activeTab === 'laporan' ? 'text-sky-100' : 'text-slate-500'
-                  }`}
-                >
-                  {reports.length} Laporan · {whatsappRecipients.length} WA
                 </span>
               </button>
 
@@ -4826,8 +4832,8 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 </div>
               </div>
 
-              {/* Pilihan 3 Sub-Menu */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-4">
+              {/* Pilihan 4 Sub-Menu */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-4">
                 {/* Sub Menu 1 */}
                 <button
                   type="button"
@@ -4941,6 +4947,44 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     Database Warga & Parameter Batasan Akses Menu
                   </p>
                 </button>
+
+                {/* Sub Menu 4: Manajemen Pelayanan Dan Master Data Layanan */}
+                <button
+                  type="button"
+                  onClick={() => setKelolaAdminWargaSubTab('master_data_layanan')}
+                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
+                    kelolaAdminWargaSubTab === 'master_data_layanan'
+                      ? 'bg-linear-to-br from-[#0D3868] to-sky-950 border-[#0D3868] text-white shadow-md'
+                      : 'bg-slate-50 hover:bg-sky-50/70 border-slate-200 hover:border-sky-300 text-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Layers
+                        className={`w-4 h-4 shrink-0 ${
+                          kelolaAdminWargaSubTab === 'master_data_layanan' ? 'text-sky-300' : 'text-[#0277BD]'
+                        }`}
+                      />
+                      <span className="text-xs sm:text-sm font-black">Master Data Layanan</span>
+                    </div>
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                        kelolaAdminWargaSubTab === 'master_data_layanan'
+                          ? 'bg-white/20 text-white'
+                          : 'bg-sky-100 text-[#0277BD]'
+                      }`}
+                    >
+                      Dynamic
+                    </span>
+                  </div>
+                  <p
+                    className={`text-[11px] line-clamp-1 ${
+                      kelolaAdminWargaSubTab === 'master_data_layanan' ? 'text-sky-200' : 'text-slate-500'
+                    }`}
+                  >
+                    Master Layanan, Persyaratan, Formulir & Kategori
+                  </p>
+                </button>
               </div>
             </div>
 
@@ -5002,6 +5046,18 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     severity: audit.actionType === 'ACCESS_CHANGE' ? 'warning' : 'info',
                   });
                 }}
+              />
+            )}
+
+            {/* Sub-Panel 4: Manajemen Pelayanan Dan Master Data Layanan */}
+            {kelolaAdminWargaSubTab === 'master_data_layanan' && (
+              <AdminMasterDataLayananPanel
+                masterLayananList={masterLayananList}
+                masterPersyaratanList={masterPersyaratanList}
+                kategoriPengaduanList={kategoriPengaduanList}
+                onSaveMasterLayanan={onSaveMasterLayanan || (async () => ({ ok: true }))}
+                onSaveMasterPersyaratan={onSaveMasterPersyaratan || (async () => ({ ok: true }))}
+                onSaveKategoriPengaduan={onSaveKategoriPengaduan}
               />
             )}
           </div>
@@ -5095,6 +5151,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             profile={profile}
             rwGroups={rwGroups}
             whatsappRecipients={whatsappRecipients}
+            citizenUsers={citizenUsers}
             serviceCatalog={serviceCatalog}
             adminOfficerName={
               adminSession?.fullName || 'Administrator / Operator Kelurahan Panaikang'
@@ -5117,9 +5174,12 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               reports={reports}
               wasteUnits={wasteUnits}
               cleanupEvents={cleanupEvents}
+              praRegistrasiList={praRegistrasiList}
+              pengaduanList={pengaduanList}
               profile={profile}
               rwGroups={rwGroups}
               whatsappRecipients={whatsappRecipients}
+              onLurahApproveService={onLurahApproveService}
               onUpdateReportStatus={(id, newStatus, assignedTeam, responseNote) => {
                 const targetRep = reports.find((r) => r.id === id);
                 if (onUpdateReportStatus) {
@@ -5144,7 +5204,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               }}
               onNavigate={onNavigate}
               isEmbeddedInAdmin={true}
-              onOpenWhatsAppManager={() => handleTabSwitch('laporan')}
+              onOpenWhatsAppManager={() => handleTabSwitch('pengurusan_warga')}
               onPdfDownloaded={(res) => {
                 recordAudit({
                   actionType: 'EXPORT',

@@ -48,6 +48,13 @@ import {
   CITIZEN_MENU_DEFINITIONS,
   ALL_CITIZEN_SUB_ITEM_KEYS,
   KerjaBaktiIgHighlightItem,
+  PraRegistrasiRecord,
+  PengaduanOnlineRecord,
+  PraRegistrasiStatus,
+  PengaduanOnlineStatus,
+  MasterLayananItem,
+  MasterPersyaratanItem,
+  PengaduanKategori,
 } from './types';
 import {
   INITIAL_REPORTS,
@@ -68,9 +75,18 @@ import {
 } from './data/initialData';
 import { INITIAL_SISKAMLING_SCHEDULES } from './data/siskamlingData';
 import {
+  INITIAL_MASTER_LAYANAN,
+  INITIAL_MASTER_PERSYARATAN,
+  DAFTAR_KATEGORI_PENGADUAN,
+} from './data/pelayananMasterData';
+import {
   SERVICE_CATEGORY_GROUPS,
   ServiceCategoryGroup,
 } from './data/wargaServiceCatalog';
+import {
+  isValidWhatsAppPhone,
+  resolveCitizenWhatsAppPhone,
+} from './utils/whatsappHelper';
 import {
   testConnection,
   subscribeToFirestoreDatabase,
@@ -409,6 +425,158 @@ export default function App() {
     );
   });
 
+  const [praRegistrasiList, setPraRegistrasiList] = useState<PraRegistrasiRecord[]>(() => {
+    const deleted = getDeletedItemIds();
+    const source: PraRegistrasiRecord[] = Array.isArray(initialPersisted?.praRegistrasiRecords)
+      ? initialPersisted.praRegistrasiRecords.filter(
+          (r) => r && (r.id || r.ticketCode) && !deleted.has(r.id || r.ticketCode)
+        )
+      : [];
+
+    const existingTickets = new Set(source.map((p) => p.ticketCode));
+    const existingReports = Array.isArray(initialPersisted?.reports)
+      ? initialPersisted.reports
+      : INITIAL_REPORTS;
+
+    for (const r of existingReports) {
+      if (!r || !r.id || deleted.has(r.id)) continue;
+      const isSurat =
+        r.ticketCode?.startsWith('SRT-') ||
+        r.ticketCode?.startsWith('REG-') ||
+        (r.documentCode && r.documentCode.startsWith('PM-')) ||
+        r.serviceCategoryId === 'surat_keterangan' ||
+        r.category === 'Surat Keterangan';
+
+      if (isSurat && !existingTickets.has(r.ticketCode)) {
+        let mappedStatus: PraRegistrasiStatus = 'MENUNGGU_KEDATANGAN';
+        if (r.status === 'Selesai') mappedStatus = 'SURAT_SELESAI';
+        else if (r.status === 'Sedang Ditangani') mappedStatus = 'DIPROSES';
+        else mappedStatus = 'MENUNGGU_PERSETUJUAN';
+
+        source.push({
+          id: r.id,
+          ticketCode: r.ticketCode,
+          serviceId: r.serviceSubItemId || 'layanan-administrasi',
+          serviceCode: r.documentCode || r.serviceSubItemId || 'PM-01',
+          serviceName: r.serviceSubItemLabel || r.title || 'Surat Keterangan',
+          applicantName: r.reporterName || 'Warga Pemohon',
+          applicantNik: r.applicantNik || '737112xxxxxxxx',
+          applicantPhone:
+            resolveCitizenWhatsAppPhone({
+              rawPhone: r.reporterPhone,
+              citizenName: r.reporterName,
+              ownerId: r.ownerId,
+              ownerEmail: r.ownerEmail,
+              nik: r.applicantNik,
+              citizenUsers: initialPersisted?.citizenUsers || [],
+            }) || '',
+          applicantRw: r.rw || 'RW 01',
+          applicantRt: r.rt || 'RT 01',
+          applicantAddress: r.locationName || 'Kelurahan Panaikang',
+          formData: {},
+          uploadedDocs: [],
+          status: mappedStatus,
+          submittedAt: r.createdAt || '01 November 2026',
+          updatedAt: r.updatedAt || r.createdAt || '01 November 2026',
+          assignedOfficerName: r.verifiedBy || r.assignedTeam || 'Petugas Loket Pelayanan',
+          officerNotes: r.responseNote || 'Berkas telah diverifikasi oleh petugas loket.',
+          physicalDocsChecked: r.status === 'Selesai' || r.status === 'Sedang Ditangani',
+          lurahApprovalStatus:
+            r.status === 'Selesai'
+              ? 'DISETUJUI'
+              : r.status === 'Sedang Ditangani'
+              ? 'DISETUJUI'
+              : 'MENUNGGU',
+          letterRegisterNumber: r.letterRegisterNumber,
+        });
+        existingTickets.add(r.ticketCode);
+      }
+    }
+    return source;
+  });
+
+  const [pengaduanOnlineList, setPengaduanOnlineList] = useState<PengaduanOnlineRecord[]>(() => {
+    const deleted = getDeletedItemIds();
+    const source: PengaduanOnlineRecord[] = Array.isArray(initialPersisted?.pengaduanRecords)
+      ? initialPersisted.pengaduanRecords.filter(
+          (p) => p && (p.id || p.ticketCode) && !deleted.has(p.id || p.ticketCode)
+        )
+      : [];
+
+    const existingTickets = new Set(source.map((p) => p.ticketCode));
+    const existingReports = Array.isArray(initialPersisted?.reports)
+      ? initialPersisted.reports
+      : INITIAL_REPORTS;
+
+    for (const r of existingReports) {
+      if (!r || !r.id || deleted.has(r.id)) continue;
+      const isSurat =
+        r.ticketCode?.startsWith('SRT-') ||
+        r.ticketCode?.startsWith('REG-') ||
+        (r.documentCode && r.documentCode.startsWith('PM-')) ||
+        r.serviceCategoryId === 'surat_keterangan' ||
+        r.category === 'Surat Keterangan';
+
+      if (!isSurat && !existingTickets.has(r.ticketCode)) {
+        let mappedStatus: PengaduanOnlineStatus = 'DIAJUKAN';
+        if (r.status === 'Selesai') mappedStatus = 'SELESAI';
+        else if (r.status === 'Sedang Ditangani') mappedStatus = 'DITINDAKLANJUTI';
+        else mappedStatus = 'DIVERIFIKASI';
+
+        source.push({
+          id: r.id,
+          ticketCode: r.ticketCode,
+          category: (r.category as any) || 'Lainnya',
+          title: r.title,
+          content: r.description,
+          locationAddress: r.locationName,
+          incidentDate: r.createdAt?.slice(0, 10) || '01 November 2026',
+          proofPhotos: r.imageUrl ? [r.imageUrl] : [],
+          isAnonymous: r.reporterName?.toLowerCase().includes('anonim') || false,
+          reporterName: r.reporterName || 'Warga Panaikang',
+          reporterPhone:
+            resolveCitizenWhatsAppPhone({
+              rawPhone: r.reporterPhone,
+              citizenName: r.reporterName,
+              ownerId: r.ownerId,
+              ownerEmail: r.ownerEmail,
+              nik: r.applicantNik,
+              citizenUsers: initialPersisted?.citizenUsers || [],
+            }) || '',
+          reporterRw: r.rw || 'RW 01',
+          reporterRt: r.rt || 'RT 01',
+          status: mappedStatus,
+          isPriority: r.urgency === 'Darurat' || r.urgency === 'Tinggi',
+          submittedAt: r.createdAt || '01 November 2026',
+          updatedAt: r.updatedAt || r.createdAt || '01 November 2026',
+          assignedUnit: r.assignedTeam,
+          assignedOfficer: r.verifiedBy || r.assignedTeam,
+          followUpNotes: r.responseNote,
+        });
+        existingTickets.add(r.ticketCode);
+      }
+    }
+    return source;
+  });
+
+  const [masterLayananList, setMasterLayananList] = useState<MasterLayananItem[]>(() => {
+    return Array.isArray(initialPersisted?.masterLayananList) && initialPersisted.masterLayananList.length > 0
+      ? initialPersisted.masterLayananList
+      : INITIAL_MASTER_LAYANAN;
+  });
+
+  const [masterPersyaratanList, setMasterPersyaratanList] = useState<MasterPersyaratanItem[]>(() => {
+    return Array.isArray(initialPersisted?.masterPersyaratanList) && initialPersisted.masterPersyaratanList.length > 0
+      ? initialPersisted.masterPersyaratanList
+      : INITIAL_MASTER_PERSYARATAN;
+  });
+
+  const [kategoriPengaduanList, setKategoriPengaduanList] = useState<PengaduanKategori[]>(() => {
+    return Array.isArray(initialPersisted?.kategoriPengaduanList) && initialPersisted.kategoriPengaduanList.length > 0
+      ? initialPersisted.kategoriPengaduanList
+      : DAFTAR_KATEGORI_PENGADUAN;
+  });
+
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
   const stateRef = useRef({
@@ -430,6 +598,11 @@ export default function App() {
     siskamlingSchedules,
     citizenUsers,
     citizenMenuConfig,
+    praRegistrasiRecords: praRegistrasiList,
+    pengaduanRecords: pengaduanOnlineList,
+    masterLayananList,
+    masterPersyaratanList,
+    kategoriPengaduanList,
   });
 
   useEffect(() => {
@@ -452,6 +625,11 @@ export default function App() {
       siskamlingSchedules,
       citizenUsers,
       citizenMenuConfig,
+      praRegistrasiRecords: praRegistrasiList,
+      pengaduanRecords: pengaduanOnlineList,
+      masterLayananList,
+      masterPersyaratanList,
+      kategoriPengaduanList,
     };
   }, [
     kelurahanProfile,
@@ -472,6 +650,11 @@ export default function App() {
     siskamlingSchedules,
     citizenUsers,
     citizenMenuConfig,
+    praRegistrasiList,
+    pengaduanOnlineList,
+    masterLayananList,
+    masterPersyaratanList,
+    kategoriPengaduanList,
   ]);
 
   const serverSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -506,6 +689,11 @@ export default function App() {
         siskamlingSchedules: partial.siskamlingSchedules ?? stateRef.current.siskamlingSchedules,
         citizenUsers: (partial.citizenUsers ?? stateRef.current.citizenUsers).filter((c) => c && c.uid && !deletedSet.has(c.uid)),
         citizenMenuConfig: partial.citizenMenuConfig ?? stateRef.current.citizenMenuConfig,
+        praRegistrasiRecords: partial.praRegistrasiRecords ?? stateRef.current.praRegistrasiRecords,
+        pengaduanRecords: partial.pengaduanRecords ?? stateRef.current.pengaduanRecords,
+        masterLayananList: partial.masterLayananList ?? stateRef.current.masterLayananList,
+        masterPersyaratanList: partial.masterPersyaratanList ?? stateRef.current.masterPersyaratanList,
+        kategoriPengaduanList: partial.kategoriPengaduanList ?? stateRef.current.kategoriPengaduanList,
         deletedItemIds: nextDeletedArray,
         updatedAt: Date.now(),
       };
@@ -529,6 +717,11 @@ export default function App() {
         siskamlingSchedules: nextSnapshot.siskamlingSchedules ?? [],
         citizenUsers: nextSnapshot.citizenUsers ?? [],
         citizenMenuConfig: nextSnapshot.citizenMenuConfig ?? DEFAULT_CITIZEN_MENU_ACCESS_CONFIG,
+        praRegistrasiRecords: nextSnapshot.praRegistrasiRecords ?? [],
+        pengaduanRecords: nextSnapshot.pengaduanRecords ?? [],
+        masterLayananList: nextSnapshot.masterLayananList ?? INITIAL_MASTER_LAYANAN,
+        masterPersyaratanList: nextSnapshot.masterPersyaratanList ?? INITIAL_MASTER_PERSYARATAN,
+        kategoriPengaduanList: nextSnapshot.kategoriPengaduanList ?? DAFTAR_KATEGORI_PENGADUAN,
       };
 
       savePersistedDatabase(nextSnapshot);
@@ -680,6 +873,111 @@ export default function App() {
     if (merged.siskamlingSchedules) setSiskamlingSchedules(merged.siskamlingSchedules);
     if (merged.citizenUsers) setCitizenUsers(merged.citizenUsers);
     if (merged.citizenMenuConfig) setCitizenMenuConfig(merged.citizenMenuConfig);
+
+    const deleted = getDeletedItemIds();
+    const effectivePra = Array.isArray(merged.praRegistrasiRecords) ? [...merged.praRegistrasiRecords] : [];
+    const effectiveAduan = Array.isArray(merged.pengaduanRecords) ? [...merged.pengaduanRecords] : [];
+
+    const existingPraTickets = new Set(effectivePra.map((p) => p.ticketCode));
+    const existingAduanTickets = new Set(effectiveAduan.map((p) => p.ticketCode));
+
+    if (Array.isArray(merged.reports)) {
+      for (const r of merged.reports) {
+        if (!r || !r.id || deleted.has(r.id)) continue;
+        const isSurat =
+          r.ticketCode?.startsWith('SRT-') ||
+          r.ticketCode?.startsWith('REG-') ||
+          (r.documentCode && r.documentCode.startsWith('PM-')) ||
+          r.serviceCategoryId === 'surat_keterangan' ||
+          r.category === 'Surat Keterangan';
+
+        if (isSurat && !existingPraTickets.has(r.ticketCode)) {
+          let mappedStatus: PraRegistrasiStatus = 'SURAT_SELESAI';
+          if (r.status === 'Menunggu Verifikasi') mappedStatus = 'MENUNGGU_PERSETUJUAN';
+          else if (r.status === 'Sedang Ditangani') mappedStatus = 'DIPROSES';
+          else if (r.status === 'Selesai') mappedStatus = 'SURAT_SELESAI';
+
+          effectivePra.push({
+            id: r.id,
+            ticketCode: r.ticketCode || `SRT-2026-${r.id.slice(-4)}`,
+            serviceId: r.serviceSubItemId || r.serviceCategoryId || 'sk-usaha',
+            serviceCode: r.documentCode || r.serviceSubItemId || 'PM-01',
+            serviceName: r.serviceSubItemLabel || r.serviceCategoryTitle || r.title || 'Surat Keterangan',
+            applicantNik: r.applicantNik || '7371110000000001',
+            applicantName: r.reporterName || 'Warga Panaikang',
+            applicantPhone:
+              resolveCitizenWhatsAppPhone({
+                rawPhone: r.reporterPhone,
+                citizenName: r.reporterName,
+                ownerId: r.ownerId,
+                ownerEmail: r.ownerEmail,
+                nik: r.applicantNik,
+                citizenUsers: merged.citizenUsers || [],
+              }) || '',
+            applicantRw: r.rw || 'RW 01',
+            applicantRt: r.rt || 'RT 01',
+            applicantAddress: r.locationName || 'Kelurahan Panaikang',
+            formData: {},
+            uploadedDocs: [],
+            status: mappedStatus,
+            submittedAt: r.createdAt || '01 November 2026',
+            updatedAt: r.updatedAt || r.createdAt || '01 November 2026',
+            assignedOfficerName: r.verifiedBy || r.assignedTeam || 'Petugas Loket Pelayanan',
+            officerNotes: r.responseNote || 'Berkas telah diverifikasi oleh petugas loket.',
+            physicalDocsChecked: r.status === 'Selesai' || r.status === 'Sedang Ditangani',
+            lurahApprovalStatus:
+              r.status === 'Selesai' || r.status === 'Sedang Ditangani'
+                ? 'DISETUJUI'
+                : 'MENUNGGU',
+            letterRegisterNumber: r.letterRegisterNumber,
+          });
+          existingPraTickets.add(r.ticketCode);
+        } else if (!isSurat && !existingAduanTickets.has(r.ticketCode)) {
+          let mappedStatus: PengaduanOnlineStatus = 'DIAJUKAN';
+          if (r.status === 'Selesai') mappedStatus = 'SELESAI';
+          else if (r.status === 'Sedang Ditangani') mappedStatus = 'DITINDAKLANJUTI';
+          else mappedStatus = 'DIVERIFIKASI';
+
+          effectiveAduan.push({
+            id: r.id,
+            ticketCode: r.ticketCode || `ADU-2026-${r.id.slice(-4)}`,
+            category: (r.category as any) || 'Lainnya',
+            title: r.title,
+            content: r.description,
+            locationAddress: r.locationName,
+            incidentDate: r.createdAt?.slice(0, 10) || '01 November 2026',
+            proofPhotos: r.imageUrl ? [r.imageUrl] : [],
+            isAnonymous: r.reporterName?.toLowerCase().includes('anonim') || false,
+            reporterName: r.reporterName || 'Warga Panaikang',
+            reporterPhone:
+              resolveCitizenWhatsAppPhone({
+                rawPhone: r.reporterPhone,
+                citizenName: r.reporterName,
+                ownerId: r.ownerId,
+                ownerEmail: r.ownerEmail,
+                nik: r.applicantNik,
+                citizenUsers: merged.citizenUsers || [],
+              }) || '',
+            reporterRw: r.rw || 'RW 01',
+            reporterRt: r.rt || 'RT 01',
+            status: mappedStatus,
+            isPriority: r.urgency === 'Darurat' || r.urgency === 'Tinggi',
+            submittedAt: r.createdAt || '01 November 2026',
+            updatedAt: r.updatedAt || r.createdAt || '01 November 2026',
+            assignedUnit: r.assignedTeam,
+            assignedOfficer: r.verifiedBy || r.assignedTeam,
+            followUpNotes: r.responseNote,
+          });
+          existingAduanTickets.add(r.ticketCode);
+        }
+      }
+    }
+
+    setPraRegistrasiList(effectivePra);
+    setPengaduanOnlineList(effectiveAduan);
+    if (merged.masterLayananList) setMasterLayananList(merged.masterLayananList);
+    if (merged.masterPersyaratanList) setMasterPersyaratanList(merged.masterPersyaratanList);
+    if (merged.kategoriPengaduanList) setKategoriPengaduanList(merged.kategoriPengaduanList);
     setTebaSpots(merged.tebaSpots ?? []);
     setBioporiPoints(merged.bioporiPoints ?? []);
 
@@ -702,6 +1000,11 @@ export default function App() {
       siskamlingSchedules: merged.siskamlingSchedules ?? [],
       citizenUsers: merged.citizenUsers ?? [],
       citizenMenuConfig: merged.citizenMenuConfig ?? DEFAULT_CITIZEN_MENU_ACCESS_CONFIG,
+      praRegistrasiRecords: effectivePra,
+      pengaduanRecords: effectiveAduan,
+      masterLayananList: merged.masterLayananList ?? INITIAL_MASTER_LAYANAN,
+      masterPersyaratanList: merged.masterPersyaratanList ?? INITIAL_MASTER_PERSYARATAN,
+      kategoriPengaduanList: merged.kategoriPengaduanList ?? DAFTAR_KATEGORI_PENGADUAN,
     };
 
     savePersistedDatabase(merged);
@@ -734,6 +1037,11 @@ export default function App() {
       if (initialLocal.bioporiPoints) setBioporiPoints(initialLocal.bioporiPoints);
       if (initialLocal.citizenUsers) setCitizenUsers(initialLocal.citizenUsers);
       if (initialLocal.citizenMenuConfig) setCitizenMenuConfig(initialLocal.citizenMenuConfig);
+      if (initialLocal.praRegistrasiRecords) setPraRegistrasiList(initialLocal.praRegistrasiRecords);
+      if (initialLocal.pengaduanRecords) setPengaduanOnlineList(initialLocal.pengaduanRecords);
+      if (initialLocal.masterLayananList) setMasterLayananList(initialLocal.masterLayananList);
+      if (initialLocal.masterPersyaratanList) setMasterPersyaratanList(initialLocal.masterPersyaratanList);
+      if (initialLocal.kategoriPengaduanList) setKategoriPengaduanList(initialLocal.kategoriPengaduanList);
     }
 
     // 2. Real-time Firestore Subscription (instant push across all devices/smartphones/computers)
@@ -1220,10 +1528,15 @@ export default function App() {
           (existingIdx >= 0 ? nextCitizenUsers[existingIdx].nik : '') ||
           '',
         phone:
-          (optimistic.reporterPhone && optimistic.reporterPhone !== '-'
+          (isValidWhatsAppPhone(optimistic.reporterPhone)
             ? optimistic.reporterPhone
-            : authUserProfile?.phone ||
-              (existingIdx >= 0 ? nextCitizenUsers[existingIdx].phone : '')) || '',
+            : isValidWhatsAppPhone(authUserProfile?.phone)
+            ? authUserProfile?.phone
+            : existingIdx >= 0 && isValidWhatsAppPhone(nextCitizenUsers[existingIdx].phone)
+            ? nextCitizenUsers[existingIdx].phone
+            : optimistic.reporterPhone && optimistic.reporterPhone !== '-'
+            ? optimistic.reporterPhone
+            : '') || '',
         rw: optimistic.rw || authUserProfile?.rw || 'RW 01',
         rt: optimistic.rt || authUserProfile?.rt || 'RT 01',
         address:
@@ -1251,6 +1564,241 @@ export default function App() {
 
     return ticketCode;
   };
+
+  const handleAddPraRegistrasi = useCallback(
+    async (
+      record: Omit<PraRegistrasiRecord, 'id' | 'ticketCode' | 'submittedAt' | 'updatedAt' | 'status'>
+    ): Promise<string> => {
+      const nowTime = getRealtimeDateTimeString();
+      const currentList = stateRef.current.praRegistrasiRecords || [];
+      const prefix = 'REG-2026-';
+      let maxSeq = 0;
+      for (const p of currentList) {
+        if (!p.ticketCode) continue;
+        if (p.ticketCode.startsWith(prefix)) {
+          const numPart = parseInt(p.ticketCode.slice(prefix.length), 10);
+          if (!isNaN(numPart) && numPart > maxSeq) {
+            maxSeq = numPart;
+          }
+        }
+      }
+      const ticketCode = `${prefix}${String(maxSeq + 1).padStart(4, '0')}`;
+      const newPraRecord: PraRegistrasiRecord = {
+        ...record,
+        id: `pra-${Date.now()}`,
+        ticketCode,
+        status: 'MENUNGGU_KEDATANGAN',
+        submittedAt: nowTime,
+        updatedAt: nowTime,
+      };
+
+      const nextPraList = [newPraRecord, ...currentList];
+      setPraRegistrasiList(nextPraList);
+
+      // Create matching CitizenReport for backward compatibility & unified dashboard
+      const matchingReport: CitizenReport = {
+        id: `rep-pra-${Date.now()}`,
+        ticketCode,
+        category: 'Surat Keterangan',
+        serviceCategoryId: 'surat_keterangan',
+        serviceCategoryTitle: 'Pelayanan Surat Administrasi',
+        serviceSubItemId: record.serviceCode,
+        serviceSubItemLabel: record.serviceName,
+        officialHeaderTitle: record.serviceName.toUpperCase(),
+        title: `${record.serviceName} a.n. ${record.applicantName}`,
+        description: `Pra Registrasi ${record.serviceName}. Pemohon: ${record.applicantName} (NIK: ${record.applicantNik})`,
+        urgency: 'Normal',
+        status: 'Menunggu Verifikasi',
+        createdAt: nowTime,
+        updatedAt: nowTime,
+        reporterName: record.applicantName,
+        applicantNik: record.applicantNik,
+        reporterPhone: record.applicantPhone,
+        rw: record.applicantRw,
+        rt: record.applicantRt,
+        locationName: record.applicantAddress,
+        assignedTeam: 'Seksi Pelayanan Umum & Loket Kelurahan',
+        responseNote:
+          'Pra registrasi online telah terdaftar. Silakan bawa berkas fisik asli ke kantor loket Kelurahan Panaikang untuk verifikasi.',
+        mapX: 50,
+        mapY: 48,
+        coordinatesLabel: '-5.1379, 119.4470',
+        imageUrl: '',
+        upvotes: 1,
+      };
+
+      const nextReports = [matchingReport, ...stateRef.current.reports];
+      setReports(nextReports);
+
+      commitPersistence({
+        praRegistrasiRecords: nextPraList,
+        reports: nextReports,
+      });
+
+      return ticketCode;
+    },
+    [commitPersistence]
+  );
+
+  const handleAddPengaduan = useCallback(
+    async (
+      record: Omit<PengaduanOnlineRecord, 'id' | 'ticketCode' | 'submittedAt' | 'updatedAt' | 'status'>
+    ): Promise<string> => {
+      const nowTime = getRealtimeDateTimeString();
+      const currentList = stateRef.current.pengaduanRecords || [];
+      const prefix = 'PGD-2026-';
+      let maxSeq = 0;
+      for (const p of currentList) {
+        if (!p.ticketCode) continue;
+        if (p.ticketCode.startsWith(prefix)) {
+          const numPart = parseInt(p.ticketCode.slice(prefix.length), 10);
+          if (!isNaN(numPart) && numPart > maxSeq) {
+            maxSeq = numPart;
+          }
+        }
+      }
+      const ticketCode = `${prefix}${String(maxSeq + 1).padStart(4, '0')}`;
+      const newPengaduanRecord: PengaduanOnlineRecord = {
+        ...record,
+        id: `pgd-${Date.now()}`,
+        ticketCode,
+        status: 'DIAJUKAN',
+        submittedAt: nowTime,
+        updatedAt: nowTime,
+      };
+
+      const nextPengaduanList = [newPengaduanRecord, ...currentList];
+      setPengaduanOnlineList(nextPengaduanList);
+
+      // Create matching CitizenReport
+      const matchingReport: CitizenReport = {
+        id: `rep-pgd-${Date.now()}`,
+        ticketCode,
+        category: (record.category as any) || 'Laporan Warga',
+        serviceCategoryId: 'pengaduan_permasalahan_warga',
+        serviceCategoryTitle: 'Laporan dan Pengaduan Warga',
+        officialHeaderTitle: 'LAPORAN DAN PENGADUAN PERMASALAHAN WARGA',
+        title: record.title,
+        description: record.content,
+        urgency: record.isPriority ? 'Darurat' : 'Normal',
+        status: 'Menunggu Verifikasi',
+        createdAt: nowTime,
+        updatedAt: nowTime,
+        reporterName: record.isAnonymous ? 'Warga Panaikang (Anonim)' : record.reporterName,
+        reporterPhone: record.reporterPhone,
+        rw: record.reporterRw,
+        rt: record.reporterRt,
+        locationName: record.locationAddress,
+        assignedTeam: 'Satgas & Tim Reaksi Cepat Kelurahan Panaikang',
+        responseNote: 'Pengaduan online telah diterima dan sedang menunggu verifikasi tindak lanjut.',
+        mapX: 50,
+        mapY: 48,
+        coordinatesLabel: '-5.1379, 119.4470',
+        imageUrl: (record.proofPhotos && record.proofPhotos[0]) || '',
+        upvotes: 1,
+      };
+
+      const nextReports = [matchingReport, ...stateRef.current.reports];
+      setReports(nextReports);
+
+      commitPersistence({
+        pengaduanRecords: nextPengaduanList,
+        reports: nextReports,
+      });
+
+      return ticketCode;
+    },
+    [commitPersistence]
+  );
+
+  const handleLurahApproveService = useCallback(
+    async (
+      ticketCode: string,
+      action: 'SETUJUI' | 'TOLAK' | 'KEMBALIKAN',
+      lurahNote: string
+    ): Promise<void> => {
+      const nowTime = getRealtimeDateTimeString();
+      const currentPra = stateRef.current.praRegistrasiRecords || [];
+      const updatedPra = currentPra.map((item) => {
+        if (item.ticketCode === ticketCode) {
+          const nextStatus =
+            action === 'SETUJUI'
+              ? 'DISETUJUI'
+              : action === 'TOLAK'
+              ? 'DITUTUP'
+              : 'PERLU_PERBAIKAN';
+          return {
+            ...item,
+            status: nextStatus as any,
+            lurahApprovalStatus:
+              action === 'SETUJUI'
+                ? ('DISETUJUI' as const)
+                : action === 'TOLAK'
+                ? ('DITOLAK' as const)
+                : ('KEMBALIKAN_PERBAIKAN' as const),
+            lurahNotes: lurahNote,
+            lurahActionAt: nowTime,
+            updatedAt: nowTime,
+          };
+        }
+        return item;
+      });
+
+      setPraRegistrasiList(updatedPra);
+
+      // Also update matching CitizenReport
+      const updatedReports = stateRef.current.reports.map((r) => {
+        if (r.ticketCode === ticketCode) {
+          return {
+            ...r,
+            status:
+              action === 'SETUJUI'
+                ? ('Sedang Ditangani' as const)
+                : action === 'TOLAK'
+                ? ('Selesai' as const)
+                : ('Menunggu Verifikasi' as const),
+            responseNote: `[Keputusan Lurah]: ${lurahNote}`,
+            updatedAt: nowTime,
+          };
+        }
+        return r;
+      });
+      setReports(updatedReports);
+
+      commitPersistence({
+        praRegistrasiRecords: updatedPra,
+        reports: updatedReports,
+      });
+    },
+    [commitPersistence]
+  );
+
+  const handleSaveMasterLayanan = useCallback(
+    async (list: MasterLayananItem[]): Promise<{ ok: boolean; errors?: string[] }> => {
+      setMasterLayananList(list);
+      commitPersistence({ masterLayananList: list });
+      return { ok: true };
+    },
+    [commitPersistence]
+  );
+
+  const handleSaveMasterPersyaratan = useCallback(
+    async (list: MasterPersyaratanItem[]): Promise<{ ok: boolean; errors?: string[] }> => {
+      setMasterPersyaratanList(list);
+      commitPersistence({ masterPersyaratanList: list });
+      return { ok: true };
+    },
+    [commitPersistence]
+  );
+
+  const handleSaveKategoriPengaduan = useCallback(
+    async (list: PengaduanKategori[]): Promise<{ ok: boolean; errors?: string[] }> => {
+      setKategoriPengaduanList(list);
+      commitPersistence({ kategoriPengaduanList: list });
+      return { ok: true };
+    },
+    [commitPersistence]
+  );
 
   const handleUpdateCitizenUser = useCallback(
     async (
@@ -1289,6 +1837,37 @@ export default function App() {
         ];
       }
       setCitizenUsers(nextList);
+
+      // If a valid phone number was saved for this citizen, backfill any reports with missing/masked phone
+      const updatedCitizen = nextList.find((c) => c.uid === uid);
+      if (updatedCitizen && isValidWhatsAppPhone(updatedCitizen.phone)) {
+        const cleanPhone = updatedCitizen.phone.trim();
+        const cleanName = updatedCitizen.fullName.trim().toLowerCase();
+        const cleanEmail = (updatedCitizen.email || '').trim().toLowerCase();
+        const cleanNik = (updatedCitizen.nik || '').replace(/\D/g, '').trim();
+
+        let reportsChanged = false;
+        const nextReports = (stateRef.current.reports || []).map((r) => {
+          const matchesCitizen =
+            (r.ownerId && r.ownerId === uid) ||
+            (cleanEmail && r.ownerEmail && r.ownerEmail.trim().toLowerCase() === cleanEmail) ||
+            (cleanNik && r.applicantNik && r.applicantNik.replace(/\D/g, '').trim() === cleanNik) ||
+            (cleanName && (r.reporterName || '').trim().toLowerCase() === cleanName);
+
+          if (matchesCitizen && !isValidWhatsAppPhone(r.reporterPhone)) {
+            reportsChanged = true;
+            return { ...r, reporterPhone: cleanPhone };
+          }
+          return r;
+        });
+
+        if (reportsChanged) {
+          setReports(nextReports);
+          commitPersistence({ citizenUsers: nextList, reports: nextReports });
+          return { ok: true };
+        }
+      }
+
       commitPersistence({ citizenUsers: nextList });
       return { ok: true };
     },
@@ -1429,7 +2008,7 @@ export default function App() {
       urgency: rep.urgency || 'Normal',
       status: rep.status || 'Menunggu Verifikasi',
       reporterName: rep.reporterName!.trim(),
-      reporterPhone: rep.reporterPhone?.trim() || '0812-xxxx-xxxx',
+      reporterPhone: rep.reporterPhone?.trim() || '',
       rw: rep.rw || 'RW 02',
       rt: rep.rt || 'RT 01',
       locationName: rep.locationName!.trim(),
@@ -1501,7 +2080,36 @@ export default function App() {
 
     const nextReports = stateRef.current.reports.map((r) => (r.id === id ? merged : r));
     setReports(nextReports);
-    commitPersistence({ reports: nextReports });
+
+    // Also sync updated valid phone to citizenUsers if matched
+    let nextCitizenUsers = stateRef.current.citizenUsers || [];
+    let citizenChanged = false;
+    if (isValidWhatsAppPhone(merged.reporterPhone)) {
+      const cleanPhone = merged.reporterPhone.trim();
+      const cleanName = (merged.reporterName || '').trim().toLowerCase();
+      const cleanEmail = (merged.ownerEmail || '').trim().toLowerCase();
+      const cleanNik = (merged.applicantNik || '').replace(/\D/g, '').trim();
+
+      nextCitizenUsers = nextCitizenUsers.map((c) => {
+        const matches =
+          (merged.ownerId && c.uid === merged.ownerId) ||
+          (cleanEmail && c.email && c.email.trim().toLowerCase() === cleanEmail) ||
+          (cleanNik && c.nik && c.nik.replace(/\D/g, '').trim() === cleanNik) ||
+          (cleanName && c.fullName.trim().toLowerCase() === cleanName);
+        if (matches && c.phone !== cleanPhone) {
+          citizenChanged = true;
+          return { ...c, phone: cleanPhone, updatedAt: getRealtimeDateTimeString() };
+        }
+        return c;
+      });
+      if (citizenChanged) {
+        setCitizenUsers(nextCitizenUsers);
+      }
+    }
+
+    commitPersistence(
+      citizenChanged ? { reports: nextReports, citizenUsers: nextCitizenUsers } : { reports: nextReports }
+    );
     triggerStatusToast(merged.ticketCode, merged.title, merged.status, merged.assignedTeam);
     return { ok: true };
   };
@@ -2805,9 +3413,18 @@ export default function App() {
           ) : (
             <DashboardWargaView
               userProfile={authUserProfile}
+              profile={kelurahanProfile}
               rwGroups={rwGroups}
               reports={reports}
+              seedRequests={seedRequests}
+              praRegistrasiList={praRegistrasiList}
+              pengaduanList={pengaduanOnlineList}
+              masterLayananList={masterLayananList}
+              masterPersyaratanList={masterPersyaratanList}
+              kategoriPengaduanList={kategoriPengaduanList}
               onAddReport={handleAddReport}
+              onAddPraRegistrasi={handleAddPraRegistrasi}
+              onAddPengaduan={handleAddPengaduan}
               onNavigate={handleNavigate}
               onLogout={handleFirebaseLogout}
               onProfileUpdated={(updatedProfile) => setAuthUserProfile(updatedProfile)}
@@ -2820,6 +3437,9 @@ export default function App() {
             reports={reports}
             wasteUnits={wasteUnits}
             cleanupEvents={cleanupEvents}
+            praRegistrasiList={praRegistrasiList}
+            pengaduanList={pengaduanOnlineList}
+            onLurahApproveService={handleLurahApproveService}
             onUpdateReportStatus={handleUpdateReportStatus}
             onNavigate={handleNavigate}
             onRedirectToAdminLogin={() => {
@@ -2948,6 +3568,15 @@ export default function App() {
             onDeleteCitizenUser={handleDeleteCitizenUser}
             citizenMenuConfig={citizenMenuConfig}
             onSaveCitizenMenuConfig={handleSaveCitizenMenuConfig}
+            praRegistrasiList={praRegistrasiList}
+            pengaduanList={pengaduanOnlineList}
+            masterLayananList={masterLayananList}
+            masterPersyaratanList={masterPersyaratanList}
+            kategoriPengaduanList={kategoriPengaduanList}
+            onSaveMasterLayanan={handleSaveMasterLayanan}
+            onSaveMasterPersyaratan={handleSaveMasterPersyaratan}
+            onSaveKategoriPengaduan={handleSaveKategoriPengaduan}
+            onLurahApproveService={handleLurahApproveService}
           />
         )}
           </>

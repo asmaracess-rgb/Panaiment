@@ -71,6 +71,14 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+process.on('uncaughtException', (err) => {
+  console.error('[Server] Uncaught exception (recovered):', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[Server] Unhandled rejection (recovered):', reason);
+});
+
 interface DatabaseSchema {
   profile: KelurahanProfile;
   rwGroups: RwGroup[];
@@ -877,11 +885,8 @@ async function startServer() {
       }
       const buffer = Buffer.from(base64Match[1], 'base64');
       const publicImgPath = path.join(__dirname, 'public', 'images', 'lurah_muthmainnah_cutout.png');
-      const srcAssetPath = path.join(__dirname, 'src', 'assets', 'images', 'lurah_muthmainnah_cutout.png');
       fs.mkdirSync(path.dirname(publicImgPath), { recursive: true });
-      fs.mkdirSync(path.dirname(srcAssetPath), { recursive: true });
       fs.writeFileSync(publicImgPath, buffer);
-      fs.writeFileSync(srcAssetPath, buffer);
 
       const versionedUrl = `/images/lurah_muthmainnah_cutout.png?v=${Date.now()}`;
       db.profile.lurahPhotoUrl = versionedUrl;
@@ -2840,9 +2845,7 @@ async function startServer() {
       if (!fs.existsSync(DATA_DIR)) {
         fs.mkdirSync(DATA_DIR, { recursive: true });
       }
-      const tempFile = `${TRAFFIC_FILE}.tmp`;
-      fs.writeFileSync(tempFile, JSON.stringify(trafficState, null, 2), 'utf-8');
-      fs.renameSync(tempFile, TRAFFIC_FILE);
+      fs.writeFileSync(TRAFFIC_FILE, JSON.stringify(trafficState, null, 2), 'utf-8');
     } catch (err) {
       console.error('Failed to write traffic_analytics.json:', err);
     }
@@ -3290,9 +3293,15 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Panaikang Smart Environment Full-Stack Server running on http://0.0.0.0:${PORT}`);
+  });
+
+  server.on('error', (err) => {
+    console.error('[Server] HTTP server error:', err);
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error('[Server] Failed to start server:', err);
+});

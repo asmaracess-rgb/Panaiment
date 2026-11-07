@@ -23,6 +23,7 @@ import {
   Check,
   ChevronRight,
   ExternalLink,
+  Download,
 } from 'lucide-react';
 import {
   CitizenReport,
@@ -33,6 +34,7 @@ import {
   RwGroup,
   WhatsAppRecipient,
   AdminActionPermissions,
+  AuthenticatedUserProfile,
 } from '../types';
 import {
   OFFICIAL_13_WARGA_SERVICES,
@@ -40,15 +42,23 @@ import {
   OfficialWargaService,
   ServiceCategoryGroup,
 } from '../data/wargaServiceCatalog';
-import { buildWhatsAppUrl } from '../utils/whatsappHelper';
+import {
+  buildWhatsAppUrl,
+  isValidWhatsAppPhone,
+  formatDisplayPhone,
+  resolveCitizenWhatsAppPhone,
+} from '../utils/whatsappHelper';
 import { buildOfficialKopSuratHtml } from '../utils/officialKopSurat';
 import { getRealtimeDateTimeString } from '../utils/realtimeDate';
+import { downloadOfficialLetterOrReceiptPdf } from '../utils/officialLetterPdfGenerator';
+import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
 
 interface AdminPengurusanWargaPanelProps {
   reports: CitizenReport[];
   profile: KelurahanProfile;
   rwGroups: RwGroup[];
   whatsappRecipients: WhatsAppRecipient[];
+  citizenUsers?: AuthenticatedUserProfile[];
   serviceCatalog?: ServiceCategoryGroup[];
   adminOfficerName: string;
   allowedServiceCategories?: string[];
@@ -88,6 +98,7 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
   reports,
   profile,
   rwGroups,
+  citizenUsers = [],
   adminOfficerName,
   actionPermissions,
   onCreateReport,
@@ -292,7 +303,15 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
     setFormTitle(rep.title);
     setFormReporterName(rep.reporterName);
     setFormApplicantNik(rep.applicantNik || '');
-    setFormReporterPhone(rep.reporterPhone);
+    const resolvedForEdit = resolveCitizenWhatsAppPhone({
+      rawPhone: rep.reporterPhone,
+      citizenName: rep.reporterName,
+      ownerId: rep.ownerId,
+      ownerEmail: rep.ownerEmail,
+      nik: rep.applicantNik,
+      citizenUsers,
+    });
+    setFormReporterPhone(resolvedForEdit);
     setFormRw(rep.rw || 'RW 01');
     setFormRt(rep.rt || 'RT 01');
     setFormLocation(rep.locationName || '');
@@ -366,7 +385,7 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
       urgency: formUrgency,
       status: formStatus,
       reporterName: formReporterName.trim(),
-      reporterPhone: formReporterPhone.trim() || '0812-xxxx-xxxx',
+      reporterPhone: formReporterPhone.trim(),
       rw: formRw,
       rt: formRt,
       locationName: formLocation.trim(),
@@ -587,8 +606,9 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
     iframe.style.position = 'fixed';
     iframe.style.right = '0';
     iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
+    iframe.style.width = '1px';
+    iframe.style.height = '1px';
+    iframe.style.opacity = '0';
     iframe.style.border = '0';
     document.body.appendChild(iframe);
     const doc = iframe.contentWindow?.document;
@@ -596,11 +616,44 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
       doc.open();
       doc.write(htmlDoc);
       doc.close();
-      window.setTimeout(() => {
+      try {
         iframe.contentWindow?.focus();
         iframe.contentWindow?.print();
-      }, 250);
+      } catch {
+        window.print();
+      }
     }
+  };
+
+  const handleDownloadPdf = (rep: CitizenReport) => {
+    const isSurat = isSuratAdministrasi(rep);
+    const docTitle =
+      rep.officialHeaderTitle ||
+      (isSurat ? 'SURAT KETERANGAN RESMI' : 'TANDA TERIMA LAPORAN PENGADUAN WARGA');
+    const fileName = downloadOfficialLetterOrReceiptPdf(
+      {
+        ticketCode: rep.ticketCode,
+        isSurat,
+        documentTitle: docTitle,
+        registerNumber: rep.letterRegisterNumber || rep.ticketCode,
+        applicantName: rep.reporterName,
+        applicantNik: rep.applicantNik,
+        applicantPhone: rep.reporterPhone,
+        rw: rep.rw,
+        rt: rep.rt,
+        address: rep.locationName,
+        serviceOrCategoryName: rep.title,
+        descriptionOrPurpose: rep.description,
+        statusText: rep.status,
+        assignedUnit: rep.assignedTeam || 'Seksi Pelayanan Umum & Loket Kelurahan',
+        officerNotes: rep.responseNote,
+        submittedAt: rep.createdAt,
+        signerName: rep.signedByOfficer || `${profile.lurahName}`,
+        signerNip: profile.lurahNip,
+      },
+      profile
+    );
+    setFeedbackMsg(`Dokumen resmi berhasil diunduh sebagai PDF: ${fileName}`);
   };
 
   return (
@@ -611,7 +664,7 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-1.5">
               <span className="px-2.5 py-0.5 rounded-md bg-[#0D3868] text-white text-[10px] font-black uppercase tracking-wider">
-                PANEL RESMI KELURAHAN
+                ADMIN PELAYANAN KELURAHAN
               </span>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
                 <Database className="w-3.5 h-3.5 text-emerald-600" />
@@ -619,10 +672,10 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
               </span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-[#0D3868] tracking-tight">
-              Manajemen Pengurusan & Laporan Warga
+              Admin Pelayanan Kelurahan: Pra Registrasi & Pengaduan Online
             </h2>
             <p className="mt-1 text-xs sm:text-sm text-slate-600 max-w-3xl">
-              Pusat pelayanan surat administrasi warga (SKCK, SKU, SKTM, Domisili, dll.) dan tindak lanjut laporan aduan masalah lingkungan Kelurahan Panaikang.
+              Pusat operasional loket kelurahan: pemeriksaan kelengkapan berkas fisik, verifikasi pemohon pra registrasi online, dan tindak lanjut laporan pengaduan warga Kelurahan Panaikang.
             </p>
           </div>
 
@@ -728,7 +781,7 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
           </div>
         </button>
 
-        {/* Card 2: Pengurusan Surat Administrasi */}
+        {/* Card 2: Pra Registrasi Online */}
         <button
           type="button"
           onClick={() => {
@@ -737,8 +790,8 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
           }}
           className={`p-5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between shadow-2xs ${
             activeMainFilter === 'SURAT'
-              ? 'bg-[#1C8237] text-white border-[#1C8237] ring-2 ring-emerald-300'
-              : 'bg-white hover:border-emerald-500 text-slate-800 border-slate-200'
+              ? 'bg-[#0277BD] text-white border-[#0277BD] ring-2 ring-sky-300'
+              : 'bg-white hover:border-[#0277BD] text-slate-800 border-slate-200'
           }`}
         >
           <div className="flex items-center justify-between">
@@ -747,35 +800,35 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
                 className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
                   activeMainFilter === 'SURAT'
                     ? 'bg-white/20 text-white'
-                    : 'bg-emerald-100 text-emerald-800'
+                    : 'bg-sky-100 text-[#0277BD]'
                 }`}
               >
                 <FileText className="w-4 h-4" />
               </span>
               <span
                 className={`text-[11px] font-extrabold uppercase tracking-wider ${
-                  activeMainFilter === 'SURAT' ? 'text-emerald-200' : 'text-emerald-700'
+                  activeMainFilter === 'SURAT' ? 'text-sky-200' : 'text-[#0277BD]'
                 }`}
               >
-                Surat Administrasi
+                Pra Registrasi Online
               </span>
             </div>
             <span className="font-mono-num text-2xl font-black">{totalSuratCount}</span>
           </div>
-          <div className="mt-2 text-base font-black">13 Layanan Surat Resmi</div>
+          <div className="mt-2 text-base font-black">13 Layanan Surat Administrasi</div>
           <div
             className={`mt-3 pt-2.5 border-t text-[11px] font-semibold flex items-center justify-between ${
               activeMainFilter === 'SURAT'
-                ? 'border-white/15 text-emerald-100'
+                ? 'border-white/15 text-sky-100'
                 : 'border-slate-100 text-slate-500'
             }`}
           >
-            <span>SKCK, SKU, SKTM, Domisili, dll.</span>
-            <span>Kelola Surat →</span>
+            <span>SKCK, SKU, Domisili, Ahli Waris, dll.</span>
+            <span>Verifikasi Loket →</span>
           </div>
         </button>
 
-        {/* Card 3: Laporan & Pengaduan Warga */}
+        {/* Card 3: Pengaduan Online */}
         <button
           type="button"
           onClick={() => {
@@ -784,8 +837,8 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
           }}
           className={`p-5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between shadow-2xs ${
             activeMainFilter === 'ADUAN'
-              ? 'bg-amber-600 text-white border-amber-600 ring-2 ring-amber-300'
-              : 'bg-white hover:border-amber-500 text-slate-800 border-slate-200'
+              ? 'bg-emerald-700 text-white border-emerald-700 ring-2 ring-emerald-300'
+              : 'bg-white hover:border-emerald-600 text-slate-800 border-slate-200'
           }`}
         >
           <div className="flex items-center justify-between">
@@ -794,30 +847,30 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
                 className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
                   activeMainFilter === 'ADUAN'
                     ? 'bg-white/20 text-white'
-                    : 'bg-amber-100 text-amber-900'
+                    : 'bg-emerald-100 text-emerald-900'
                 }`}
               >
                 <AlertCircle className="w-4 h-4" />
               </span>
               <span
                 className={`text-[11px] font-extrabold uppercase tracking-wider ${
-                  activeMainFilter === 'ADUAN' ? 'text-amber-200' : 'text-amber-700'
+                  activeMainFilter === 'ADUAN' ? 'text-emerald-200' : 'text-emerald-700'
                 }`}
               >
-                Pengaduan Warga
+                Pengaduan Online
               </span>
             </div>
             <span className="font-mono-num text-2xl font-black">{totalAduanCount}</span>
           </div>
-          <div className="mt-2 text-base font-black">Aduan Masalah Lingkungan</div>
+          <div className="mt-2 text-base font-black">10 Kategori Aduan & Aspirasi</div>
           <div
             className={`mt-3 pt-2.5 border-t text-[11px] font-semibold flex items-center justify-between ${
               activeMainFilter === 'ADUAN'
-                ? 'border-white/15 text-amber-100'
+                ? 'border-white/15 text-emerald-100'
                 : 'border-slate-100 text-slate-500'
             }`}
           >
-            <span>Sampah, Drainase, Fasum, PJU</span>
+            <span>Infrastruktur, Kebersihan, Fasum, dll.</span>
             <span>Tindak Lanjut →</span>
           </div>
         </button>
@@ -1080,26 +1133,53 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
                       <span className="line-clamp-2">{item.locationName}</span>
                     </div>
 
-                    {item.reporterPhone && (
-                      <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between">
-                        <span className="font-mono-num text-slate-700 flex items-center gap-1">
-                          <Phone className="w-3 h-3 text-slate-500" />
-                          <span>{item.reporterPhone}</span>
-                        </span>
-                        <a
-                          href={buildWhatsAppUrl(
-                            item.reporterPhone,
-                            `Halo Bapak/Ibu ${item.reporterName}, salam dari Kantor Kelurahan Panaikang.\n\nMengenai pengurusan Anda (${item.ticketCode} - ${item.title}):\nStatus saat ini: *${item.status}*.\nCatatan: ${item.responseNote || 'Berkas Anda sedang kami proses.'}\n\nTerima kasih.`
+                    {(() => {
+                      const resolvedPhone = resolveCitizenWhatsAppPhone({
+                        rawPhone: item.reporterPhone,
+                        citizenName: item.reporterName,
+                        ownerId: item.ownerId,
+                        ownerEmail: item.ownerEmail,
+                        nik: item.applicantNik,
+                        citizenUsers,
+                      });
+                      const hasValidWa = isValidWhatsAppPhone(resolvedPhone);
+                      return (
+                        <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between gap-2">
+                          <span className="font-mono-num text-slate-700 flex items-center gap-1">
+                            <Phone className="w-3 h-3 text-slate-500 shrink-0" />
+                            <span>
+                              {hasValidWa
+                                ? formatDisplayPhone(resolvedPhone)
+                                : 'No. WA belum terdaftar'}
+                            </span>
+                          </span>
+                          {hasValidWa ? (
+                            <a
+                              href={buildWhatsAppUrl(
+                                resolvedPhone,
+                                `Halo Bapak/Ibu ${item.reporterName}, salam dari Kantor Kelurahan Panaikang.\n\nMengenai pengurusan Anda (${item.ticketCode} - ${item.title}):\nStatus saat ini: *${item.status}*.\nCatatan: ${item.responseNote || 'Berkas Anda sedang kami proses.'}\n\nTerima kasih.`
+                              )}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-2.5 py-1 rounded-lg bg-[#128C7E] hover:bg-[#075E54] text-white font-bold text-[10px] flex items-center gap-1 transition shrink-0 shadow-2xs"
+                            >
+                              <MessageCircle className="w-3 h-3" />
+                              <span>Balas / Kirim WA</span>
+                            </a>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(item)}
+                              className="px-2 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold text-[10px] flex items-center gap-1 transition cursor-pointer shrink-0"
+                              title="Nomor WhatsApp warga belum diisi atau tidak valid. Klik untuk mengisi nomor WA agar dapat dikirim pesan."
+                            >
+                              <Edit3 className="w-3 h-3" />
+                              <span>Isi No. WA</span>
+                            </button>
                           )}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] flex items-center gap-1 transition"
-                        >
-                          <MessageCircle className="w-3 h-3" />
-                          <span>Kirim WA</span>
-                        </a>
-                      </div>
-                    )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -1142,10 +1222,10 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
 
                     <button
                       type="button"
-                      onClick={() => handlePrintDocument(item)}
-                      className="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                      onClick={() => setPrintReport(item)}
+                      className="px-3 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 border border-sky-200 text-[#0D3868] text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
                     >
-                      <Printer className="w-3.5 h-3.5 text-slate-600" />
+                      <Printer className="w-3.5 h-3.5 text-[#0277BD]" />
                       <span>Cetak Surat / Tanda Terima</span>
                     </button>
                   </div>
@@ -1508,6 +1588,198 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
                 className="flex-1 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black transition cursor-pointer"
               >
                 Ya, Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: PRATINJAU & CETAK SURAT / TANDA TERIMA RESMI (KOP KELURAHAN PANAIKANG) */}
+      {printReport && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/75 backdrop-blur-xs p-3 sm:p-6 overflow-y-auto"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="bg-white rounded-3xl max-w-3xl w-full shadow-2xl border border-slate-200 overflow-hidden my-auto flex flex-col max-h-[92vh]">
+            {/* Top Bar */}
+            <div className="px-5 py-4 bg-gradient-to-r from-[#072647] via-[#0D3868] to-[#0277BD] text-white flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-white/15 border border-white/25 flex items-center justify-center">
+                  <Printer className="w-5 h-5 text-amber-300" />
+                </div>
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-wider text-sky-200">
+                    DOKUMEN RESMI KELURAHAN PANAIKANG · KOTA MAKASSAR
+                  </div>
+                  <h3 className="text-sm sm:text-base font-black text-white">
+                    Pratinjau & Cetak {isSuratAdministrasi(printReport) ? 'Surat Keterangan Resmi' : 'Tanda Terima Pengaduan Warga'}
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPrintReport(null)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Action Toolbar */}
+            <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+              <div className="text-xs text-slate-600">
+                Tiket: <strong className="font-mono text-[#0D3868]">{printReport.ticketCode}</strong> · Status:{' '}
+                <strong className="text-emerald-700">{printReport.status}</strong>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDownloadPdf(printReport)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-black shadow-xs transition cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Unduh PDF Resmi (A4)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePrintDocument(printReport)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-black shadow-xs transition cursor-pointer"
+                >
+                  <Printer className="w-4 h-4 text-amber-300" />
+                  <span>Cetak ke Printer</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Document A4 Sheet Preview */}
+            <div className="p-4 sm:p-8 overflow-y-auto bg-slate-100 flex-1">
+              <div className="bg-white rounded-2xl border border-slate-300 shadow-md p-6 sm:p-10 max-w-2xl mx-auto text-slate-900 space-y-5">
+                {/* Official KOP Header */}
+                <div className="flex items-center justify-between gap-3 pb-4 border-b-4 border-double border-[#0D3868]">
+                  <EmblemKotaMakassar className="w-12 h-14 sm:w-14 sm:h-16 shrink-0" />
+                  <div className="text-center flex-1">
+                    <div className="text-xs sm:text-sm font-extrabold text-[#0D3868] tracking-wide uppercase">
+                      PEMERINTAH KOTA MAKASSAR
+                    </div>
+                    <div className="text-xs sm:text-sm font-extrabold text-[#0D3868] tracking-wide uppercase">
+                      KECAMATAN PANAKKUKANG
+                    </div>
+                    <div className="text-base sm:text-lg font-black text-[#0D3868] tracking-wider uppercase">
+                      KELURAHAN PANAIKANG
+                    </div>
+                    <div className="text-[10px] sm:text-[11px] text-slate-600 mt-0.5">
+                      {profile.officeAddress} · Telp: {profile.phoneContact} · Kode Pos {profile.postalCode}
+                    </div>
+                  </div>
+                  <EmblemKelurahanPanaikang className="w-12 h-14 sm:w-14 sm:h-16 shrink-0" />
+                </div>
+
+                {/* Document Title & Number */}
+                <div className="text-center space-y-1">
+                  <h4 className="text-sm sm:text-base font-black text-[#0D3868] underline uppercase">
+                    {printReport.officialHeaderTitle ||
+                      (isSuratAdministrasi(printReport)
+                        ? 'SURAT KETERANGAN RESMI KELURAHAN'
+                        : 'TANDA TERIMA LAPORAN PENGADUAN WARGA')}
+                  </h4>
+                  <div className="text-xs font-bold text-slate-700 font-mono">
+                    Nomor: {printReport.letterRegisterNumber || printReport.ticketCode}
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-700 leading-relaxed text-justify">
+                  Yang bertanda tangan di bawah ini, Pemerintah Kelurahan Panaikang Kecamatan Panakkukang Kota Makassar, menerangkan dan mengesahkan dokumen pelayanan warga sebagai berikut:
+                </p>
+
+                {/* Details Table */}
+                <div className="border border-slate-300 rounded-xl overflow-hidden">
+                  <table className="w-full text-xs border-collapse">
+                    <tbody className="divide-y divide-slate-200">
+                      <tr>
+                        <td className="py-2 px-3 bg-slate-50 font-bold text-[#0D3868] w-2/5">Nomor Tiket Sistem</td>
+                        <td className="py-2 px-3 font-mono font-bold text-slate-900">{printReport.ticketCode}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-2 px-3 bg-slate-50 font-bold text-[#0D3868]">Nomor Registrasi Surat</td>
+                        <td className="py-2 px-3 font-mono font-semibold text-emerald-800">
+                          {printReport.letterRegisterNumber || 'Terdaftar di Loket Pelayanan'}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="py-2 px-3 bg-slate-50 font-bold text-[#0D3868]">Nama Lengkap Warga</td>
+                        <td className="py-2 px-3 font-bold text-slate-900">{printReport.reporterName}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-2 px-3 bg-slate-50 font-bold text-[#0D3868]">NIK / Identitas</td>
+                        <td className="py-2 px-3 font-mono text-slate-800">{printReport.applicantNik || '-'}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-2 px-3 bg-slate-50 font-bold text-[#0D3868]">Nomor Kontak / WhatsApp</td>
+                        <td className="py-2 px-3 font-mono text-slate-800">{printReport.reporterPhone || '-'}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-2 px-3 bg-slate-50 font-bold text-[#0D3868]">Wilayah & Alamat</td>
+                        <td className="py-2 px-3 text-slate-800">
+                          {printReport.locationName} ({printReport.rt || 'RT 01'} / {printReport.rw})
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="py-2 px-3 bg-slate-50 font-bold text-[#0D3868]">Jenis Pelayanan / Kategori</td>
+                        <td className="py-2 px-3 font-bold text-slate-900">{printReport.title}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-2 px-3 bg-slate-50 font-bold text-[#0D3868]">Keterangan / Keperluan</td>
+                        <td className="py-2 px-3 text-slate-800">{printReport.description}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-2 px-3 bg-slate-50 font-bold text-[#0D3868]">Catatan Verifikasi Petugas</td>
+                        <td className="py-2 px-3 font-semibold text-slate-900">{printReport.responseNote || '-'}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Signature Footer */}
+                <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row sm:items-end justify-between gap-6 text-xs">
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1 text-[11px] text-slate-600">
+                    <div className="font-bold text-[#0D3868]">VALIDASI SISTEM KELURAHAN</div>
+                    <div>Unit Pelaksana: <strong>{printReport.assignedTeam || 'Loket Pelayanan Kelurahan'}</strong></div>
+                    <div>Status Dokumen: <strong className="text-emerald-700">{printReport.status}</strong></div>
+                    <div>Tanggal Cetak: {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
+                  </div>
+
+                  <div className="text-center min-w-[200px]">
+                    <div className="text-slate-700">
+                      Makassar, {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
+                    </div>
+                    <div className="font-bold text-slate-800 mt-0.5">Pejabat Penandatangan,</div>
+                    <div className="h-14" />
+                    <div className="font-black underline text-[#0D3868]">
+                      {printReport.signedByOfficer || `${profile.lurahName} (Lurah Panaikang)`}
+                    </div>
+                    <div className="text-[11px] text-slate-500">NIP. {profile.lurahNip}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Footer */}
+            <div className="px-5 py-3 bg-white border-t border-slate-200 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPrintReport(null)}
+                className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 transition cursor-pointer"
+              >
+                Tutup Pratinjau
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownloadPdf(printReport)}
+                className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-black shadow-xs transition cursor-pointer"
+              >
+                <Download className="w-4 h-4" />
+                <span>Unduh PDF Resmi</span>
               </button>
             </div>
           </div>

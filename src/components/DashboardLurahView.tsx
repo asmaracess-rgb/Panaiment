@@ -18,6 +18,14 @@ import {
   LayoutGrid,
   ClipboardCheck,
   MapPin,
+  FileText,
+  FileCheck,
+  Eye,
+  Check,
+  XCircle,
+  RotateCcw,
+  Search,
+  ExternalLink,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -40,6 +48,10 @@ import {
   KelurahanProfile,
   RwGroup,
   WhatsAppRecipient,
+  PraRegistrasiRecord,
+  PengaduanOnlineRecord,
+  PraRegistrasiStatus,
+  PengaduanOnlineStatus,
 } from '../types';
 import {
   INITIAL_MONTHLY_TRENDS,
@@ -50,11 +62,15 @@ import {
 import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
 import { MonthlyArchivePdfPanel } from './MonthlyArchivePdfPanel';
 import { GeneratedPdfResult } from '../utils/monthlyReportPdfGenerator';
+import { downloadOfficialLetterOrReceiptPdf } from '../utils/officialLetterPdfGenerator';
+import { Download } from 'lucide-react';
 
 interface DashboardLurahViewProps {
   reports: CitizenReport[];
   wasteUnits: WasteBankUnit[];
   cleanupEvents: CleanupEvent[];
+  praRegistrasiList?: PraRegistrasiRecord[];
+  pengaduanList?: PengaduanOnlineRecord[];
   profile?: KelurahanProfile;
   rwGroups?: RwGroup[];
   whatsappRecipients?: WhatsAppRecipient[];
@@ -64,6 +80,12 @@ interface DashboardLurahViewProps {
     assignedTeam: string,
     responseNote: string
   ) => void;
+  onLurahApproveService?: (
+    ticketCode: string,
+    action: 'SETUJUI' | 'TOLAK' | 'KEMBALIKAN',
+    lurahNote: string
+  ) => Promise<void>;
+  onLurahFollowUpPengaduan?: (ticketCode: string, note: string) => Promise<void>;
   onNavigate: (view: AppView) => void;
   isEmbeddedInAdmin?: boolean;
   onRedirectToAdminLogin?: () => void;
@@ -78,16 +100,20 @@ const TEAM_OPTIONS = [
   'Pengurus Bank Sampah Unit & Forum RT/RW',
 ];
 
-type LurahSubSection = 'semua' | 'disposisi' | 'tren' | 'arsip_pdf';
+type LurahSubSection = 'semua' | 'persetujuan' | 'disposisi' | 'tren' | 'arsip_pdf';
 
 export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
   reports,
   wasteUnits,
   cleanupEvents,
+  praRegistrasiList = [],
+  pengaduanList = [],
   profile = INITIAL_KELURAHAN_PROFILE,
   rwGroups = INITIAL_RW_GROUPS,
   whatsappRecipients = INITIAL_WHATSAPP_RECIPIENTS,
   onUpdateReportStatus,
+  onLurahApproveService,
+  onLurahFollowUpPengaduan,
   onNavigate,
   isEmbeddedInAdmin = false,
   onRedirectToAdminLogin,
@@ -98,6 +124,15 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
   const [statusFilter, setStatusFilter] = useState<'Semua' | ReportStatus>('Semua');
   const [rwFilter, setRwFilter] = useState<string>('Semua');
   const [selectedReportId, setSelectedReportId] = useState<string>(reports[0]?.id || '');
+
+  // Persetujuan Pelayanan state
+  const [persetujuanTab, setPersetujuanTab] = useState<'pra_registrasi' | 'pengaduan'>('pra_registrasi');
+  const [praStatusFilter, setPraStatusFilter] = useState<'SEMUA' | 'MENUNGGU' | 'DIPROSES' | 'DISETUJUI' | 'DITOLAK' | 'SELESAI'>('SEMUA');
+  const [pengaduanFilterMode, setPengaduanFilterMode] = useState<'SEMUA' | 'AKTIF' | 'PRIORITAS' | 'SELESAI'>('SEMUA');
+  const [selectedPraRecord, setSelectedPraRecord] = useState<PraRegistrasiRecord | null>(null);
+  const [lurahNoteInput, setLurahNoteInput] = useState<string>('');
+  const [isProcessingApproval, setIsProcessingApproval] = useState<boolean>(false);
+  const [approvalFeedback, setApprovalFeedback] = useState<string>('');
 
   // Recharts Interactive Controls
   const [chartType, setChartType] = useState<'tren' | 'kategori'>('tren');
@@ -212,6 +247,106 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
     const matchRw = rwFilter === 'Semua' || r.rw === rwFilter;
     return matchStatus && matchRw;
   });
+
+  // Guarantee that all records from reports (e.g. 5 existing reports with Selesai / Sedang Ditangani)
+  // are incorporated into Pra Registrasi and Pengaduan Online lists
+  const mergedPraList = useMemo<PraRegistrasiRecord[]>(() => {
+    const list = [...praRegistrasiList];
+    const ticketSet = new Set(list.map((p) => p.ticketCode));
+
+    for (const r of reports) {
+      if (!r || !r.id) continue;
+      const isSurat =
+        r.ticketCode?.startsWith('SRT-') ||
+        r.ticketCode?.startsWith('REG-') ||
+        (r.documentCode && r.documentCode.startsWith('PM-')) ||
+        r.serviceCategoryId === 'surat_keterangan' ||
+        r.category === 'Surat Keterangan';
+
+      if (isSurat && !ticketSet.has(r.ticketCode)) {
+        let mappedStatus: PraRegistrasiStatus = 'SURAT_SELESAI';
+        if (r.status === 'Menunggu Verifikasi') mappedStatus = 'MENUNGGU_PERSETUJUAN';
+        else if (r.status === 'Sedang Ditangani') mappedStatus = 'DIPROSES';
+        else if (r.status === 'Selesai') mappedStatus = 'SURAT_SELESAI';
+
+        list.push({
+          id: r.id,
+          ticketCode: r.ticketCode || `SRT-2026-${r.id.slice(-4)}`,
+          serviceId: r.serviceSubItemId || r.serviceCategoryId || 'sk-usaha',
+          serviceCode: r.documentCode || r.serviceSubItemId || 'PM-01',
+          serviceName: r.serviceSubItemLabel || r.serviceCategoryTitle || r.title || 'Surat Keterangan',
+          applicantNik: r.applicantNik || '7371110000000001',
+          applicantName: r.reporterName || 'Warga Panaikang',
+          applicantPhone: r.reporterPhone || '',
+          applicantRw: r.rw || 'RW 01',
+          applicantRt: r.rt || 'RT 01',
+          applicantAddress: r.locationName || 'Kelurahan Panaikang',
+          formData: {},
+          uploadedDocs: [],
+          status: mappedStatus,
+          submittedAt: r.createdAt || '01 November 2026',
+          updatedAt: r.updatedAt || r.createdAt || '01 November 2026',
+          assignedOfficerName: r.verifiedBy || r.assignedTeam || 'Petugas Loket Pelayanan',
+          officerNotes: r.responseNote || 'Berkas telah diverifikasi oleh petugas loket.',
+          physicalDocsChecked: r.status === 'Selesai' || r.status === 'Sedang Ditangani',
+          lurahApprovalStatus:
+            r.status === 'Selesai' || r.status === 'Sedang Ditangani'
+              ? 'DISETUJUI'
+              : 'MENUNGGU',
+          letterRegisterNumber: r.letterRegisterNumber,
+        });
+        ticketSet.add(r.ticketCode);
+      }
+    }
+    return list;
+  }, [praRegistrasiList, reports]);
+
+  const mergedPengaduanList = useMemo<PengaduanOnlineRecord[]>(() => {
+    const list = [...pengaduanList];
+    const ticketSet = new Set(list.map((p) => p.ticketCode));
+
+    for (const r of reports) {
+      if (!r || !r.id) continue;
+      const isSurat =
+        r.ticketCode?.startsWith('SRT-') ||
+        r.ticketCode?.startsWith('REG-') ||
+        (r.documentCode && r.documentCode.startsWith('PM-')) ||
+        r.serviceCategoryId === 'surat_keterangan' ||
+        r.category === 'Surat Keterangan';
+
+      if (!isSurat && !ticketSet.has(r.ticketCode)) {
+        let mappedStatus: PengaduanOnlineStatus = 'DIAJUKAN';
+        if (r.status === 'Selesai') mappedStatus = 'SELESAI';
+        else if (r.status === 'Sedang Ditangani') mappedStatus = 'DITINDAKLANJUTI';
+        else mappedStatus = 'DIVERIFIKASI';
+
+        list.push({
+          id: r.id,
+          ticketCode: r.ticketCode || `ADU-2026-${r.id.slice(-4)}`,
+          category: (r.category as any) || 'Lainnya',
+          title: r.title,
+          content: r.description,
+          locationAddress: r.locationName,
+          incidentDate: r.createdAt?.slice(0, 10) || '01 November 2026',
+          proofPhotos: r.imageUrl ? [r.imageUrl] : [],
+          isAnonymous: r.reporterName?.toLowerCase().includes('anonim') || false,
+          reporterName: r.reporterName || 'Warga Panaikang',
+          reporterPhone: r.reporterPhone || '',
+          reporterRw: r.rw || 'RW 01',
+          reporterRt: r.rt || 'RT 01',
+          status: mappedStatus,
+          isPriority: r.urgency === 'Darurat' || r.urgency === 'Tinggi',
+          submittedAt: r.createdAt || '01 November 2026',
+          updatedAt: r.updatedAt || r.createdAt || '01 November 2026',
+          assignedUnit: r.assignedTeam,
+          assignedOfficer: r.verifiedBy || r.assignedTeam,
+          followUpNotes: r.responseNote,
+        });
+        ticketSet.add(r.ticketCode);
+      }
+    }
+    return list;
+  }, [pengaduanList, reports]);
 
   // If accessed from the public visitor menu (not inside the Lurah Admin Panel),
   // block regular user access and display the required notice directing Lurah to Admin Login.
@@ -357,7 +492,7 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
           <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
             Menu Tampilan & Modul Eksekutif Lurah
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
             <button
               type="button"
               onClick={() => setActiveSection('semua')}
@@ -386,6 +521,32 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
 
             <button
               type="button"
+              onClick={() => setActiveSection('persetujuan')}
+              className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-colors cursor-pointer ${
+                activeSection === 'persetujuan'
+                  ? 'bg-amber-600 border-amber-600 text-white shadow-xs'
+                  : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <ShieldCheck
+                className={`w-4 h-4 shrink-0 ${
+                  activeSection === 'persetujuan' ? 'text-amber-200' : 'text-amber-600'
+                }`}
+              />
+              <div className="min-w-0">
+                <div className="text-xs font-bold truncate">01. Persetujuan Layanan</div>
+                <div
+                  className={`text-[11px] truncate ${
+                    activeSection === 'persetujuan' ? 'text-amber-100' : 'text-slate-500'
+                  }`}
+                >
+                  Pra Registrasi & Pengaduan
+                </div>
+              </div>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveSection('disposisi')}
               className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-colors cursor-pointer ${
                 activeSection === 'disposisi'
@@ -399,7 +560,7 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
                 }`}
               />
               <div className="min-w-0">
-                <div className="text-xs font-bold truncate">01. Disposisi & Laporan</div>
+                <div className="text-xs font-bold truncate">02. Disposisi & Laporan</div>
                 <div
                   className={`text-[11px] truncate ${
                     activeSection === 'disposisi' ? 'text-sky-100' : 'text-slate-500'
@@ -425,7 +586,7 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
                 }`}
               />
               <div className="min-w-0">
-                <div className="text-xs font-bold truncate">02. Grafik Tren & Kinerja RW</div>
+                <div className="text-xs font-bold truncate">03. Grafik Tren & Kinerja RW</div>
                 <div
                   className={`text-[11px] truncate ${
                     activeSection === 'tren' ? 'text-sky-100' : 'text-slate-500'
@@ -451,7 +612,7 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
                 }`}
               />
               <div className="min-w-0">
-                <div className="text-xs font-bold truncate">03. Arsip Laporan PDF</div>
+                <div className="text-xs font-bold truncate">04. Arsip Laporan PDF</div>
                 <div
                   className={`text-[11px] truncate ${
                     activeSection === 'arsip_pdf' ? 'text-emerald-100' : 'text-slate-500'
@@ -524,6 +685,741 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* ================= MODUL 00: PERSETUJUAN PELAYANAN KELURAHAN & MONITORING PENGADUAN ================= */}
+      {(activeSection === 'semua' || activeSection === 'persetujuan') && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+              <div>
+                <div className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 uppercase tracking-wider mb-1">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Otoritas Eksekutif Lurah · Persetujuan Pelayanan & Pengaduan</span>
+                </div>
+                <h3 className="text-lg font-black text-[#0D3868]">
+                  Persetujuan Pelayanan Warga & Monitoring Aduan Wilayah
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Verifikasi final berkas pra registrasi loket sebelum penerbitan nomor surat resmi, serta pengawasan tindak lanjut aduan warga.
+                </p>
+              </div>
+
+              {/* Subtabs: Pra Registrasi vs Pengaduan */}
+              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl self-start sm:self-center shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setPersetujuanTab('pra_registrasi')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                    persetujuanTab === 'pra_registrasi'
+                      ? 'bg-white text-[#0D3868] shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Pra Registrasi ({mergedPraList.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPersetujuanTab('pengaduan')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                    persetujuanTab === 'pengaduan'
+                      ? 'bg-white text-[#0D3868] shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Pengaduan Online ({mergedPengaduanList.length})</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Important Notice for Lurah */}
+            <div className="mt-4 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 text-xs flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold">Catatan Penting Otoritas: </span>
+                Upload dokumen oleh warga hanya berarti dokumen tersedia secara online, bukan otomatis berarti dokumen sudah sah/terverifikasi. Pastikan petugas loket telah memeriksa keabsahan fisik dokumen asli pemohon sebelum Anda menandatangani atau menyetujui surat.
+              </div>
+            </div>
+
+            {/* Approval Notice Feedback */}
+            {approvalFeedback && (
+              <div className="mt-3 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold flex items-center justify-between">
+                <span>{approvalFeedback}</span>
+                <button
+                  type="button"
+                  onClick={() => setApprovalFeedback('')}
+                  className="text-emerald-700 hover:text-emerald-950 font-black cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {/* TAB CONTENT: PRA REGISTRASI ONLINE */}
+            {persetujuanTab === 'pra_registrasi' && (
+              <div className="mt-5 space-y-4">
+                {/* 4 Summary Cards for Pra Registrasi */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                    <div className="text-[10px] font-bold uppercase text-slate-500">Total Pra Registrasi</div>
+                    <div className="text-xl font-mono font-black text-slate-900 mt-0.5">{mergedPraList.length}</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">Semua berkas layanan</div>
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200">
+                    <div className="text-[10px] font-bold uppercase text-amber-700">Menunggu Persetujuan</div>
+                    <div className="text-xl font-mono font-black text-amber-900 mt-0.5">
+                      {mergedPraList.filter((p) => p.status === 'MENUNGGU_PERSETUJUAN' || p.status === 'BERKAS_LENGKAP' || p.lurahApprovalStatus === 'MENUNGGU').length}
+                    </div>
+                    <div className="text-[10px] text-amber-700 mt-0.5">Perlu tanda tangan/persetujuan</div>
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-sky-50 border border-sky-200">
+                    <div className="text-[10px] font-bold uppercase text-sky-700">Sedang Diproses</div>
+                    <div className="text-xl font-mono font-black text-sky-900 mt-0.5">
+                      {mergedPraList.filter((p) => p.status === 'DIPROSES' || p.status === 'VERIFIKASI_PETUGAS' || p.status === 'MENUNGGU_KEDATANGAN').length}
+                    </div>
+                    <div className="text-[10px] text-sky-700 mt-0.5">Verifikasi di loket</div>
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
+                    <div className="text-[10px] font-bold uppercase text-emerald-700">Disetujui & Selesai</div>
+                    <div className="text-xl font-mono font-black text-emerald-900 mt-0.5">
+                      {mergedPraList.filter((p) => p.status === 'DISETUJUI' || p.status === 'SURAT_SELESAI').length}
+                    </div>
+                    <div className="text-[10px] text-emerald-700 mt-0.5">Nomor surat terbit</div>
+                  </div>
+                </div>
+
+                {/* Status Filters */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1">
+                    Status:
+                  </span>
+                  {(
+                    [
+                      { key: 'SEMUA', label: 'Semua Pengajuan' },
+                      { key: 'MENUNGGU', label: 'Menunggu Persetujuan' },
+                      { key: 'DIPROSES', label: 'Sedang Diproses' },
+                      { key: 'DISETUJUI', label: 'Disetujui' },
+                      { key: 'SELESAI', label: 'Selesai' },
+                      { key: 'DITOLAK', label: 'Ditolak' },
+                    ] as const
+                  ).map((st) => (
+                    <button
+                      key={st.key}
+                      type="button"
+                      onClick={() => setPraStatusFilter(st.key)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                        praStatusFilter === st.key
+                          ? 'bg-[#0D3868] text-white shadow-2xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {st.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Pra Registrasi List */}
+                {(() => {
+                  const filteredPra = mergedPraList.filter((item) => {
+                    if (praStatusFilter === 'MENUNGGU') {
+                      return (
+                        item.status === 'MENUNGGU_PERSETUJUAN' ||
+                        item.status === 'BERKAS_LENGKAP' ||
+                        item.status === 'VERIFIKASI_PETUGAS' ||
+                        item.status === 'MENUNGGU_KEDATANGAN' ||
+                        item.status === 'DIAJUKAN' ||
+                        item.lurahApprovalStatus === 'MENUNGGU'
+                      );
+                    }
+                    if (praStatusFilter === 'DIPROSES') {
+                      return (
+                        item.status === 'DIPROSES' ||
+                        item.status === 'VERIFIKASI_PETUGAS' ||
+                        item.status === 'BERKAS_LENGKAP'
+                      );
+                    }
+                    if (praStatusFilter === 'DISETUJUI') {
+                      return item.status === 'DISETUJUI' || item.lurahApprovalStatus === 'DISETUJUI';
+                    }
+                    if (praStatusFilter === 'DITOLAK') {
+                      return item.status === 'DITUTUP' || item.lurahApprovalStatus === 'DITOLAK';
+                    }
+                    if (praStatusFilter === 'SELESAI') {
+                      return item.status === 'SURAT_SELESAI';
+                    }
+                    return true;
+                  });
+
+                  if (filteredPra.length === 0) {
+                    return (
+                      <div className="p-8 text-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-slate-500 text-xs">
+                        Tidak ada berkas pra registrasi dalam status &ldquo;{praStatusFilter}&rdquo;.
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {filteredPra.map((pra) => {
+                        const isSelected = selectedPraRecord?.ticketCode === pra.ticketCode;
+                        return (
+                          <div
+                            key={pra.id}
+                            className={`p-4 rounded-2xl border transition-all ${
+                              isSelected
+                                ? 'border-[#0D3868] ring-2 ring-sky-300 bg-sky-50/30'
+                                : 'border-slate-200 bg-white hover:border-slate-300 shadow-2xs'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <span className="font-mono text-xs font-black text-[#0D3868] bg-sky-100 px-2 py-0.5 rounded-md">
+                                  {pra.ticketCode}
+                                </span>
+                                <h4 className="text-sm font-black text-slate-900 mt-1">
+                                  {pra.serviceName}
+                                </h4>
+                                <div className="text-xs text-slate-600 mt-0.5">
+                                  Pemohon: <span className="font-bold text-slate-800">{pra.applicantName}</span> ({pra.applicantRw})
+                                </div>
+                              </div>
+                              <span
+                                className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md ${
+                                  pra.status === 'SURAT_SELESAI'
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : pra.status === 'DISETUJUI'
+                                    ? 'bg-teal-100 text-teal-800'
+                                    : pra.status === 'DIPROSES'
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : pra.status === 'PERLU_PERBAIKAN'
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : pra.status === 'MENUNGGU_PERSETUJUAN'
+                                    ? 'bg-purple-100 text-purple-800'
+                                    : pra.status === 'BERKAS_LENGKAP'
+                                    ? 'bg-sky-100 text-sky-800'
+                                    : pra.status === 'VERIFIKASI_PETUGAS'
+                                    ? 'bg-indigo-100 text-indigo-800'
+                                    : pra.status === 'MENUNGGU_KEDATANGAN'
+                                    ? 'bg-orange-100 text-orange-800'
+                                    : pra.status === 'DITUTUP'
+                                    ? 'bg-rose-100 text-rose-800'
+                                    : 'bg-slate-100 text-slate-700'
+                                }`}
+                              >
+                                {pra.status === 'SURAT_SELESAI'
+                                  ? 'Surat Selesai'
+                                  : pra.status === 'DISETUJUI'
+                                  ? 'Disetujui Lurah'
+                                  : pra.status === 'DIPROSES'
+                                  ? 'Sedang Diproses'
+                                  : pra.status === 'MENUNGGU_PERSETUJUAN'
+                                  ? 'Menunggu Persetujuan'
+                                  : pra.status === 'BERKAS_LENGKAP'
+                                  ? 'Berkas Lengkap'
+                                  : pra.status === 'VERIFIKASI_PETUGAS'
+                                  ? 'Verifikasi Petugas'
+                                  : pra.status === 'MENUNGGU_KEDATANGAN'
+                                  ? 'Menunggu Kedatangan'
+                                  : pra.status.replace(/_/g, ' ')}
+                              </span>
+                            </div>
+
+                            {/* Verification status & notes */}
+                            <div className="mt-3 p-2.5 rounded-xl bg-slate-50 text-xs space-y-1">
+                              <div className="flex items-center justify-between text-slate-600">
+                                <span>Tgl Pengajuan:</span>
+                                <span className="font-bold text-slate-800">{pra.submittedAt}</span>
+                              </div>
+                              <div className="flex items-center justify-between text-slate-600">
+                                <span>Verifikasi Fisik Loket:</span>
+                                <span
+                                  className={`font-black ${
+                                    pra.physicalDocsChecked ? 'text-emerald-700' : 'text-amber-700'
+                                  }`}
+                                >
+                                  {pra.physicalDocsChecked ? '✓ Dokumen Asli Diperiksa' : '⏳ Belum Verifikasi Fisik'}
+                                </span>
+                              </div>
+                              {pra.officerNotes && (
+                                <div className="text-slate-600 pt-1 border-t border-slate-200">
+                                  <span className="font-bold">Catatan Petugas:</span> {pra.officerNotes}
+                                </div>
+                              )}
+                              {pra.uploadedDocs && pra.uploadedDocs.length > 0 && (
+                                <div className="text-slate-600 pt-1 border-t border-slate-200">
+                                  <span className="font-bold">Dokumen Di-upload:</span> {pra.uploadedDocs.length} berkas
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Action toggle */}
+                            <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedPraRecord(pra);
+                                  setLurahNoteInput(pra.lurahNotes || '');
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-[#0D3868] text-white text-xs font-bold hover:bg-[#072647] transition flex items-center gap-1 cursor-pointer"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>Periksa Dossier & Persetujuan</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  downloadOfficialLetterOrReceiptPdf(
+                                    {
+                                      ticketCode: pra.ticketCode,
+                                      isSurat:
+                                        pra.status === 'SURAT_SELESAI' || pra.status === 'DISETUJUI',
+                                      documentTitle:
+                                        pra.status === 'SURAT_SELESAI' || pra.status === 'DISETUJUI'
+                                          ? `SURAT KETERANGAN / PENGANTAR (${pra.serviceName.toUpperCase()})`
+                                          : 'TANDA TERIMA PRA REGISTRASI LAYANAN KELURAHAN',
+                                      registerNumber: pra.serviceCode,
+                                      applicantName: pra.applicantName,
+                                      applicantNik: pra.applicantNik,
+                                      applicantPhone: pra.applicantPhone,
+                                      rw: pra.applicantRw,
+                                      rt: pra.applicantRt,
+                                      address: pra.applicantAddress,
+                                      serviceOrCategoryName: pra.serviceName,
+                                      descriptionOrPurpose:
+                                        String(pra.formData?.keperluan || `Permohonan ${pra.serviceName}`),
+                                      statusText: pra.status.replace(/_/g, ' '),
+                                      assignedUnit:
+                                        pra.assignedOfficerName || 'Operator Loket Kelurahan Panaikang',
+                                      officerNotes:
+                                        pra.lurahNotes ||
+                                        pra.officerNotes ||
+                                        'Telah diverifikasi oleh Lurah Panaikang.',
+                                      submittedAt: pra.submittedAt,
+                                    },
+                                    profile
+                                  )
+                                }
+                                className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                              >
+                                <Printer className="w-3.5 h-3.5" />
+                                <span>Cetak Surat / Tanda Terima</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+
+                {/* Dossier Modal / Inspector when selected */}
+                {selectedPraRecord && (
+                  <div className="p-5 rounded-2xl border-2 border-[#0D3868] bg-white shadow-lg space-y-4 animate-fadeIn">
+                    <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-200">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm font-black text-[#0D3868] bg-sky-100 px-2.5 py-0.5 rounded-lg">
+                            {selectedPraRecord.ticketCode}
+                          </span>
+                          <span className="text-xs font-extrabold uppercase px-2 py-0.5 rounded-md bg-amber-100 text-amber-900">
+                            Status: {selectedPraRecord.status.replace(/_/g, ' ')}
+                          </span>
+                        </div>
+                        <h4 className="text-base font-black text-slate-900 mt-1">
+                          {selectedPraRecord.serviceName}
+                        </h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPraRecord(null)}
+                        className="text-slate-400 hover:text-slate-700 font-black text-sm cursor-pointer"
+                      >
+                        ✕ Tutup
+                      </button>
+                    </div>
+
+                    {/* Dossier Details Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
+                        <div className="font-bold text-slate-700 uppercase tracking-wider text-[11px]">
+                          Data Pemohon
+                        </div>
+                        <div><span className="text-slate-500">Nama:</span> <strong className="text-slate-900">{selectedPraRecord.applicantName}</strong></div>
+                        <div><span className="text-slate-500">NIK:</span> <strong className="font-mono text-slate-900">{selectedPraRecord.applicantNik}</strong></div>
+                        <div><span className="text-slate-500">Wilayah:</span> <strong className="text-slate-900">{selectedPraRecord.applicantRw} / {selectedPraRecord.applicantRt}</strong></div>
+                        <div><span className="text-slate-500">Alamat:</span> <span className="text-slate-800">{selectedPraRecord.applicantAddress}</span></div>
+                        <div><span className="text-slate-500">No. HP:</span> <strong className="text-slate-900">{selectedPraRecord.applicantPhone}</strong></div>
+                      </div>
+
+                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
+                        <div className="font-bold text-slate-700 uppercase tracking-wider text-[11px]">
+                          Hasil Verifikasi Loket Petugas
+                        </div>
+                        <div>
+                          <span className="text-slate-500">Verifikator Loket:</span>{' '}
+                          <strong className="text-slate-900">{selectedPraRecord.assignedOfficerName || 'Petugas Loket Pelayanan'}</strong>
+                        </div>
+                        <div>
+                          <span className="text-slate-500">Pemeriksaan Fisik Asli:</span>{' '}
+                          <strong className={selectedPraRecord.physicalDocsChecked ? 'text-emerald-700' : 'text-amber-700'}>
+                            {selectedPraRecord.physicalDocsChecked ? '✓ Sudah diverifikasi fisik asli di loket' : '⏳ Belum diverifikasi fisik'}
+                          </strong>
+                        </div>
+                        <div>
+                          <span className="text-slate-500">Catatan Petugas:</span>{' '}
+                          <span className="text-slate-800">{selectedPraRecord.officerNotes || 'Berkas lengkap dan sesuai.'}</span>
+                        </div>
+                        {selectedPraRecord.lurahNotes && (
+                          <div className="pt-1 border-t border-slate-200 text-amber-900">
+                            <span className="font-bold">Arahan Lurah Sebelumnya:</span> {selectedPraRecord.lurahNotes}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Uploaded Documents */}
+                    {selectedPraRecord.uploadedDocs && selectedPraRecord.uploadedDocs.length > 0 && (
+                      <div className="p-3.5 rounded-xl bg-sky-50/50 border border-sky-200">
+                        <div className="font-bold text-[#0D3868] uppercase tracking-wider text-[11px] mb-2 flex items-center gap-1.5">
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>Dokumen Persyaratan yang Di-upload Pemohon ({selectedPraRecord.uploadedDocs.length} Berkas)</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {selectedPraRecord.uploadedDocs.map((doc, idx) => (
+                            <div key={idx} className="p-2.5 rounded-lg bg-white border border-slate-200 flex items-center justify-between gap-2 text-xs">
+                              <div className="min-w-0">
+                                <div className="font-bold text-slate-800 truncate">{doc.persyaratanLabel || doc.fileName}</div>
+                                <div className="text-[10px] text-slate-500 truncate">{doc.fileName} {doc.fileSizeKb ? `(${doc.fileSizeKb} KB)` : ''}</div>
+                              </div>
+                              {doc.fileUrl && (
+                                <a
+                                  href={doc.fileUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-2 py-1 rounded-md bg-sky-100 hover:bg-sky-200 text-[#0D3868] text-[11px] font-bold shrink-0 flex items-center gap-1"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                  <span>Buka</span>
+                                </a>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Lurah Action & Notes Controls */}
+                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                      <label className="block text-xs font-bold text-slate-800">
+                        Catatan & Arahan Lurah (Ditampilkan pada status pemohon & diteruskan ke loket):
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={lurahNoteInput}
+                        onChange={(e) => setLurahNoteInput(e.target.value)}
+                        placeholder="Contoh: Berkas telah diperiksa dan disetujui. Silakan petugas loket menerbitkan nomor registrasi surat resmi."
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0D3868]"
+                      />
+
+                      <div className="flex flex-wrap items-center gap-2 pt-2">
+                        <button
+                          type="button"
+                          disabled={isProcessingApproval}
+                          onClick={async () => {
+                            if (!onLurahApproveService) return;
+                            setIsProcessingApproval(true);
+                            await onLurahApproveService(selectedPraRecord.ticketCode, 'SETUJUI', lurahNoteInput || 'Disetujui oleh Lurah Panaikang.');
+                            setIsProcessingApproval(false);
+                            setApprovalFeedback(`Permohonan ${selectedPraRecord.ticketCode} berhasil DISETUJUI oleh Lurah.`);
+                            setSelectedPraRecord(null);
+                          }}
+                          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                        >
+                          <Check className="w-4 h-4 text-emerald-200" />
+                          <span>Setujui Permohonan</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={isProcessingApproval}
+                          onClick={async () => {
+                            if (!onLurahApproveService) return;
+                            const noteToUse =
+                              lurahNoteInput.trim() ||
+                              'Mohon lengkapi atau perbaiki berkas persyaratan sesuai ketentuan kelurahan.';
+                            setIsProcessingApproval(true);
+                            await onLurahApproveService(selectedPraRecord.ticketCode, 'KEMBALIKAN', noteToUse);
+                            setIsProcessingApproval(false);
+                            setApprovalFeedback(`Permohonan ${selectedPraRecord.ticketCode} dikembalikan untuk perbaikan berkas.`);
+                            setSelectedPraRecord(null);
+                          }}
+                          className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                        >
+                          <RotateCcw className="w-4 h-4 text-slate-950" />
+                          <span>Kembalikan untuk Perbaikan</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={isProcessingApproval}
+                          onClick={async () => {
+                            if (!onLurahApproveService) return;
+                            const noteToUse =
+                              lurahNoteInput.trim() ||
+                              'Permohonan ditolak karena belum memenuhi persyaratan administrasi.';
+                            setIsProcessingApproval(true);
+                            await onLurahApproveService(selectedPraRecord.ticketCode, 'TOLAK', noteToUse);
+                            setIsProcessingApproval(false);
+                            setApprovalFeedback(`Permohonan ${selectedPraRecord.ticketCode} telah ditolak.`);
+                            setSelectedPraRecord(null);
+                          }}
+                          className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                        >
+                          <XCircle className="w-4 h-4 text-rose-200" />
+                          <span>Tolak Permohonan</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            downloadOfficialLetterOrReceiptPdf(
+                              {
+                                ticketCode: selectedPraRecord.ticketCode,
+                                isSurat:
+                                  selectedPraRecord.status === 'SURAT_SELESAI' ||
+                                  selectedPraRecord.status === 'DISETUJUI',
+                                documentTitle:
+                                  selectedPraRecord.status === 'SURAT_SELESAI' ||
+                                  selectedPraRecord.status === 'DISETUJUI'
+                                    ? `SURAT KETERANGAN / PENGANTAR (${selectedPraRecord.serviceName.toUpperCase()})`
+                                    : 'TANDA TERIMA PRA REGISTRASI LAYANAN KELURAHAN',
+                                registerNumber: selectedPraRecord.serviceCode,
+                                applicantName: selectedPraRecord.applicantName,
+                                applicantNik: selectedPraRecord.applicantNik,
+                                applicantPhone: selectedPraRecord.applicantPhone,
+                                rw: selectedPraRecord.applicantRw,
+                                rt: selectedPraRecord.applicantRt,
+                                address: selectedPraRecord.applicantAddress,
+                                serviceOrCategoryName: selectedPraRecord.serviceName,
+                                descriptionOrPurpose:
+                                  String(
+                                    selectedPraRecord.formData?.keperluan ||
+                                      `Permohonan ${selectedPraRecord.serviceName}`
+                                  ),
+                                statusText: selectedPraRecord.status.replace(/_/g, ' '),
+                                assignedUnit:
+                                  selectedPraRecord.assignedOfficerName ||
+                                  'Operator Loket Kelurahan Panaikang',
+                                officerNotes:
+                                  lurahNoteInput ||
+                                  selectedPraRecord.lurahNotes ||
+                                  selectedPraRecord.officerNotes ||
+                                  'Telah diperiksa oleh Lurah Panaikang.',
+                                submittedAt: selectedPraRecord.submittedAt,
+                              },
+                              profile
+                            )
+                          }
+                          className="px-4 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-xs ml-auto"
+                        >
+                          <Download className="w-4 h-4 text-sky-200" />
+                          <span>Cetak Surat / Tanda Terima (PDF)</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB CONTENT: MONITORING PENGADUAN ONLINE */}
+            {persetujuanTab === 'pengaduan' && (
+              <div className="mt-5 space-y-4">
+                {/* 4 Summary Cards for Complaints */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                    <div className="text-[10px] font-bold uppercase text-slate-500">Total Pengaduan</div>
+                    <div className="text-xl font-mono font-black text-slate-900 mt-0.5">{mergedPengaduanList.length}</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">Semua laporan warga</div>
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200">
+                    <div className="text-[10px] font-bold uppercase text-amber-700">Aduan Aktif</div>
+                    <div className="text-xl font-mono font-black text-amber-900 mt-0.5">
+                      {mergedPengaduanList.filter((p) => p.status !== 'SELESAI').length}
+                    </div>
+                    <div className="text-[10px] text-amber-700 mt-0.5">Belum selesai</div>
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200">
+                    <div className="text-[10px] font-bold uppercase text-rose-700">Aduan Prioritas</div>
+                    <div className="text-xl font-mono font-black text-rose-900 mt-0.5">
+                      {mergedPengaduanList.filter((p) => p.isPriority).length}
+                    </div>
+                    <div className="text-[10px] text-rose-700 mt-0.5">Mendesak / Darurat</div>
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
+                    <div className="text-[10px] font-bold uppercase text-emerald-700">Aduan Selesai</div>
+                    <div className="text-xl font-mono font-black text-emerald-900 mt-0.5">
+                      {mergedPengaduanList.filter((p) => p.status === 'SELESAI').length}
+                    </div>
+                    <div className="text-[10px] text-emerald-700 mt-0.5">Tuntas ditangani</div>
+                  </div>
+                </div>
+
+                {/* Complaint Filters */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1">
+                    Filter:
+                  </span>
+                  {(
+                    [
+                      { key: 'SEMUA', label: 'Semua Pengaduan' },
+                      { key: 'AKTIF', label: 'Pengaduan Aktif' },
+                      { key: 'PRIORITAS', label: 'Pengaduan Prioritas' },
+                      { key: 'SELESAI', label: 'Pengaduan Selesai' },
+                    ] as const
+                  ).map((f) => (
+                    <button
+                      key={f.key}
+                      type="button"
+                      onClick={() => setPengaduanFilterMode(f.key)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                        pengaduanFilterMode === f.key
+                          ? 'bg-[#0D3868] text-white shadow-2xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Complaints List Table / Cards */}
+                {(() => {
+                  const filteredPengaduan = mergedPengaduanList.filter((item) => {
+                    if (pengaduanFilterMode === 'AKTIF') return item.status !== 'SELESAI';
+                    if (pengaduanFilterMode === 'PRIORITAS') return item.isPriority;
+                    if (pengaduanFilterMode === 'SELESAI') return item.status === 'SELESAI';
+                    return true;
+                  });
+
+                  if (filteredPengaduan.length === 0) {
+                    return (
+                      <div className="p-8 text-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-slate-500 text-xs">
+                        Tidak ada pengaduan dalam kategori filter &ldquo;{pengaduanFilterMode}&rdquo;.
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-3">
+                      {filteredPengaduan.map((pgd) => (
+                        <div
+                          key={pgd.id}
+                          className="p-4 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 shadow-2xs space-y-2.5"
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs font-black text-[#0D3868] bg-sky-100 px-2 py-0.5 rounded-md">
+                                {pgd.ticketCode}
+                              </span>
+                              <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+                                {pgd.category}
+                              </span>
+                              {pgd.isPriority && (
+                                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-rose-100 text-rose-800">
+                                  Prioritas Tinggi
+                                </span>
+                              )}
+                            </div>
+                            <span
+                              className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md self-start sm:self-auto ${
+                                pgd.status === 'SELESAI'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : pgd.status === 'DITINDAKLANJUTI'
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : pgd.status === 'MENUNGGU_INFORMASI'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : pgd.status === 'DIVERIFIKASI'
+                                  ? 'bg-purple-100 text-purple-800'
+                                  : pgd.status === 'DITERIMA'
+                                  ? 'bg-sky-100 text-sky-800'
+                                  : 'bg-slate-100 text-slate-800'
+                              }`}
+                            >
+                              {pgd.status === 'DITINDAKLANJUTI' ? 'Sedang Ditindaklanjuti' : pgd.status}
+                            </span>
+                          </div>
+
+                          <h4 className="text-sm font-black text-slate-900">{pgd.title}</h4>
+                          <p className="text-xs text-slate-600 leading-relaxed">{pgd.content}</p>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-2.5 rounded-xl bg-slate-50 text-xs">
+                            <div>
+                              <span className="text-slate-500">Lokasi:</span>{' '}
+                              <strong className="text-slate-800">{pgd.locationAddress}</strong> ({pgd.reporterRw})
+                            </div>
+                            <div>
+                              <span className="text-slate-500">Pelapor:</span>{' '}
+                              <strong className="text-slate-800">{pgd.isAnonymous ? 'Anonim (Dirahasiakan)' : pgd.reporterName}</strong>
+                            </div>
+                            <div>
+                              <span className="text-slate-500">Tgl Kejadian:</span>{' '}
+                              <strong className="text-slate-800">{pgd.incidentDate}</strong>
+                            </div>
+                          </div>
+
+                          {pgd.followUpNotes && (
+                            <div className="p-2.5 rounded-xl bg-sky-50 text-xs border border-sky-200 text-sky-950">
+                              <span className="font-bold">Tindak Lanjut Petugas:</span> {pgd.followUpNotes}
+                            </div>
+                          )}
+
+                          <div className="pt-2 border-t border-slate-100 flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                downloadOfficialLetterOrReceiptPdf(
+                                  {
+                                    ticketCode: pgd.ticketCode,
+                                    isSurat: false,
+                                    documentTitle: 'TANDA TERIMA PENGADUAN & ASPIRASI WARGA',
+                                    applicantName: pgd.isAnonymous
+                                      ? 'Warga Pelapor (Identitas Dirahasiakan)'
+                                      : pgd.reporterName,
+                                    applicantPhone: pgd.reporterPhone,
+                                    rw: pgd.reporterRw || 'RW 001',
+                                    rt: pgd.reporterRt || 'RT 001',
+                                    address: pgd.locationAddress,
+                                    serviceOrCategoryName: `${pgd.category} — ${pgd.title}`,
+                                    descriptionOrPurpose: pgd.content,
+                                    statusText: pgd.status.replace(/_/g, ' '),
+                                    assignedUnit:
+                                      pgd.assignedOfficer || 'Tim Respon Kelurahan Panaikang',
+                                    officerNotes:
+                                      pgd.followUpNotes ||
+                                      'Pengaduan warga tercatat dalam sistem monitoring Kelurahan Panaikang.',
+                                    submittedAt: pgd.submittedAt || pgd.incidentDate,
+                                  },
+                                  profile
+                                )
+                              }
+                              className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                              <span>Cetak Tanda Terima Pengaduan (PDF)</span>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ================= MODUL 01: DISPOSISI LAPORAN WARGA & KOORDINASI WHATSAPP ================= */}
       {(activeSection === 'semua' || activeSection === 'disposisi') && (
@@ -786,13 +1682,54 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
                       />
                     </div>
 
-                    <button
-                      type="submit"
-                      className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-[#2E7D32] hover:bg-[#1B5E20] text-white text-xs sm:text-sm font-bold transition-colors cursor-pointer shadow-xs"
-                    >
-                      <UserCheck className="w-4 h-4" />
-                      <span>Simpan Perubahan & Teruskan ke Satgas</span>
-                    </button>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <button
+                        type="submit"
+                        className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-[#2E7D32] hover:bg-[#1B5E20] text-white text-xs sm:text-sm font-bold transition-colors cursor-pointer shadow-xs"
+                      >
+                        <UserCheck className="w-4 h-4" />
+                        <span>Simpan Perubahan & Teruskan ke Satgas</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          downloadOfficialLetterOrReceiptPdf(
+                            {
+                              ticketCode: selectedReport.ticketCode || selectedReport.id,
+                              isSurat:
+                                Boolean(selectedReport.serviceCategoryId) &&
+                                selectedReport.status === 'Selesai',
+                              documentTitle:
+                                Boolean(selectedReport.serviceCategoryId) &&
+                                selectedReport.status === 'Selesai'
+                                  ? `SURAT KETERANGAN / PENGANTAR (${(selectedReport.serviceSubItemLabel || selectedReport.category).toUpperCase()})`
+                                  : 'TANDA TERIMA PELAYANAN & PENGADUAN KELURAHAN',
+                              registerNumber: selectedReport.documentCode,
+                              applicantName: selectedReport.reporterName,
+                              applicantNik: selectedReport.applicantNik,
+                              applicantPhone: selectedReport.reporterPhone,
+                              rw: selectedReport.rw,
+                              rt: selectedReport.rt || 'RT 001',
+                              address: selectedReport.locationName,
+                              serviceOrCategoryName:
+                                selectedReport.serviceSubItemLabel ||
+                                selectedReport.title ||
+                                selectedReport.category,
+                              descriptionOrPurpose: selectedReport.description,
+                              statusText: editStatus,
+                              assignedUnit: editTeam || selectedReport.assignedTeam,
+                              officerNotes: editNote || selectedReport.responseNote,
+                              submittedAt: selectedReport.createdAt,
+                            },
+                            profile
+                          )
+                        }
+                        className="inline-flex items-center justify-center gap-1.5 py-2.5 px-3.5 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
+                      >
+                        <Printer className="w-4 h-4" />
+                        <span>Cetak Surat / Tanda Terima</span>
+                      </button>
+                    </div>
                   </form>
                 </div>
               ) : (

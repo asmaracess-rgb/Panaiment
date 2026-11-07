@@ -26,7 +26,17 @@ import {
   ALL_CITIZEN_MENU_KEYS,
   ALL_CITIZEN_SUB_ITEM_KEYS,
   KerjaBaktiIgHighlightItem,
+  PraRegistrasiRecord,
+  PengaduanOnlineRecord,
+  MasterLayananItem,
+  MasterPersyaratanItem,
+  PengaduanKategori,
 } from '../types';
+import {
+  INITIAL_MASTER_LAYANAN,
+  INITIAL_MASTER_PERSYARATAN,
+  DAFTAR_KATEGORI_PENGADUAN,
+} from '../data/pelayananMasterData';
 import {
   INITIAL_KELURAHAN_PROFILE,
   INITIAL_OFFICIALS,
@@ -81,6 +91,11 @@ export interface PersistedDatabase {
   siskamlingSchedules?: SiskamlingRwSchedule[];
   citizenUsers?: AuthenticatedUserProfile[];
   citizenMenuConfig?: CitizenMenuAccessConfig;
+  praRegistrasiRecords?: PraRegistrasiRecord[];
+  pengaduanRecords?: PengaduanOnlineRecord[];
+  masterLayananList?: MasterLayananItem[];
+  masterPersyaratanList?: MasterPersyaratanItem[];
+  kategoriPengaduanList?: PengaduanKategori[];
   deletedItemIds?: string[];
   updatedAt: number;
 }
@@ -942,6 +957,38 @@ export function smartMergeDatabases(
     siskamlingSchedules: resolvedSiskamlingSchedules,
     citizenUsers: resolvedCitizenUsers,
     citizenMenuConfig: resolvedCitizenMenuConfig,
+    praRegistrasiRecords: mergeEntityCollection(
+      localDb?.praRegistrasiRecords,
+      incoming?.praRegistrasiRecords,
+      [],
+      deletedIds,
+      localIsNewer
+    ),
+    pengaduanRecords: mergeEntityCollection(
+      localDb?.pengaduanRecords,
+      incoming?.pengaduanRecords,
+      [],
+      deletedIds,
+      localIsNewer
+    ),
+    masterLayananList: mergeEntityCollection(
+      localDb?.masterLayananList,
+      incoming?.masterLayananList,
+      INITIAL_MASTER_LAYANAN,
+      deletedIds,
+      localIsNewer
+    ),
+    masterPersyaratanList: mergeEntityCollection(
+      localDb?.masterPersyaratanList,
+      incoming?.masterPersyaratanList,
+      INITIAL_MASTER_PERSYARATAN,
+      deletedIds,
+      localIsNewer
+    ),
+    kategoriPengaduanList:
+      incoming?.kategoriPengaduanList ||
+      localDb?.kategoriPengaduanList ||
+      DAFTAR_KATEGORI_PENGADUAN,
     deletedItemIds: Array.from(deletedIds),
     updatedAt: maxUpdatedAt,
   };
@@ -1010,6 +1057,10 @@ export function savePersistedDatabase(db: PersistedDatabase): void {
       db.citizenUsers = (db.citizenUsers || []).filter((c) => c && c.uid && !deletedSet.has(c.uid));
     }
 
+    if (Array.isArray(db.activityLogs) && db.activityLogs.length > 100) {
+      db.activityLogs = db.activityLogs.slice(0, 100);
+    }
+
     const serialized = JSON.stringify(db);
     // 1. Primary storage
     window.localStorage.setItem(STORAGE_KEY, serialized);
@@ -1018,6 +1069,17 @@ export function savePersistedDatabase(db: PersistedDatabase): void {
     // 2B. Dedicated Lurah photo backup
     if (db.profile?.lurahPhotoUrl && db.profile.lurahPhotoUrl.trim()) {
       window.localStorage.setItem(LURAH_PHOTO_BACKUP_KEY, db.profile.lurahPhotoUrl.trim());
+    }
+    // 2C. Remove obsolete legacy v1–v3 keys to free browser localStorage quota
+    for (const legacyKey of [
+      LEGACY_STORAGE_KEY_V3,
+      LEGACY_BACKUP_KEY_V3,
+      'pnk_smart_env_db_v2',
+      'pnk_smart_env_db_v1',
+      'pnk_smart_env_user_reports_v1',
+      'pnk_smart_env_user_logs_v1',
+    ]) {
+      window.localStorage.removeItem(legacyKey);
     }
     // 3. Persistent tombstone storage
     window.localStorage.setItem(DELETED_IDS_KEY, JSON.stringify(db.deletedItemIds));

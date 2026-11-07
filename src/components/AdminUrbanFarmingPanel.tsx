@@ -35,6 +35,13 @@ import {
 import { compressImageFile } from '../utils/compressImage';
 import { resolveImageUrl } from '../utils/resolveImageUrl';
 import { buildOfficialKopSuratHtml } from '../utils/officialKopSurat';
+import {
+  buildWhatsAppUrl,
+  buildSeedRequestWhatsAppMessage,
+  formatDisplayPhone,
+  isValidWhatsAppPhone,
+  normalizeWhatsAppPhone,
+} from '../utils/whatsappHelper';
 
 interface AdminUrbanFarmingPanelProps {
   spots: UrbanFarmingSpot[];
@@ -129,6 +136,7 @@ export const AdminUrbanFarmingPanel: React.FC<AdminUrbanFarmingPanelProps> = ({
 
   // Seed Request Modal / Edit State
   const [showSeedModal, setShowSeedModal] = useState(false);
+  const [editingSeedId, setEditingSeedId] = useState<string | null>(null);
   const [seedSearchQuery, setSeedSearchQuery] = useState('');
   const [seedStatusFilter, setSeedStatusFilter] = useState('Semua');
   const [confirmDeleteSeedId, setConfirmDeleteSeedId] = useState<string | null>(null);
@@ -381,14 +389,30 @@ export const AdminUrbanFarmingPanel: React.FC<AdminUrbanFarmingPanelProps> = ({
     }
   };
 
-  // Submit Manual Seed Request Form
+  const handleOpenEditSeedRequest = (req: SeedRequestItem) => {
+    setEditingSeedId(req.id);
+    setSeedForm({
+      applicantName: req.applicantName,
+      applicantPhone: req.applicantPhone,
+      rw: req.rw || 'RW 01',
+      rt: req.rt || 'RT 01',
+      address: req.address || '',
+      requestedSeeds: req.requestedSeeds || [],
+      plantingMethod: req.plantingMethod || 'Hidroponik Botol / Pipa',
+      needsTraining: Boolean(req.needsTraining),
+      status: req.status,
+    });
+    setSeedTypesText((req.requestedSeeds || []).join(', '));
+    setShowSeedModal(true);
+  };
+
+  // Submit Manual / Edit Seed Request Form
   const handleSeedFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!seedForm.applicantName?.trim() || !seedForm.applicantPhone?.trim()) {
       setFeedbackMessage({ type: 'error', text: 'Nama pemohon dan nomor telepon wajib diisi.' });
       return;
     }
-    if (!onAddSeedRequest) return;
 
     setIsSubmitting(true);
     const parsedSeeds = seedTypesText
@@ -396,37 +420,62 @@ export const AdminUrbanFarmingPanel: React.FC<AdminUrbanFarmingPanelProps> = ({
       .map((s) => s.trim())
       .filter(Boolean);
 
-    const newReq: SeedRequestItem = {
-      id: `REQ-SEED-${Date.now().toString().slice(-4)}`,
-      applicantName: seedForm.applicantName.trim(),
-      applicantPhone: seedForm.applicantPhone.trim(),
-      rw: seedForm.rw || 'RW 01',
-      rt: seedForm.rt || 'RT 01',
-      address: seedForm.address?.trim() || '',
-      requestedSeeds: parsedSeeds.length > 0 ? parsedSeeds : ['Benih Pakcoy Nauli F1'],
-      plantingMethod: seedForm.plantingMethod || 'Pekarangan & Polybag',
-      needsTraining: Boolean(seedForm.needsTraining),
-      status: seedForm.status || 'Menunggu Pengambilan',
-      createdAt: `${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })} · Diinput Admin`,
-    };
-
     try {
-      const res = await onAddSeedRequest(newReq);
-      if (res.ok) {
-        setFeedbackMessage({ type: 'success', text: `Permohonan bibit baru atas nama "${newReq.applicantName}" berhasil dicatat.` });
-        setShowSeedModal(false);
-        setSeedForm({
-          applicantName: '',
-          applicantPhone: '',
-          rw: 'RW 01',
-          rt: 'RT 01',
-          address: '',
-          requestedSeeds: ['Benih Pakcoy Nauli F1 (Hidroponik / Tanah)'],
-          plantingMethod: 'Hidroponik Botol / Pipa',
-          needsTraining: true,
-          status: 'Menunggu Pengambilan',
+      if (editingSeedId && onUpdateSeedRequest) {
+        const res = await onUpdateSeedRequest(editingSeedId, {
+          applicantName: seedForm.applicantName.trim(),
+          applicantPhone: seedForm.applicantPhone.trim(),
+          rw: seedForm.rw || 'RW 01',
+          rt: seedForm.rt || 'RT 01',
+          address: seedForm.address?.trim() || '',
+          requestedSeeds: parsedSeeds.length > 0 ? parsedSeeds : ['Benih Pakcoy Nauli F1'],
+          plantingMethod: seedForm.plantingMethod || 'Pekarangan & Polybag',
+          needsTraining: Boolean(seedForm.needsTraining),
+          status: seedForm.status || 'Menunggu Pengambilan',
         });
+        if (res.ok) {
+          setFeedbackMessage({
+            type: 'success',
+            text: `Data permohonan bibit #${editingSeedId} atas nama "${seedForm.applicantName.trim()}" berhasil diperbarui.`,
+          });
+          setShowSeedModal(false);
+          setEditingSeedId(null);
+        }
+      } else if (onAddSeedRequest) {
+        const newReq: SeedRequestItem = {
+          id: `REQ-SEED-${Date.now().toString().slice(-4)}`,
+          applicantName: seedForm.applicantName.trim(),
+          applicantPhone: seedForm.applicantPhone.trim(),
+          rw: seedForm.rw || 'RW 01',
+          rt: seedForm.rt || 'RT 01',
+          address: seedForm.address?.trim() || '',
+          requestedSeeds: parsedSeeds.length > 0 ? parsedSeeds : ['Benih Pakcoy Nauli F1'],
+          plantingMethod: seedForm.plantingMethod || 'Pekarangan & Polybag',
+          needsTraining: Boolean(seedForm.needsTraining),
+          status: seedForm.status || 'Menunggu Pengambilan',
+          createdAt: `${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })} · Diinput Admin`,
+        };
+        const res = await onAddSeedRequest(newReq);
+        if (res.ok) {
+          setFeedbackMessage({
+            type: 'success',
+            text: `Permohonan bibit baru atas nama "${newReq.applicantName}" berhasil dicatat.`,
+          });
+          setShowSeedModal(false);
+          setEditingSeedId(null);
+        }
       }
+      setSeedForm({
+        applicantName: '',
+        applicantPhone: '',
+        rw: 'RW 01',
+        rt: 'RT 01',
+        address: '',
+        requestedSeeds: ['Benih Pakcoy Nauli F1 (Hidroponik / Tanah)'],
+        plantingMethod: 'Hidroponik Botol / Pipa',
+        needsTraining: true,
+        status: 'Menunggu Pengambilan',
+      });
     } catch {
       setFeedbackMessage({ type: 'error', text: 'Gagal mencatat permohonan bibit.' });
     } finally {
@@ -851,11 +900,14 @@ export const AdminUrbanFarmingPanel: React.FC<AdminUrbanFarmingPanelProps> = ({
                           <span>{spot.coordinatorName}</span>
                           {spot.coordinatorPhone && (
                             <a
-                              href={`https://wa.me/${spot.coordinatorPhone.replace(/[^0-9]/g, '')}`}
+                              href={buildWhatsAppUrl(
+                                spot.coordinatorPhone,
+                                `Halo Bapak/Ibu *${spot.coordinatorName}*, salam dari Admin Urban Farming Kelurahan Panaikang terkait koordinasi kebun *${spot.name}* (${spot.rw}/${spot.rt}).`
+                              )}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-emerald-600 hover:text-emerald-800"
-                              title={`Hubungi WhatsApp ${spot.coordinatorPhone}`}
+                              title={`Hubungi WhatsApp ${formatDisplayPhone(spot.coordinatorPhone)}`}
                             >
                               <MessageCircle className="w-3.5 h-3.5" />
                             </a>
@@ -1014,7 +1066,22 @@ export const AdminUrbanFarmingPanel: React.FC<AdminUrbanFarmingPanelProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => setShowSeedModal(true)}
+                  onClick={() => {
+                    setEditingSeedId(null);
+                    setSeedForm({
+                      applicantName: '',
+                      applicantPhone: '',
+                      rw: 'RW 01',
+                      rt: 'RT 01',
+                      address: '',
+                      requestedSeeds: ['Benih Pakcoy Nauli F1 (Hidroponik / Tanah)'],
+                      plantingMethod: 'Hidroponik Botol / Pipa',
+                      needsTraining: true,
+                      status: 'Menunggu Pengambilan',
+                    });
+                    setSeedTypesText('Benih Pakcoy Nauli F1, Selada Hijau');
+                    setShowSeedModal(true);
+                  }}
                   className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#059669] hover:bg-[#047857] text-white text-xs font-bold cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -1056,16 +1123,21 @@ export const AdminUrbanFarmingPanel: React.FC<AdminUrbanFarmingPanelProps> = ({
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-1.5 text-slate-800 font-semibold font-mono-num">
                           <Phone className="w-3 h-3 text-slate-400" />
-                          <span>{req.applicantPhone}</span>
-                          <a
-                            href={`https://wa.me/${req.applicantPhone.replace(/[^0-9]/g, '')}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-emerald-600 hover:text-emerald-800"
-                            title="Chat WhatsApp"
-                          >
-                            <MessageCircle className="w-3.5 h-3.5" />
-                          </a>
+                          <span>{formatDisplayPhone(req.applicantPhone)}</span>
+                          {isValidWhatsAppPhone(req.applicantPhone) && (
+                            <a
+                              href={buildWhatsAppUrl(
+                                req.applicantPhone,
+                                buildSeedRequestWhatsAppMessage(req)
+                              )}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-emerald-600 hover:text-emerald-800"
+                              title={`Kirim Informasi WhatsApp ke ${formatDisplayPhone(req.applicantPhone)}`}
+                            >
+                              <MessageCircle className="w-3.5 h-3.5" />
+                            </a>
+                          )}
                         </div>
                         <div className="text-[11px] text-slate-600 mt-0.5">
                           <span className="font-bold text-[#059669]">{req.rw} · {req.rt}</span> — {req.address}
@@ -1141,14 +1213,52 @@ export const AdminUrbanFarmingPanel: React.FC<AdminUrbanFarmingPanelProps> = ({
                             </button>
                           </div>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => setConfirmDeleteSeedId(req.id)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 bg-red-50/70 hover:bg-red-100 text-red-700 font-semibold cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>Hapus</span>
-                          </button>
+                          <div className="inline-flex items-center justify-end gap-1.5">
+                            {isValidWhatsAppPhone(req.applicantPhone) ? (
+                              <a
+                                href={buildWhatsAppUrl(
+                                  req.applicantPhone,
+                                  buildSeedRequestWhatsAppMessage(req)
+                                )}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-2xs transition"
+                                title={`Kirim pesan WhatsApp status permohonan bibit ke ${req.applicantName} (+${normalizeWhatsAppPhone(req.applicantPhone)})`}
+                              >
+                                <MessageCircle className="w-3.5 h-3.5" />
+                                <span>Kirim WhatsApp</span>
+                              </a>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditSeedRequest(req)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold text-xs cursor-pointer transition"
+                                title="Perbaiki format nomor WhatsApp pemohon agar dapat dikirim pesan"
+                              >
+                                <Phone className="w-3.5 h-3.5" />
+                                <span>Perbaiki No. WA</span>
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditSeedRequest(req)}
+                              className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs cursor-pointer"
+                              title="Edit Data & Nomor WA Pemohon"
+                            >
+                              <Edit3 className="w-3.5 h-3.5 text-sky-600" />
+                              <span>Edit</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteSeedId(req.id)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 bg-red-50/70 hover:bg-red-100 text-red-700 font-semibold text-xs cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Hapus</span>
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -1526,16 +1636,23 @@ export const AdminUrbanFarmingPanel: React.FC<AdminUrbanFarmingPanelProps> = ({
                 </div>
                 <div>
                   <h3 className="text-base font-extrabold text-[#0D3868]">
-                    Input Permohonan Bibit Gratis
+                    {editingSeedId
+                      ? `Edit Permohonan Bibit #${editingSeedId}`
+                      : 'Input Permohonan Bibit Gratis'}
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Catat permohonan warga yang datang langsung ke loket kelurahan
+                    {editingSeedId
+                      ? 'Perbarui data pemohon, nomor WhatsApp aktif, atau jenis benih'
+                      : 'Catat permohonan warga yang datang langsung ke loket kelurahan'}
                   </p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => setShowSeedModal(false)}
+                onClick={() => {
+                  setShowSeedModal(false);
+                  setEditingSeedId(null);
+                }}
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />

@@ -31,6 +31,7 @@ import {
   AppView,
 } from '../types';
 import { resolveImageUrl } from '../utils/resolveImageUrl';
+import { buildWhatsAppUrl, isValidWhatsAppPhone } from '../utils/whatsappHelper';
 import { RestrictedAccessModal } from './RestrictedAccessModal';
 
 interface MonitoringSampahViewProps {
@@ -1017,9 +1018,12 @@ export const MonitoringSampahView: React.FC<MonitoringSampahViewProps> = ({
                         </div>
 
                         <div className="flex items-center gap-2 shrink-0">
-                          {spot.coordinatorPhone && (
+                          {isValidWhatsAppPhone(spot.coordinatorPhone) && (
                             <a
-                              href={`https://wa.me/62${spot.coordinatorPhone.replace(/[^0-9]/g, '').replace(/^0/, '')}`}
+                              href={buildWhatsAppUrl(
+                                spot.coordinatorPhone,
+                                `Halo Bapak/Ibu ${spot.coordinatorName}, saya ingin bertanya mengenai Titik Teba Komunal ${spot.name} (${spot.rw}).`
+                              )}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#1C8237] border border-emerald-200 transition-colors"
@@ -1414,9 +1418,12 @@ export const MonitoringSampahView: React.FC<MonitoringSampahViewProps> = ({
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
-                        {point.coordinatorPhone && (
+                        {isValidWhatsAppPhone(point.coordinatorPhone) && (
                           <a
-                            href={`https://wa.me/62${point.coordinatorPhone.replace(/[^0-9]/g, '').replace(/^0/, '')}`}
+                            href={buildWhatsAppUrl(
+                              point.coordinatorPhone,
+                              `Halo Bapak/Ibu ${point.coordinatorName}, saya ingin bertanya mengenai Zona Biopori ${point.name} (${point.rw}).`
+                            )}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="p-2 rounded-xl bg-sky-50 hover:bg-sky-100 text-[#0277BD] border border-sky-200 transition-colors"
@@ -1564,9 +1571,12 @@ export const MonitoringSampahView: React.FC<MonitoringSampahViewProps> = ({
                     {selectedTebaModal.coordinatorName}
                   </span>
                 </div>
-                {selectedTebaModal.coordinatorPhone && (
+                {isValidWhatsAppPhone(selectedTebaModal.coordinatorPhone) && (
                   <a
-                    href={`https://wa.me/62${selectedTebaModal.coordinatorPhone.replace(/[^0-9]/g, '').replace(/^0/, '')}`}
+                    href={buildWhatsAppUrl(
+                      selectedTebaModal.coordinatorPhone,
+                      `Halo Bapak/Ibu ${selectedTebaModal.coordinatorName}, saya ingin bertanya mengenai Titik Teba Komunal ${selectedTebaModal.name} (${selectedTebaModal.rw}).`
+                    )}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white font-bold"
@@ -1728,9 +1738,12 @@ export const MonitoringSampahView: React.FC<MonitoringSampahViewProps> = ({
                     {selectedBioporiModal.coordinatorName}
                   </span>
                 </div>
-                {selectedBioporiModal.coordinatorPhone && (
+                {isValidWhatsAppPhone(selectedBioporiModal.coordinatorPhone) && (
                   <a
-                    href={`https://wa.me/62${selectedBioporiModal.coordinatorPhone.replace(/[^0-9]/g, '').replace(/^0/, '')}`}
+                    href={buildWhatsAppUrl(
+                      selectedBioporiModal.coordinatorPhone,
+                      `Halo Bapak/Ibu ${selectedBioporiModal.coordinatorName}, saya ingin bertanya mengenai Zona Biopori ${selectedBioporiModal.name} (${selectedBioporiModal.rw}).`
+                    )}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0277BD] hover:bg-[#01579B] text-white font-bold"
