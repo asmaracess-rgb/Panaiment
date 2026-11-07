@@ -6,3 +6,6 @@ data/**
 firestore.rules.test.ts
 public/assets/aistudio/Image_*
 public/assets/aistudio/Screenshot_*
+bun.lock
+bun.lockb
+package-lock.json

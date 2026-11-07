@@ -22,7 +22,6 @@ import {
   Newspaper,
   Upload,
   Image as ImageIcon,
-  Instagram,
   RefreshCw,
   Users,
   Clock,
@@ -137,7 +136,7 @@ import {
   formatDisplayPhone,
   normalizeWhatsAppPhone,
 } from '../utils/whatsappHelper';
-import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
+import { EmblemKotaMakassar, EmblemKelurahanPanaikang, Instagram } from './Emblems';
 import { DashboardLurahView } from './DashboardLurahView';
 import { MonthlyArchivePdfPanel } from './MonthlyArchivePdfPanel';
 import { AdminPengurusanWargaPanel } from './AdminPengurusanWargaPanel';

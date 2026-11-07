@@ -28,7 +28,9 @@ import {
   X,
   FileCheck,
   HelpCircle,
+  Lock,
 } from 'lucide-react';
+import { RestrictedAccessModal } from './RestrictedAccessModal';
 import {
   MasterLayananItem,
   MasterPersyaratanItem,
@@ -82,10 +84,40 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
 }) => {
   // Navigation within module
   const [activeModule, setActiveModule] = useState<'hub' | 'pra_registrasi' | 'pengaduan'>(defaultActiveModule);
+  const [restrictedModal, setRestrictedModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    description?: string;
+  } | null>(null);
+
+  const checkAuthOrPrompt = (title: string, description?: string): boolean => {
+    if (!userProfile) {
+      setRestrictedModal({
+        isOpen: true,
+        title,
+        description:
+          description ||
+          `Layanan "${title}" memerlukan akun warga terdaftar. Silakan masuk atau mendaftar akun warga terlebih dahulu untuk melanjutkan.`,
+      });
+      return false;
+    }
+    return true;
+  };
 
   React.useEffect(() => {
+    if ((defaultActiveModule === 'pra_registrasi' || defaultActiveModule === 'pengaduan') && !userProfile) {
+      setActiveModule('hub');
+      setRestrictedModal({
+        isOpen: true,
+        title: defaultActiveModule === 'pra_registrasi' ? 'Pra Registrasi Online' : 'Pengaduan Online',
+        description: `Layanan ${
+          defaultActiveModule === 'pra_registrasi' ? 'Pra Registrasi Online' : 'Pengaduan Online'
+        } memerlukan akun warga terdaftar. Silakan masuk atau mendaftar akun warga terlebih dahulu untuk mengakses layanan ini.`,
+      });
+      return;
+    }
     setActiveModule(defaultActiveModule);
-  }, [defaultActiveModule]);
+  }, [defaultActiveModule, userProfile]);
   
   // Pra Registrasi Submenus: 'daftar' | 'form' | 'saya' | 'sukses'
   const [praSubmenu, setPraSubmenu] = useState<'daftar' | 'form' | 'saya' | 'sukses'>('daftar');
@@ -315,6 +347,14 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
 
   // Start registration for a specific service
   const handleSelectServiceToRegister = (service: MasterLayananItem) => {
+    if (
+      !checkAuthOrPrompt(
+        `Pra Registrasi ${service.name}`,
+        `Layanan Pra Registrasi "${service.name}" memerlukan akun warga terdaftar. Silakan masuk atau mendaftar akun warga terlebih dahulu.`
+      )
+    ) {
+      return;
+    }
     setSelectedService(service);
     setPraStep(1);
     setPraSubmenu('form');
@@ -328,6 +368,15 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
   const handleSubmitPraRegistrasi = async () => {
     if (!selectedService) return;
     setFormError('');
+
+    if (
+      !checkAuthOrPrompt(
+        'Pra Registrasi Online',
+        'Anda harus masuk dengan akun warga terdaftar untuk mengirimkan permohonan Pra Registrasi.'
+      )
+    ) {
+      return;
+    }
 
     if (!applicantName.trim() || applicantName.trim().length < 2) {
       setFormError('Nama lengkap pemohon wajib diisi.');
@@ -406,6 +455,15 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
     e.preventDefault();
     setFormError('');
 
+    if (
+      !checkAuthOrPrompt(
+        'Pengaduan Online',
+        'Anda harus masuk dengan akun warga terdaftar untuk menyampaikan pengaduan online.'
+      )
+    ) {
+      return;
+    }
+
     if (!aduanTitle.trim() || aduanTitle.trim().length < 5) {
       setFormError('Judul pengaduan minimal 5 karakter.');
       return;
@@ -478,6 +536,27 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
             </span>
           </div>
 
+          {!userProfile && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-amber-900 shadow-2xs">
+              <div className="flex items-center gap-2.5">
+                <Lock className="w-5 h-5 text-amber-600 shrink-0" />
+                <div>
+                  <span className="font-extrabold">Akses Layanan Terkunci: </span>
+                  <span>
+                    Proses Pra Registrasi dan Pengaduan Online mengharuskan Anda masuk atau mendaftar akun warga terlebih dahulu.
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onNavigate && onNavigate('login')}
+                className="px-4 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white font-extrabold shrink-0 cursor-pointer shadow-2xs"
+              >
+                Masuk / Daftar Akun Warga
+              </button>
+            </div>
+          )}
+
           {/* 2 Primary Feature Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* CARD 1: Pra Registrasi Online */}
@@ -527,12 +606,20 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
                 <button
                   type="button"
                   onClick={() => {
+                    if (
+                      !checkAuthOrPrompt(
+                        'Pra Registrasi Online',
+                        'Layanan Pra Registrasi Online memerlukan akun warga terdaftar. Silakan masuk atau mendaftar akun warga terlebih dahulu untuk mengajukan permohonan persuratan.'
+                      )
+                    ) {
+                      return;
+                    }
                     setActiveModule('pra_registrasi');
                     setPraSubmenu('daftar');
                   }}
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#0277BD] hover:bg-[#0D3868] text-white text-xs font-extrabold transition shadow-xs cursor-pointer group-hover:translate-x-1"
                 >
-                  <span>Buka Pra Registrasi</span>
+                  <span>Buka Pra Registrasi{!userProfile ? ' 🔒' : ''}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -582,12 +669,20 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
                 <button
                   type="button"
                   onClick={() => {
+                    if (
+                      !checkAuthOrPrompt(
+                        'Pengaduan Online',
+                        'Layanan Pengaduan Online memerlukan akun warga terdaftar. Silakan masuk atau mendaftar akun warga terlebih dahulu untuk menyampaikan pengaduan atau keluhan.'
+                      )
+                    ) {
+                      return;
+                    }
                     setActiveModule('pengaduan');
                     setPengaduanSubmenu('buat');
                   }}
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-extrabold transition shadow-xs cursor-pointer group-hover:translate-x-1"
                 >
-                  <span>Sampaikan Pengaduan</span>
+                  <span>Sampaikan Pengaduan{!userProfile ? ' 🔒' : ''}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -638,6 +733,14 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
               <button
                 type="button"
                 onClick={() => {
+                  if (
+                    !checkAuthOrPrompt(
+                      'Pra Registrasi Baru',
+                      'Layanan Registrasi Baru memerlukan akun warga terdaftar. Silakan masuk atau mendaftar akun warga terlebih dahulu.'
+                    )
+                  ) {
+                    return;
+                  }
                   if (!selectedService && filteredServices.length > 0) {
                     handleSelectServiceToRegister(filteredServices[0]);
                   } else {
@@ -650,11 +753,19 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Registrasi Baru
+                Registrasi Baru{!userProfile ? ' 🔒' : ''}
               </button>
               <button
                 type="button"
                 onClick={() => {
+                  if (
+                    !checkAuthOrPrompt(
+                      'Riwayat Registrasi Saya',
+                      'Untuk melihat daftar riwayat pra registrasi Anda, silakan masuk atau mendaftar akun warga terlebih dahulu.'
+                    )
+                  ) {
+                    return;
+                  }
                   setPraSubmenu('saya');
                   setPraStatusFilter('ALL');
                 }}
@@ -664,11 +775,19 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Registrasi Saya ({myPraList.length})
+                Registrasi Saya ({myPraList.length}){!userProfile ? ' 🔒' : ''}
               </button>
               <button
                 type="button"
                 onClick={() => {
+                  if (
+                    !checkAuthOrPrompt(
+                      'Menunggu Kedatangan',
+                      'Untuk melihat status permohonan antrean kedatangan Anda, silakan masuk atau mendaftar akun warga terlebih dahulu.'
+                    )
+                  ) {
+                    return;
+                  }
                   setPraSubmenu('saya');
                   setPraStatusFilter('MENUNGGU_KEDATANGAN');
                 }}
@@ -683,6 +802,14 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
               <button
                 type="button"
                 onClick={() => {
+                  if (
+                    !checkAuthOrPrompt(
+                      'Sedang Diproses',
+                      'Untuk melihat status pemrosesan persuratan Anda, silakan masuk atau mendaftar akun warga terlebih dahulu.'
+                    )
+                  ) {
+                    return;
+                  }
                   setPraSubmenu('saya');
                   setPraStatusFilter('SEDANG_DIPROSES');
                 }}
@@ -697,6 +824,14 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
               <button
                 type="button"
                 onClick={() => {
+                  if (
+                    !checkAuthOrPrompt(
+                      'Registrasi Selesai',
+                      'Untuk melihat berkas surat yang telah selesai, silakan masuk atau mendaftar akun warga terlebih dahulu.'
+                    )
+                  ) {
+                    return;
+                  }
                   setPraSubmenu('saya');
                   setPraStatusFilter('SELESAI');
                 }}
@@ -1734,18 +1869,36 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
             <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1.5 rounded-xl self-start sm:self-auto">
               <button
                 type="button"
-                onClick={() => setPengaduanSubmenu('buat')}
+                onClick={() => {
+                  if (
+                    !checkAuthOrPrompt(
+                      'Buat Pengaduan Online',
+                      'Layanan menyampaikan pengaduan online memerlukan akun warga terdaftar. Silakan masuk atau mendaftar akun warga terlebih dahulu.'
+                    )
+                  ) {
+                    return;
+                  }
+                  setPengaduanSubmenu('buat');
+                }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                   pengaduanSubmenu === 'buat'
                     ? 'bg-white text-[#0D3868] shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Buat Pengaduan
+                Buat Pengaduan{!userProfile ? ' 🔒' : ''}
               </button>
               <button
                 type="button"
                 onClick={() => {
+                  if (
+                    !checkAuthOrPrompt(
+                      'Daftar Pengaduan Saya',
+                      'Untuk melihat status dan riwayat pengaduan Anda, silakan masuk atau mendaftar akun warga terlebih dahulu.'
+                    )
+                  ) {
+                    return;
+                  }
                   setPengaduanSubmenu('saya');
                   setPengaduanStatusFilter('ALL');
                 }}
@@ -1755,11 +1908,19 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Pengaduan Saya ({myPengaduanList.length})
+                Pengaduan Saya ({myPengaduanList.length}){!userProfile ? ' 🔒' : ''}
               </button>
               <button
                 type="button"
                 onClick={() => {
+                  if (
+                    !checkAuthOrPrompt(
+                      'Pengaduan Diproses',
+                      'Untuk melihat status pengaduan yang sedang diproses, silakan masuk atau mendaftar akun warga terlebih dahulu.'
+                    )
+                  ) {
+                    return;
+                  }
                   setPengaduanSubmenu('saya');
                   setPengaduanStatusFilter('SEDANG_DIPROSES');
                 }}
@@ -1774,6 +1935,14 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
               <button
                 type="button"
                 onClick={() => {
+                  if (
+                    !checkAuthOrPrompt(
+                      'Pengaduan Selesai',
+                      'Untuk melihat daftar pengaduan yang telah selesai ditindaklanjuti, silakan masuk atau mendaftar akun warga terlebih dahulu.'
+                    )
+                  ) {
+                    return;
+                  }
                   setPengaduanSubmenu('saya');
                   setPengaduanStatusFilter('SELESAI');
                 }}
@@ -2195,6 +2364,21 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
         submittedAt={qrModalData.submittedAt}
         statusBadge={qrModalData.statusBadge}
       />
+
+      {/* Restricted Access Modal */}
+      {restrictedModal && (
+        <RestrictedAccessModal
+          isOpen={restrictedModal.isOpen}
+          onClose={() => setRestrictedModal(null)}
+          title={restrictedModal.title}
+          description={restrictedModal.description}
+          isLoggedIn={!!userProfile}
+          onNavigateToLogin={() => {
+            setRestrictedModal(null);
+            if (onNavigate) onNavigate('login');
+          }}
+        />
+      )}
     </div>
   );
 };

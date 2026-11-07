@@ -180,7 +180,7 @@ export function loadAdminUsersJournal(): { updatedAtMs: number; users: AdminUser
   }
 }
 
-const KERJABAKTI_IG_HIGHLIGHTS_KEY = 'pnk_kerjabakti_ig_highlights_v1';
+const KERJABAKTI_IG_HIGHLIGHTS_KEY = 'pnk_kerjabakti_ig_highlights_v3';
 
 export function loadKerjaBaktiIgHighlights(): {
   items: KerjaBaktiIgHighlightItem[];
@@ -188,7 +188,7 @@ export function loadKerjaBaktiIgHighlights(): {
 } {
   const defaultRes = {
     items: INITIAL_KERJABAKTI_IG_HIGHLIGHTS.slice(0, 3),
-    syncedAt: '06 Nov 2026 · 12:00 WITA',
+    syncedAt: '06 Nov 2026 · 21:30 WITA',
   };
   if (typeof window === 'undefined') return defaultRes;
   try {
@@ -196,10 +196,14 @@ export function loadKerjaBaktiIgHighlights(): {
     if (!raw) return defaultRes;
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed?.items) && parsed.items.length > 0) {
-      return {
-        items: (parsed.items as KerjaBaktiIgHighlightItem[]).slice(0, 3),
-        syncedAt: parsed.syncedAt || defaultRes.syncedAt,
-      };
+      const items = parsed.items as KerjaBaktiIgHighlightItem[];
+      const hasLatest = items.some((i) => i.shortcode === 'DfZsJAUvDQG');
+      if (hasLatest) {
+        return {
+          items: items.slice(0, 3),
+          syncedAt: parsed.syncedAt || defaultRes.syncedAt,
+        };
+      }
     }
     return defaultRes;
   } catch {
@@ -709,16 +713,29 @@ export function smartMergeDatabases(
     deletedIds,
     localIsNewer
   );
-  // Ensure the 3 latest official @kelurahan.panaikang Instagram posts are always present unless deleted
+  // Ensure the 3 latest official @kelurahan.panaikang Instagram posts are always FIRST unless deleted,
+  // and filter out superseded older ig-latest-* posts from previous syncs.
+  const currentInitIds = new Set(INITIAL_KELURAHAN_INFOS.map((i) => i.id));
+  const currentInitUrls = new Set(
+    INITIAL_KELURAHAN_INFOS.map((i) => i.instagramPostUrl).filter(Boolean)
+  );
   const infoMap = new Map<string, KelurahanInfoItem>();
-  for (const item of mergedKelurahanInfos) {
-    if (item && item.id && !deletedIds.has(item.id)) {
-      infoMap.set(item.id, item);
+  for (const initInfo of INITIAL_KELURAHAN_INFOS) {
+    if (initInfo && initInfo.id && !deletedIds.has(initInfo.id)) {
+      infoMap.set(initInfo.id, initInfo);
     }
   }
-  for (const initInfo of INITIAL_KELURAHAN_INFOS) {
-    if (initInfo && initInfo.id && !deletedIds.has(initInfo.id) && !infoMap.has(initInfo.id)) {
-      infoMap.set(initInfo.id, initInfo);
+  for (const item of mergedKelurahanInfos) {
+    if (!item || !item.id || deletedIds.has(item.id)) continue;
+    // Skip superseded ig-latest-* items or duplicate shortcodes already in INITIAL_KELURAHAN_INFOS
+    if (item.id.startsWith('ig-latest-') && !currentInitIds.has(item.id)) {
+      continue;
+    }
+    if (item.instagramPostUrl && currentInitUrls.has(item.instagramPostUrl) && !currentInitIds.has(item.id)) {
+      continue;
+    }
+    if (!infoMap.has(item.id)) {
+      infoMap.set(item.id, item);
     }
   }
   const resolvedKelurahanInfos = Array.from(infoMap.values());

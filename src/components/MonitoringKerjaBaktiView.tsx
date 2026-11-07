@@ -11,11 +11,12 @@ import {
   Image as ImageIcon,
   Clock,
   X,
-  Instagram,
   ExternalLink,
   Play,
   Sparkles,
+  RefreshCw,
 } from 'lucide-react';
+import { Instagram } from './Emblems';
 import { CleanupEvent, KerjaBaktiIgHighlightItem, AppView } from '../types';
 import { resolveImageUrl, getInstagramEmbedUrl } from '../utils/resolveImageUrl';
 import { getRealtimeFullDateString } from '../utils/realtimeDate';
@@ -30,6 +31,7 @@ interface MonitoringKerjaBaktiViewProps {
   allowedSubItems?: string[];
   igHighlights?: KerjaBaktiIgHighlightItem[];
   igHighlightsSyncedAt?: string;
+  onSyncHighlights?: () => Promise<{ ok: boolean; syncedAt?: string }>;
 }
 
 export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> = ({
@@ -39,10 +41,22 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
   onNavigate,
   allowedSubItems,
   igHighlights = INITIAL_KERJABAKTI_IG_HIGHLIGHTS,
-  igHighlightsSyncedAt = '06 Nov 2026 · 12:00 WITA',
+  igHighlightsSyncedAt = '06 Nov 2026 · 21:30 WITA',
+  onSyncHighlights,
 }) => {
   const isAllowed = (subKey: string) => !allowedSubItems || allowedSubItems.includes(subKey);
   const [restrictedModal, setRestrictedModal] = useState<{ isOpen: boolean; title: string } | null>(null);
+  const [isSyncingStories, setIsSyncingStories] = useState(false);
+
+  const handleSyncStoriesClick = async () => {
+    if (!onSyncHighlights || isSyncingStories) return;
+    setIsSyncingStories(true);
+    try {
+      await onSyncHighlights();
+    } finally {
+      setIsSyncingStories(false);
+    }
+  };
 
   const handleSubItemClick = (subKey: string, title: string, allowedAction: () => void) => {
     if (isAllowed(subKey)) {
@@ -69,7 +83,13 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
     showEmbed: boolean;
   } | null>(null);
 
-  const topThreeHighlights = (igHighlights || INITIAL_KERJABAKTI_IG_HIGHLIGHTS).slice(0, 3);
+  const topThreeHighlights = React.useMemo(() => {
+    const list = Array.isArray(igHighlights) && igHighlights.length > 0
+      ? igHighlights
+      : INITIAL_KERJABAKTI_IG_HIGHLIGHTS;
+    const hasLatest = list.some((s) => s.shortcode === 'DfZsJAUvDQG');
+    return (hasLatest ? list : INITIAL_KERJABAKTI_IG_HIGHLIGHTS).slice(0, 3);
+  }, [igHighlights]);
 
   // Add new scheduled cleanup state (scheduled events do NOT use photos)
   const [showAddForm, setShowAddForm] = useState(false);
@@ -833,6 +853,17 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
                   <span className="text-[11px] text-slate-500 font-mono-num">
                     Sinkron: {igHighlightsSyncedAt}
                   </span>
+                )}
+                {onSyncHighlights && (
+                  <button
+                    type="button"
+                    onClick={handleSyncStoriesClick}
+                    disabled={isSyncingStories}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#0D3868] text-xs font-bold transition-colors cursor-pointer disabled:opacity-60"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 text-[#E1306C] ${isSyncingStories ? 'animate-spin' : ''}`} />
+                    <span>{isSyncingStories ? 'Menyinkronkan...' : 'Sinkronkan Story'}</span>
+                  </button>
                 )}
                 <a
                   href="https://www.instagram.com/kelurahan.panaikang/"

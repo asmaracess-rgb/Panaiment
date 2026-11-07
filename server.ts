@@ -201,14 +201,21 @@ function loadDatabase(): DatabaseSchema {
           ),
           kelurahanInfos: (() => {
             const existingInfos = filterDeleted(parsed.kelurahanInfos, INITIAL_KELURAHAN_INFOS);
+            const currentInitIds = new Set(INITIAL_KELURAHAN_INFOS.map((i) => i.id));
+            const currentInitUrls = new Set(
+              INITIAL_KELURAHAN_INFOS.map((i) => i.instagramPostUrl).filter(Boolean)
+            );
             const map = new Map<string, KelurahanInfoItem>();
-            for (const item of existingInfos) {
-              if (item && item.id) map.set(item.id, item);
-            }
             for (const initItem of INITIAL_KELURAHAN_INFOS) {
-              if (initItem && initItem.id && !deletedSet.has(initItem.id) && !map.has(initItem.id)) {
+              if (initItem && initItem.id && !deletedSet.has(initItem.id)) {
                 map.set(initItem.id, initItem);
               }
+            }
+            for (const item of existingInfos) {
+              if (!item || !item.id || deletedSet.has(item.id)) continue;
+              if (item.id.startsWith('ig-latest-') && !currentInitIds.has(item.id)) continue;
+              if (item.instagramPostUrl && currentInitUrls.has(item.instagramPostUrl) && !currentInitIds.has(item.id)) continue;
+              if (!map.has(item.id)) map.set(item.id, item);
             }
             return Array.from(map.values());
           })(),
@@ -901,6 +908,7 @@ async function startServer() {
   // 0b. Instagram Media Proxy for @kelurahan.panaikang (Local & Vercel parity)
   const LOCAL_IG_FILE_MAP: Record<string, string> = {
     profile: 'ig_profile_panaikang.jpg',
+    DfZsJAUvDQG: 'ig_post_kerjabakti_0_DfZsJAUvDQG.jpg',
     DfYirNrJjaT: 'ig_post_kerjabakti_1_DfYirNrJjaT.jpg',
     DfHDLK2vqk0: 'ig_post_kerjabakti_2_DfHDLK2vqk0.jpg',
     DfT7acUJdwh: 'ig_post_latest_1_DfT7acUJdwh.jpg',

@@ -6,7 +6,6 @@ import {
   Calendar,
   X,
   Newspaper,
-  Instagram,
   Heart,
   MessageCircle,
   ExternalLink,
@@ -15,6 +14,7 @@ import {
   Leaf,
   Building2,
   Lock,
+  RefreshCw,
 } from 'lucide-react';
 import {
   AppView,
@@ -45,6 +45,7 @@ import {
   IconMonitoringSampah,
   IconMonitoringKerjaBakti,
   IconUrbanFarming,
+  Instagram,
 } from './Emblems';
 
 interface HomePortalProps {
@@ -116,12 +117,48 @@ export const HomePortal: React.FC<HomePortalProps> = ({
   const [localLikesOffset, setLocalLikesOffset] = useState<Record<string, number>>({});
   const [embedFallbackPosts, setEmbedFallbackPosts] = useState<Record<string, boolean>>({});
   const [modalShowEmbed, setModalShowEmbed] = useState<boolean>(false);
+  const [isSyncingIg, setIsSyncingIg] = useState<boolean>(false);
+  const [lastSyncedLabel, setLastSyncedLabel] = useState<string>('');
 
-  // Display current kelurahanInfos (fallback to INITIAL_KELURAHAN_INFOS if empty)
-  const activeInfos =
-    Array.isArray(kelurahanInfos) && kelurahanInfos.length > 0
-      ? kelurahanInfos
-      : INITIAL_KELURAHAN_INFOS;
+  const handleSyncIgClick = async () => {
+    if (isSyncingIg) return;
+    setIsSyncingIg(true);
+    try {
+      const res = await onSyncInstagram();
+      if (res?.ok) {
+        setLastSyncedLabel(res.syncedAt || 'Baru Saja');
+      }
+    } finally {
+      setIsSyncingIg(false);
+    }
+  };
+
+  // Display current kelurahanInfos with latest 3 @kelurahan.panaikang posts prioritized
+  const activeInfos = React.useMemo(() => {
+    const currentInitIds = new Set(INITIAL_KELURAHAN_INFOS.map((i) => i.id));
+    const currentInitUrls = new Set(
+      INITIAL_KELURAHAN_INFOS.map((i) => i.instagramPostUrl).filter(Boolean)
+    );
+    const map = new Map<string, KelurahanInfoItem>();
+    for (const initItem of INITIAL_KELURAHAN_INFOS) {
+      map.set(initItem.id, initItem);
+    }
+    if (Array.isArray(kelurahanInfos)) {
+      for (const item of kelurahanInfos) {
+        if (!item || !item.id) continue;
+        if (item.id.startsWith('ig-latest-') && !currentInitIds.has(item.id)) continue;
+        if (
+          item.instagramPostUrl &&
+          currentInitUrls.has(item.instagramPostUrl) &&
+          !currentInitIds.has(item.id)
+        ) {
+          continue;
+        }
+        map.set(item.id, item);
+      }
+    }
+    return Array.from(map.values());
+  }, [kelurahanInfos]);
 
   // Urutkan berdasarkan tanggal terbaru (Terbaru ke Terlama) dengan menjaga urutan kronologis asli
   const sortedInfosByLatest = [...activeInfos].sort((a, b) => {
@@ -593,6 +630,17 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                   Pengumuman
                 </button>
               </div>
+
+              <button
+                type="button"
+                onClick={handleSyncIgClick}
+                disabled={isSyncingIg}
+                title="Sinkronkan 3 postingan terbaru dari akun Instagram resmi @kelurahan.panaikang"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-[#0D3868] border border-slate-200 text-xs font-bold shadow-2xs transition-colors cursor-pointer disabled:opacity-60"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 text-[#E1306C] ${isSyncingIg ? 'animate-spin' : ''}`} />
+                <span>{isSyncingIg ? 'Menyinkronkan...' : lastSyncedLabel ? `Tersinkron (${lastSyncedLabel})` : 'Sinkronkan IG'}</span>
+              </button>
 
               <a
                 href="https://www.instagram.com/kelurahan.panaikang/"

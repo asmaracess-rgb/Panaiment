@@ -8,3 +8,6 @@ coverage/
 !.env.example
 .aistudio/
 .gmp_cache/
+bun.lock
+bun.lockb
+package-lock.json

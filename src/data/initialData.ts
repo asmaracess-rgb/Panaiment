@@ -33,6 +33,7 @@ export const IMG_DRAINASE = '/images/dokumentasi_drainase_bersih_1791349273322.j
 
 // Official @kelurahan.panaikang Instagram Image Assets
 export const IG_PROFILE_PANAIKANG = '/images/ig_profile_panaikang.jpg';
+export const IG_POST_KERJABAKTI_0 = '/images/ig_post_kerjabakti_0_DfZsJAUvDQG.jpg';
 export const IG_POST_KERJABAKTI_1 = '/images/ig_post_kerjabakti_1_DfYirNrJjaT.jpg';
 export const IG_POST_KERJABAKTI_2 = '/images/ig_post_kerjabakti_2_DfHDLK2vqk0.jpg';
 export const IG_POST_LATEST_1 = '/images/ig_post_latest_1_DfT7acUJdwh.jpg';
@@ -66,7 +67,19 @@ export const INITIAL_CLEANUP_EVENTS: CleanupEvent[] = [];
 // 3 Postingan Story Sorotan Kerja Bakti Terbaru dari Akun Resmi @kelurahan.panaikang
 export const INITIAL_KERJABAKTI_IG_HIGHLIGHTS: KerjaBaktiIgHighlightItem[] = [
   {
-    id: 'kb-ig-story-1-DfYirNrJjaT',
+    id: 'kb-ig-story-1-DfZsJAUvDQG',
+    shortcode: 'DfZsJAUvDQG',
+    title: 'Giat Jumat ASRI Bersama Arhanud dan Jemaat Gereja Silo',
+    caption:
+      'Jumat, 6 November 2026, giat Jumat ASRI bersama Arhanud dan Jamaat Gereja Silo di wilayah Kelurahan Panaikang. Sinergi lintas elemen menjaga kebersihan dan keasrian lingkungan.',
+    publishedAt: '06 November 2026',
+    rwScope: 'Kelurahan Panaikang',
+    imageUrl: IG_POST_KERJABAKTI_0,
+    instagramPostUrl: 'https://www.instagram.com/reel/DfZsJAUvDQG/',
+    highlightName: 'Sorotan: Kerja Bakti',
+  },
+  {
+    id: 'kb-ig-story-2-DfYirNrJjaT',
     shortcode: 'DfYirNrJjaT',
     title: 'Kerja Bakti Kolaborasi & Toleransi di Kelurahan Panaikang',
     caption:
@@ -78,7 +91,7 @@ export const INITIAL_KERJABAKTI_IG_HIGHLIGHTS: KerjaBaktiIgHighlightItem[] = [
     highlightName: 'Sorotan: Kerja Bakti',
   },
   {
-    id: 'kb-ig-story-2-DfHDLK2vqk0',
+    id: 'kb-ig-story-3-DfHDLK2vqk0',
     shortcode: 'DfHDLK2vqk0',
     title: 'Giat Jumat ASRI Aspol Tello Baru Kelurahan Panaikang',
     caption:
@@ -87,18 +100,6 @@ export const INITIAL_KERJABAKTI_IG_HIGHLIGHTS: KerjaBaktiIgHighlightItem[] = [
     rwScope: 'RW 01 · Aspol Tello Baru',
     imageUrl: IG_POST_KERJABAKTI_2,
     instagramPostUrl: 'https://www.instagram.com/reel/DfHDLK2vqk0/',
-    highlightName: 'Sorotan: Kerja Bakti',
-  },
-  {
-    id: 'kb-ig-story-3-Dd-xlSLvXKn',
-    shortcode: 'Dd-xlSLvXKn',
-    title: 'Jumat ASRI RW 05: Jebolkan Drainase Mampet',
-    caption:
-      'Jumat ASRI 2 Oktober 2026 RT-RW Kelurahan Panaikang melaksanakan kerja bakti. Saluran yang mampet dibersihkan, endapan dan sampah diangkat agar aliran air kembali lancar dan potensi genangan diminimalkan.',
-    publishedAt: '02 Oktober 2026',
-    rwScope: 'RW 05 Kelurahan Panaikang',
-    imageUrl: IG_POST_6,
-    instagramPostUrl: 'https://www.instagram.com/reel/Dd-xlSLvXKn/',
     highlightName: 'Sorotan: Kerja Bakti',
   },
 ];
@@ -217,7 +218,61 @@ export const INITIAL_KELURAHAN_PROFILE: KelurahanProfile = {
 
 export const INITIAL_KELURAHAN_INFOS: KelurahanInfoItem[] = [
   {
-    id: 'ig-latest-1-DfT7acUJdwh',
+    id: 'ig-latest-1-DfZsJAUvDQG',
+    title: 'Jumat, 6 November 2026, Giat Jumat ASRI Bersama Arhanud dan Jemaat Gereja Silo',
+    category: 'Kegiatan Lingkungan',
+    summary:
+      'Jumat, 6 November 2026, giat Jumat ASRI bersama Arhanud dan Jamaat Gereja Silo di wilayah Kelurahan Panaikang dalam rangka menjaga kebersihan dan ketertiban lingkungan.',
+    content: `Jumat, 6 November 2026, giat Jumat ASRI bersama Arhanud dan Jamaat Gereja Silo di wilayah Kelurahan Panaikang.
+
+Kegiatan gotong royong lintas elemen ini merupakan wujud nyata sinergi TNI (Arhanud), jemaat Gereja Silo, jajaran Pemerintah Kelurahan Panaikang, pengurus RT/RW, serta masyarakat dalam menjaga kebersihan saluran drainase dan keasrian lingkungan pemukiman.`,
+    imageUrl: IG_POST_KERJABAKTI_0,
+    publishedAt: '06 November 2026',
+    author: 'Lurah Panaikang · @kelurahan.panaikang',
+    instagramHandle: '@kelurahan.panaikang',
+    instagramPostUrl: 'https://www.instagram.com/reel/DfZsJAUvDQG/',
+    instagramLikes: 28,
+    instagramCommentsCount: 3,
+    isInstagramSynced: true,
+    hashtags: [
+      '#JumatASRI',
+      '#KelurahanPanaikang',
+      '#PanaikangSmartEnvironment',
+      '#KecamatanPanakkukang',
+      '#KotaMakassar',
+    ],
+  },
+  {
+    id: 'ig-latest-2-DfYirNrJjaT',
+    title: 'Camat Panakkukang Pantau Kerja Bakti Kolaborasi & Toleransi di Kelurahan Panaikang',
+    category: 'Kegiatan Lingkungan',
+    summary:
+      'Camat Panakkukang Syahril turun langsung memantau pelaksanaan kegiatan kerja bakti di wilayah Kelurahan Panaikang, Jumat (06/11/2026) bersama PKBGT Klasis Makassar Tengah dan warga.',
+    content: `Camat Panakkukang Syahril turun langsung memantau pelaksanaan kegiatan kerja bakti di wilayah Kelurahan Panaikang, Jumat (06/11/2026).
+
+Kegiatan bersih-bersih lingkungan ini menjadi potret nyata sinergi dan toleransi antarumat beragama di tengah masyarakat.
+
+Kerja bakti kali ini mengusung semangat kolaborasi dan gotong royong bersama pengurus Persekutuan Kaum Bapak Gereja Toraja (PKBGT) Klasis Makassar Tengah bersama unsur Organisasi Intra Gereja, jajaran pemerintah kelurahan, serta warga setempat.
+
+Dalam pantauannya, Camat Panakkukang mengapresiasi tinggi kepedulian dan keikutsertaan elemen gereja yang aktif mengambil peran menjaga kebersihan dan kenyamanan lingkungan sekitar. Selain menciptakan lingkungan pemukiman yang bersih dan asri, aksi gotong royong ini bertujuan untuk mempererat tali silaturahmi, memupuk semangat kepedulian sosial, serta menguatkan rasa saling memiliki antarwarga dan berbagai elemen masyarakat.`,
+    imageUrl: IG_POST_KERJABAKTI_1,
+    publishedAt: '06 November 2026',
+    author: 'Lurah Panaikang · @kelurahan.panaikang',
+    instagramHandle: '@kelurahan.panaikang',
+    instagramPostUrl: 'https://www.instagram.com/reel/DfYirNrJjaT/',
+    instagramLikes: 38,
+    instagramCommentsCount: 6,
+    isInstagramSynced: true,
+    hashtags: [
+      '#KerjaBaktiPanaikang',
+      '#KelurahanPanaikang',
+      '#KecamatanPanakkukang',
+      '#ToleransiMakassar',
+      '#PanaikangSmartEnvironment',
+    ],
+  },
+  {
+    id: 'ig-latest-3-DfT7acUJdwh',
     title: 'Kunjungan Lapangan Wali Kota Makassar Munafri Arifuddin di Kelurahan Panaikang',
     category: 'Kegiatan Lingkungan',
     summary:
@@ -240,8 +295,8 @@ Salah satunya melalui fasilitasi akses Kredit Usaha Rakyat (KUR) dengan menggand
     author: 'Lurah Panaikang · @kelurahan.panaikang',
     instagramHandle: '@kelurahan.panaikang',
     instagramPostUrl: 'https://www.instagram.com/reel/DfT7acUJdwh/',
-    instagramLikes: 83,
-    instagramCommentsCount: 30,
+    instagramLikes: 136,
+    instagramCommentsCount: 34,
     isInstagramSynced: true,
     hashtags: [
       '#KelurahanPanaikang',
@@ -249,70 +304,6 @@ Salah satunya melalui fasilitasi akses Kredit Usaha Rakyat (KUR) dengan menggand
       '#PemkotMakassar',
       '#WaliKotaMakassar',
       '#PanaikangSmartEnvironment',
-    ],
-  },
-  {
-    id: 'ig-latest-2-DfM0_MZvZON',
-    title: 'Panaikang Smart Environment Dalam Genggamanmu!',
-    category: 'Edukasi & Sosialisasi',
-    summary:
-      'Kelurahan Panaikang terus berinovasi dalam mewujudkan pelayanan publik yang modern, transparan, informatif, dan berbasis digital melalui inovasi Panaikang Smart Environment.',
-    content: `PANAIKANG SMART ENVIRONMENT Dalam Genggamanmu!
-
-Kelurahan Panaikang terus berinovasi dalam mewujudkan pelayanan publik yang modern, transparan, informatif, dan berbasis digital melalui inovasi Panaikang Smart Environment.
-
-Sebuah platform digital yang dirancang untuk memudahkan masyarakat dalam mengakses informasi, menyampaikan laporan, serta berpartisipasi aktif dalam menjaga kebersihan dan ketertiban lingkungan Kelurahan Panaikang.`,
-    imageUrl: IG_POST_LATEST_2,
-    publishedAt: '01 November 2026',
-    author: 'Lurah Panaikang · @kelurahan.panaikang',
-    instagramHandle: '@kelurahan.panaikang',
-    instagramPostUrl: 'https://www.instagram.com/p/DfM0_MZvZON/',
-    instagramLikes: 20,
-    instagramCommentsCount: 3,
-    isInstagramSynced: true,
-    hashtags: [
-      '#PanaikangSmartEnvironment',
-      '#KelurahanPanaikang',
-      '#SatuLaporanSatuDataSatuAksi',
-      '#KecamatanPanakkukang',
-      '#KotaMakassar',
-    ],
-  },
-  {
-    id: 'ig-latest-3-DfM0LNqPFR5',
-    title: 'Suara Anda Sangat Berarti! Survei Kepuasan Masyarakat (SKM) Pelayanan Kelurahan Panaikang',
-    category: 'Pengumuman Kelurahan',
-    summary:
-      'Dalam rangka meningkatkan kualitas pelayanan publik, Kelurahan Panaikang mengajak seluruh masyarakat berpartisipasi dalam Survei Kepuasan Masyarakat (SKM).',
-    content: `SUARA ANDA SANGAT BERARTI!
-
-Dalam rangka meningkatkan kualitas pelayanan publik, Kelurahan Panaikang mengajak seluruh masyarakat untuk berpartisipasi dalam Survei Kepuasan Masyarakat (SKM) terhadap Pelayanan Kelurahan Panaikang.
-
-Survei ini merupakan salah satu sarana bagi masyarakat untuk menyampaikan penilaian, saran, kritik, serta masukan terhadap pelayanan yang telah diberikan oleh pemerintah kelurahan.
-Melalui partisipasi masyarakat, kami dapat mengetahui sejauh mana kualitas pelayanan yang telah berjalan, sekaligus menjadi bahan evaluasi untuk melakukan perbaikan dan peningkatan pelayanan ke depannya.
-
-Cara berpartisipasi sangat mudah :
-1. Scan QR Code yang tersedia pada poster.
-2. Isi survei sesuai dengan pengalaman dan penilaian Anda.
-3. Sampaikan pendapat secara jujur dan objektif.
-
-⏱️ Cepat, mudah, dan hanya membutuhkan waktu sekitar 1 menit!
-
-Kami percaya bahwa pelayanan publik yang berkualitas tidak dapat terwujud tanpa adanya keterlibatan dan partisipasi masyarakat.`,
-    imageUrl: IG_POST_LATEST_3,
-    publishedAt: '01 November 2026',
-    author: 'Lurah Panaikang · @kelurahan.panaikang',
-    instagramHandle: '@kelurahan.panaikang',
-    instagramPostUrl: 'https://www.instagram.com/p/DfM0LNqPFR5/',
-    instagramLikes: 14,
-    instagramCommentsCount: 0,
-    isInstagramSynced: true,
-    hashtags: [
-      '#SurveiKepuasanMasyarakat',
-      '#PelayananPublik',
-      '#KelurahanPanaikang',
-      '#MelayaniDenganHati',
-      '#KotaMakassar',
     ],
   },
 ];

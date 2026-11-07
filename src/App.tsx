@@ -302,13 +302,22 @@ export default function App() {
     const persistedList = Array.isArray(initialPersisted?.kelurahanInfos)
       ? initialPersisted.kelurahanInfos.filter((i) => i && i.id && !deleted.has(i.id))
       : [];
+    const currentInitIds = new Set(INITIAL_KELURAHAN_INFOS.map((i) => i.id));
+    const currentInitUrls = new Set(
+      INITIAL_KELURAHAN_INFOS.map((i) => i.instagramPostUrl).filter(Boolean)
+    );
     const map = new Map<string, KelurahanInfoItem>();
-    for (const item of persistedList) {
-      map.set(item.id, item);
-    }
     for (const initItem of INITIAL_KELURAHAN_INFOS) {
-      if (initItem && initItem.id && !deleted.has(initItem.id) && !map.has(initItem.id)) {
+      if (initItem && initItem.id && !deleted.has(initItem.id)) {
         map.set(initItem.id, initItem);
+      }
+    }
+    for (const item of persistedList) {
+      if (!item || !item.id || deleted.has(item.id)) continue;
+      if (item.id.startsWith('ig-latest-') && !currentInitIds.has(item.id)) continue;
+      if (item.instagramPostUrl && currentInitUrls.has(item.instagramPostUrl) && !currentInitIds.has(item.id)) continue;
+      if (!map.has(item.id)) {
+        map.set(item.id, item);
       }
     }
     return Array.from(map.values());
@@ -2739,6 +2748,16 @@ export default function App() {
   };
 
   const handleSyncInstagram = async (): Promise<{ ok: boolean; syncedAt?: string }> => {
+    const nowDate = new Date();
+    const syncedTime = getRealtimeTimeString(nowDate);
+    const syncedFull = `${getRealtimeDateTimeString(nowDate)} WITA`;
+
+    // Also refresh Kerja Bakti Instagram highlights whenever Instagram sync runs
+    const latestHighlights = INITIAL_KERJABAKTI_IG_HIGHLIGHTS.slice(0, 3);
+    setKerjaBaktiHighlights(latestHighlights);
+    setKerjaBaktiHighlightsSyncedAt(syncedFull);
+    saveKerjaBaktiIgHighlights(latestHighlights, syncedFull);
+
     try {
       const res = await fetchLocalExpressOnly('/api/infos/sync-instagram', { method: 'POST' });
       if (res && res.ok) {
@@ -2746,45 +2765,74 @@ export default function App() {
         if (json.ok && Array.isArray(json.data) && json.data.length > 0) {
           setKelurahanInfos(json.data);
           commitPersistence({ kelurahanInfos: json.data });
-          return { ok: true, syncedAt: json.syncedAt || getRealtimeTimeString(new Date()) };
+          return { ok: true, syncedAt: json.syncedAt || syncedTime };
         }
       }
     } catch {
       // Fallback to local sync below
     }
+
+    const legacyIds = new Set(['info-1', 'info-2', 'info-3', 'info-4', 'info-5', 'info-6']);
+    const initUrls = new Set(
+      INITIAL_KELURAHAN_INFOS.map((init) => init.instagramPostUrl).filter(Boolean)
+    );
     const customPosts = stateRef.current.kelurahanInfos.filter(
-      (i) => !INITIAL_KELURAHAN_INFOS.some((init) => init.id === i.id)
+      (i) =>
+        i &&
+        i.id &&
+        !legacyIds.has(i.id) &&
+        !i.id.startsWith('ig-latest-') &&
+        !(i.instagramPostUrl && initUrls.has(i.instagramPostUrl)) &&
+        !INITIAL_KELURAHAN_INFOS.some((init) => init.id === i.id)
     );
     const nextInfos = [...INITIAL_KELURAHAN_INFOS, ...customPosts];
     setKelurahanInfos(nextInfos);
     commitPersistence({ kelurahanInfos: nextInfos });
-    const syncedAt = getRealtimeTimeString(new Date());
-    return { ok: true, syncedAt };
+    return { ok: true, syncedAt: syncedTime };
   };
 
   const handleSyncKerjaBaktiHighlights = async (): Promise<{
     ok: boolean;
     syncedAt?: string;
   }> => {
+    const nowDate = new Date();
+    const syncedAt = `${getRealtimeDateTimeString(nowDate)} WITA`;
+
+    // Also refresh HomePortal Instagram posts so both views stay in sync
+    const legacyIds = new Set(['info-1', 'info-2', 'info-3', 'info-4', 'info-5', 'info-6']);
+    const initUrls = new Set(
+      INITIAL_KELURAHAN_INFOS.map((init) => init.instagramPostUrl).filter(Boolean)
+    );
+    const customPosts = stateRef.current.kelurahanInfos.filter(
+      (i) =>
+        i &&
+        i.id &&
+        !legacyIds.has(i.id) &&
+        !i.id.startsWith('ig-latest-') &&
+        !(i.instagramPostUrl && initUrls.has(i.instagramPostUrl)) &&
+        !INITIAL_KELURAHAN_INFOS.some((init) => init.id === i.id)
+    );
+    const nextInfos = [...INITIAL_KELURAHAN_INFOS, ...customPosts];
+    setKelurahanInfos(nextInfos);
+    commitPersistence({ kelurahanInfos: nextInfos });
+
     try {
       const res = await fetchLocalExpressOnly('/api/cleanup-events/sync-ig-highlights', { method: 'POST' });
       if (res && res.ok) {
         const json = await res.json();
         if (json.ok && Array.isArray(json.data) && json.data.length > 0) {
           const top3 = (json.data as KerjaBaktiIgHighlightItem[]).slice(0, 3);
-          const syncedAt =
-            json.syncedAt || `${getRealtimeDateTimeString(new Date())} WITA`;
+          const remoteSyncedAt = json.syncedAt || syncedAt;
           setKerjaBaktiHighlights(top3);
-          setKerjaBaktiHighlightsSyncedAt(syncedAt);
-          saveKerjaBaktiIgHighlights(top3, syncedAt);
-          return { ok: true, syncedAt };
+          setKerjaBaktiHighlightsSyncedAt(remoteSyncedAt);
+          saveKerjaBaktiIgHighlights(top3, remoteSyncedAt);
+          return { ok: true, syncedAt: remoteSyncedAt };
         }
       }
     } catch {
       // Fallback to local sync below
     }
     const top3 = INITIAL_KERJABAKTI_IG_HIGHLIGHTS.slice(0, 3);
-    const syncedAt = `${getRealtimeDateTimeString(new Date())} WITA`;
     setKerjaBaktiHighlights(top3);
     setKerjaBaktiHighlightsSyncedAt(syncedAt);
     saveKerjaBaktiIgHighlights(top3, syncedAt);
@@ -3520,6 +3568,7 @@ export default function App() {
             allowedSubItems={effectiveCitizenSubItems}
             igHighlights={kerjaBaktiHighlights}
             igHighlightsSyncedAt={kerjaBaktiHighlightsSyncedAt}
+            onSyncHighlights={handleSyncKerjaBaktiHighlights}
           />
         )}
 
