@@ -118,7 +118,7 @@ const LURAH_PHOTO_BACKUP_KEY = 'pnk_lurah_photo_backup_v1';
 const JOURNAL_REPORTS_KEY = 'pnk_smart_env_user_reports_v2';
 const JOURNAL_LOGS_KEY = 'pnk_smart_env_user_logs_v2';
 const JOURNAL_CITIZENS_KEY = 'pnk_smart_env_user_citizens_v2';
-const CITIZEN_MENU_ACCESS_KEY = 'pnk_citizen_menu_access_v1';
+const CITIZEN_MENU_ACCESS_KEY = 'pnk_citizen_menu_access_v2';
 const ADMIN_USERS_JOURNAL_KEY = 'pnk_admin_users_journal_v1';
 const DELETED_IDS_KEY = 'pnk_smart_env_deleted_ids_v2';
 

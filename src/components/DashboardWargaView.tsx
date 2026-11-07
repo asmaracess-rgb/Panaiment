@@ -745,6 +745,7 @@ export const DashboardWargaView: React.FC<DashboardWargaViewProps> = ({
             kategoriPengaduanList={kategoriPengaduanList}
             onAddPraRegistrasi={handleAddPraFallback}
             onAddPengaduan={handleAddPengaduanFallback}
+            onNavigate={onNavigate}
             defaultActiveModule={pelayananSubModule}
           />
         </div>
