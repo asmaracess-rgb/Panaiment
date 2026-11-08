@@ -3392,57 +3392,6 @@ export default function App() {
 
         {activeView === 'warga' && (
           <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8 space-y-6">
-            {/* Top Navigation & Account Status Bar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs">
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => handleNavigate('beranda')}
-                  className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
-                >
-                  ← Beranda
-                </button>
-                <div>
-                  <div className="text-xs font-extrabold text-[#0D3868]">
-                    Portal Pelayanan Kelurahan Panaikang
-                  </div>
-                  <div className="text-[11px] text-slate-500">
-                    Pra Registrasi Online (13 Layanan Administrasi) &amp; Pengaduan Online Warga
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                {authUserProfile ? (
-                  <>
-                    <span className="px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
-                      ✓ {authUserProfile.fullName} ({authUserProfile.rw || 'RW 01'})
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleNavigate('dashboard_warga')}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold transition cursor-pointer shadow-xs"
-                    >
-                      <UserCheck className="w-3.5 h-3.5" />
-                      <span>Buka Dashboard Warga Lengkap</span>
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAuthNotice('');
-                      handleNavigate('login');
-                    }}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold transition cursor-pointer shadow-xs"
-                  >
-                    <UserCheck className="w-3.5 h-3.5" />
-                    <span>Masuk / Daftar Akun Dashboard Warga</span>
-                  </button>
-                )}
-              </div>
-            </div>
-
             {/* Main Pelayanan Kelurahan Module (2 Cards: Pra Registrasi Online & Pengaduan Online) */}
             <PelayananKelurahanModule
               userProfile={authUserProfile}

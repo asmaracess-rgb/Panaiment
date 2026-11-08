@@ -522,10 +522,15 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
           {/* Header Title */}
           <div className="pb-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <div className="text-xs font-black tracking-wider text-[#0277BD] uppercase">
-                PORTAL RESMI PELAYANAN
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0D3868] mt-1">
+              <button
+                type="button"
+                onClick={() => onNavigate && onNavigate('beranda')}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0D3868] hover:text-[#0277BD] mb-2 cursor-pointer transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" strokeWidth={1.75} />
+                <span>Kembali Ke Portal Utama</span>
+              </button>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0D3868]">
                 Pelayanan Kelurahan Panaikang
               </h2>
               <p className="text-xs sm:text-sm text-slate-600 mt-1.5 max-w-2xl leading-relaxed">
