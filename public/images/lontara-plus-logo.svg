@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 130" fill="none">
+  <rect width="420" height="130" rx="18" fill="#F8F9FA"/>
+  <!-- 'l' -->
+  <path d="M24 26H38V88C38 92 40 94 44 94H47V106H40C29 106 24 100 24 89V26Z" fill="#18181B"/>
+  <!-- Stylized diamond 'o' (Lontara script motif) -->
+  <g transform="translate(80, 72) rotate(-42)">
+    <rect x="-23" y="-19" width="46" height="38" rx="9" stroke="#18181B" stroke-width="12" fill="none"/>
+  </g>
+  <!-- 'n' -->
+  <path d="M116 50H129V57C133 51 140 48 149 48C163 48 171 57 171 72V106H157V74C157 65 152 60 144 60C135 60 130 66 130 75V106H116V50Z" fill="#18181B"/>
+  <!-- 't' -->
+  <path d="M188 33H202V50H214V61H202V88C202 93 204 95 209 95H214V106H206C193 106 188 100 188 88V61H179V50H188V33Z" fill="#18181B"/>
+  <!-- 'a' -->
+  <path d="M244 107C228 107 217 95 217 78C217 61 228 48 244 48C253 48 260 52 264 58V50H278V106H264V98C260 104 253 107 244 107ZM247 95C257 95 264 88 264 78C264 67 257 60 247 60C237 60 231 67 231 78C231 88 237 95 247 95Z" fill="#18181B"/>
+  <!-- 'r' -->
+  <path d="M290 50H303V59C306 52 313 48 321 48H325V61H320C310 61 304 66 304 77V106H290V50Z" fill="#18181B"/>
+  <!-- 'a' -->
+  <path d="M354 107C338 107 327 95 327 78C327 61 338 48 354 48C363 48 370 52 374 58V50H388V106H374V98C370 104 363 107 354 107ZM357 95C367 95 374 88 374 78C374 67 367 60 357 60C347 60 341 67 341 78C341 88 347 95 357 95Z" fill="#18181B"/>
+  <!-- Plus '+' Lontara Cross Emblem (Top Right) -->
+  <g transform="translate(348, 6)">
+    <!-- Top-Left Teal L -->
+    <path d="M0 18H16V5H24V26H0V18Z" fill="#1F979E"/>
+    <!-- Top-Right Red L -->
+    <path d="M30 0H38V18H54V26H30V0Z" fill="#C42B2B"/>
+    <!-- Bottom-Left Red L -->
+    <path d="M5 32H24V54H16V40H5V32Z" fill="#C42B2B"/>
+    <!-- Bottom-Right Teal L -->
+    <path d="M30 32H54V40H38V49H30V32Z" fill="#1F979E"/>
+  </g>
+</svg>

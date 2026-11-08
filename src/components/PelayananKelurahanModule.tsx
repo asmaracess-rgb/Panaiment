@@ -221,10 +221,10 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
     return Array.from(set);
   }, [masterLayananList]);
 
-  // Citizen's Own Submissions (with fallback to all records if guest or admin/demo account)
+  // Citizen's Own Submissions Only (No fallback to all records)
   const myPraList = useMemo(() => {
-    if (!userProfile) return praRegistrasiList;
-    const matched = praRegistrasiList.filter((r) => {
+    if (!userProfile) return [];
+    return praRegistrasiList.filter((r) => {
       if (userProfile.uid && r.applicantUid === userProfile.uid) return true;
       if (userProfile.email && r.applicantEmail?.toLowerCase() === userProfile.email.toLowerCase()) return true;
       if (applicantNik && r.applicantNik === applicantNik) return true;
@@ -232,7 +232,6 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
       if (userProfile.phone && r.applicantPhone === userProfile.phone) return true;
       return false;
     });
-    return matched.length > 0 ? matched : praRegistrasiList;
   }, [praRegistrasiList, userProfile, applicantNik]);
 
   const filteredMyPra = useMemo(() => {
@@ -257,14 +256,13 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
   }, [myPraList, praStatusFilter]);
 
   const myPengaduanList = useMemo(() => {
-    if (!userProfile) return pengaduanList;
-    const matched = pengaduanList.filter((p) => {
+    if (!userProfile) return [];
+    return pengaduanList.filter((p) => {
       if (userProfile.uid && p.reporterUid === userProfile.uid) return true;
       if (userProfile.phone && p.reporterPhone === userProfile.phone) return true;
       if (userProfile.fullName && p.reporterName?.toLowerCase() === userProfile.fullName.toLowerCase()) return true;
       return false;
     });
-    return matched.length > 0 ? matched : pengaduanList;
   }, [pengaduanList, userProfile]);
 
   const filteredMyPengaduan = useMemo(() => {
@@ -520,39 +518,6 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
       ========================================================================= */}
       {activeModule === 'hub' && (
         <div className="space-y-6">
-          {/* Lontara+ Public Service App Banner (Above Portal Resmi Pelayanan) */}
-          <a
-            href="https://lontaraplus.go.id/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-between px-4 py-3.5 rounded-2xl bg-gradient-to-r from-orange-600 via-amber-600 to-[#0D3868] text-white hover:opacity-95 transition shadow-sm group"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform overflow-hidden shadow-inner border border-white/40 p-1">
-                <img
-                  src="/images/lontara_logo.jpg"
-                  alt="Lontara+ Logo"
-                  className="w-full h-full object-contain rounded-lg"
-                />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-black tracking-wide">Lontara+</span>
-                  <span className="px-2 py-0.5 rounded-md bg-white/20 text-[10px] font-bold text-amber-100">
-                    Aplikasi Layanan Publik Kota Makassar
-                  </span>
-                </div>
-                <p className="text-xs text-amber-50 mt-0.5">
-                  Portal resmi terintegrasi layanan pemerintah & adminduk Kota Makassar
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 text-xs font-bold text-amber-200 group-hover:text-white shrink-0">
-              <span className="hidden sm:inline">Buka Aplikasi</span>
-              <ExternalLink className="w-4 h-4" />
-            </div>
-          </a>
-
           {/* Header Title */}
           <div className="pb-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
@@ -722,6 +687,41 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
                 </button>
               </div>
             </article>
+          </div>
+
+          {/* Lontara+ Reference Card (Subtle, without colored banner, fine border separator) */}
+          <div className="pt-6 border-t border-slate-200 mt-6">
+            <a
+              href="https://lontaraplus.go.id/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-between p-4 rounded-2xl bg-white border border-slate-200 hover:border-[#0277BD] transition shadow-2xs group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-16 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform overflow-hidden border border-slate-200 px-1.5 py-1">
+                  <img
+                    src="/images/lontara-plus-logo.svg"
+                    alt="Lontara+ Logo"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-[#0D3868] tracking-wide">Lontara+</span>
+                    <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold">
+                      Aplikasi Layanan Publik Kota Makassar
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Portal resmi terintegrasi layanan pemerintah & adminduk Kota Makassar
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs font-bold text-[#0277BD] group-hover:underline shrink-0">
+                <span>Buka</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </div>
+            </a>
           </div>
         </div>
       )}

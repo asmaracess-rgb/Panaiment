@@ -241,15 +241,15 @@
 
   <!-- Line 1: KELURAHAN -->
   <text
-    fill="#E8A317"
+    fill="#FFFFFF"
     stroke="#461708"
-    strokeWidth="9"
+    strokeWidth="11"
     paintOrder="stroke fill"
     strokeLinejoin="round"
-    fontSize="36"
+    fontSize="38"
     fontWeight="900"
     fontFamily="'Plus Jakarta Sans', 'Arial Rounded MT Bold', sans-serif"
-    letterSpacing="2"
+    letterSpacing="3"
   >
     <textPath href="#kelurahanArc" startOffset="50%" textAnchor="middle">
       KELURAHAN
@@ -258,15 +258,15 @@
 
   <!-- Line 2: PANAIKANG -->
   <text
-    fill="#E8A317"
+    fill="#FDE047"
     stroke="#461708"
-    strokeWidth="9"
+    strokeWidth="11"
     paintOrder="stroke fill"
     strokeLinejoin="round"
-    fontSize="38"
+    fontSize="40"
     fontWeight="900"
     fontFamily="'Plus Jakarta Sans', 'Arial Rounded MT Bold', sans-serif"
-    letterSpacing="2"
+    letterSpacing="3"
   >
     <textPath href="#panaikangArc" startOffset="50%" textAnchor="middle">
       PANAIKANG

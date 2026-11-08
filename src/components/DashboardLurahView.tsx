@@ -94,6 +94,14 @@ interface DashboardLurahViewProps {
 }
 
 const TEAM_OPTIONS = [
+  // Seksi & Struktur Jabatan Administratif Kelurahan (Untuk Layanan Surat / Pra Registrasi & Administrasi)
+  'Seksi Pelayanan Umum & Kependudukan (Loket Pelayanan)',
+  'Seksi Pemerintahan & Ketenteraman Ketertiban Umum (Trantib)',
+  'Seksi Kesejahteraan Sosial, Pemberdayaan Masyarakat & Pembangunan (Kesos & PMP)',
+  'Sekretariat Kelurahan (Kasubag Umum & Kepegawaian)',
+  'Lurah Panaikang (Pimpinan & Pengesahan Dokumen)',
+  
+  // Tim Operasional & Satgas Lapangan (Untuk Pengaduan / Keluhan Lingkungan)
   'Satgas Drainase & Kebersihan Kelurahan Panaikang',
   'Armada Motor Sampah Tangkasaki / Fukuda RW',
   'Satgas Ruang Terbuka Hijau & DLH Kota Makassar',
@@ -1688,7 +1696,7 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
                         className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-[#2E7D32] hover:bg-[#1B5E20] text-white text-xs sm:text-sm font-bold transition-colors cursor-pointer shadow-xs"
                       >
                         <UserCheck className="w-4 h-4" />
-                        <span>Simpan Perubahan & Teruskan ke Satgas</span>
+                        <span>Simpan Disposisi & Teruskan ke Unit</span>
                       </button>
                       <button
                         type="button"

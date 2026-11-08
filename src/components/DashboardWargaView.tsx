@@ -198,11 +198,11 @@ export const DashboardWargaView: React.FC<DashboardWargaViewProps> = ({
 
   // Citizen's Seed Requests (Permohonan Bibit Gratis Urban Farming)
   const mySeedRequests = useMemo(() => {
-    if (!seedRequests || seedRequests.length === 0) return [];
+    if (!seedRequests || seedRequests.length === 0 || !userProfile) return [];
     const userPhoneNorm = normalizeWhatsAppPhone(userProfile?.phone);
     const userNameClean = (userProfile?.fullName || '').trim().toLowerCase();
 
-    const matched = seedRequests.filter((req) => {
+    return seedRequests.filter((req) => {
       const reqNameClean = (req.applicantName || '').trim().toLowerCase();
       const reqPhoneNorm = normalizeWhatsAppPhone(req.applicantPhone);
       if (userNameClean && reqNameClean && (reqNameClean === userNameClean || reqNameClean.includes(userNameClean) || userNameClean.includes(reqNameClean))) {
@@ -213,9 +213,6 @@ export const DashboardWargaView: React.FC<DashboardWargaViewProps> = ({
       }
       return false;
     });
-
-    // If the logged-in user hasn't matched by exact name/phone yet, also display seed requests from their RW or all submitted seed requests so they never miss a notification
-    return matched.length > 0 ? matched : seedRequests;
   }, [seedRequests, userProfile]);
 
   const totalNotifCount = myPraList.length + myPengaduanList.length + mySeedRequests.length;
