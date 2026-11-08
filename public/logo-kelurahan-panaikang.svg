@@ -1,4 +1,5 @@
-<svg viewBox="0 0 500 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg viewBox="-30 -30 560 560" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="-30" y="-30" width="560" height="560" fill="#461708" rx="100" />
   <defs>
     <!-- Arched paths for KELURAHAN and PANAIKANG matching the uploaded emblem -->
     <path id="kelurahanArc" d="M 106,368 Q 250,336 394,368" />
