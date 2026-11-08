@@ -19,11 +19,53 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@700&family=JetBrains+Mono:wght@500;600&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500;1,600&display=swap" rel="stylesheet" />
+    <script>
+      (function () {
+        var GUARD_KEY = 'pnk_asset_err_reload_ts';
+        function recoverFromStaleAsset() {
+          try {
+            var now = Date.now();
+            var last = Number(window.sessionStorage.getItem(GUARD_KEY) || '0');
+            if (now - last < 15000) return;
+            window.sessionStorage.setItem(GUARD_KEY, String(now));
+            if ('caches' in window) {
+              window.caches.keys().then(function (keys) {
+                keys.forEach(function (k) { window.caches.delete(k); });
+              });
+            }
+            var url = new URL(window.location.href);
+            url.searchParams.set('_v', String(now));
+            window.location.replace(url.toString());
+          } catch (e) {}
+        }
+        window.addEventListener(
+          'error',
+          function (e) {
+            var t = e && e.target;
+            if (!t) return;
+            var src = t.src || t.href || '';
+            if (src && src.indexOf('/assets/') !== -1) {
+              recoverFromStaleAsset();
+            }
+          },
+          true
+        );
+      })();
+    </script>
   </head>
   <body class="bg-slate-50 text-slate-900 antialiased selection:bg-emerald-600 selection:text-white">
-    <div id="root"></div>
+    <div id="root">
+      <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f8fafc;font-family:'Plus Jakarta Sans',system-ui,sans-serif;padding:24px;text-align:center;">
+        <div style="max-width:320px;">
+          <div style="width:40px;height:40px;margin:0 auto 14px;border:3px solid #e2e8f0;border-top-color:#059669;border-radius:9999px;animation:pnk-spin 0.8s linear infinite;"></div>
+          <p style="margin:0;font-size:14px;font-weight:700;color:#0f172a;">Memuat Portal Kelurahan Panaikang...</p>
+          <p style="margin:4px 0 0;font-size:12px;color:#64748b;">Panaikang Smart Environment</p>
+        </div>
+      </div>
+      <style>@keyframes pnk-spin{to{transform:rotate(360deg)}}</style>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-<!-- Build Stamp: 2026-11-08-fresh-v2 -->
+<!-- Build Stamp: 2026-11-08-fresh-v3 -->
 
