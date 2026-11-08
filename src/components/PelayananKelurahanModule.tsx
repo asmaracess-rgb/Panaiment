@@ -29,6 +29,8 @@ import {
   FileCheck,
   HelpCircle,
   Lock,
+  ExternalLink,
+  Smartphone,
 } from 'lucide-react';
 import { RestrictedAccessModal } from './RestrictedAccessModal';
 import {
@@ -518,6 +520,39 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
       ========================================================================= */}
       {activeModule === 'hub' && (
         <div className="space-y-6">
+          {/* Lontara+ Public Service App Banner (Above Portal Resmi Pelayanan) */}
+          <a
+            href="https://lontaraplus.go.id/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between px-4 py-3.5 rounded-2xl bg-gradient-to-r from-orange-600 via-amber-600 to-[#0D3868] text-white hover:opacity-95 transition shadow-sm group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform overflow-hidden shadow-inner border border-white/40 p-1">
+                <img
+                  src="/images/lontara_logo.jpg"
+                  alt="Lontara+ Logo"
+                  className="w-full h-full object-contain rounded-lg"
+                />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-black tracking-wide">Lontara+</span>
+                  <span className="px-2 py-0.5 rounded-md bg-white/20 text-[10px] font-bold text-amber-100">
+                    Aplikasi Layanan Publik Kota Makassar
+                  </span>
+                </div>
+                <p className="text-xs text-amber-50 mt-0.5">
+                  Portal resmi terintegrasi layanan pemerintah & adminduk Kota Makassar
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs font-bold text-amber-200 group-hover:text-white shrink-0">
+              <span className="hidden sm:inline">Buka Aplikasi</span>
+              <ExternalLink className="w-4 h-4" />
+            </div>
+          </a>
+
           {/* Header Title */}
           <div className="pb-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
