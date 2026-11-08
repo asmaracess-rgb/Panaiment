@@ -24,6 +24,9 @@ import {
   ExternalLink,
   Printer,
   Sparkles,
+  ChevronDown,
+  ChevronUp,
+  Eye,
 } from 'lucide-react';
 import {
   UrbanFarmingSpot,
@@ -95,7 +98,9 @@ export const AdminUrbanFarmingPanel: React.FC<AdminUrbanFarmingPanelProps> = ({
   onUpdateSeedRequest,
   onDeleteSeedRequest,
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'kebun' | 'bibit'>('kebun');
+  const [collapsedCards, setCollapsedCards] = useState<Record<string, boolean>>({});
+  const toggleCard = (key: string) =>
+    setCollapsedCards((prev) => ({ ...prev, [key]: !prev[key] }));
 
   // Filter & Search State for Spots
   const [searchQuery, setSearchQuery] = useState('');
@@ -624,25 +629,22 @@ export const AdminUrbanFarmingPanel: React.FC<AdminUrbanFarmingPanelProps> = ({
               <span>Cetak Laporan Lengkap</span>
             </button>
 
-            {activeSubTab === 'kebun' ? (
-              <button
-                type="button"
-                onClick={openAddSpotModal}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#059669] hover:bg-[#047857] text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
-              >
-                <Plus className="w-4 h-4" />
-                <span>+ Tambah Kebun Baru</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowSeedModal(true)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#059669] hover:bg-[#047857] text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
-              >
-                <Plus className="w-4 h-4" />
-                <span>+ Input Permohonan Bibit</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={openAddSpotModal}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#059669] hover:bg-[#047857] text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ Tambah Kebun Baru</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowSeedModal(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ Input Permohonan Bibit</span>
+            </button>
           </div>
         </div>
 
@@ -729,39 +731,76 @@ export const AdminUrbanFarmingPanel: React.FC<AdminUrbanFarmingPanelProps> = ({
         </div>
       )}
 
-      {/* Sub-Tabs: 1. Data Kebun | 2. Permohonan Bibit */}
-      <div className="flex items-center gap-2 border-b border-slate-200">
-        <button
-          type="button"
-          onClick={() => setActiveSubTab('kebun')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer ${
-            activeSubTab === 'kebun'
-              ? 'border-[#059669] text-[#059669] bg-white'
-              : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+      {/* ================= KARTU SUB-MENU 01: KELOLA DATA KEBUN URBAN FARMING ================= */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+        <div
+          onClick={() => toggleCard('uf_card_kebun')}
+          className={`px-4 sm:px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer select-none transition-colors hover:bg-slate-50/90 bg-white ${
+            !collapsedCards['uf_card_kebun'] ? 'border-b border-slate-200' : ''
           }`}
         >
-          <Sprout className="w-4 h-4" />
-          <span>Kelola Data Kebun ({spots.length})</span>
-        </button>
+          <div className="flex items-start sm:items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#059669] flex items-center justify-center shrink-0">
+              <Sprout className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm sm:text-base font-extrabold text-[#0D3868]">
+                  01. Kelola Data Kebun Urban Farming ({spots.length} Titik Kebun)
+                </h3>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300">
+                  {spots.length} Kebun Binaan
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">
+                Data lokasi kebun binaan RW/RT, kelompok tani, metode tanam, estimasi panen, dan foto dokumentasi
+              </p>
+            </div>
+          </div>
 
-        <button
-          type="button"
-          onClick={() => setActiveSubTab('bibit')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer ${
-            activeSubTab === 'bibit'
-              ? 'border-[#059669] text-[#059669] bg-white'
-              : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <Package className="w-4 h-4" />
-          <span>Permohonan Bibit Gratis ({seedRequests.length})</span>
-        </button>
-      </div>
+          <div
+            className="flex items-center gap-2 self-end sm:self-center shrink-0"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setCollapsedCards((prev) => ({ ...prev, uf_card_kebun: false }));
+                openAddSpotModal();
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#059669] hover:bg-[#047857] text-white text-xs font-bold cursor-pointer shadow-2xs"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>+ Tambah Kebun</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => toggleCard('uf_card_kebun')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                collapsedCards['uf_card_kebun']
+                  ? 'bg-[#0D3868] hover:bg-[#072647] text-white shadow-xs'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+              }`}
+            >
+              {collapsedCards['uf_card_kebun'] ? (
+                <>
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Tampilkan Detail</span>
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </>
+              ) : (
+                <>
+                  <span>Tutup</span>
+                  <ChevronUp className="w-3.5 h-3.5" />
+                </>
+              )}
+            </button>
+          </div>
+        </div>
 
-      {/* ================= SUB-TAB 1: KELOLA DATA KEBUN URBAN FARMING ================= */}
-      {activeSubTab === 'kebun' && (
-        <div className="space-y-4">
-          {/* Search & Filter Toolbar */}
+        {!collapsedCards['uf_card_kebun'] && (
+          <div className="p-4 sm:p-5 space-y-4">
+            {/* Search & Filter Toolbar */}
           <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3 shadow-xs">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div className="relative flex-1">
@@ -1031,13 +1070,69 @@ export const AdminUrbanFarmingPanel: React.FC<AdminUrbanFarmingPanelProps> = ({
               </table>
             </div>
           </div>
-        </div>
-      )}
+          </div>
+        )}
+      </div>
 
-      {/* ================= SUB-TAB 2: KELOLA PERMOHONAN BIBIT GRATIS ================= */}
-      {activeSubTab === 'bibit' && (
-        <div className="space-y-4">
-          {/* Toolbar */}
+      {/* ================= KARTU SUB-MENU 02: KELOLA PERMOHONAN BIBIT GRATIS ================= */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+        <div
+          onClick={() => toggleCard('uf_card_bibit')}
+          className={`px-4 sm:px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer select-none transition-colors hover:bg-slate-50/90 bg-white ${
+            !collapsedCards['uf_card_bibit'] ? 'border-b border-slate-200' : ''
+          }`}
+        >
+          <div className="flex items-start sm:items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#059669] flex items-center justify-center shrink-0">
+              <Package className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm sm:text-base font-extrabold text-[#0D3868]">
+                  02. Permohonan Bibit Gratis &amp; Distribusi Benih Warga ({seedRequests.length} Permohonan)
+                </h3>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300">
+                  {seedRequests.length} Permohonan
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">
+                Verifikasi permohonan benih sayuran warga, jadwal pengambilan, dan kirim notifikasi WhatsApp
+              </p>
+            </div>
+          </div>
+
+          <div
+            className="flex items-center gap-2 self-end sm:self-center shrink-0"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => toggleCard('uf_card_bibit')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                collapsedCards['uf_card_bibit']
+                  ? 'bg-[#0D3868] hover:bg-[#072647] text-white shadow-xs'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+              }`}
+            >
+              {collapsedCards['uf_card_bibit'] ? (
+                <>
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Tampilkan Detail</span>
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </>
+              ) : (
+                <>
+                  <span>Tutup</span>
+                  <ChevronUp className="w-3.5 h-3.5" />
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {!collapsedCards['uf_card_bibit'] && (
+          <div className="p-4 sm:p-5 space-y-4">
+            {/* Toolbar */}
           <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3 shadow-xs">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div className="relative flex-1">
@@ -1275,8 +1370,9 @@ export const AdminUrbanFarmingPanel: React.FC<AdminUrbanFarmingPanelProps> = ({
               </table>
             </div>
           </div>
-        </div>
-      )}
+          </div>
+        )}
+      </div>
 
       {/* ================= MODAL: TAMBAH / EDIT KEBUN URBAN FARMING ================= */}
       {showSpotModal && (

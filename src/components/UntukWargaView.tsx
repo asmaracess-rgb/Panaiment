@@ -1380,6 +1380,18 @@ export const UntukWargaView: React.FC<UntukWargaViewProps> = ({
                     </div>
                   </div>
 
+                  <div className="p-3.5 rounded-xl bg-emerald-50/90 border border-emerald-200 text-left flex items-start gap-2.5 text-xs">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <div className="space-y-0.5">
+                      <div className="font-bold text-emerald-950">
+                        Notifikasi WhatsApp Otomatis Terkirim ke Pihak Terkait
+                      </div>
+                      <p className="text-emerald-800 leading-relaxed">
+                        Begitu laporan disubmit, sistem telah meneruskan rincian pengaduan ini secara otomatis ke nomor WhatsApp terdaftar (Lurah &amp; Petugas Terkait) tanpa perlu kirim WA pribadi dari perangkat Anda.
+                      </p>
+                    </div>
+                  </div>
+
                   <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
                     <button
                       type="button"

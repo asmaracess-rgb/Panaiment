@@ -26,6 +26,15 @@ import {
   RotateCcw,
   Search,
   ExternalLink,
+  Plus,
+  Edit3,
+  Trash2,
+  X,
+  Send,
+  RefreshCw,
+  Filter,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -61,8 +70,21 @@ import {
 } from '../data/initialData';
 import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
 import { MonthlyArchivePdfPanel } from './MonthlyArchivePdfPanel';
+
+const RW_LIST = ['RW 01', 'RW 02', 'RW 03', 'RW 04', 'RW 05', 'RW 06', 'RW 07'];
 import { GeneratedPdfResult } from '../utils/monthlyReportPdfGenerator';
 import { downloadOfficialLetterOrReceiptPdf } from '../utils/officialLetterPdfGenerator';
+import {
+  normalizeWhatsAppPhone,
+  formatDisplayPhone,
+  buildWhatsAppUrl,
+  buildInterRecipientCoordinationMessage,
+  dispatchComplaintToRegisteredWhatsApp,
+  loadWhatsAppAutoDispatchLogs,
+  WhatsAppAutoDispatchReceipt,
+  checkWhatsAppGatewayStatus,
+  WhatsAppGatewayStatusResult,
+} from '../utils/whatsappHelper';
 import { Download } from 'lucide-react';
 
 interface DashboardLurahViewProps {
@@ -74,6 +96,9 @@ interface DashboardLurahViewProps {
   profile?: KelurahanProfile;
   rwGroups?: RwGroup[];
   whatsappRecipients?: WhatsAppRecipient[];
+  onSaveWhatsAppRecipients?: (
+    recipients: WhatsAppRecipient[]
+  ) => Promise<{ ok: boolean; errors?: string[] }>;
   onUpdateReportStatus: (
     id: string,
     newStatus: ReportStatus,
@@ -108,7 +133,15 @@ const TEAM_OPTIONS = [
   'Pengurus Bank Sampah Unit & Forum RT/RW',
 ];
 
-type LurahSubSection = 'semua' | 'persetujuan' | 'disposisi' | 'tren' | 'arsip_pdf';
+type LurahSubSection =
+  | 'semua'
+  | 'persetujuan'
+  | 'disposisi'
+  | 'whatsapp_gateway'
+  | 'tren'
+  | 'arsip_pdf';
+
+const RW_SCOPE_OPTIONS = ['RW 01', 'RW 02', 'RW 03', 'RW 04', 'RW 05', 'RW 06'];
 
 export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
   reports,
@@ -119,6 +152,7 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
   profile = INITIAL_KELURAHAN_PROFILE,
   rwGroups = INITIAL_RW_GROUPS,
   whatsappRecipients = INITIAL_WHATSAPP_RECIPIENTS,
+  onSaveWhatsAppRecipients,
   onUpdateReportStatus,
   onLurahApproveService,
   onLurahFollowUpPengaduan,
@@ -128,10 +162,326 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
   onOpenWhatsAppManager,
   onPdfDownloaded,
 }) => {
-  const [activeSection, setActiveSection] = useState<LurahSubSection>('semua');
+  const [collapsedCards, setCollapsedCards] = useState<Record<string, boolean>>({});
+  const toggleCard = (key: string) =>
+    setCollapsedCards((prev) => ({ ...prev, [key]: !prev[key] }));
   const [statusFilter, setStatusFilter] = useState<'Semua' | ReportStatus>('Semua');
   const [rwFilter, setRwFilter] = useState<string>('Semua');
   const [selectedReportId, setSelectedReportId] = useState<string>(reports[0]?.id || '');
+
+  // Kelola Nomor WhatsApp Gateway state (Dashboard Lurah)
+  const [localWaRecipients, setLocalWaRecipients] = useState<WhatsAppRecipient[]>(whatsappRecipients);
+  useEffect(() => {
+    setLocalWaRecipients(whatsappRecipients);
+  }, [whatsappRecipients]);
+
+  const [waGatewayFilter, setWaGatewayFilter] = useState<'semua' | 'aktif' | 'nonaktif'>('semua');
+  const [waRwFilter, setWaRwFilter] = useState<string>('SEMUA');
+  const [waSearchTerm, setWaSearchTerm] = useState<string>('');
+
+  const filteredLocalRecipients = useMemo(() => {
+    return localWaRecipients.filter((recipient) => {
+      // 1. Gateway Status Filter
+      if (waGatewayFilter === 'aktif' && !recipient.isActive) return false;
+      if (waGatewayFilter === 'nonaktif' && recipient.isActive) return false;
+
+      // 2. RW Scope Filter
+      if (waRwFilter !== 'SEMUA') {
+        const scope = (recipient.rwScope || 'Seluruh Wilayah').trim();
+        if (waRwFilter === 'SELURUH_WILAYAH') {
+          if (scope !== 'Seluruh Wilayah') return false;
+        } else if (waRwFilter === 'KHUSUS_RTRW') {
+          if (scope === 'Seluruh Wilayah') return false;
+        } else {
+          if (scope !== waRwFilter) return false;
+        }
+      }
+
+      // 3. Search query
+      if (waSearchTerm.trim()) {
+        const q = waSearchTerm.toLowerCase();
+        const matchName = recipient.name.toLowerCase().includes(q);
+        const matchRole = recipient.role.toLowerCase().includes(q);
+        const matchPhone = recipient.phoneNumber.toLowerCase().includes(q);
+        const matchScope = (recipient.rwScope || '').toLowerCase().includes(q);
+        const matchNotes = (recipient.notes || '').toLowerCase().includes(q);
+        if (!matchName && !matchRole && !matchPhone && !matchScope && !matchNotes) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [localWaRecipients, waGatewayFilter, waRwFilter, waSearchTerm]);
+
+  const handleBulkToggleWaRecipients = async (activate: boolean) => {
+    const targetIds = new Set(filteredLocalRecipients.map((r) => r.id));
+    if (targetIds.size === 0) return;
+    const nextList = localWaRecipients.map((item) =>
+      targetIds.has(item.id) ? { ...item, isActive: activate } : item
+    );
+    const actionText = activate ? 'diaktifkan' : 'dinonaktifkan';
+    await persistWaRecipientsList(
+      nextList,
+      `${targetIds.size} nomor WhatsApp RTRW / petugas terfilter berhasil ${actionText} untuk menerima pesan dari WhatsApp Gateway.`
+    );
+  };
+  const [showWaForm, setShowWaForm] = useState(false);
+  const [editingWaId, setEditingWaId] = useState<string | null>(null);
+  const [confirmDeleteWaId, setConfirmDeleteWaId] = useState<string | null>(null);
+  const [isSavingWa, setIsSavingWa] = useState(false);
+  const [testingWaId, setTestingWaId] = useState<string | null>(null);
+  const [waFeedback, setWaFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(
+    null
+  );
+  const [waDispatchLogs, setWaDispatchLogs] = useState<WhatsAppAutoDispatchReceipt[]>(() =>
+    loadWhatsAppAutoDispatchLogs()
+  );
+  const [waForm, setWaForm] = useState<Partial<WhatsAppRecipient>>({
+    name: '',
+    role: 'Lurah / Pejabat Penerima Laporan Warga',
+    phoneNumber: '0812',
+    isPrimary: false,
+    isActive: true,
+    rwScope: 'Seluruh Wilayah',
+    notes: '',
+  });
+
+  const [gatewayStatus, setGatewayStatus] = useState<WhatsAppGatewayStatusResult | null>(null);
+  const [isCheckingGateway, setIsCheckingGateway] = useState<boolean>(false);
+
+  const fetchGatewayStatus = async () => {
+    setIsCheckingGateway(true);
+    try {
+      const res = await checkWhatsAppGatewayStatus();
+      setGatewayStatus(res);
+    } finally {
+      setIsCheckingGateway(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchGatewayStatus();
+  }, []);
+
+  useEffect(() => {
+    setWaDispatchLogs(loadWhatsAppAutoDispatchLogs());
+  }, [reports.length]);
+
+  const scrollToWhatsAppManager = () => {
+    if (onOpenWhatsAppManager) {
+      onOpenWhatsAppManager();
+    }
+  };
+
+  const persistWaRecipientsList = async (nextList: WhatsAppRecipient[], successMsg: string) => {
+    setIsSavingWa(true);
+    setWaFeedback(null);
+    try {
+      setLocalWaRecipients(nextList);
+      if (onSaveWhatsAppRecipients) {
+        const res = await onSaveWhatsAppRecipients(nextList);
+        if (!res.ok) {
+          setWaFeedback({
+            type: 'error',
+            message: (res.errors && res.errors.join(' ')) || 'Gagal menyimpan daftar nomor WhatsApp.',
+          });
+          return false;
+        }
+      }
+      setWaFeedback({ type: 'success', message: successMsg });
+      return true;
+    } finally {
+      setIsSavingWa(false);
+    }
+  };
+
+  const openAddWaRecipientForm = () => {
+    setWaFeedback(null);
+    setEditingWaId(null);
+    setWaForm({
+      name: '',
+      role: 'Koordinator / Pejabat Penerima Laporan Warga',
+      phoneNumber: '0812',
+      isPrimary: localWaRecipients.length === 0,
+      isActive: true,
+      rwScope: 'Seluruh Wilayah',
+      notes: 'Aktif menerima pesan otomatis dari WhatsApp Gateway',
+    });
+    setShowWaForm(true);
+  };
+
+  const openEditWaRecipientForm = (recipient: WhatsAppRecipient) => {
+    setWaFeedback(null);
+    setEditingWaId(recipient.id);
+    setWaForm({ ...recipient });
+    setShowWaForm(true);
+  };
+
+  const handleWaFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setWaFeedback(null);
+    const cleanName = (waForm.name || '').trim();
+    const cleanRole = (waForm.role || '').trim();
+    const cleanPhone = (waForm.phoneNumber || '').trim();
+    const normalizedDigits = normalizeWhatsAppPhone(cleanPhone);
+
+    if (cleanName.length < 3) {
+      setWaFeedback({
+        type: 'error',
+        message: 'Nama pejabat / penerima pesan WhatsApp wajib diisi (minimal 3 karakter).',
+      });
+      return;
+    }
+    if (cleanRole.length < 3) {
+      setWaFeedback({
+        type: 'error',
+        message: 'Jabatan / peran penerima WhatsApp wajib diisi.',
+      });
+      return;
+    }
+    if (normalizedDigits.length < 10) {
+      setWaFeedback({
+        type: 'error',
+        message: 'Nomor telepon WhatsApp wajib diisi dengan nomor yang valid (contoh: 081242108800).',
+      });
+      return;
+    }
+
+    let nextList: WhatsAppRecipient[];
+    if (editingWaId) {
+      nextList = localWaRecipients.map((item) => {
+        if (item.id === editingWaId) {
+          return {
+            ...item,
+            name: cleanName,
+            role: cleanRole,
+            phoneNumber: cleanPhone,
+            isPrimary: Boolean(waForm.isPrimary),
+            isActive: waForm.isActive !== false,
+            rwScope: waForm.rwScope || 'Seluruh Wilayah',
+            notes: waForm.notes?.trim() || '',
+          };
+        }
+        return waForm.isPrimary ? { ...item, isPrimary: false } : item;
+      });
+    } else {
+      const created: WhatsAppRecipient = {
+        id: `wa-${Date.now()}`,
+        name: cleanName,
+        role: cleanRole,
+        phoneNumber: cleanPhone,
+        isPrimary: Boolean(waForm.isPrimary) || localWaRecipients.length === 0,
+        isActive: waForm.isActive !== false,
+        rwScope: waForm.rwScope || 'Seluruh Wilayah',
+        notes: waForm.notes?.trim() || '',
+      };
+      const baseList = created.isPrimary
+        ? localWaRecipients.map((item) => ({ ...item, isPrimary: false }))
+        : localWaRecipients;
+      nextList = [...baseList, created];
+    }
+
+    if (nextList.length > 0 && !nextList.some((r) => r.isPrimary)) {
+      nextList[0] = { ...nextList[0], isPrimary: true };
+    }
+
+    const ok = await persistWaRecipientsList(
+      nextList,
+      editingWaId
+        ? `Nomor WhatsApp ${cleanName} (${formatDisplayPhone(cleanPhone)}) berhasil diperbarui.`
+        : `Nomor WhatsApp ${cleanName} (${formatDisplayPhone(cleanPhone)}) berhasil ditambahkan ke daftar penerima WhatsApp Gateway.`
+    );
+    if (ok) {
+      setShowWaForm(false);
+      setEditingWaId(null);
+    }
+  };
+
+  const handleSetPrimaryWaRecipient = async (id: string) => {
+    const target = localWaRecipients.find((r) => r.id === id);
+    const nextList = localWaRecipients.map((item) => ({
+      ...item,
+      isPrimary: item.id === id,
+      isActive: item.id === id ? true : item.isActive,
+    }));
+    await persistWaRecipientsList(
+      nextList,
+      `Nomor WhatsApp ${target?.name || ''} (${formatDisplayPhone(target?.phoneNumber || '')}) ditetapkan sebagai Penerima Utama WhatsApp Gateway.`
+    );
+  };
+
+  const handleToggleActiveWaRecipient = async (id: string) => {
+    const target = localWaRecipients.find((r) => r.id === id);
+    if (!target) return;
+    const nextActive = !target.isActive;
+    const nextList = localWaRecipients.map((item) =>
+      item.id === id ? { ...item, isActive: nextActive } : item
+    );
+    await persistWaRecipientsList(
+      nextList,
+      nextActive
+        ? `Nomor WhatsApp ${target.name} (${formatDisplayPhone(target.phoneNumber)}) DIAKTIFKAN untuk menerima pesan dari WhatsApp Gateway.`
+        : `Nomor WhatsApp ${target.name} (${formatDisplayPhone(target.phoneNumber)}) dinonaktifkan sementara dari penerimaan otomatis.`
+    );
+  };
+
+  const handleExecuteDeleteWaRecipient = async (id: string) => {
+    const target = localWaRecipients.find((item) => item.id === id);
+    const nextList = localWaRecipients.filter((item) => item.id !== id);
+    if (nextList.length > 0 && !nextList.some((r) => r.isPrimary)) {
+      nextList[0] = { ...nextList[0], isPrimary: true };
+    }
+    setConfirmDeleteWaId(null);
+    await persistWaRecipientsList(
+      nextList,
+      `Nomor WhatsApp ${target?.name || ''} berhasil dihapus dari daftar penerima WhatsApp Gateway.`
+    );
+  };
+
+  const handleTestWaGatewayDispatch = async (recipient: WhatsAppRecipient) => {
+    setTestingWaId(recipient.id);
+    setWaFeedback(null);
+    try {
+      const nowStr = new Date().toLocaleString('id-ID');
+      const res = await dispatchComplaintToRegisteredWhatsApp({
+        report: {
+          ticketCode: `PGD-TEST-${String(Date.now()).slice(-4)}`,
+          title: 'Uji Coba Penerimaan Pesan dari WhatsApp Gateway (Dashboard Lurah)',
+          description:
+            'Pesan uji coba dari Dashboard Eksekutif Lurah Panaikang: memastikan nomor pejabat/petugas terdaftar dapat menerima pesan otomatis dari WhatsApp Gateway (Fonnte) saat laporan warga disubmit.',
+          category: 'Pengaduan Lingkungan & Pelayanan',
+          urgency: 'Normal',
+          rw:
+            recipient.rwScope && recipient.rwScope !== 'Seluruh Wilayah'
+              ? recipient.rwScope
+              : 'RW 01',
+          rt: 'RT 01',
+          locationName: 'Kantor Kelurahan Panaikang',
+          reporterName: 'Dashboard Eksekutif Lurah Panaikang',
+          reporterPhone: '-',
+          submittedAt: nowStr,
+        },
+        whatsappRecipients: [{ ...recipient, isActive: true }],
+      });
+      setWaDispatchLogs(loadWhatsAppAutoDispatchLogs());
+      if (res.ok) {
+        setWaFeedback({
+          type: 'success',
+          message: `Pesan uji coba dari WhatsApp Gateway (Fonnte) berhasil dikirimkan ke ${recipient.name} (${formatDisplayPhone(recipient.phoneNumber)}).`,
+        });
+      } else {
+        const errDetail =
+          res.deliveries?.[0]?.errorMessage ||
+          'Pengiriman melalui WhatsApp Gateway (Fonnte) gagal. Periksa log pengiriman di bawah.';
+        setWaFeedback({
+          type: 'error',
+          message: `Gagal mengirim pesan uji coba ke ${recipient.name} (${formatDisplayPhone(recipient.phoneNumber)}): ${errDetail}`,
+        });
+      }
+    } finally {
+      setTestingWaId(null);
+    }
+  };
 
   // Persetujuan Pelayanan state
   const [persetujuanTab, setPersetujuanTab] = useState<'pra_registrasi' | 'pengaduan'>('pra_registrasi');
@@ -192,7 +542,8 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
   const waitingCount = reports.filter((r) => r.status === 'Menunggu Verifikasi').length;
   const inProgressCount = reports.filter((r) => r.status === 'Sedang Ditangani').length;
   const completedCount = reports.filter((r) => r.status === 'Selesai').length;
-  const activeWaCount = whatsappRecipients.filter((r) => r.isActive).length;
+  const activeWaRecipientsList = localWaRecipients.filter((r) => r.isActive);
+  const activeWaCount = activeWaRecipientsList.length;
 
   const totalOrganik = wasteUnits.reduce((sum, u) => sum + u.organikKg, 0);
   const totalAnorganik = wasteUnits.reduce((sum, u) => sum + u.anorganikKg, 0);
@@ -466,16 +817,15 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 self-start lg:self-center shrink-0">
-            {onOpenWhatsAppManager && (
-              <button
-                type="button"
-                onClick={onOpenWhatsAppManager}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#128C7E] hover:bg-[#075E54] text-white text-xs font-bold transition-colors cursor-pointer whitespace-nowrap"
-              >
-                <Phone className="w-3.5 h-3.5" />
-                <span>Kelola Nomor WA ({activeWaCount} Aktif)</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={scrollToWhatsAppManager}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#128C7E] hover:bg-[#075E54] text-white text-xs font-bold transition-colors cursor-pointer whitespace-nowrap shadow-2xs"
+              title="Buka menu Kelola WhatsApp Gateaway"
+            >
+              <Phone className="w-3.5 h-3.5" />
+              <span>Kelola WhatsApp Gateaway ({activeWaCount} Aktif)</span>
+            </button>
             <button
               type="button"
               onClick={() => onNavigate('peta')}
@@ -491,144 +841,6 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
               <span>Rekap Data Sampah</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Structured Sub-Menu Bar inside Dashboard Lurah */}
-        <div className="mt-5 pt-4 border-t border-slate-200">
-          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-            Menu Tampilan & Modul Eksekutif Lurah
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
-            <button
-              type="button"
-              onClick={() => setActiveSection('semua')}
-              className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-colors cursor-pointer ${
-                activeSection === 'semua'
-                  ? 'bg-[#2E7D32] border-[#2E7D32] text-white shadow-xs'
-                  : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-              }`}
-            >
-              <LayoutGrid
-                className={`w-4 h-4 shrink-0 ${
-                  activeSection === 'semua' ? 'text-emerald-200' : 'text-[#2E7D32]'
-                }`}
-              />
-              <div className="min-w-0">
-                <div className="text-xs font-bold truncate">Semua Modul Terpadu</div>
-                <div
-                  className={`text-[11px] truncate ${
-                    activeSection === 'semua' ? 'text-emerald-100' : 'text-slate-500'
-                  }`}
-                >
-                  Ringkasan penuh berurutan
-                </div>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveSection('persetujuan')}
-              className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-colors cursor-pointer ${
-                activeSection === 'persetujuan'
-                  ? 'bg-amber-600 border-amber-600 text-white shadow-xs'
-                  : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-              }`}
-            >
-              <ShieldCheck
-                className={`w-4 h-4 shrink-0 ${
-                  activeSection === 'persetujuan' ? 'text-amber-200' : 'text-amber-600'
-                }`}
-              />
-              <div className="min-w-0">
-                <div className="text-xs font-bold truncate">01. Persetujuan Layanan</div>
-                <div
-                  className={`text-[11px] truncate ${
-                    activeSection === 'persetujuan' ? 'text-amber-100' : 'text-slate-500'
-                  }`}
-                >
-                  Pra Registrasi & Pengaduan
-                </div>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveSection('disposisi')}
-              className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-colors cursor-pointer ${
-                activeSection === 'disposisi'
-                  ? 'bg-[#0D3868] border-[#0D3868] text-white shadow-xs'
-                  : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-              }`}
-            >
-              <ClipboardCheck
-                className={`w-4 h-4 shrink-0 ${
-                  activeSection === 'disposisi' ? 'text-sky-200' : 'text-[#0D3868]'
-                }`}
-              />
-              <div className="min-w-0">
-                <div className="text-xs font-bold truncate">02. Disposisi & Laporan</div>
-                <div
-                  className={`text-[11px] truncate ${
-                    activeSection === 'disposisi' ? 'text-sky-100' : 'text-slate-500'
-                  }`}
-                >
-                  {totalReports} laporan & koordinasi WA
-                </div>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveSection('tren')}
-              className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-colors cursor-pointer ${
-                activeSection === 'tren'
-                  ? 'bg-[#0277BD] border-[#0277BD] text-white shadow-xs'
-                  : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-              }`}
-            >
-              <BarChart3
-                className={`w-4 h-4 shrink-0 ${
-                  activeSection === 'tren' ? 'text-sky-200' : 'text-[#0277BD]'
-                }`}
-              />
-              <div className="min-w-0">
-                <div className="text-xs font-bold truncate">03. Grafik Tren & Kinerja RW</div>
-                <div
-                  className={`text-[11px] truncate ${
-                    activeSection === 'tren' ? 'text-sky-100' : 'text-slate-500'
-                  }`}
-                >
-                  Statistik 2026 & evaluasi BSU
-                </div>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveSection('arsip_pdf')}
-              className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-colors cursor-pointer ${
-                activeSection === 'arsip_pdf'
-                  ? 'bg-[#1C8237] border-[#1C8237] text-white shadow-xs'
-                  : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-              }`}
-            >
-              <Printer
-                className={`w-4 h-4 shrink-0 ${
-                  activeSection === 'arsip_pdf' ? 'text-emerald-200' : 'text-[#1C8237]'
-                }`}
-              />
-              <div className="min-w-0">
-                <div className="text-xs font-bold truncate">04. Arsip Laporan PDF</div>
-                <div
-                  className={`text-[11px] truncate ${
-                    activeSection === 'arsip_pdf' ? 'text-emerald-100' : 'text-slate-500'
-                  }`}
-                >
-                  Cetak dokumen bulanan A4
-                </div>
-              </div>
             </button>
           </div>
         </div>
@@ -694,53 +906,98 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
         </div>
       </div>
 
-      {/* ================= MODUL 00: PERSETUJUAN PELAYANAN KELURAHAN & MONITORING PENGADUAN ================= */}
-      {(activeSection === 'semua' || activeSection === 'persetujuan') && (
-        <div className="space-y-4">
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
-              <div>
-                <div className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 uppercase tracking-wider mb-1">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Otoritas Eksekutif Lurah · Persetujuan Pelayanan & Pengaduan</span>
-                </div>
-                <h3 className="text-lg font-black text-[#0D3868]">
-                  Persetujuan Pelayanan Warga & Monitoring Aduan Wilayah
+      {/* ================= KARTU SUB-MENU 01: PERSETUJUAN PELAYANAN KELURAHAN & MONITORING PENGADUAN ================= */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+        <div
+          onClick={() => toggleCard('lurah_card_persetujuan')}
+          className={`px-4 sm:px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer select-none transition-colors hover:bg-slate-50/90 bg-white ${
+            !collapsedCards['lurah_card_persetujuan'] ? 'border-b border-slate-200' : ''
+          }`}
+        >
+          <div className="flex items-start sm:items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm sm:text-base font-extrabold text-[#0D3868]">
+                  01. Persetujuan Pelayanan Warga &amp; Monitoring Aduan Wilayah
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Verifikasi final berkas pra registrasi loket sebelum penerbitan nomor surat resmi, serta pengawasan tindak lanjut aduan warga.
-                </p>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300">
+                  {mergedPraList.length} Pra Registrasi · {mergedPengaduanList.length} Pengaduan
+                </span>
               </div>
+              <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">
+                Verifikasi final berkas pra registrasi loket sebelum penerbitan nomor surat resmi, serta pengawasan tindak lanjut aduan warga
+              </p>
+            </div>
+          </div>
 
-              {/* Subtabs: Pra Registrasi vs Pengaduan */}
-              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl self-start sm:self-center shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setPersetujuanTab('pra_registrasi')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                    persetujuanTab === 'pra_registrasi'
-                      ? 'bg-white text-[#0D3868] shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>Pra Registrasi ({mergedPraList.length})</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPersetujuanTab('pengaduan')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                    persetujuanTab === 'pengaduan'
-                      ? 'bg-white text-[#0D3868] shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Pengaduan Online ({mergedPengaduanList.length})</span>
-                </button>
-              </div>
+          <div
+            className="flex items-center gap-2 self-end sm:self-center shrink-0"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Subtabs: Pra Registrasi vs Pengaduan */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => {
+                  setCollapsedCards((prev) => ({ ...prev, lurah_card_persetujuan: false }));
+                  setPersetujuanTab('pra_registrasi');
+                }}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+                  persetujuanTab === 'pra_registrasi'
+                    ? 'bg-white text-[#0D3868] shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Pra Registrasi ({mergedPraList.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCollapsedCards((prev) => ({ ...prev, lurah_card_persetujuan: false }));
+                  setPersetujuanTab('pengaduan');
+                }}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+                  persetujuanTab === 'pengaduan'
+                    ? 'bg-white text-[#0D3868] shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                <span>Pengaduan ({mergedPengaduanList.length})</span>
+              </button>
             </div>
 
+            <button
+              type="button"
+              onClick={() => toggleCard('lurah_card_persetujuan')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                collapsedCards['lurah_card_persetujuan']
+                  ? 'bg-[#0D3868] hover:bg-[#072647] text-white shadow-xs'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+              }`}
+            >
+              {collapsedCards['lurah_card_persetujuan'] ? (
+                <>
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Tampilkan Detail</span>
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </>
+              ) : (
+                <>
+                  <span>Tutup</span>
+                  <ChevronUp className="w-3.5 h-3.5" />
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {!collapsedCards['lurah_card_persetujuan'] && (
+          <div className="p-5">
             {/* Important Notice for Lurah */}
             <div className="mt-4 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 text-xs flex items-start gap-2.5">
               <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
@@ -1426,45 +1683,67 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
               </div>
             )}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* ================= MODUL 01: DISPOSISI LAPORAN WARGA & KOORDINASI WHATSAPP ================= */}
-      {(activeSection === 'semua' || activeSection === 'disposisi') && (
-        <div className="space-y-4">
-          {/* Integrated WhatsApp Coordination Strip */}
-          {onOpenWhatsAppManager && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#128C7E] text-white flex items-center justify-center shrink-0">
-                  <MessageCircle className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="text-[11px] font-bold text-[#128C7E] uppercase tracking-wider">
-                    01. Disposisi & Koordinasi Tim Penerima Laporan (Khusus Admin)
-                  </div>
-                  <h3 className="text-sm sm:text-base font-bold text-[#0D3868] mt-0.5">
-                    Distribusi Otomatis ke {activeWaCount} Nomor WhatsApp Terdaftar
-                  </h3>
-                  <p className="text-xs text-slate-600 mt-0.5">
-                    Nomor telepon, nama, dan jabatan penerima disembunyikan dari halaman warga dan
-                    hanya ditampilkan di Halaman Admin agar tim penerima dapat saling berkoordinasi.
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={onOpenWhatsAppManager}
-                className="self-start sm:self-center inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#128C7E] hover:bg-[#075E54] text-white text-xs font-bold cursor-pointer whitespace-nowrap shrink-0"
-              >
-                <Phone className="w-3.5 h-3.5" />
-                <span>Lihat Daftar Nomor & Koordinasi WA</span>
-              </button>
+      {/* ================= KARTU SUB-MENU 02: DISPOSISI LAPORAN WARGA ================= */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+        <div
+          onClick={() => toggleCard('lurah_card_disposisi')}
+          className={`px-4 sm:px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer select-none transition-colors hover:bg-slate-50/90 bg-white ${
+            !collapsedCards['lurah_card_disposisi'] ? 'border-b border-slate-200' : ''
+          }`}
+        >
+          <div className="flex items-start sm:items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#2E7D32] flex items-center justify-center shrink-0">
+              <SlidersHorizontal className="w-5 h-5" />
             </div>
-          )}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm sm:text-base font-extrabold text-[#0D3868]">
+                  02. Disposisi Laporan Lingkungan Warga &amp; Penugasan Satgas
+                </h3>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300">
+                  {filteredReports.length} Laporan
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">
+                Tabel pengaduan lingkungan warga serta panel disposisi dan instruksi tindak lanjut Lurah
+              </p>
+            </div>
+          </div>
 
-          {/* Main Workspace: Left Table + Right Disposition Inspector */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div
+            className="flex items-center gap-2 self-end sm:self-center shrink-0"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => toggleCard('lurah_card_disposisi')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                collapsedCards['lurah_card_disposisi']
+                  ? 'bg-[#0D3868] hover:bg-[#072647] text-white shadow-xs'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+              }`}
+            >
+              {collapsedCards['lurah_card_disposisi'] ? (
+                <>
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Tampilkan Detail</span>
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </>
+              ) : (
+                <>
+                  <span>Tutup</span>
+                  <ChevronUp className="w-3.5 h-3.5" />
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {!collapsedCards['lurah_card_disposisi'] && (
+          <div className="p-5 grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Left: High-Density Report Management Table */}
             <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col">
               <div className="p-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1751,14 +2030,69 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
               )}
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* ================= MODUL 02: GRAFIK TREN & EVALUASI KINERJA RW ================= */}
-      {(activeSection === 'semua' || activeSection === 'tren') && (
-        <div className="space-y-6">
-          {/* Recharts Data Visualization Card */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6">
+      {/* ================= KARTU SUB-MENU 03: GRAFIK TREN & EVALUASI KINERJA RW ================= */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+        <div
+          onClick={() => toggleCard('lurah_card_tren')}
+          className={`px-4 sm:px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer select-none transition-colors hover:bg-slate-50/90 bg-white ${
+            !collapsedCards['lurah_card_tren'] ? 'border-b border-slate-200' : ''
+          }`}
+        >
+          <div className="flex items-start sm:items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#2E7D32] flex items-center justify-center shrink-0">
+              <BarChart3 className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm sm:text-base font-extrabold text-[#0D3868]">
+                  03. Grafik Tren Bulanan &amp; Evaluasi Kinerja Kebersihan RW
+                </h3>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300">
+                  {wasteUnits.length} Unit BSU RW
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">
+                Visualisasi tren laporan warga 2026 serta evaluasi partisipasi Bank Sampah Unit (BSU) per RW
+              </p>
+            </div>
+          </div>
+
+          <div
+            className="flex items-center gap-2 self-end sm:self-center shrink-0"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => toggleCard('lurah_card_tren')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                collapsedCards['lurah_card_tren']
+                  ? 'bg-[#0D3868] hover:bg-[#072647] text-white shadow-xs'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+              }`}
+            >
+              {collapsedCards['lurah_card_tren'] ? (
+                <>
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Tampilkan Detail</span>
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </>
+              ) : (
+                <>
+                  <span>Tutup</span>
+                  <ChevronUp className="w-3.5 h-3.5" />
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {!collapsedCards['lurah_card_tren'] && (
+          <div className="p-5 space-y-6">
+            {/* Recharts Data Visualization Card */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-slate-200">
               <div>
                 <div className="text-[11px] font-bold text-[#1C8237]">
@@ -2093,20 +2427,79 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
               )}
             </div>
           </div>
-        </div>
-      )}
+          </div>
+        )}
+      </div>
 
-      {/* ================= MODUL 03: UNDUH LAPORAN BULANAN (FILE PDF ARSIP FISIK) ================= */}
-      {(activeSection === 'semua' || activeSection === 'arsip_pdf') && (
-        <MonthlyArchivePdfPanel
-          profile={profile}
-          reports={reports}
-          wasteUnits={wasteUnits}
-          cleanupEvents={cleanupEvents}
-          rwGroups={rwGroups}
-          onPdfDownloaded={onPdfDownloaded}
-        />
-      )}
+      {/* ================= KARTU SUB-MENU 04: UNDUH LAPORAN BULANAN (FILE PDF ARSIP FISIK) ================= */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+        <div
+          onClick={() => toggleCard('lurah_card_arsip_pdf')}
+          className={`px-4 sm:px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer select-none transition-colors hover:bg-slate-50/90 bg-white ${
+            !collapsedCards['lurah_card_arsip_pdf'] ? 'border-b border-slate-200' : ''
+          }`}
+        >
+          <div className="flex items-start sm:items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#1C8237] flex items-center justify-center shrink-0">
+              <Printer className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm sm:text-base font-extrabold text-[#0D3868]">
+                  04. Arsip Fisik Laporan Bulanan Permasalahan Lingkungan (PDF)
+                </h3>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300">
+                  Dokumen Resmi A4
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">
+                Cetak dan unduh arsip fisik laporan bulanan permasalahan lingkungan Kelurahan Panaikang
+              </p>
+            </div>
+          </div>
+
+          <div
+            className="flex items-center gap-2 self-end sm:self-center shrink-0"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => toggleCard('lurah_card_arsip_pdf')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                collapsedCards['lurah_card_arsip_pdf']
+                  ? 'bg-[#0D3868] hover:bg-[#072647] text-white shadow-xs'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+              }`}
+            >
+              {collapsedCards['lurah_card_arsip_pdf'] ? (
+                <>
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Tampilkan Detail</span>
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </>
+              ) : (
+                <>
+                  <span>Tutup</span>
+                  <ChevronUp className="w-3.5 h-3.5" />
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {!collapsedCards['lurah_card_arsip_pdf'] && (
+          <div className="p-5">
+            <MonthlyArchivePdfPanel
+              profile={profile}
+              reports={reports}
+              wasteUnits={wasteUnits}
+              cleanupEvents={cleanupEvents}
+              rwGroups={rwGroups}
+              onPdfDownloaded={onPdfDownloaded}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 };

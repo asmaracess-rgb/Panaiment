@@ -86,6 +86,7 @@ import {
 import {
   isValidWhatsAppPhone,
   resolveCitizenWhatsAppPhone,
+  dispatchComplaintToRegisteredWhatsApp,
 } from './utils/whatsappHelper';
 import {
   testConnection,
@@ -1572,6 +1573,30 @@ export default function App() {
 
     commitPersistence({ reports: nextReports, citizenUsers: nextCitizenUsers });
 
+    // Automatically dispatch WhatsApp notification in background specifically for Complaint Reports (!isDoc)
+    if (!isDoc) {
+      void dispatchComplaintToRegisteredWhatsApp({
+        report: {
+          ticketCode,
+          title: optimistic.title,
+          description: optimistic.description,
+          category: optimistic.category,
+          urgency: optimistic.urgency,
+          rw: optimistic.rw,
+          rt: optimistic.rt,
+          locationName: optimistic.locationName,
+          reporterName: optimistic.reporterName,
+          reporterPhone: optimistic.reporterPhone,
+          submittedAt: nowTime,
+          createdAt: nowTime,
+        },
+        whatsappRecipients: stateRef.current.whatsappRecipients,
+        adminUsers: stateRef.current.adminUsers,
+        kelurahanPhone: stateRef.current.profile?.phoneContact,
+        lurahName: stateRef.current.profile?.lurahName,
+      });
+    }
+
     return ticketCode;
   };
 
@@ -1714,6 +1739,28 @@ export default function App() {
       commitPersistence({
         pengaduanRecords: nextPengaduanList,
         reports: nextReports,
+      });
+
+      // Automatically dispatch WhatsApp notification in background to registered recipients (Lurah, etc.)
+      void dispatchComplaintToRegisteredWhatsApp({
+        report: {
+          ticketCode,
+          title: matchingReport.title,
+          description: matchingReport.description,
+          category: String(record.category || matchingReport.category),
+          urgency: matchingReport.urgency,
+          rw: matchingReport.rw,
+          rt: matchingReport.rt,
+          locationName: matchingReport.locationName,
+          reporterName: matchingReport.reporterName,
+          reporterPhone: matchingReport.reporterPhone,
+          submittedAt: nowTime,
+          createdAt: nowTime,
+        },
+        whatsappRecipients: stateRef.current.whatsappRecipients,
+        adminUsers: stateRef.current.adminUsers,
+        kelurahanPhone: stateRef.current.profile?.phoneContact,
+        lurahName: stateRef.current.profile?.lurahName,
       });
 
       return ticketCode;
@@ -3474,6 +3521,8 @@ export default function App() {
             cleanupEvents={cleanupEvents}
             praRegistrasiList={praRegistrasiList}
             pengaduanList={pengaduanOnlineList}
+            whatsappRecipients={whatsappRecipients}
+            onSaveWhatsAppRecipients={handleSaveWhatsAppRecipients}
             onLurahApproveService={handleLurahApproveService}
             onUpdateReportStatus={handleUpdateReportStatus}
             onNavigate={handleNavigate}

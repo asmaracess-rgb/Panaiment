@@ -331,3 +331,346 @@ export function getPreferredWhatsAppRecipient(
   const primary = activeList.find((r) => r.isPrimary);
   return primary || activeList[0];
 }
+
+export interface WhatsAppAutoDispatchReceipt {
+  id: string;
+  ticketCode: string;
+  reportTitle: string;
+  reportCategory: string;
+  reportRw: string;
+  reportRt: string;
+  recipientId: string;
+  recipientName: string;
+  recipientRole: string;
+  phoneNumber: string;
+  rwScope: string;
+  status: 'TERKIRIM_OTOMATIS' | 'GAGAL_KIRIM' | 'TERCATAT_SISTEM';
+  provider: string;
+  errorMessage?: string;
+  dispatchedAt: string;
+  messagePreview: string;
+}
+
+const WA_AUTO_DISPATCH_LOGS_KEY = 'pnk_wa_auto_dispatch_logs_v1';
+
+export function loadWhatsAppAutoDispatchLogs(): WhatsAppAutoDispatchReceipt[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(WA_AUTO_DISPATCH_LOGS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveWhatsAppAutoDispatchLogs(logs: WhatsAppAutoDispatchReceipt[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(WA_AUTO_DISPATCH_LOGS_KEY, JSON.stringify(logs.slice(0, 120)));
+  } catch {
+    // Ignore storage quota errors
+  }
+}
+
+/**
+ * Resolves all active registered WhatsApp recipients for an incoming complaint report
+ * (Lurah, Sekretaris Lurah, Satgas, Koordinator RW, etc.) without exposing personal citizen WA.
+ */
+export function resolveRegisteredComplaintRecipients(params: {
+  whatsappRecipients?: WhatsAppRecipient[];
+  adminUsers?: Array<{
+    id: string;
+    fullName: string;
+    jabatan: string;
+    phone?: string;
+    isActive?: boolean;
+  }>;
+  kelurahanPhone?: string;
+  lurahName?: string;
+  reportRw?: string;
+}): WhatsAppRecipient[] {
+  const result: WhatsAppRecipient[] = [];
+  const seenPhones = new Set<string>();
+  const targetRw = (params.reportRw || '').trim();
+
+  // 1. Primary source: explicitly registered whatsappRecipients (active and matching RW scope)
+  for (const rec of params.whatsappRecipients || []) {
+    if (!rec || rec.isActive === false) continue;
+    const norm = normalizeWhatsAppPhone(rec.phoneNumber);
+    if (!norm || seenPhones.has(norm)) continue;
+    const scope = (rec.rwScope || 'Seluruh Wilayah').trim();
+    if (scope && scope !== 'Seluruh Wilayah' && targetRw && scope !== targetRw) {
+      continue;
+    }
+    seenPhones.add(norm);
+    result.push({
+      ...rec,
+      phoneNumber: norm,
+    });
+  }
+
+  // 2. Also include active Admin / Lurah accounts that have a valid registered WhatsApp phone number
+  for (const adm of params.adminUsers || []) {
+    if (!adm || adm.isActive === false) continue;
+    const norm = normalizeWhatsAppPhone(adm.phone);
+    if (!norm || seenPhones.has(norm)) continue;
+    seenPhones.add(norm);
+    result.push({
+      id: `adm-wa-${adm.id}`,
+      name: adm.fullName || 'Pejabat Kelurahan Panaikang',
+      role: adm.jabatan || 'Pimpinan / Admin Kelurahan',
+      phoneNumber: norm,
+      isPrimary: result.length === 0,
+      isActive: true,
+      rwScope: 'Seluruh Wilayah',
+      notes: 'Terdaftar pada Otoritas Admin Kelurahan',
+    });
+  }
+
+  // 3. Fallback to official Kelurahan WhatsApp contact if configured
+  const kelNorm = normalizeWhatsAppPhone(params.kelurahanPhone);
+  if (kelNorm && !seenPhones.has(kelNorm)) {
+    seenPhones.add(kelNorm);
+    result.push({
+      id: 'kelurahan-official-wa',
+      name: params.lurahName || 'Lurah & Call Center Kelurahan Panaikang',
+      role: 'Pemerintah Kelurahan Panaikang',
+      phoneNumber: kelNorm,
+      isPrimary: result.length === 0,
+      isActive: true,
+      rwScope: 'Seluruh Wilayah',
+      notes: 'Nomor Resmi Profil Kelurahan Panaikang',
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Automatically dispatches an incoming Citizen Complaint Report (Pengaduan) in the background
+ * to all registered active WhatsApp recipients (Lurah, Satgas, RW, etc.) via /api/whatsapp-dispatch
+ * (Fonnte Gateway on backend) WITHOUT opening the citizen's personal WhatsApp app (`wa.me`).
+ */
+export async function dispatchComplaintToRegisteredWhatsApp(params: {
+  report: {
+    ticketCode: string;
+    title: string;
+    description: string;
+    category: string;
+    urgency?: string;
+    rw: string;
+    rt: string;
+    locationName: string;
+    reporterName: string;
+    reporterPhone?: string;
+    submittedAt?: string;
+    createdAt?: string;
+  };
+  whatsappRecipients?: WhatsAppRecipient[];
+  adminUsers?: Array<{
+    id: string;
+    fullName: string;
+    jabatan: string;
+    phone?: string;
+    isActive?: boolean;
+  }>;
+  kelurahanPhone?: string;
+  lurahName?: string;
+}): Promise<{
+  ok: boolean;
+  totalDispatched: number;
+  deliveries: WhatsAppAutoDispatchReceipt[];
+}> {
+  const { report } = params;
+  // Strictly only for Complaint Reports (Pengaduan), never for Pra-Registrasi Surat (SRT- / REG-)
+  if (
+    report.ticketCode?.startsWith('SRT-') ||
+    report.ticketCode?.startsWith('REG-')
+  ) {
+    return { ok: true, totalDispatched: 0, deliveries: [] };
+  }
+
+  let targetRecipients: WhatsAppRecipient[] = [];
+
+  // If explicit recipient list is provided for testing or targeted dispatch:
+  const isExplicitRecipients =
+    Array.isArray(params.whatsappRecipients) &&
+    params.whatsappRecipients.length > 0 &&
+    !params.adminUsers &&
+    !params.kelurahanPhone;
+
+  if (isExplicitRecipients) {
+    targetRecipients = (params.whatsappRecipients || [])
+      .map((r) => ({
+        ...r,
+        isActive: true,
+        phoneNumber: normalizeWhatsAppPhone(r.phoneNumber),
+      }))
+      .filter((r) => Boolean(r.phoneNumber));
+  } else {
+    targetRecipients = resolveRegisteredComplaintRecipients({
+      whatsappRecipients: params.whatsappRecipients,
+      adminUsers: params.adminUsers,
+      kelurahanPhone: params.kelurahanPhone,
+      lurahName: params.lurahName,
+      reportRw: report.rw,
+    });
+  }
+
+  if (targetRecipients.length === 0) {
+    return { ok: true, totalDispatched: 0, deliveries: [] };
+  }
+
+  const nowIso = new Date().toISOString();
+  let deliveries: WhatsAppAutoDispatchReceipt[] = [];
+  let backendError = '';
+
+  try {
+    const response = await fetch('/api/whatsapp-dispatch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        report,
+        recipients: targetRecipients,
+      }),
+    });
+
+    const data = await response.json().catch(() => null);
+    if (Array.isArray(data?.deliveries) && data.deliveries.length > 0) {
+      deliveries = data.deliveries;
+    } else if (!response.ok) {
+      backendError = data?.error || `HTTP ${response.status} saat menghubungi endpoint pengiriman WhatsApp.`;
+    }
+  } catch (err) {
+    backendError =
+      err instanceof Error
+        ? err.message
+        : 'Gagal menghubungi endpoint pengiriman WhatsApp server.';
+  }
+
+  if (deliveries.length === 0) {
+    const fallbackError =
+      backendError || 'Pengiriman melalui server Fonnte belum berhasil dilakukan.';
+    deliveries = targetRecipients.map((recipient) => ({
+      id: `wad-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      ticketCode: report.ticketCode,
+      reportTitle: report.title,
+      reportCategory: report.category,
+      reportRw: report.rw,
+      reportRt: report.rt,
+      recipientId: recipient.id,
+      recipientName: recipient.name,
+      recipientRole: recipient.role,
+      phoneNumber: normalizeWhatsAppPhone(recipient.phoneNumber),
+      rwScope: recipient.rwScope || 'Seluruh Wilayah',
+      status: 'GAGAL_KIRIM',
+      provider: 'fonnte',
+      errorMessage: fallbackError,
+      dispatchedAt: nowIso,
+      messagePreview: buildReportWhatsAppMessage(
+        {
+          ticketCode: report.ticketCode,
+          title: report.title,
+          description: report.description,
+          category: report.category,
+          urgency: report.urgency || 'Normal',
+          rw: report.rw,
+          rt: report.rt,
+          locationName: report.locationName,
+          reporterName: report.reporterName,
+          reporterPhone: report.reporterPhone || '-',
+          status: 'Menunggu Verifikasi',
+        },
+        recipient,
+        targetRecipients
+      ),
+    }));
+  }
+
+  const existingLogs = loadWhatsAppAutoDispatchLogs();
+  saveWhatsAppAutoDispatchLogs([...deliveries, ...existingLogs]);
+
+  const successCount = deliveries.filter((d) => d.status === 'TERKIRIM_OTOMATIS').length;
+
+  return {
+    ok: deliveries.length > 0 && successCount === deliveries.length,
+    totalDispatched: successCount,
+    deliveries,
+  };
+}
+
+export interface WhatsAppGatewayStatusResult {
+  ok: boolean;
+  configured: boolean;
+  deviceStatus: 'connect' | 'disconnect' | 'invalid_token' | 'unconfigured' | 'error';
+  device?: string;
+  name?: string;
+  quota?: string;
+  package?: string;
+  expired?: string;
+  messagesCount?: number;
+  reason?: string;
+  message: string;
+  checkedAt?: string;
+}
+
+/**
+ * Checks the live connection status of Fonnte WhatsApp Gateway device via backend API.
+ * Never exposes FONNTE_TOKEN to the frontend/browser.
+ */
+export async function checkWhatsAppGatewayStatus(): Promise<WhatsAppGatewayStatusResult> {
+  try {
+    const response = await fetch('/api/whatsapp-status', {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+    });
+
+    const data = await response.json().catch(() => null);
+    if (data && typeof data === 'object') {
+      const isOk = Boolean(data.ok);
+      const rawStatus = String(data.deviceStatus || (isOk ? 'connect' : 'disconnect'));
+      return {
+        ok: isOk,
+        configured: data.configured !== undefined ? Boolean(data.configured) : true,
+        deviceStatus: (rawStatus as WhatsAppGatewayStatusResult['deviceStatus']) || (isOk ? 'connect' : 'disconnect'),
+        device: data.device || '',
+        name: data.name || '',
+        quota: data.quota !== undefined ? String(data.quota) : '',
+        package: data.package || '',
+        expired: data.expired || '',
+        messagesCount: data.messagesCount !== undefined ? Number(data.messagesCount) : undefined,
+        reason: data.reason || '',
+        message:
+          data.message ||
+          (isOk
+            ? 'Gateway WhatsApp (Fonnte) terhubung dan siap beroperasi.'
+            : 'Perangkat WhatsApp belum tersambung ke Fonnte (Status: Disconnected).'),
+        checkedAt: new Date().toISOString(),
+      };
+    }
+
+    return {
+      ok: false,
+      configured: true,
+      deviceStatus: 'error',
+      message: `HTTP ${response.status} saat memeriksa status gateway WhatsApp.`,
+      checkedAt: new Date().toISOString(),
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      configured: true,
+      deviceStatus: 'error',
+      message:
+        err instanceof Error
+          ? err.message
+          : 'Gagal menghubungi server untuk memeriksa status gateway WhatsApp.',
+      checkedAt: new Date().toISOString(),
+    };
+  }
+}
+
+

@@ -748,19 +748,20 @@ export interface WhatsAppRecipient {
 
 export type AdminTabId =
   | 'dashboard_lurah'
-  | 'pengurusan_warga'
   | 'profil'
-  | 'info'
-  | 'laporan'
-  | 'sampah'
-  | 'kerjabakti'
-  | 'urban_farming'
+  | 'pengurusan_warga'
   | 'rtrw'
-  | 'traffic'
+  | 'sampah'
+  | 'urban_farming'
+  | 'kerjabakti'
+  | 'info'
+  | 'whatsapp_gateway'
   | 'kelola_admin_warga'
+  | 'traffic'
+  | 'log_aktivitas'
+  | 'laporan'
   | 'parameter_user'
-  | 'user_warga'
-  | 'log_aktivitas';
+  | 'user_warga';
 
 export type KelolaAdminWargaSubTab =
   | 'otoritas_master'

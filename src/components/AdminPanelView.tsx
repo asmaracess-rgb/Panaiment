@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   ArrowLeft,
   ShieldCheck,
@@ -51,6 +51,8 @@ import {
   ArrowDown,
   ArrowRight,
   Cloud,
+  Send,
+  Filter,
 } from 'lucide-react';
 import {
   SiskamlingRwSchedule,
@@ -135,6 +137,11 @@ import {
   buildWhatsAppUrl,
   formatDisplayPhone,
   normalizeWhatsAppPhone,
+  dispatchComplaintToRegisteredWhatsApp,
+  loadWhatsAppAutoDispatchLogs,
+  WhatsAppAutoDispatchReceipt,
+  checkWhatsAppGatewayStatus,
+  WhatsAppGatewayStatusResult,
 } from '../utils/whatsappHelper';
 import { EmblemKotaMakassar, EmblemKelurahanPanaikang, Instagram } from './Emblems';
 import { DashboardLurahView } from './DashboardLurahView';
@@ -347,19 +354,20 @@ interface AdminPanelViewProps {
 
 export type AdminTab =
   | 'dashboard_lurah'
-  | 'pengurusan_warga'
-  | 'user_warga'
   | 'profil'
+  | 'pengurusan_warga'
   | 'rtrw'
-  | 'info'
-  | 'laporan'
   | 'sampah'
-  | 'kerjabakti'
   | 'urban_farming'
-  | 'traffic'
+  | 'kerjabakti'
+  | 'info'
+  | 'whatsapp_gateway'
   | 'kelola_admin_warga'
+  | 'traffic'
+  | 'log_aktivitas'
+  | 'user_warga'
   | 'parameter_user'
-  | 'log_aktivitas';
+  | 'laporan';
 
 const DEFAULT_RW_LIST = ['RW 01', 'RW 02', 'RW 03', 'RW 04', 'RW 05', 'RW 06', 'RW 07', 'RW 08'];
 const DEFAULT_RT_LIST = [
@@ -381,6 +389,175 @@ const CATEGORIES: ReportCategory[] = [
   'Pohon & Ruang Hijau',
   'Ketertiban & Fasum',
 ];
+
+interface AdminCollapsibleBarProps {
+  sectionKey: string;
+  title: string | React.ReactNode;
+  subtitle?: string | React.ReactNode;
+  icon?: React.ReactNode;
+  badge?: React.ReactNode;
+  headerActions?: React.ReactNode;
+  isCollapsed: boolean;
+  onToggle: () => void;
+  headerBg?: string;
+  className?: string;
+  children: React.ReactNode;
+}
+
+const AdminCollapsibleBar: React.FC<AdminCollapsibleBarProps> = ({
+  sectionKey,
+  title,
+  subtitle,
+  icon,
+  badge,
+  headerActions,
+  isCollapsed,
+  onToggle,
+  headerBg = 'bg-white',
+  className = '',
+  children,
+}) => {
+  return (
+    <div
+      id={`section-${sectionKey}`}
+      className={`rounded-2xl border border-slate-200/90 overflow-hidden shadow-xs transition-all duration-200 bg-white ${className}`}
+    >
+      <div
+        onClick={onToggle}
+        className={`px-4 sm:px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer select-none transition-colors hover:bg-slate-50/90 ${headerBg} ${
+          !isCollapsed ? 'border-b border-slate-200' : ''
+        }`}
+      >
+        <div className="flex items-start sm:items-center gap-3 min-w-0">
+          {icon && (
+            <div className="w-9 h-9 rounded-xl bg-slate-100 text-[#0D3868] flex items-center justify-center shrink-0 shadow-2xs">
+              {icon}
+            </div>
+          )}
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-sm sm:text-base font-extrabold text-[#0D3868]">
+                {title}
+              </h3>
+              {badge}
+            </div>
+            {subtitle && (
+              <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">
+                {subtitle}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div
+          className="flex items-center gap-2 self-end sm:self-center shrink-0"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {headerActions}
+          <button
+            type="button"
+            onClick={onToggle}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              isCollapsed
+                ? 'bg-[#0D3868] hover:bg-[#072647] text-white shadow-xs'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+            }`}
+            title={
+              isCollapsed
+                ? 'Tampilkan detail kartu sub-menu ini'
+                : 'Tutup detail kartu sub-menu ini (hanya tampilkan judul)'
+            }
+          >
+            {isCollapsed ? (
+              <>
+                <Eye className="w-3.5 h-3.5" />
+                <span>Tampilkan Detail</span>
+                <ChevronDown className="w-4 h-4" />
+              </>
+            ) : (
+              <>
+                <span>Tutup</span>
+                <ChevronUp className="w-4 h-4" />
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {!isCollapsed && <div>{children}</div>}
+    </div>
+  );
+};
+
+const TAB_SECTION_KEYS: Record<string, string[]> = {
+  laporan: [
+    'laporan_shortcut',
+    'laporan_arsip',
+    'laporan_whatsapp_mgmt',
+    'laporan_whatsapp_logs',
+    'laporan_table',
+  ],
+  profil: [
+    'profil_lurah',
+    'profil_pejabat',
+    'profil_visi_misi',
+    'profil_data_umum',
+  ],
+  info: [
+    'info_berita',
+    'info_instagram',
+  ],
+  sampah: [
+    'sampah_bsu',
+    'sampah_logs',
+    'sampah_teba_biopori',
+  ],
+  kerjabakti: [
+    'kerjabakti_jadwal',
+    'kerjabakti_dokumentasi',
+    'kerjabakti_sorotan_ig',
+  ],
+  urban_farming: [
+    'urban_kebun',
+    'urban_bibit',
+    'urban_kwt',
+  ],
+  rtrw: [
+    'rtrw_lpm_bagan',
+    'rtrw_cetak_laporan',
+    'rtrw_daftar_rw',
+  ],
+  traffic: [
+    'traffic_ringkasan',
+    'traffic_telemetri',
+  ],
+  kelola_admin_warga: [
+    'admin_warga_nav',
+    'admin_warga_content',
+  ],
+};
+
+const getAdminTabLabel = (tab: AdminTab): string => {
+  switch (tab) {
+    case 'dashboard_lurah': return 'Dashboard Lurah';
+    case 'profil': return 'Profil Kelurahan';
+    case 'pengurusan_warga': return 'Admin Layanan Kelurahan';
+    case 'rtrw': return 'Data RT RW';
+    case 'sampah': return 'Pengelolaan Sampah';
+    case 'urban_farming': return 'Urban Farming';
+    case 'kerjabakti': return 'Kerja Bakti';
+    case 'info': return 'Informasi dan IG';
+    case 'whatsapp_gateway': return 'Kelola WhatsApp Gateaway';
+    case 'kelola_admin_warga':
+    case 'parameter_user':
+    case 'user_warga':
+      return 'Kelola Admin dan User';
+    case 'traffic': return 'Traffic Web dan App';
+    case 'log_aktivitas': return 'Log Aktifitas Aplikasi';
+    case 'laporan': return 'Admin Layanan Kelurahan';
+    default: return 'Modul Administrator';
+  }
+};
 
 export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   profile,
@@ -738,18 +915,19 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     if (isLurahSession) {
       return [
         'dashboard_lurah',
-        'pengurusan_warga',
         'profil',
-        'info',
-        'sampah',
-        'kerjabakti',
-        'urban_farming',
+        'pengurusan_warga',
         'rtrw',
-        'traffic',
+        'sampah',
+        'urban_farming',
+        'kerjabakti',
+        'info',
+        'whatsapp_gateway',
         'kelola_admin_warga',
+        'traffic',
+        'log_aktivitas',
         'parameter_user',
         'user_warga',
-        'log_aktivitas',
       ];
     }
     if (
@@ -767,15 +945,17 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       return adminSession.allowedAdminTabs.filter((t) => t !== 'laporan');
     }
     return [
-      'pengurusan_warga',
       'profil',
-      'info',
-      'sampah',
-      'kerjabakti',
-      'urban_farming',
+      'pengurusan_warga',
       'rtrw',
-      'traffic',
+      'sampah',
+      'urban_farming',
+      'kerjabakti',
+      'info',
+      'whatsapp_gateway',
       'kelola_admin_warga',
+      'traffic',
+      'log_aktivitas',
     ];
   }, [isLurahSession, currentAdminAccount, adminSession]);
 
@@ -826,6 +1006,12 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       return (
         effectiveAllowedTabs.includes('kelola_admin_warga') ||
         effectiveAllowedTabs.includes(tabId)
+      );
+    }
+    if (tabId === 'whatsapp_gateway') {
+      return (
+        effectiveAllowedTabs.includes('whatsapp_gateway') ||
+        effectiveActionPermissions.canManageWhatsApp
       );
     }
     return effectiveAllowedTabs.includes(tabId);
@@ -1752,6 +1938,78 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     }
   };
 
+  // ================= COLLAPSIBLE SUB-MENU SECTIONS STATE (ADMIN PAGE) =================
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+
+  const isSectionCollapsed = (sectionKey: string) => {
+    return Boolean(collapsedSections[sectionKey]);
+  };
+
+  const toggleSectionCollapse = (sectionKey: string) => {
+    setCollapsedSections((prev) => ({
+      ...prev,
+      [sectionKey]: !prev[sectionKey],
+    }));
+  };
+
+  const collapseAllSectionsOnTab = (keys: string[]) => {
+    setCollapsedSections((prev) => {
+      const next = { ...prev };
+      keys.forEach((k) => {
+        next[k] = true;
+      });
+      return next;
+    });
+  };
+
+  const expandAllSectionsOnTab = (keys: string[]) => {
+    setCollapsedSections((prev) => {
+      const next = { ...prev };
+      keys.forEach((k) => {
+        next[k] = false;
+      });
+      return next;
+    });
+  };
+
+  // ================= WHATSAPP RECIPIENT FILTER STATE (RTRW & STATUS) =================
+  const [waRecipientRwFilter, setWaRecipientRwFilter] = useState<string>('SEMUA');
+  const [waRecipientStatusFilter, setWaRecipientStatusFilter] = useState<'SEMUA' | 'AKTIF' | 'NONAKTIF'>('SEMUA');
+  const [waRecipientSearch, setWaRecipientSearch] = useState<string>('');
+
+  const filteredWaRecipients = useMemo(() => {
+    return whatsappRecipients.filter((recipient) => {
+      // 1. RW filter
+      if (waRecipientRwFilter !== 'SEMUA') {
+        const scope = (recipient.rwScope || 'Seluruh Wilayah').trim();
+        if (waRecipientRwFilter === 'SELURUH_WILAYAH') {
+          if (scope !== 'Seluruh Wilayah') return false;
+        } else if (waRecipientRwFilter === 'KHUSUS_RTRW') {
+          if (scope === 'Seluruh Wilayah') return false;
+        } else {
+          if (scope !== waRecipientRwFilter) return false;
+        }
+      }
+      // 2. Status filter
+      if (waRecipientStatusFilter === 'AKTIF' && !recipient.isActive) return false;
+      if (waRecipientStatusFilter === 'NONAKTIF' && recipient.isActive) return false;
+
+      // 3. Search query
+      if (waRecipientSearch.trim()) {
+        const q = waRecipientSearch.toLowerCase();
+        const matchName = recipient.name.toLowerCase().includes(q);
+        const matchRole = recipient.role.toLowerCase().includes(q);
+        const matchPhone = recipient.phoneNumber.toLowerCase().includes(q);
+        const matchScope = (recipient.rwScope || '').toLowerCase().includes(q);
+        const matchNotes = (recipient.notes || '').toLowerCase().includes(q);
+        if (!matchName && !matchRole && !matchPhone && !matchScope && !matchNotes) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [whatsappRecipients, waRecipientRwFilter, waRecipientStatusFilter, waRecipientSearch]);
+
   // ================= 1B. DATA RT & RW CRUD STATE =================
   const [editingRwId, setEditingRwId] = useState<string | null>(null);
   const [showRwForm, setShowRwForm] = useState(false);
@@ -1810,6 +2068,69 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     rwScope: 'Seluruh Wilayah',
     notes: '',
   });
+  const [waDispatchLogs, setWaDispatchLogs] = useState<WhatsAppAutoDispatchReceipt[]>(() =>
+    loadWhatsAppAutoDispatchLogs()
+  );
+  const [testingWaId, setTestingWaId] = useState<string | null>(null);
+  const [waGatewayStatus, setWaGatewayStatus] = useState<WhatsAppGatewayStatusResult | null>(null);
+  const [isCheckingWaGateway, setIsCheckingWaGateway] = useState<boolean>(false);
+
+  const fetchAdminWaGatewayStatus = async () => {
+    setIsCheckingWaGateway(true);
+    try {
+      const res = await checkWhatsAppGatewayStatus();
+      setWaGatewayStatus(res);
+    } finally {
+      setIsCheckingWaGateway(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAdminWaGatewayStatus();
+  }, []);
+
+  useEffect(() => {
+    setWaDispatchLogs(loadWhatsAppAutoDispatchLogs());
+  }, [reports.length]);
+
+  const handleTestAutoWaDispatch = async (recipient: WhatsAppRecipient) => {
+    setTestingWaId(recipient.id);
+    try {
+      const res = await dispatchComplaintToRegisteredWhatsApp({
+        report: {
+          ticketCode: `PGD-TEST-${String(Date.now()).slice(-4)}`,
+          title: 'Uji Coba Pengiriman Otomatis Pengaduan Warga',
+          description:
+            'Pesan uji coba sistem: memastikan pengaduan warga yang disubmit otomatis masuk ke nomor pejabat/pihak terkait terdaftar tanpa melalui WhatsApp pribadi warga.',
+          category: 'Pengaduan Lingkungan & Pelayanan',
+          urgency: 'Normal',
+          rw: recipient.rwScope && recipient.rwScope !== 'Seluruh Wilayah' ? recipient.rwScope : 'RW 01',
+          rt: 'RT 01',
+          locationName: 'Kantor Kelurahan Panaikang',
+          reporterName: 'Sistem Otomatis Satu Data Panaikang',
+          reporterPhone: '-',
+          submittedAt: getRealtimeDateTimeString(),
+        },
+        whatsappRecipients: [{ ...recipient, isActive: true }],
+      });
+      setWaDispatchLogs(loadWhatsAppAutoDispatchLogs());
+      if (res.ok && res.totalDispatched > 0) {
+        setSuccessMessage(
+          `Notifikasi WA Otomatis (Fonnte) berhasil dikirimkan ke ${recipient.name} (${formatDisplayPhone(recipient.phoneNumber)}).`
+        );
+      } else {
+        const errDetail =
+          res.deliveries?.[0]?.errorMessage ||
+          'Pengiriman WhatsApp melalui Fonnte gagal. Periksa status koneksi perangkat Fonnte atau log di bawah.';
+        setValidationErrors([
+          `Gagal mengirim WA ke ${recipient.name} (${formatDisplayPhone(recipient.phoneNumber)}): ${errDetail}`,
+        ]);
+      }
+      fetchAdminWaGatewayStatus();
+    } finally {
+      setTestingWaId(null);
+    }
+  };
 
   const [reportSearch, setReportSearch] = useState('');
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
@@ -3328,6 +3649,54 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     }
   };
 
+  const handleToggleActiveWaRecipient = async (id: string) => {
+    clearFeedback();
+    if (!onSaveWhatsAppRecipients) return;
+    const target = whatsappRecipients.find((item) => item.id === id);
+    if (!target) return;
+    const nextStatus = !target.isActive;
+    const nextList = whatsappRecipients.map((item) =>
+      item.id === id ? { ...item, isActive: nextStatus } : item
+    );
+    const res = await onSaveWhatsAppRecipients(nextList);
+    if (res.ok) {
+      const statusLabel = nextStatus ? 'DIAKTIFKAN' : 'DINONAKTIFKAN';
+      recordAudit({
+        actionType: 'UPDATE',
+        module: 'LAPORAN_WARGA',
+        targetId: id,
+        targetLabel: `Status WA: ${target.name} (${target.phoneNumber})`,
+        summary: `${statusLabel} penerimaan pesan WhatsApp otomatis untuk ${target.name} (${target.rwScope || 'Seluruh Wilayah'})`,
+        severity: 'info',
+      });
+      setSuccessMessage(
+        `Nomor WhatsApp ${target.name} (${formatDisplayPhone(target.phoneNumber)}) ${statusLabel} untuk menerima pesan dari WhatsApp Gateway.`
+      );
+    } else {
+      setValidationErrors(res.errors || ['Gagal memperbarui status penerima WhatsApp.']);
+    }
+  };
+
+  const handleBulkToggleActiveWaRecipients = async (activate: boolean) => {
+    clearFeedback();
+    if (!onSaveWhatsAppRecipients) return;
+    const targetIds = new Set(filteredWaRecipients.map((r: WhatsAppRecipient) => r.id));
+    if (targetIds.size === 0) return;
+
+    const nextList = whatsappRecipients.map((item) =>
+      targetIds.has(item.id) ? { ...item, isActive: activate } : item
+    );
+    const res = await onSaveWhatsAppRecipients(nextList);
+    if (res.ok) {
+      const actionText = activate ? 'diaktifkan' : 'dinonaktifkan';
+      setSuccessMessage(
+        `${targetIds.size} nomor WhatsApp RTRW / petugas terfilter berhasil ${actionText} untuk menerima notifikasi.`
+      );
+    } else {
+      setValidationErrors(res.errors || ['Gagal memperbarui status massal penerima WhatsApp.']);
+    }
+  };
+
   const handleExecuteDeleteWaRecipient = async (id: string) => {
     clearFeedback();
     if (!onSaveWhatsAppRecipients) return;
@@ -4375,12 +4744,24 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             </p>
           </div>
 
-          {/* Structured Full-Width Navigation Menu Grid */}
+          {/* Structured Full-Width Navigation Menu Grid (12 Urutan Resmi Menu Admin) */}
           <div className="mt-5 pt-4 border-t border-slate-200">
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2.5">
-              Menu Navigasi Modul Administrator & Dashboard Lurah
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  Daftar Menu Administrator Kelurahan Panaikang (12 Modul)
+                </span>
+                <span className="text-[10.5px] font-bold px-2.5 py-0.5 rounded-full bg-[#0D3868] text-white">
+                  Menu Aktif: {getAdminTabLabel(activeTab)}
+                </span>
+              </div>
+              <span className="text-[11px] text-slate-500 hidden sm:inline">
+                Pilih menu untuk menampilkan kartu sub-menu (gunakan tombol Tampilkan Detail / Tutup pada tiap kartu)
+              </span>
             </div>
+
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-2">
+              {/* 1. Dashboard Lurah */}
               <button
                 type="button"
                 onClick={() => handleTabSwitch('dashboard_lurah')}
@@ -4410,43 +4791,11 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     activeTab === 'dashboard_lurah' ? 'text-emerald-100' : 'text-slate-500'
                   }`}
                 >
-                  Disposisi & Arsip PDF
+                  Disposisi &amp; Arsip PDF
                 </span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => handleTabSwitch('pengurusan_warga')}
-                className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                  activeTab === 'pengurusan_warga'
-                    ? 'bg-[#0D3868] border-[#0D3868] text-white shadow-xs'
-                    : !isTabAllowed('pengurusan_warga')
-                    ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-75'
-                    : 'bg-sky-50/70 border-sky-200 text-[#0D3868] hover:bg-sky-100/70 hover:border-sky-300'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-1">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <FileText
-                      className={`w-4 h-4 shrink-0 ${
-                        activeTab === 'pengurusan_warga' ? 'text-amber-300' : 'text-[#0277BD]'
-                      }`}
-                    />
-                    <span className="text-xs font-bold truncate">Admin Pelayanan Kelurahan</span>
-                  </div>
-                  {!isTabAllowed('pengurusan_warga') && (
-                    <Lock className="w-3 h-3 text-slate-400 shrink-0" />
-                  )}
-                </div>
-                <span
-                  className={`mt-1 text-[10px] font-medium truncate font-mono-num ${
-                    activeTab === 'pengurusan_warga' ? 'text-sky-100' : 'text-[#0277BD]'
-                  }`}
-                >
-                  Pra Registrasi & Pengaduan Online
-                </span>
-              </button>
-
+              {/* 2. Profil Kelurahan */}
               <button
                 type="button"
                 onClick={() => handleTabSwitch('profil')}
@@ -4476,43 +4825,83 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     activeTab === 'profil' ? 'text-sky-100' : 'text-slate-500'
                   }`}
                 >
-                  Data Lurah & Visi Misi
+                  Data Lurah &amp; Visi Misi
                 </span>
               </button>
 
+              {/* 3. Admin Layanan Kelurahan */}
               <button
                 type="button"
-                onClick={() => handleTabSwitch('info')}
+                onClick={() => handleTabSwitch('pengurusan_warga')}
                 className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                  activeTab === 'info'
-                    ? 'bg-[#1C8237] border-[#1C8237] text-white shadow-xs'
-                    : !isTabAllowed('info')
+                  activeTab === 'pengurusan_warga' || activeTab === 'laporan'
+                    ? 'bg-[#0D3868] border-[#0D3868] text-white shadow-xs'
+                    : !isTabAllowed('pengurusan_warga')
+                    ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-75'
+                    : 'bg-sky-50/70 border-sky-200 text-[#0D3868] hover:bg-sky-100/70 hover:border-sky-300'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <FileText
+                      className={`w-4 h-4 shrink-0 ${
+                        activeTab === 'pengurusan_warga' || activeTab === 'laporan'
+                          ? 'text-amber-300'
+                          : 'text-[#0277BD]'
+                      }`}
+                    />
+                    <span className="text-xs font-bold truncate">Admin Layanan Kelurahan</span>
+                  </div>
+                  {!isTabAllowed('pengurusan_warga') && (
+                    <Lock className="w-3 h-3 text-slate-400 shrink-0" />
+                  )}
+                </div>
+                <span
+                  className={`mt-1 text-[10px] font-medium truncate font-mono-num ${
+                    activeTab === 'pengurusan_warga' || activeTab === 'laporan'
+                      ? 'text-sky-100'
+                      : 'text-[#0277BD]'
+                  }`}
+                >
+                  Pra Registrasi &amp; Pengaduan Online
+                </span>
+              </button>
+
+              {/* 4. Data RT RW */}
+              <button
+                type="button"
+                onClick={() => handleTabSwitch('rtrw')}
+                className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                  activeTab === 'rtrw'
+                    ? 'bg-[#0D3868] border-[#0D3868] text-white shadow-xs'
+                    : !isTabAllowed('rtrw')
                     ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-75'
                     : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
                 }`}
               >
                 <div className="flex items-center justify-between gap-1">
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <Newspaper
+                    <Users
                       className={`w-4 h-4 shrink-0 ${
-                        activeTab === 'info' ? 'text-emerald-200' : 'text-[#1C8237]'
+                        activeTab === 'rtrw' ? 'text-emerald-300' : 'text-[#0D3868]'
                       }`}
                     />
-                    <span className="text-xs font-bold truncate">Informasi & IG</span>
+                    <span className="text-xs font-bold truncate">Data RT RW</span>
                   </div>
-                  {!isTabAllowed('info') && (
+                  {!isTabAllowed('rtrw') && (
                     <Lock className="w-3 h-3 text-slate-400 shrink-0" />
                   )}
                 </div>
                 <span
                   className={`mt-1 text-[10px] font-medium truncate font-mono-num ${
-                    activeTab === 'info' ? 'text-emerald-100' : 'text-slate-500'
+                    activeTab === 'rtrw' ? 'text-sky-100' : 'text-slate-500'
                   }`}
                 >
-                  {kelurahanInfos.length} Postingan Aktif
+                  {rwGroups.length} RW / {totalRtInKelurahan} RT &amp; Siskamling
                 </span>
               </button>
 
+              {/* 5. Pengelolaan Sampah */}
               <button
                 type="button"
                 onClick={() => handleTabSwitch('sampah')}
@@ -4546,39 +4935,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 </span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => handleTabSwitch('kerjabakti')}
-                className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                  activeTab === 'kerjabakti'
-                    ? 'bg-[#5E35B1] border-[#5E35B1] text-white shadow-xs'
-                    : !isTabAllowed('kerjabakti')
-                    ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-75'
-                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-1">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <Calendar
-                      className={`w-4 h-4 shrink-0 ${
-                        activeTab === 'kerjabakti' ? 'text-purple-200' : 'text-[#5E35B1]'
-                      }`}
-                    />
-                    <span className="text-xs font-bold truncate">Kerja Bakti</span>
-                  </div>
-                  {!isTabAllowed('kerjabakti') && (
-                    <Lock className="w-3 h-3 text-slate-400 shrink-0" />
-                  )}
-                </div>
-                <span
-                  className={`mt-1 text-[10px] font-medium truncate font-mono-num ${
-                    activeTab === 'kerjabakti' ? 'text-purple-100' : 'text-slate-500'
-                  }`}
-                >
-                  {cleanupEvents.length} Jadwal & Foto
-                </span>
-              </button>
-
+              {/* 6. Urban Farming */}
               <button
                 type="button"
                 onClick={() => handleTabSwitch('urban_farming')}
@@ -4612,72 +4969,109 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 </span>
               </button>
 
+              {/* 7. Kerja Bakti */}
               <button
                 type="button"
-                onClick={() => handleTabSwitch('rtrw')}
+                onClick={() => handleTabSwitch('kerjabakti')}
                 className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                  activeTab === 'rtrw'
-                    ? 'bg-[#0D3868] border-[#0D3868] text-white shadow-xs'
-                    : !isTabAllowed('rtrw')
+                  activeTab === 'kerjabakti'
+                    ? 'bg-[#5E35B1] border-[#5E35B1] text-white shadow-xs'
+                    : !isTabAllowed('kerjabakti')
                     ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-75'
                     : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
                 }`}
               >
                 <div className="flex items-center justify-between gap-1">
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <Users
+                    <Calendar
                       className={`w-4 h-4 shrink-0 ${
-                        activeTab === 'rtrw' ? 'text-emerald-300' : 'text-[#0D3868]'
+                        activeTab === 'kerjabakti' ? 'text-purple-200' : 'text-[#5E35B1]'
                       }`}
                     />
-                    <span className="text-xs font-bold truncate">Data RT & RW</span>
+                    <span className="text-xs font-bold truncate">Kerja Bakti</span>
                   </div>
-                  {!isTabAllowed('rtrw') && (
+                  {!isTabAllowed('kerjabakti') && (
                     <Lock className="w-3 h-3 text-slate-400 shrink-0" />
                   )}
                 </div>
                 <span
                   className={`mt-1 text-[10px] font-medium truncate font-mono-num ${
-                    activeTab === 'rtrw' ? 'text-sky-100' : 'text-slate-500'
+                    activeTab === 'kerjabakti' ? 'text-purple-100' : 'text-slate-500'
                   }`}
                 >
-                  {rwGroups.length} RW / {totalRtInKelurahan} RT
+                  {cleanupEvents.length} Jadwal &amp; Foto
                 </span>
               </button>
 
+              {/* 8. Informasi dan IG */}
               <button
                 type="button"
-                onClick={() => handleTabSwitch('traffic')}
+                onClick={() => handleTabSwitch('info')}
                 className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                  activeTab === 'traffic'
-                    ? 'bg-[#00838F] border-[#00838F] text-white shadow-xs'
-                    : !isTabAllowed('traffic')
+                  activeTab === 'info'
+                    ? 'bg-[#1C8237] border-[#1C8237] text-white shadow-xs'
+                    : !isTabAllowed('info')
                     ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-75'
-                    : 'bg-cyan-50/80 border-cyan-200 text-[#006064] hover:bg-cyan-100/80 hover:border-cyan-300'
+                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
                 }`}
               >
                 <div className="flex items-center justify-between gap-1">
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <Activity
+                    <Newspaper
                       className={`w-4 h-4 shrink-0 ${
-                        activeTab === 'traffic' ? 'text-cyan-200' : 'text-[#00838F]'
+                        activeTab === 'info' ? 'text-emerald-200' : 'text-[#1C8237]'
                       }`}
                     />
-                    <span className="text-xs font-bold truncate">Traffic Web & App</span>
+                    <span className="text-xs font-bold truncate">Informasi dan IG</span>
                   </div>
-                  {!isTabAllowed('traffic') && (
+                  {!isTabAllowed('info') && (
                     <Lock className="w-3 h-3 text-slate-400 shrink-0" />
                   )}
                 </div>
                 <span
                   className={`mt-1 text-[10px] font-medium truncate font-mono-num ${
-                    activeTab === 'traffic' ? 'text-cyan-100' : 'text-[#006064]'
+                    activeTab === 'info' ? 'text-emerald-100' : 'text-slate-500'
                   }`}
                 >
-                  Analitik & Live Telemetry
+                  {kelurahanInfos.length} Postingan Aktif
                 </span>
               </button>
 
+              {/* 9. Kelola WhatsApp Gateaway */}
+              <button
+                type="button"
+                onClick={() => handleTabSwitch('whatsapp_gateway')}
+                className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                  activeTab === 'whatsapp_gateway'
+                    ? 'bg-[#128C7E] border-[#128C7E] text-white shadow-xs'
+                    : !isTabAllowed('whatsapp_gateway')
+                    ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-75'
+                    : 'bg-emerald-50/80 border-emerald-300 text-[#075E54] hover:bg-emerald-100/80 hover:border-emerald-400'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <MessageCircle
+                      className={`w-4 h-4 shrink-0 ${
+                        activeTab === 'whatsapp_gateway' ? 'text-emerald-200' : 'text-[#128C7E]'
+                      }`}
+                    />
+                    <span className="text-xs font-bold truncate">Kelola WhatsApp Gateaway</span>
+                  </div>
+                  {!isTabAllowed('whatsapp_gateway') && (
+                    <Lock className="w-3 h-3 text-slate-400 shrink-0" />
+                  )}
+                </div>
+                <span
+                  className={`mt-1 text-[10px] font-medium truncate font-mono-num ${
+                    activeTab === 'whatsapp_gateway' ? 'text-emerald-100' : 'text-[#128C7E]'
+                  }`}
+                >
+                  {whatsappRecipients.filter((r) => r.isActive).length}/{whatsappRecipients.length} Nomor Aktif (Fonnte)
+                </span>
+              </button>
+
+              {/* 10. Kelola Admin dan User */}
               <button
                 type="button"
                 onClick={() => handleTabSwitch('kelola_admin_warga')}
@@ -4698,7 +5092,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                           : 'text-indigo-700'
                       }`}
                     />
-                    <span className="text-xs font-bold truncate">Kelola Admin & User Warga</span>
+                    <span className="text-xs font-bold truncate">Kelola Admin dan User</span>
                   </div>
                   {!isTabAllowed('kelola_admin_warga') && (
                     <Lock className="w-3 h-3 text-slate-400 shrink-0" />
@@ -4711,10 +5105,45 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                       : 'text-indigo-900'
                   }`}
                 >
-                  3 Sub-Menu · Otoritas & Warga
+                  4 Kartu · Otoritas &amp; Warga
                 </span>
               </button>
 
+              {/* 11. Traffic Web dan App */}
+              <button
+                type="button"
+                onClick={() => handleTabSwitch('traffic')}
+                className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                  activeTab === 'traffic'
+                    ? 'bg-[#00838F] border-[#00838F] text-white shadow-xs'
+                    : !isTabAllowed('traffic')
+                    ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-75'
+                    : 'bg-cyan-50/80 border-cyan-200 text-[#006064] hover:bg-cyan-100/80 hover:border-cyan-300'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Activity
+                      className={`w-4 h-4 shrink-0 ${
+                        activeTab === 'traffic' ? 'text-cyan-200' : 'text-[#00838F]'
+                      }`}
+                    />
+                    <span className="text-xs font-bold truncate">Traffic Web dan App</span>
+                  </div>
+                  {!isTabAllowed('traffic') && (
+                    <Lock className="w-3 h-3 text-slate-400 shrink-0" />
+                  )}
+                </div>
+                <span
+                  className={`mt-1 text-[10px] font-medium truncate font-mono-num ${
+                    activeTab === 'traffic' ? 'text-cyan-100' : 'text-[#006064]'
+                  }`}
+                >
+                  Analitik &amp; Live Telemetry
+                </span>
+              </button>
+
+              {/* 12. Log Aktifitas Aplikasi */}
               <button
                 type="button"
                 onClick={() => handleTabSwitch('log_aktivitas')}
@@ -4733,7 +5162,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                         activeTab === 'log_aktivitas' ? 'text-amber-300' : 'text-[#0277BD]'
                       }`}
                     />
-                    <span className="text-xs font-bold truncate">Log Aktivitas</span>
+                    <span className="text-xs font-bold truncate">Log Aktifitas Aplikasi</span>
                   </div>
                   {!isTabAllowed('log_aktivitas') && (
                     <Lock className="w-3 h-3 text-slate-400 shrink-0" />
@@ -4794,317 +5223,221 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
       {/* ================= TAB TRAFFIC WEB & APLIKASI ================= */}
       {activeTab === 'traffic' && isTabAllowed('traffic') && (
-        <div className="mt-6">
-          <AdminTrafficView onNavigateToView={onNavigate} />
+        <div className="mt-6 space-y-5">
+          <AdminCollapsibleBar
+            sectionKey="traffic_analitik"
+            title="01. Statistik Kunjungan &amp; Analitik Traffic Web dan App"
+            subtitle="Pemantauan trafik pengunjung harian, perangkat warga, dan interaksi halaman aplikasi secara real-time"
+            icon={<Activity className="w-5 h-5 text-[#00838F]" />}
+            badge={
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-cyan-50 text-[#006064] border border-cyan-300">
+                Real-Time Analytics
+              </span>
+            }
+            isCollapsed={isSectionCollapsed('traffic_analitik')}
+            onToggle={() => toggleSectionCollapse('traffic_analitik')}
+          >
+            <div className="p-4 sm:p-5">
+              <AdminTrafficView onNavigateToView={onNavigate} />
+            </div>
+          </AdminCollapsibleBar>
         </div>
       )}
 
-      {/* ================= TAB KELOLA ADMIN DAN USER WARGA (3 SUB-MENU) ================= */}
+      {/* ================= TAB KELOLA ADMIN DAN USER (4 KARTU SUB-MENU PERKARTU) ================= */}
       {(activeTab === 'kelola_admin_warga' || activeTab === 'parameter_user' || activeTab === 'user_warga') &&
         isTabAllowed('kelola_admin_warga') && (
           <div className="mt-6 space-y-5">
-            {/* Header Navigasi 3 Sub-Menu */}
-            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-4 sm:p-5">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-100">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-linear-to-br from-[#0D3868] to-indigo-900 text-white flex items-center justify-center shadow-xs shrink-0">
-                    <Users className="w-5 h-5 text-emerald-300" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-base sm:text-lg font-black text-[#0D3868]">
-                        Kelola Admin dan User Warga
-                      </h2>
-                      <span className="px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-black uppercase tracking-wider">
-                        3 Sub-Menu Terpadu
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Pusat kendali akun struktural, verifikasi login Google, dan database user warga terdaftar Kelurahan Panaikang.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 shrink-0">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
-                  <span className="font-semibold text-slate-700">{isLurahSession ? 'Otoritas Master Lurah Aktif' : 'Akses Admin Terbatas'}</span>
-                </div>
+            {/* KARTU SUB-MENU 01: Otoritas Master Admin */}
+            <AdminCollapsibleBar
+              sectionKey="admin_warga_otoritas"
+              title="01. Otoritas Master Admin (Verifikasi Login Google, Whitelist &amp; Force Sesi)"
+              subtitle="Pusat kendali otoritas Lurah, manajemen whitelist Google, dan pengambilalihan sesi login"
+              icon={<ShieldCheck className="w-5 h-5 text-indigo-700" />}
+              badge={
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700">
+                  Otoritas Lurah
+                </span>
+              }
+              isCollapsed={isSectionCollapsed('admin_warga_otoritas')}
+              onToggle={() => toggleSectionCollapse('admin_warga_otoritas')}
+            >
+              <div className="p-4 sm:p-5">
+                <AdminOtoritasMasterPanel
+                  adminUsers={adminUsers}
+                  isMasterLurah={isLurahSession}
+                  currentUsername={adminSession?.username || ''}
+                  onSaveAdminUsers={auditedOnSaveAdminUsers}
+                  onForceTakeover={async (pwd) => {
+                    return await forceLogoutFirestore(pwd);
+                  }}
+                  onRecordAudit={(audit) => {
+                    recordAudit({
+                      actionType: audit.actionType,
+                      module: 'PARAMETER_USER',
+                      targetLabel: audit.targetLabel,
+                      summary: audit.summary,
+                      details: audit.details,
+                      severity: 'warning',
+                    });
+                  }}
+                  onSwitchSubTab={(sub) => setKelolaAdminWargaSubTab(sub)}
+                />
               </div>
+            </AdminCollapsibleBar>
 
-              {/* Pilihan 4 Sub-Menu */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-4">
-                {/* Sub Menu 1 */}
-                <button
-                  type="button"
-                  onClick={() => setKelolaAdminWargaSubTab('otoritas_master')}
-                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
-                    kelolaAdminWargaSubTab === 'otoritas_master'
-                      ? 'bg-linear-to-br from-[#0D3868] to-indigo-950 border-[#0D3868] text-white shadow-md'
-                      : 'bg-slate-50 hover:bg-indigo-50/70 border-slate-200 hover:border-indigo-300 text-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <ShieldCheck
-                        className={`w-4 h-4 shrink-0 ${
-                          kelolaAdminWargaSubTab === 'otoritas_master' ? 'text-amber-300' : 'text-indigo-600'
-                        }`}
-                      />
-                      <span className="text-xs sm:text-sm font-black">Otoritas Master Admin</span>
-                    </div>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                        kelolaAdminWargaSubTab === 'otoritas_master'
-                          ? 'bg-white/20 text-white'
-                          : 'bg-indigo-100 text-indigo-800'
-                      }`}
-                    >
-                      Lurah
-                    </span>
-                  </div>
-                  <p
-                    className={`text-[11px] line-clamp-1 ${
-                      kelolaAdminWargaSubTab === 'otoritas_master' ? 'text-indigo-200' : 'text-slate-500'
-                    }`}
-                  >
-                    Verifikasi Login Google, Whitelist & Force Sesi
-                  </p>
-                </button>
-
-                {/* Sub Menu 2 */}
-                <button
-                  type="button"
-                  onClick={() => setKelolaAdminWargaSubTab('parameter_admin')}
-                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
-                    kelolaAdminWargaSubTab === 'parameter_admin'
-                      ? 'bg-linear-to-br from-[#0D3868] to-indigo-950 border-[#0D3868] text-white shadow-md'
-                      : 'bg-slate-50 hover:bg-indigo-50/70 border-slate-200 hover:border-indigo-300 text-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Sliders
-                        className={`w-4 h-4 shrink-0 ${
-                          kelolaAdminWargaSubTab === 'parameter_admin' ? 'text-amber-300' : 'text-indigo-600'
-                        }`}
-                      />
-                      <span className="text-xs sm:text-sm font-black">Parameter Admin</span>
-                    </div>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                        kelolaAdminWargaSubTab === 'parameter_admin'
-                          ? 'bg-white/20 text-white'
-                          : 'bg-amber-100 text-amber-800'
-                      }`}
-                    >
-                      Struktural
-                    </span>
-                  </div>
-                  <p
-                    className={`text-[11px] line-clamp-1 ${
-                      kelolaAdminWargaSubTab === 'parameter_admin' ? 'text-indigo-200' : 'text-slate-500'
-                    }`}
-                  >
-                    Manajemen Akun Pejabat & Hak Akses (RBAC)
-                  </p>
-                </button>
-
-                {/* Sub Menu 3 */}
-                <button
-                  type="button"
-                  onClick={() => setKelolaAdminWargaSubTab('user_warga')}
-                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
-                    kelolaAdminWargaSubTab === 'user_warga'
-                      ? 'bg-linear-to-br from-[#0D3868] to-indigo-950 border-[#0D3868] text-white shadow-md'
-                      : 'bg-slate-50 hover:bg-indigo-50/70 border-slate-200 hover:border-indigo-300 text-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Users
-                        className={`w-4 h-4 shrink-0 ${
-                          kelolaAdminWargaSubTab === 'user_warga' ? 'text-amber-300' : 'text-emerald-600'
-                        }`}
-                      />
-                      <span className="text-xs sm:text-sm font-black">User Warga Terdaftar</span>
-                    </div>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                        kelolaAdminWargaSubTab === 'user_warga'
-                          ? 'bg-white/20 text-white'
-                          : 'bg-emerald-100 text-emerald-800'
-                      }`}
-                    >
-                      Database
-                    </span>
-                  </div>
-                  <p
-                    className={`text-[11px] line-clamp-1 ${
-                      kelolaAdminWargaSubTab === 'user_warga' ? 'text-indigo-200' : 'text-slate-500'
-                    }`}
-                  >
-                    Database Warga & Parameter Batasan Akses Menu
-                  </p>
-                </button>
-
-                {/* Sub Menu 4: Manajemen Pelayanan Dan Master Data Layanan */}
-                <button
-                  type="button"
-                  onClick={() => setKelolaAdminWargaSubTab('master_data_layanan')}
-                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
-                    kelolaAdminWargaSubTab === 'master_data_layanan'
-                      ? 'bg-linear-to-br from-[#0D3868] to-sky-950 border-[#0D3868] text-white shadow-md'
-                      : 'bg-slate-50 hover:bg-sky-50/70 border-slate-200 hover:border-sky-300 text-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Layers
-                        className={`w-4 h-4 shrink-0 ${
-                          kelolaAdminWargaSubTab === 'master_data_layanan' ? 'text-sky-300' : 'text-[#0277BD]'
-                        }`}
-                      />
-                      <span className="text-xs sm:text-sm font-black">Master Data Layanan</span>
-                    </div>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                        kelolaAdminWargaSubTab === 'master_data_layanan'
-                          ? 'bg-white/20 text-white'
-                          : 'bg-sky-100 text-[#0277BD]'
-                      }`}
-                    >
-                      Dynamic
-                    </span>
-                  </div>
-                  <p
-                    className={`text-[11px] line-clamp-1 ${
-                      kelolaAdminWargaSubTab === 'master_data_layanan' ? 'text-sky-200' : 'text-slate-500'
-                    }`}
-                  >
-                    Master Layanan, Persyaratan, Formulir & Kategori
-                  </p>
-                </button>
+            {/* KARTU SUB-MENU 02: Parameter Admin */}
+            <AdminCollapsibleBar
+              sectionKey="admin_warga_parameter"
+              title={`02. Parameter Admin & Manajemen Akun Pejabat Struktural (${adminUsers.length} Akun)`}
+              subtitle="Pengaturan hak akses modul (RBAC), izin aksi petugas, dan kredensial login pejabat kelurahan"
+              icon={<Sliders className="w-5 h-5 text-amber-600" />}
+              badge={
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800">
+                  {adminUsers.length} Akun Admin
+                </span>
+              }
+              isCollapsed={isSectionCollapsed('admin_warga_parameter')}
+              onToggle={() => toggleSectionCollapse('admin_warga_parameter')}
+            >
+              <div className="p-4 sm:p-5">
+                <AdminParameterUserPanel
+                  adminUsers={adminUsers}
+                  serviceCatalog={serviceCatalog}
+                  profile={profile}
+                  rwGroups={rwGroups}
+                  currentUsername={adminSession?.username || ''}
+                  isMasterLurah={isLurahSession}
+                  onSaveAdminUsers={auditedOnSaveAdminUsers}
+                />
               </div>
-            </div>
+            </AdminCollapsibleBar>
 
-            {/* Sub-Panel 1: Otoritas Master Admin */}
-            {kelolaAdminWargaSubTab === 'otoritas_master' && (
-              <AdminOtoritasMasterPanel
-                adminUsers={adminUsers}
-                isMasterLurah={isLurahSession}
-                currentUsername={adminSession?.username || ''}
-                onSaveAdminUsers={auditedOnSaveAdminUsers}
-                onForceTakeover={async (pwd) => {
-                  return await forceLogoutFirestore(pwd);
-                }}
-                onRecordAudit={(audit) => {
-                  recordAudit({
-                    actionType: audit.actionType,
-                    module: 'PARAMETER_USER',
-                    targetLabel: audit.targetLabel,
-                    summary: audit.summary,
-                    details: audit.details,
-                    severity: 'warning',
-                  });
-                }}
-                onSwitchSubTab={(sub) => setKelolaAdminWargaSubTab(sub)}
-              />
-            )}
+            {/* KARTU SUB-MENU 03: User Warga Terdaftar */}
+            <AdminCollapsibleBar
+              sectionKey="admin_warga_user"
+              title={`03. User Warga Terdaftar & Parameter Batasan Akses Menu (${citizenUsers.length} Warga)`}
+              subtitle="Database akun warga terdaftar, riwayat pengajuan per warga, serta pengaturan visibilitas menu warga"
+              icon={<Users className="w-5 h-5 text-emerald-600" />}
+              badge={
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800">
+                  {citizenUsers.length} Akun Warga
+                </span>
+              }
+              isCollapsed={isSectionCollapsed('admin_warga_user')}
+              onToggle={() => toggleSectionCollapse('admin_warga_user')}
+            >
+              <div className="p-4 sm:p-5">
+                <AdminDaftarWargaPanel
+                  reports={reports}
+                  rwGroups={rwGroups}
+                  citizenUsers={citizenUsers}
+                  citizenMenuConfig={citizenMenuConfig}
+                  onSaveCitizenMenuConfig={onSaveCitizenMenuConfig}
+                  onUpdateCitizenUser={onUpdateCitizenUser}
+                  onDeleteCitizenUser={onDeleteCitizenUser}
+                  onRecordAudit={(audit) => {
+                    recordAudit({
+                      actionType: audit.actionType,
+                      module: 'DAFTAR_WARGA',
+                      targetId: audit.targetId,
+                      targetLabel: audit.targetLabel,
+                      summary: audit.summary,
+                      details: audit.details,
+                      severity: audit.actionType === 'ACCESS_CHANGE' ? 'warning' : 'info',
+                    });
+                  }}
+                />
+              </div>
+            </AdminCollapsibleBar>
 
-            {/* Sub-Panel 2: Parameter Admin */}
-            {kelolaAdminWargaSubTab === 'parameter_admin' && (
-              <AdminParameterUserPanel
-                adminUsers={adminUsers}
-                serviceCatalog={serviceCatalog}
-                profile={profile}
-                rwGroups={rwGroups}
-                currentUsername={adminSession?.username || ''}
-                isMasterLurah={isLurahSession}
-                onSaveAdminUsers={auditedOnSaveAdminUsers}
-              />
-            )}
-
-            {/* Sub-Panel 3: User Warga Terdaftar */}
-            {kelolaAdminWargaSubTab === 'user_warga' && (
-              <AdminDaftarWargaPanel
-                reports={reports}
-                rwGroups={rwGroups}
-                citizenUsers={citizenUsers}
-                citizenMenuConfig={citizenMenuConfig}
-                onSaveCitizenMenuConfig={onSaveCitizenMenuConfig}
-                onUpdateCitizenUser={onUpdateCitizenUser}
-                onDeleteCitizenUser={onDeleteCitizenUser}
-                onRecordAudit={(audit) => {
-                  recordAudit({
-                    actionType: audit.actionType,
-                    module: 'DAFTAR_WARGA',
-                    targetId: audit.targetId,
-                    targetLabel: audit.targetLabel,
-                    summary: audit.summary,
-                    details: audit.details,
-                    severity: audit.actionType === 'ACCESS_CHANGE' ? 'warning' : 'info',
-                  });
-                }}
-              />
-            )}
-
-            {/* Sub-Panel 4: Manajemen Pelayanan Dan Master Data Layanan */}
-            {kelolaAdminWargaSubTab === 'master_data_layanan' && (
-              <AdminMasterDataLayananPanel
-                masterLayananList={masterLayananList}
-                masterPersyaratanList={masterPersyaratanList}
-                kategoriPengaduanList={kategoriPengaduanList}
-                onSaveMasterLayanan={onSaveMasterLayanan || (async () => ({ ok: true }))}
-                onSaveMasterPersyaratan={onSaveMasterPersyaratan || (async () => ({ ok: true }))}
-                onSaveKategoriPengaduan={onSaveKategoriPengaduan}
-              />
-            )}
+            {/* KARTU SUB-MENU 04: Master Data Layanan */}
+            <AdminCollapsibleBar
+              sectionKey="admin_warga_master_data"
+              title="04. Manajemen Pelayanan &amp; Master Data Layanan Kelurahan"
+              subtitle="Konfigurasi master layanan surat, daftar persyaratan berkas, formulir dinamis, dan kategori pengaduan"
+              icon={<Layers className="w-5 h-5 text-[#0277BD]" />}
+              badge={
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-50 border border-sky-200 text-[#0277BD]">
+                  Master Katalog
+                </span>
+              }
+              isCollapsed={isSectionCollapsed('admin_warga_master_data')}
+              onToggle={() => toggleSectionCollapse('admin_warga_master_data')}
+            >
+              <div className="p-4 sm:p-5">
+                <AdminMasterDataLayananPanel
+                  masterLayananList={masterLayananList}
+                  masterPersyaratanList={masterPersyaratanList}
+                  kategoriPengaduanList={kategoriPengaduanList}
+                  onSaveMasterLayanan={onSaveMasterLayanan || (async () => ({ ok: true }))}
+                  onSaveMasterPersyaratan={onSaveMasterPersyaratan || (async () => ({ ok: true }))}
+                  onSaveKategoriPengaduan={onSaveKategoriPengaduan}
+                />
+              </div>
+            </AdminCollapsibleBar>
           </div>
         )}
 
-      {/* ================= TAB LOG AKTIVITAS & AUDIT TRAIL (PENGAWASAN LURAH) ================= */}
+      {/* ================= TAB LOG AKTIFITAS APLIKASI ================= */}
       {activeTab === 'log_aktivitas' && isTabAllowed('log_aktivitas') && (
-        <div className="mt-6">
-          <AdminActivityLogPanel
-            activityLogs={activityLogs}
-            adminUsers={adminUsers}
-            profile={profile}
-            currentUser={
-              currentAdminAccount || {
-                id: adminSession?.userId || 'usr-master-lurah',
-                username: adminSession?.username || 'lurah',
-                password: '',
-                fullName: adminSession?.fullName || profile.lurahName || 'Muthmainnah, SE, MM',
-                nip: adminSession?.nip || profile.lurahNip || '198607092015042001',
-                jabatan: adminSession?.role || 'Lurah Panaikang',
-                unitBidang: 'Pimpinan Kelurahan Panaikang',
-                phone: '',
-                roleLevel: isLurahSession ? 'master_admin' : 'admin_bidang',
-                isMasterLurah: isLurahSession,
-                isActive: true,
-                allowedAdminTabs: effectiveAllowedTabs,
-                allowedServiceCategories: [],
-                actionPermissions: effectiveActionPermissions,
-                createdAt: '',
-                updatedAt: '',
-              }
+        <div className="mt-6 space-y-5">
+          <AdminCollapsibleBar
+            sectionKey="log_audit_trail"
+            title={`01. Riwayat Log Aktifitas Aplikasi & Audit Trail (${activityLogs.length} Log)`}
+            subtitle="Rekam jejak seluruh aktivitas administrator, perubahan data, persetujuan surat, dan pengiriman WhatsApp"
+            icon={<History className="w-5 h-5 text-[#0277BD]" />}
+            badge={
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-sky-50 text-[#0D3868] border border-sky-200">
+                {activityLogs.length} Audit Trail
+              </span>
             }
-            onAddManualLog={(entry) => {
-              recordAudit({
-                actionType: entry.actionType,
-                module: entry.module,
-                targetLabel: entry.targetLabel,
-                summary: entry.summary,
-                details: entry.details,
-                beforeValue: entry.beforeValue,
-                afterValue: entry.afterValue,
-                severity: entry.severity,
-              });
-              setSuccessMessage('Catatan audit trail baru berhasil ditambahkan ke Log Aktivitas.');
-            }}
-            onDeleteLogEntry={onDeleteActivityLog}
-            onClearLogs={onResetActivityLogs}
-          />
+            isCollapsed={isSectionCollapsed('log_audit_trail')}
+            onToggle={() => toggleSectionCollapse('log_audit_trail')}
+          >
+            <div className="p-4 sm:p-5">
+              <AdminActivityLogPanel
+                activityLogs={activityLogs}
+                adminUsers={adminUsers}
+                profile={profile}
+                currentUser={
+                  currentAdminAccount || {
+                    id: adminSession?.userId || 'usr-master-lurah',
+                    username: adminSession?.username || 'lurah',
+                    password: '',
+                    fullName: adminSession?.fullName || profile.lurahName || 'Muthmainnah, SE, MM',
+                    nip: adminSession?.nip || profile.lurahNip || '198607092015042001',
+                    jabatan: adminSession?.role || 'Lurah Panaikang',
+                    unitBidang: 'Pimpinan Kelurahan Panaikang',
+                    phone: '',
+                    roleLevel: isLurahSession ? 'master_admin' : 'admin_bidang',
+                    isMasterLurah: isLurahSession,
+                    isActive: true,
+                    allowedAdminTabs: effectiveAllowedTabs,
+                    allowedServiceCategories: [],
+                    actionPermissions: effectiveActionPermissions,
+                    createdAt: '',
+                    updatedAt: '',
+                  }
+                }
+                onAddManualLog={(entry) => {
+                  recordAudit({
+                    actionType: entry.actionType,
+                    module: entry.module,
+                    targetLabel: entry.targetLabel,
+                    summary: entry.summary,
+                    details: entry.details,
+                    beforeValue: entry.beforeValue,
+                    afterValue: entry.afterValue,
+                    severity: entry.severity,
+                  });
+                  setSuccessMessage('Catatan audit trail baru berhasil ditambahkan ke Log Aktivitas.');
+                }}
+                onDeleteLogEntry={onDeleteActivityLog}
+                onClearLogs={onResetActivityLogs}
+              />
+            </div>
+          </AdminCollapsibleBar>
         </div>
       )}
 
@@ -5142,28 +5475,45 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           </div>
         )}
 
-      {/* ================= TAB 0B: BACK-END PENGURUSAN WARGA (7 BIDANG & 44 SUB-MENU) ================= */}
-      {activeTab === 'pengurusan_warga' && isTabAllowed('pengurusan_warga') && (
-        <div className="mt-6">
-          <AdminPengurusanWargaPanel
-            reports={reports}
-            profile={profile}
-            rwGroups={rwGroups}
-            whatsappRecipients={whatsappRecipients}
-            citizenUsers={citizenUsers}
-            serviceCatalog={serviceCatalog}
-            adminOfficerName={
-              adminSession?.fullName || 'Administrator / Operator Kelurahan Panaikang'
-            }
-            allowedServiceCategories={effectiveAllowedCategories}
-            actionPermissions={effectiveActionPermissions}
-            onCreateReport={auditedOnCreateReport}
-            onUpdateReport={auditedOnUpdateReport}
-            onDeleteReport={auditedOnDeleteReport}
-            onSaveServiceCatalog={auditedOnSaveServiceCatalog}
-          />
-        </div>
-      )}
+      {/* ================= TAB ADMIN LAYANAN KELURAHAN (BAGIAN 1: PELAYANAN & PENGURUSAN WARGA) ================= */}
+      {(activeTab === 'pengurusan_warga' || activeTab === 'laporan') &&
+        (isTabAllowed('pengurusan_warga') || isTabAllowed('laporan')) && (
+          <div className="mt-6 space-y-5">
+            <AdminCollapsibleBar
+              sectionKey="layanan_pengurusan_utama"
+              title="01. Pelayanan Administrasi &amp; Pengurusan Surat Resmi Warga (7 Bidang · 44 Sub-Menu)"
+              subtitle="Pemrosesan berkas pra-registrasi online, verifikasi persyaratan, penerbitan nomor surat, dan cetak KOP resmi"
+              icon={<FileText className="w-5 h-5 text-[#0277BD]" />}
+              badge={
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-sky-50 text-[#0D3868] border border-sky-200">
+                  {reports.length} Berkas &amp; Pengajuan
+                </span>
+              }
+              isCollapsed={isSectionCollapsed('layanan_pengurusan_utama')}
+              onToggle={() => toggleSectionCollapse('layanan_pengurusan_utama')}
+            >
+              <div className="p-4 sm:p-5">
+                <AdminPengurusanWargaPanel
+                  reports={reports}
+                  profile={profile}
+                  rwGroups={rwGroups}
+                  whatsappRecipients={whatsappRecipients}
+                  citizenUsers={citizenUsers}
+                  serviceCatalog={serviceCatalog}
+                  adminOfficerName={
+                    adminSession?.fullName || 'Administrator / Operator Kelurahan Panaikang'
+                  }
+                  allowedServiceCategories={effectiveAllowedCategories}
+                  actionPermissions={effectiveActionPermissions}
+                  onCreateReport={auditedOnCreateReport}
+                  onUpdateReport={auditedOnUpdateReport}
+                  onDeleteReport={auditedOnDeleteReport}
+                  onSaveServiceCatalog={auditedOnSaveServiceCatalog}
+                />
+              </div>
+            </AdminCollapsibleBar>
+          </div>
+        )}
 
       {/* ================= TAB 0: DASHBOARD LURAH (KHUSUS LURAH) ================= */}
       {activeTab === 'dashboard_lurah' && (
@@ -5178,7 +5528,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               profile={profile}
               rwGroups={rwGroups}
               whatsappRecipients={whatsappRecipients}
+              onSaveWhatsAppRecipients={onSaveWhatsAppRecipients}
               onLurahApproveService={onLurahApproveService}
+              onOpenWhatsAppManager={() => handleTabSwitch('whatsapp_gateway')}
               onUpdateReportStatus={(id, newStatus, assignedTeam, responseNote) => {
                 const targetRep = reports.find((r) => r.id === id);
                 if (onUpdateReportStatus) {
@@ -5203,7 +5555,6 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               }}
               onNavigate={onNavigate}
               isEmbeddedInAdmin={true}
-              onOpenWhatsAppManager={() => handleTabSwitch('pengurusan_warga')}
               onPdfDownloaded={(res) => {
                 recordAudit({
                   actionType: 'EXPORT',
@@ -5281,18 +5632,31 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           {/* Section A: Data Lurah & Struktur Jabatan */}
           <div className="space-y-6">
             {/* Subsection 01.1: Data Lurah (Tambah, Edit, Hapus) */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <UserCheck className="w-4 h-4 text-[#0D3868]" />
-                  <span>01. Data Pimpinan Lurah Panaikang</span>
-                </h3>
-                <div className="flex items-center gap-2">
+            <AdminCollapsibleBar
+              sectionKey="profil_lurah"
+              title="01. Data Pimpinan Lurah Panaikang"
+              subtitle={`Pimpinan: ${profileDraft.lurahName || 'Belum diisi'} (${profileDraft.lurahNip || 'NIP -'})`}
+              icon={<UserCheck className="w-5 h-5 text-[#0D3868]" />}
+              badge={
+                profileDraft.lurahName ? (
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300">
+                    Aktif Menjabat
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300">
+                    Belum Diisi
+                  </span>
+                )
+              }
+              isCollapsed={isSectionCollapsed('profil_lurah')}
+              onToggle={() => toggleSectionCollapse('profil_lurah')}
+              headerActions={
+                <div className="flex items-center gap-1.5">
                   {!profileDraft.lurahName ? (
                     <button
                       type="button"
                       onClick={handleOpenAddLurah}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition shadow-xs cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>+ Tambah Data Lurah</span>
@@ -5302,15 +5666,15 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                       <button
                         type="button"
                         onClick={handleOpenEditLurah}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 text-xs font-bold transition cursor-pointer"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 text-xs font-bold transition cursor-pointer"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
-                        <span>Edit Data Lurah</span>
+                        <span>Edit</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => setConfirmDeleteLurah(true)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold transition cursor-pointer"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold transition cursor-pointer"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         <span>Hapus</span>
@@ -5318,148 +5682,149 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     </>
                   )}
                 </div>
-              </div>
-
-              {!profileDraft.lurahName ? (
-                <div className="p-8 text-center bg-slate-50/80 rounded-2xl border-2 border-dashed border-slate-200">
-                  <User className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-                  <p className="text-xs font-medium text-slate-600">
-                    Belum ada data pimpinan lurah yang terdaftar.
-                  </p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    Klik tombol di bawah untuk menambahkan data lurah beserta foto dan sambutan resmi.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleOpenAddLurah}
-                    className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-[#0D3868] hover:bg-[#072647] text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Tambah Data Lurah Baru</span>
-                  </button>
-                </div>
-              ) : (
-                <div className="p-5 rounded-2xl border border-slate-200 bg-white shadow-xs">
-                  <div className="flex flex-col sm:flex-row gap-5 items-start">
-                    {/* Lurah Photo */}
-                    <div className="relative group shrink-0 mx-auto sm:mx-0">
-                      <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden border-2 border-slate-200 bg-slate-100 flex items-center justify-center shadow-xs">
-                        {Boolean(profileDraft.lurahPhotoUrl?.trim()) ? (
-                          <img
-                            src={profileDraft.lurahPhotoUrl!}
-                            alt={profileDraft.lurahName}
-                            className="w-full h-full object-cover object-top"
+              }
+            >
+              <div className="p-5 sm:p-6 space-y-4">
+                {!profileDraft.lurahName ? (
+                  <div className="p-8 text-center bg-slate-50/80 rounded-2xl border-2 border-dashed border-slate-200">
+                    <User className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                    <p className="text-xs font-medium text-slate-600">
+                      Belum ada data pimpinan lurah yang terdaftar.
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Klik tombol di bawah untuk menambahkan data lurah beserta foto dan sambutan resmi.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleOpenAddLurah}
+                      className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-[#0D3868] hover:bg-[#072647] text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Tambah Data Lurah Baru</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-5 rounded-2xl border border-slate-200 bg-white shadow-xs">
+                    <div className="flex flex-col sm:flex-row gap-5 items-start">
+                      {/* Lurah Photo */}
+                      <div className="relative group shrink-0 mx-auto sm:mx-0">
+                        <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden border-2 border-slate-200 bg-slate-100 flex items-center justify-center shadow-xs">
+                          {Boolean(profileDraft.lurahPhotoUrl?.trim()) ? (
+                            <img
+                              src={profileDraft.lurahPhotoUrl!}
+                              alt={profileDraft.lurahName}
+                              className="w-full h-full object-cover object-top"
+                            />
+                          ) : (
+                            <User className="w-12 h-12 text-slate-400" />
+                          )}
+                        </div>
+                        <label className="mt-2 inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold w-full cursor-pointer transition text-center">
+                          <Camera className="w-3 h-3" />
+                          <span>{profileDraft.lurahPhotoUrl ? 'Ganti Foto' : 'Unggah Foto'}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              try {
+                                const compressed = await compressImageFile(file);
+                                const updated = { ...profileDraft, lurahPhotoUrl: compressed };
+                                setProfileDraft(updated);
+                                await onSaveProfile(updated);
+                                setSuccessMessage('Foto Lurah berhasil diperbarui.');
+                              } catch {
+                                setValidationErrors(['Gagal memproses foto Lurah.']);
+                              }
+                            }}
+                            className="hidden"
                           />
-                        ) : (
-                          <User className="w-12 h-12 text-slate-400" />
+                        </label>
+                      </div>
+
+                      {/* Lurah Info */}
+                      <div className="flex-1 space-y-3 w-full">
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#0D3868] text-white">
+                              <UserCheck className="w-3 h-3" />
+                              <span>Lurah Panaikang</span>
+                            </span>
+                            {profileDraft.lurahPeriod && (
+                              <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-md">
+                                Masa Tugas: {profileDraft.lurahPeriod}
+                              </span>
+                            )}
+                          </div>
+                          <h4 className="mt-1 text-base sm:text-lg font-bold text-slate-900">
+                            {profileDraft.lurahName}
+                          </h4>
+                          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+                            {profileDraft.lurahNip && (
+                              <span className="font-mono-num">
+                                <strong>NIP:</strong> {profileDraft.lurahNip}
+                              </span>
+                            )}
+                            {profileDraft.lurahRank && (
+                              <span>
+                                <strong>Pangkat/Gol:</strong> {profileDraft.lurahRank}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {profileDraft.lurahMessage && (
+                          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 leading-relaxed italic">
+                            "{profileDraft.lurahMessage}"
+                          </div>
                         )}
                       </div>
-                      <label className="mt-2 inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold w-full cursor-pointer transition text-center">
-                        <Camera className="w-3 h-3" />
-                        <span>{profileDraft.lurahPhotoUrl ? 'Ganti Foto' : 'Unggah Foto'}</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
-                            try {
-                              const compressed = await compressImageFile(file);
-                              const updated = { ...profileDraft, lurahPhotoUrl: compressed };
-                              setProfileDraft(updated);
-                              await onSaveProfile(updated);
-                              setSuccessMessage('Foto Lurah berhasil diperbarui.');
-                            } catch {
-                              setValidationErrors(['Gagal memproses foto Lurah.']);
-                            }
-                          }}
-                          className="hidden"
-                        />
-                      </label>
-                    </div>
-
-                    {/* Lurah Info */}
-                    <div className="flex-1 space-y-3 w-full">
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#0D3868] text-white">
-                            <UserCheck className="w-3 h-3" />
-                            <span>Lurah Panaikang</span>
-                          </span>
-                          {profileDraft.lurahPeriod && (
-                            <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-md">
-                              Masa Tugas: {profileDraft.lurahPeriod}
-                            </span>
-                          )}
-                        </div>
-                        <h4 className="mt-1 text-base sm:text-lg font-bold text-slate-900">
-                          {profileDraft.lurahName}
-                        </h4>
-                        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
-                          {profileDraft.lurahNip && (
-                            <span className="font-mono-num">
-                              <strong>NIP:</strong> {profileDraft.lurahNip}
-                            </span>
-                          )}
-                          {profileDraft.lurahRank && (
-                            <span>
-                              <strong>Pangkat/Gol:</strong> {profileDraft.lurahRank}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {profileDraft.lurahMessage && (
-                        <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 leading-relaxed italic">
-                          "{profileDraft.lurahMessage}"
-                        </div>
-                      )}
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            </AdminCollapsibleBar>
 
             {/* Subsection 01.2: Manajemen Struktur Jabatan Perangkat Kelurahan (Tambah, Edit, Hapus) */}
-            <div className="pt-4 border-t border-slate-200">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                    <Briefcase className="w-4 h-4 text-[#1C8237]" />
-                    <span>02. Struktur Jabatan & Perangkat Kelurahan</span>
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Metode fleksibel untuk <strong>Tambah, Edit, dan Hapus Jabatan</strong> apabila
-                    terjadi mutasi, promosi, atau penyesuaian SOTK kelurahan.
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            <AdminCollapsibleBar
+              sectionKey="profil_pejabat"
+              title={`02. Struktur Jabatan & Perangkat Kelurahan (${profileDraft.officials?.length || 0} Pejabat)`}
+              subtitle="Manajemen jabatan struktural, bagan organisasi dinamis & staf perangkat kelurahan"
+              icon={<Briefcase className="w-5 h-5 text-[#1C8237]" />}
+              badge={
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300">
+                  {profileDraft.officials?.length || 0} Pejabat Terdaftar
+                </span>
+              }
+              isCollapsed={isSectionCollapsed('profil_pejabat')}
+              onToggle={() => toggleSectionCollapse('profil_pejabat')}
+              headerActions={
+                <div className="flex flex-wrap items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => setShowAdminBaganKelurahan(true)}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 text-[#0D3868] border border-sky-200 text-xs font-bold transition-all shadow-2xs cursor-pointer whitespace-nowrap"
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-[#0D3868] border border-sky-200 text-xs font-bold transition-all shadow-2xs cursor-pointer whitespace-nowrap"
                   >
-                    <Building2 className="w-4 h-4" />
-                    <span>Pratinjau Bagan Kelurahan</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowAdminBaganRtRw(true)}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-all shadow-2xs cursor-pointer whitespace-nowrap"
-                  >
-                    <Users className="w-4 h-4" />
-                    <span>Pratinjau Bagan RT/RW</span>
+                    <Building2 className="w-3.5 h-3.5" />
+                    <span>Bagan Kelurahan</span>
                   </button>
                   <button
                     type="button"
                     onClick={handleOpenAddOfficial}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold transition-all shadow-xs cursor-pointer whitespace-nowrap"
                   >
-                    <UserPlus className="w-4 h-4" />
-                    <span>+ Tambah Jabatan Baru</span>
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>+ Tambah Jabatan</span>
                   </button>
                 </div>
-              </div>
+              }
+            >
+              <div className="p-5 sm:p-6 space-y-4">
+                <p className="text-xs text-slate-500 mb-2">
+                  Metode fleksibel untuk <strong>Tambah, Edit, dan Hapus Jabatan</strong> apabila
+                  terjadi mutasi, promosi, atau penyesuaian SOTK kelurahan.
+                </p>
 
               {/* Daftar Kartu Jabatan */}
               {(!profileDraft.officials || profileDraft.officials.length === 0) ? (
@@ -6077,20 +6442,34 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 />
               </div>
             </div>
-          </div>
+          </AdminCollapsibleBar>
+        </div>
 
           {/* Section 04: Alamat Kantor & Kontak Kelurahan (Tambah, Edit, Hapus) */}
-          <div className="pt-6 border-t border-slate-200">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-[#0D3868]" />
-                  <span>04. Alamat Kantor Kelurahan & Kontak Resmi</span>
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Informasi resmi domisili kantor kelurahan, kode pos, jam operasional, telepon hotline, dan email pelayanan.
-                </p>
-              </div>
+          <AdminCollapsibleBar
+            sectionKey="profil_data_umum"
+            title="03. Alamat Kantor, Kontak Resmi & Batas Wilayah Administrasi"
+            subtitle="Alamat kantor, kontak telepon, email resmi, dan batas wilayah administrasi Kelurahan Panaikang"
+            icon={<Building2 className="w-5 h-5 text-[#0D3868]" />}
+            badge={
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300">
+                Data Resmi Kelurahan
+              </span>
+            }
+            isCollapsed={isSectionCollapsed('profil_data_umum')}
+            onToggle={() => toggleSectionCollapse('profil_data_umum')}
+          >
+            <div className="p-5 sm:p-6 space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-[#0D3868]" />
+                    <span>Alamat Kantor Kelurahan &amp; Kontak Resmi</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Informasi resmi domisili kantor kelurahan, kode pos, jam operasional, telepon hotline, dan email pelayanan.
+                  </p>
+                </div>
               <div className="flex items-center gap-2 self-start sm:self-auto">
                 {!profileDraft.officeAddress ? (
                   <button
@@ -6324,19 +6703,33 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               </div>
             )}
           </div>
+        </AdminCollapsibleBar>
 
           {/* Section 06: Pernyataan Visi Kelurahan (Tambah, Edit, Hapus) */}
-          <div className="pt-6 border-t border-slate-200">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <Quote className="w-4 h-4 text-[#0D3868]" />
-                  <span>06. Pernyataan Visi Kelurahan Panaikang</span>
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Visi utama arah pembangunan dan pelayanan kemasyarakatan Kelurahan Panaikang.
-                </p>
-              </div>
+          <AdminCollapsibleBar
+            sectionKey="profil_visi_misi"
+            title="04. Pernyataan Visi, Misi & Komitmen Pelayanan"
+            subtitle={`Visi: ${profileDraft.visi ? profileDraft.visi.slice(0, 65) + '...' : '-'} (${profileDraft.misi?.length || 0} Butir Misi)`}
+            icon={<Quote className="w-5 h-5 text-[#0D3868]" />}
+            badge={
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-300">
+                {profileDraft.misi?.length || 0} Butir Misi
+              </span>
+            }
+            isCollapsed={isSectionCollapsed('profil_visi_misi')}
+            onToggle={() => toggleSectionCollapse('profil_visi_misi')}
+          >
+            <div className="p-5 sm:p-6 space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <Quote className="w-4 h-4 text-[#0D3868]" />
+                    <span>Pernyataan Visi &amp; Butir Misi Kelurahan Panaikang</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Visi utama arah pembangunan dan butir-butir misi pelayanan kemasyarakatan Kelurahan Panaikang.
+                  </p>
+                </div>
               <div className="flex items-center gap-2 self-start sm:self-auto">
                 {!profileDraft.visi ? (
                   <button
@@ -6496,48 +6889,50 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               </div>
             )}
           </div>
-        </form>
-      )}
+        </AdminCollapsibleBar>
+      </form>
+    )}
 
       {/* ================= TAB 2: KELOLA INFORMASI SEPUTAR KELURAHAN PANAIKANG (CRUD) ================= */}
       {activeTab === 'info' && isTabAllowed('info') && (
         <div className="mt-6 space-y-6">
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div>
-              <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#E1306C] mb-1">
-                <Instagram className="w-3.5 h-3.5" />
-                <span>TERHUBUNG DENGAN INSTAGRAM @kelurahan.panaikang</span>
+          <AdminCollapsibleBar
+            sectionKey="info_berita"
+            title={`Informasi & Berita Seputar Kelurahan (${kelurahanInfos.length} Postingan)`}
+            subtitle="Sinkronisasi feed Instagram @kelurahan.panaikang & kelola publikasi berita kegiatan warga"
+            icon={<Newspaper className="w-5 h-5 text-[#E1306C]" />}
+            badge={
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-pink-50 text-pink-700 border border-pink-200">
+                Instagram @kelurahan.panaikang
+              </span>
+            }
+            isCollapsed={isSectionCollapsed('info_berita')}
+            onToggle={() => toggleSectionCollapse('info_berita')}
+            headerActions={
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleSyncInstagramAdmin}
+                  disabled={isSyncingIgAdmin}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100 text-[#E1306C] text-xs font-bold cursor-pointer whitespace-nowrap"
+                >
+                  <RefreshCw
+                    className={`w-3.5 h-3.5 ${isSyncingIgAdmin ? 'animate-spin' : ''}`}
+                  />
+                  <span>Sinkronkan IG</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={openAddInfoForm}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold cursor-pointer whitespace-nowrap shadow-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Tambah Info</span>
+                </button>
               </div>
-              <h2 className="text-base font-bold text-[#0D3868]">
-                Kelola Informasi Seputar Kelurahan & Postingan Instagram @kelurahan.panaikang
-              </h2>
-              <p className="text-xs text-slate-500">
-                Lurah maupun Operator dapat menambah, mengedit, menyambungkan tautan postingan
-                Instagram @kelurahan.panaikang, mengunggah gambar, dan menghapus informasi.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2.5 self-start lg:self-auto">
-              <button
-                type="button"
-                onClick={handleSyncInstagramAdmin}
-                disabled={isSyncingIgAdmin}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100 text-[#E1306C] text-xs font-bold cursor-pointer whitespace-nowrap"
-              >
-                <RefreshCw
-                  className={`w-3.5 h-3.5 ${isSyncingIgAdmin ? 'animate-spin' : ''}`}
-                />
-                <span>Sinkronkan @kelurahan.panaikang</span>
-              </button>
-              <button
-                type="button"
-                onClick={openAddInfoForm}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs sm:text-sm font-bold cursor-pointer whitespace-nowrap"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Tambah Postingan / Informasi</span>
-              </button>
-            </div>
-          </div>
+            }
+          >
+            <div className="p-5 sm:p-6 space-y-6">
 
           {showInfoForm && (
             <form
@@ -6865,357 +7260,759 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             ))}
           </div>
         </div>
+      </AdminCollapsibleBar>
+    </div>
+  )}
+
+      {/* ================= LANJUTAN ADMIN LAYANAN KELURAHAN: ARSIP & PENGADUAN WARGA ================= */}
+      {(activeTab === 'pengurusan_warga' || activeTab === 'laporan') &&
+        (isTabAllowed('pengurusan_warga') || isTabAllowed('laporan')) && (
+        <div className="mt-6 space-y-6">
+          {/* 02. ARSIP FISIK LAPORAN BULANAN PERMASALAHAN LINGKUNGAN (PDF) */}
+          <AdminCollapsibleBar
+            sectionKey="laporan_arsip"
+            title="02. Arsip Fisik Laporan Bulanan Permasalahan Lingkungan (PDF)"
+            subtitle="Ekspor &amp; cetak lembar arsip rekapitulasi permasalahan lingkungan per periode"
+            icon={<Printer className="w-4 h-4 text-[#0D3868]" />}
+            badge={
+              <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold">
+                Arsip Resmi
+              </span>
+            }
+            isCollapsed={isSectionCollapsed('laporan_arsip')}
+            onToggle={() => toggleSectionCollapse('laporan_arsip')}
+          >
+            <div className="p-4 sm:p-6 bg-slate-50/50">
+              <MonthlyArchivePdfPanel
+                profile={profile}
+                reports={reports}
+                wasteUnits={wasteUnits}
+                cleanupEvents={cleanupEvents}
+                rwGroups={rwGroups}
+                onPdfDownloaded={(res) =>
+                  setSuccessMessage(
+                    `Arsip Fisik Laporan Bulanan Permasalahan Lingkungan (${res.periodLabel}) berhasil diunduh sebagai file PDF: ${res.fileName}`
+                  )
+                }
+              />
+            </div>
+          </AdminCollapsibleBar>
+        </div>
       )}
 
-      {/* ================= TAB 3: KELOLA LAPORAN WARGA (CRUD) ================= */}
-      {activeTab === 'laporan' && isTabAllowed('laporan') && (
+      {/* ================= MENU BARU: KELOLA WHATSAPP GATEAWAY ================= */}
+      {activeTab === 'whatsapp_gateway' && isTabAllowed('whatsapp_gateway') && (
         <div className="mt-6 space-y-6">
-          {/* Pintasan ke Modul Pelayanan & Pengurusan Warga */}
-          <div className="bg-gradient-to-r from-[#0D3868] to-[#0277BD] rounded-2xl p-4 sm:p-5 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <div className="text-[11px] font-extrabold uppercase tracking-wider text-amber-300">
-                🏛️ Modul Pelayanan Administrasi Terpadu
-              </div>
-              <div className="text-sm sm:text-base font-extrabold">
-                Ingin Mengelola Pelayanan Surat & Administrasi Warga?
-              </div>
-              <p className="text-xs text-sky-100 mt-0.5">
-                Buka tab khusus <strong>Pengurusan Warga</strong> untuk memproses 13 layanan surat resmi
-                (SKCK, SKU, SKTM, Domisili, Belum Nikah, dll.), menerbitkan Nomor Registrasi Surat Resmi, dan mencetak Dokumen KOP Resmi.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => handleTabSwitch('pengurusan_warga')}
-              className="self-start sm:self-center px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-extrabold whitespace-nowrap cursor-pointer shrink-0"
-            >
-              Buka Pengurusan Warga →
-            </button>
-          </div>
-
-          {/* ARSIP FISIK LAPORAN BULANAN PERMASALAHAN LINGKUNGAN (PDF) */}
-          <MonthlyArchivePdfPanel
-            profile={profile}
-            reports={reports}
-            wasteUnits={wasteUnits}
-            cleanupEvents={cleanupEvents}
-            rwGroups={rwGroups}
-            onPdfDownloaded={(res) =>
-              setSuccessMessage(
-                `Arsip Fisik Laporan Bulanan Permasalahan Lingkungan (${res.periodLabel}) berhasil diunduh sebagai file PDF: ${res.fileName}`
+          {/* 01. KARTU STATUS KONEKSI & KONFIGURASI FONNTE WHATSAPP GATEAWAY */}
+          <AdminCollapsibleBar
+            sectionKey="wa_gateway_status_card"
+            title="01. Status Koneksi Perangkat & Konfigurasi WhatsApp Gateaway (Fonnte API)"
+            subtitle="Pantau status koneksi perangkat Fonnte, kuota pengiriman pesan otomatis, dan panduan aktivasi QR Code"
+            icon={<MessageCircle className="w-5 h-5 text-[#128C7E]" />}
+            badge={
+              waGatewayStatus?.ok ? (
+                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300">
+                  ● Terhubung (Online)
+                </span>
+              ) : (
+                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300">
+                  Periksa Status Perangkat
+                </span>
               )
             }
-          />
-
-          {/* MANAJEMEN NOMOR WHATSAPP PENERIMA LAPORAN WARGA (KHUSUS LURAH / ADMIN) */}
-          <div className="bg-white rounded-2xl border-2 border-[#128C7E]/30 p-5 sm:p-6 space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-[#128C7E] text-white flex items-center justify-center shrink-0">
-                  <MessageCircle className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                    <span className="font-bold text-[#128C7E]">
-                      KHUSUS HALAMAN ADMIN · DISEMBUNYIKAN DARI PUBLIK WARGA
-                    </span>
-                    <span aria-hidden="true">·</span>
-                    <span>Semua Nomor Terdaftar Menerima Laporan Warga</span>
-                  </div>
-                  <h2 className="text-base sm:text-lg font-extrabold text-[#0D3868] mt-0.5">
-                    Manajemen & Koordinasi Nomor WhatsApp Penerima Laporan Warga
-                  </h2>
-                  <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                    Daftar nama, jabatan, dan nomor telepon penerima laporan di bawah ini <strong>tidak ditampilkan pada menu Untuk Warga</strong> (hanya terlihat di Halaman Admin). Seluruh nomor aktif otomatis menerima laporan dari warga dan dapat langsung saling berkoordinasi menggunakan tombol <strong>Koordinasi WA</strong> pada setiap kartu penerima maupun pada setiap baris laporan.
-                  </p>
-                </div>
+            isCollapsed={isSectionCollapsed('wa_gateway_status_card')}
+            onToggle={() => toggleSectionCollapse('wa_gateway_status_card')}
+            headerActions={
+              <button
+                type="button"
+                disabled={isCheckingWaGateway}
+                onClick={fetchAdminWaGatewayStatus}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-60 text-xs font-bold text-slate-700 cursor-pointer shadow-2xs"
+              >
+                <RefreshCw
+                  className={`w-3.5 h-3.5 ${isCheckingWaGateway ? 'animate-spin text-emerald-600' : ''}`}
+                />
+                <span>{isCheckingWaGateway ? 'Memeriksa...' : 'Cek Status Gateway'}</span>
+              </button>
+            }
+          >
+            <div className="p-5 sm:p-6 space-y-4">
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 leading-relaxed">
+                Begitu warga men-submit <strong>Laporan Pengaduan</strong>, sistem secara otomatis mengirimkan pesan WhatsApp langsung melalui <strong>Fonnte WhatsApp Gateaway</strong> ke seluruh nomor pejabat/pihak terkait yang aktif (Lurah, Seklur, Satgas, Koordinator RW/RT) <strong>tanpa melalui proses kirim WA pribadi oleh warga pembuat laporan</strong>.
               </div>
 
+              {/* Status Koneksi WhatsApp Gateway (Fonnte API) */}
+              <div className="rounded-2xl border border-slate-200/90 p-4 transition-all duration-200 bg-white shadow-xs">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                        waGatewayStatus?.ok
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : waGatewayStatus?.deviceStatus === 'disconnect'
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      <MessageCircle className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
+                          Status WhatsApp Gateway (Fonnte API)
+                        </span>
+                        {isCheckingWaGateway ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                            <RefreshCw className="w-3 h-3 animate-spin" />
+                            <span>Memeriksa koneksi...</span>
+                          </span>
+                        ) : waGatewayStatus?.ok ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                            <span>Gateway Terhubung (Online)</span>
+                          </span>
+                        ) : waGatewayStatus?.deviceStatus === 'disconnect' ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
+                            <AlertCircle className="w-3 h-3 text-amber-600" />
+                            <span>Perangkat Disconnected (Perlu Scan QR)</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-300">
+                            <span>{waGatewayStatus?.message || 'Status Tidak Diketahui'}</span>
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                        {waGatewayStatus?.message ||
+                          'Memeriksa status perangkat WhatsApp gateway Fonnte...'}
+                      </p>
+                      {waGatewayStatus?.device && (
+                        <div className="flex flex-wrap items-center gap-3 mt-1.5 text-[11px] text-slate-500">
+                          <span>
+                            Perangkat Terdaftar: <strong>{waGatewayStatus.device}</strong>
+                          </span>
+                          {waGatewayStatus.quota && (
+                            <span>
+                              Sisa Kuota: <strong>{waGatewayStatus.quota} pesan</strong>
+                            </span>
+                          )}
+                          {waGatewayStatus.package && (
+                            <span>
+                              Paket: <strong>{waGatewayStatus.package}</strong>
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0 self-start md:self-center">
+                    <button
+                      type="button"
+                      disabled={isCheckingWaGateway}
+                      onClick={fetchAdminWaGatewayStatus}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-60 text-xs font-bold text-slate-700 cursor-pointer shadow-2xs"
+                      title="Periksa ulang status koneksi Fonnte gateway"
+                    >
+                      <RefreshCw
+                        className={`w-3.5 h-3.5 ${isCheckingWaGateway ? 'animate-spin text-emerald-600' : ''}`}
+                      />
+                      <span>{isCheckingWaGateway ? 'Memeriksa...' : 'Cek Status Gateway'}</span>
+                    </button>
+                    {waGatewayStatus && !waGatewayStatus.ok && (
+                      <a
+                        href="https://fonnte.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-2xs"
+                        title="Buka dashboard Fonnte untuk scan QR Code perangkat"
+                      >
+                        <span>Buka fonnte.com</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {/* Panduan jika status Disconnected */}
+                {waGatewayStatus && !waGatewayStatus.ok && (
+                  <div className="mt-3 pt-3 border-t border-amber-200/80 bg-amber-50/70 rounded-xl p-3 text-xs text-amber-900 space-y-1.5">
+                    <div className="font-bold flex items-center gap-1.5 text-amber-950">
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>Petunjuk untuk Master Admin / Petugas:</span>
+                    </div>
+                    <ol className="list-decimal list-inside space-y-1 text-slate-700 pl-1">
+                      <li>
+                        Login ke akun Fonnte Anda di{' '}
+                        <a
+                          href="https://fonnte.com"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-amber-800 font-bold underline"
+                        >
+                          fonnte.com
+                        </a>.
+                      </li>
+                      <li>
+                        Pilih menu <strong>Device</strong>, lalu klik tombol <strong>Scan WhatsApp / QR Code</strong>.
+                      </li>
+                      <li>
+                        Buka aplikasi WhatsApp di HP Anda &gt; menu <strong>Perangkat Tertaut (Linked Devices)</strong> &gt; arahkan kamera ke QR Code di layar.
+                      </li>
+                      <li>
+                        Setelah terhubung di Fonnte, klik tombol <strong>Cek Status Gateway</strong> di atas.
+                      </li>
+                    </ol>
+                    <div className="text-[11px] text-slate-600 pt-1 border-t border-amber-200/60">
+                      💡 <em>Solusi Langsung:</em> Sambil menunggu scan QR, Anda tetap dapat menggunakan tombol hijau <strong>&quot;Koordinasi WA&quot;</strong> pada daftar penerima di bawah untuk menghubungi tim secara manual via WhatsApp.
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </AdminCollapsibleBar>
+
+          {/* 02. KARTU DAFTAR NOMOR WHATSAPP PENERIMA & FILTER RTRW */}
+          <AdminCollapsibleBar
+            sectionKey="laporan_whatsapp_mgmt"
+            title="02. Kelola Nomor WhatsApp RTRW & Daftar Penerima Pesan Otomatis"
+            subtitle="Tambah, edit, filter wilayah RTRW, serta aktifkan/nonaktifkan nomor penerima notifikasi WhatsApp Gateaway"
+            icon={<Phone className="w-5 h-5 text-[#128C7E]" />}
+            badge={
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300">
+                {whatsappRecipients.filter((r) => r.isActive).length}/{whatsappRecipients.length} Penerima Aktif
+              </span>
+            }
+            isCollapsed={isSectionCollapsed('laporan_whatsapp_mgmt')}
+            onToggle={() => toggleSectionCollapse('laporan_whatsapp_mgmt')}
+            headerActions={
               <button
                 type="button"
                 onClick={openAddWaRecipientForm}
-                className="self-start sm:self-auto inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#128C7E] hover:bg-[#075E54] text-white text-xs sm:text-sm font-bold cursor-pointer whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#128C7E] hover:bg-[#075E54] text-white text-xs font-bold cursor-pointer whitespace-nowrap shadow-xs"
               >
-                <Plus className="w-4 h-4" />
-                <span>+ Tambah Nomor WhatsApp</span>
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Tambah Nomor WA</span>
               </button>
-            </div>
-
-            {showWaForm && (
-              <form
-                onSubmit={handleWaFormSubmit}
-                className="rounded-2xl border-2 border-emerald-300 bg-emerald-50/40 p-5 space-y-4"
-              >
-                <div className="flex items-center justify-between pb-2 border-b border-emerald-200">
-                  <h3 className="text-sm font-extrabold text-[#075E54]">
-                    {editingWaId
-                      ? 'Edit Nomor Telepon Penerima WhatsApp Laporan Warga'
-                      : 'Tambah Nomor Telepon Penerima WhatsApp Baru'}
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowWaForm(false);
-                      setEditingWaId(null);
-                    }}
-                    className="text-slate-400 hover:text-slate-700 cursor-pointer"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Nama Pejabat / Penerima *
-                    </label>
-                    <input
-                      type="text"
-                      value={waForm.name || ''}
-                      onChange={(e) => setWaForm({ ...waForm, name: e.target.value })}
-                      placeholder="Contoh: Muthmainnah, SE, MM (Lurah)"
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Jabatan / Peran Penerima *
-                    </label>
-                    <input
-                      type="text"
-                      value={waForm.role || ''}
-                      onChange={(e) => setWaForm({ ...waForm, role: e.target.value })}
-                      placeholder="Contoh: Lurah Panaikang / Admin Satgas"
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Nomor Telepon WhatsApp * (08xx / 628xx)
-                    </label>
-                    <input
-                      type="tel"
-                      value={waForm.phoneNumber || ''}
-                      onChange={(e) => setWaForm({ ...waForm, phoneNumber: e.target.value })}
-                      placeholder="Contoh: 081144402026"
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white font-mono-num"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Cakupan Wilayah Laporan
-                    </label>
+            }
+          >
+            <div className="p-5 sm:p-6 space-y-5">
+              {/* Bilah Filter & Kelola Status Penerima WhatsApp RTRW */}
+              <div className="rounded-2xl border border-[#128C7E]/30 bg-emerald-50/30 p-4 space-y-3">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                      <Filter className="w-3.5 h-3.5 text-[#128C7E]" />
+                      <span>Filter RTRW / Wilayah:</span>
+                    </span>
                     <select
-                      value={waForm.rwScope || 'Seluruh Wilayah'}
-                      onChange={(e) => setWaForm({ ...waForm, rwScope: e.target.value })}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white"
+                      value={waRecipientRwFilter}
+                      onChange={(e) => setWaRecipientRwFilter(e.target.value)}
+                      className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#128C7E]"
                     >
-                      <option value="Seluruh Wilayah">Seluruh Wilayah Kelurahan Panaikang</option>
-                      {RW_LIST.map((r) => (
-                        <option key={r} value={r}>
-                          Khusus {r}
+                      <option value="SEMUA">Semua Wilayah &amp; RW ({whatsappRecipients.length})</option>
+                      <option value="KHUSUS_RTRW">Khusus RTRW Saja</option>
+                      <option value="SELURUH_WILAYAH">Khusus Seluruh Wilayah (Lurah/Pejabat)</option>
+                      {RW_LIST.map((rw) => (
+                        <option key={rw} value={rw}>
+                          Wilayah {rw}
                         </option>
                       ))}
                     </select>
+
+                    <select
+                      value={waRecipientStatusFilter}
+                      onChange={(e) =>
+                        setWaRecipientStatusFilter(e.target.value as 'SEMUA' | 'AKTIF' | 'NONAKTIF')
+                      }
+                      className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#128C7E]"
+                    >
+                      <option value="SEMUA">Semua Status (Aktif &amp; Nonaktif)</option>
+                      <option value="AKTIF">Hanya Aktif Menerima (ON)</option>
+                      <option value="NONAKTIF">Hanya Nonaktif (OFF)</option>
+                    </select>
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Keterangan / Catatan Layanan
-                    </label>
+
+                  <div className="relative min-w-[220px]">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
-                      value={waForm.notes || ''}
-                      onChange={(e) => setWaForm({ ...waForm, notes: e.target.value })}
-                      placeholder="Contoh: Aktif 24 Jam menerima pengaduan warga"
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white"
+                      value={waRecipientSearch}
+                      onChange={(e) => setWaRecipientSearch(e.target.value)}
+                      placeholder="Cari nama, nomor WA, peran, catatan..."
+                      className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-300 bg-white focus:outline-none focus:border-[#128C7E]"
                     />
                   </div>
-                  <div className="flex flex-col gap-2 pt-2 sm:pt-4">
-                    <label className="inline-flex items-center gap-2 text-xs font-bold text-[#075E54] cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(waForm.isPrimary)}
-                        onChange={(e) => setWaForm({ ...waForm, isPrimary: e.target.checked })}
-                        className="rounded text-[#128C7E]"
-                      />
-                      <span>Jadikan Nomor Utama (Otomatis Terbuka Saat Warga Lapor)</span>
-                    </label>
-                    <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={waForm.isActive !== false}
-                        onChange={(e) => setWaForm({ ...waForm, isActive: e.target.checked })}
-                        className="rounded text-[#128C7E]"
-                      />
-                      <span>Tampilkan & Aktifkan di Formulir Laporan Warga</span>
-                    </label>
+                </div>
+
+                {/* Bar Aksi Massal Aktifkan/Nonaktifkan */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-emerald-200/60 text-xs text-slate-600">
+                  <div className="flex items-center gap-2">
+                    <span>
+                      Menampilkan <strong>{filteredWaRecipients.length}</strong> dari <strong>{whatsappRecipients.length}</strong> nomor terdaftar
+                    </span>
+                    {(waRecipientRwFilter !== 'SEMUA' || waRecipientStatusFilter !== 'SEMUA' || waRecipientSearch.trim()) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setWaRecipientRwFilter('SEMUA');
+                          setWaRecipientStatusFilter('SEMUA');
+                          setWaRecipientSearch('');
+                        }}
+                        className="text-[11px] font-bold text-[#128C7E] hover:underline cursor-pointer"
+                      >
+                        Reset Filter
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-slate-500 mr-1">Tindakan Massal:</span>
+                    <button
+                      type="button"
+                      onClick={() => handleBulkToggleActiveWaRecipients(true)}
+                      disabled={filteredWaRecipients.length === 0}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300 text-[11px] font-bold cursor-pointer disabled:opacity-50"
+                      title="Aktifkan seluruh nomor penerima yang sedang tampil"
+                    >
+                      <Check className="w-3 h-3 text-emerald-700" />
+                      <span>Aktifkan Semua Terfilter</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleBulkToggleActiveWaRecipients(false)}
+                      disabled={filteredWaRecipients.length === 0}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 text-[11px] font-bold cursor-pointer disabled:opacity-50"
+                      title="Nonaktifkan seluruh nomor penerima yang sedang tampil"
+                    >
+                      <X className="w-3 h-3 text-amber-700" />
+                      <span>Nonaktifkan Semua Terfilter</span>
+                    </button>
                   </div>
                 </div>
+              </div>
 
-                <div className="flex items-center justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowWaForm(false);
-                      setEditingWaId(null);
-                    }}
-                    className="px-4 py-2 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-700 cursor-pointer"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#128C7E] hover:bg-[#075E54] text-white text-xs font-bold cursor-pointer"
-                  >
-                    <Check className="w-4 h-4" />
-                    <span>
-                      {editingWaId ? 'Simpan Perubahan Nomor WA' : 'Simpan Nomor WhatsApp Baru'}
-                    </span>
-                  </button>
-                </div>
-              </form>
-            )}
+              {showWaForm && (
+                <form
+                  onSubmit={handleWaFormSubmit}
+                  className="rounded-2xl border-2 border-emerald-300 bg-emerald-50/40 p-5 space-y-4"
+                >
+                  <div className="flex items-center justify-between pb-2 border-b border-emerald-200">
+                    <h3 className="text-sm font-extrabold text-[#075E54]">
+                      {editingWaId
+                        ? 'Edit Nomor Telepon Penerima WhatsApp Laporan Warga'
+                        : 'Tambah Nomor Telepon Penerima WhatsApp Baru'}
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowWaForm(false);
+                        setEditingWaId(null);
+                      }}
+                      className="text-slate-400 hover:text-slate-700 cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
 
-            {/* Daftar Nomor WhatsApp Terdaftar (Khusus Admin & Koordinasi Antar Penerima) */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {whatsappRecipients.map((recipient) => {
-                const coordMsg = buildInterRecipientCoordinationMessage(
-                  recipient,
-                  whatsappRecipients,
-                  reports
-                );
-                const coordWaUrl = buildWhatsAppUrl(recipient.phoneNumber, coordMsg);
-                return (
-                  <div
-                    key={recipient.id}
-                    className={`rounded-2xl border p-4 flex flex-col justify-between gap-3 ${
-                      recipient.isPrimary
-                        ? 'bg-emerald-50/60 border-2 border-[#128C7E]'
-                        : 'bg-slate-50/70 border-slate-200'
-                    }`}
-                  >
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[11px] font-bold text-[#075E54]">
-                          {recipient.isPrimary
-                            ? '★ PENERIMA UTAMA · TERIMA SEMUA LAPORAN'
-                            : `TERIMA LAPORAN (${recipient.rwScope})`}
-                        </span>
-                        <span
-                          className={`text-[11px] font-semibold ${
-                            recipient.isActive ? 'text-emerald-700' : 'text-slate-400'
-                          }`}
-                        >
-                          {recipient.isActive ? '● Aktif Menerima' : '○ Nonaktif'}
-                        </span>
-                      </div>
-                      <h3 className="text-sm font-extrabold text-[#0D3868]">{recipient.name}</h3>
-                      <div className="text-xs text-slate-600">{recipient.role}</div>
-                      <div className="pt-1 flex items-center gap-1.5 text-xs font-mono-num font-bold text-[#128C7E]">
-                        <Phone className="w-3.5 h-3.5" />
-                        <span>{formatDisplayPhone(recipient.phoneNumber)}</span>
-                      </div>
-                      {recipient.notes && (
-                        <p className="text-[11px] text-slate-500 leading-relaxed pt-1">
-                          {recipient.notes}
-                        </p>
-                      )}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Nama Pejabat / Penerima *
+                      </label>
+                      <input
+                        type="text"
+                        value={waForm.name || ''}
+                        onChange={(e) => setWaForm({ ...waForm, name: e.target.value })}
+                        placeholder="Contoh: Muthmainnah, SE, MM (Lurah)"
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white"
+                      />
                     </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Jabatan / Peran Penerima *
+                      </label>
+                      <input
+                        type="text"
+                        value={waForm.role || ''}
+                        onChange={(e) => setWaForm({ ...waForm, role: e.target.value })}
+                        placeholder="Contoh: Lurah Panaikang / Admin Satgas"
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Nomor Telepon WhatsApp * (08xx / 628xx)
+                      </label>
+                      <input
+                        type="tel"
+                        value={waForm.phoneNumber || ''}
+                        onChange={(e) => setWaForm({ ...waForm, phoneNumber: e.target.value })}
+                        placeholder="Contoh: 081144402026"
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white font-mono-num"
+                      />
+                    </div>
+                  </div>
 
-                    <div className="pt-3 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <a
-                          href={coordWaUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#128C7E] hover:bg-[#075E54] text-white text-[11px] font-bold"
-                          title="Hubungi & Koordinasi Langsung via WhatsApp beserta Ringkasan Laporan"
-                        >
-                          <MessageCircle className="w-3 h-3" />
-                          <span>Koordinasi WA</span>
-                          <ExternalLink className="w-2.5 h-2.5" />
-                        </a>
-                        {!recipient.isPrimary && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Cakupan Wilayah Laporan
+                      </label>
+                      <select
+                        value={waForm.rwScope || 'Seluruh Wilayah'}
+                        onChange={(e) => setWaForm({ ...waForm, rwScope: e.target.value })}
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white"
+                      >
+                        <option value="Seluruh Wilayah">Seluruh Wilayah Kelurahan Panaikang</option>
+                        {RW_LIST.map((r) => (
+                          <option key={r} value={r}>
+                            Khusus {r}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Keterangan / Catatan Layanan
+                      </label>
+                      <input
+                        type="text"
+                        value={waForm.notes || ''}
+                        onChange={(e) => setWaForm({ ...waForm, notes: e.target.value })}
+                        placeholder="Contoh: Aktif 24 Jam menerima pengaduan warga"
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-2 pt-2 sm:pt-4">
+                      <label className="inline-flex items-center gap-2 text-xs font-bold text-[#075E54] cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(waForm.isPrimary)}
+                          onChange={(e) => setWaForm({ ...waForm, isPrimary: e.target.checked })}
+                          className="rounded text-[#128C7E]"
+                        />
+                        <span>Jadikan Penerima Utama (Prioritas Lurah / Pimpinan Kelurahan)</span>
+                      </label>
+                      <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={waForm.isActive !== false}
+                          onChange={(e) => setWaForm({ ...waForm, isActive: e.target.checked })}
+                          className="rounded text-[#128C7E]"
+                        />
+                        <span>Aktifkan Penerimaan WA Otomatis Saat Pengaduan Warga Masuk</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowWaForm(false);
+                        setEditingWaId(null);
+                      }}
+                      className="px-4 py-2 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-700 cursor-pointer"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#128C7E] hover:bg-[#075E54] text-white text-xs font-bold cursor-pointer"
+                    >
+                      <Check className="w-4 h-4" />
+                      <span>
+                        {editingWaId ? 'Simpan Perubahan Nomor WA' : 'Simpan Nomor WhatsApp Baru'}
+                      </span>
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Daftar Nomor WhatsApp Terdaftar (Khusus Admin & Koordinasi Antar Penerima) */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {filteredWaRecipients.map((recipient: WhatsAppRecipient) => {
+                  const coordMsg = buildInterRecipientCoordinationMessage(
+                    recipient,
+                    whatsappRecipients,
+                    reports
+                  );
+                  const coordWaUrl = buildWhatsAppUrl(recipient.phoneNumber, coordMsg);
+                  return (
+                    <div
+                      key={recipient.id}
+                      className={`rounded-2xl border p-4 flex flex-col justify-between gap-3 transition-all ${
+                        recipient.isPrimary
+                          ? 'bg-emerald-50/70 border-2 border-[#128C7E] shadow-2xs'
+                          : recipient.isActive
+                          ? 'bg-slate-50/80 border-slate-200'
+                          : 'bg-slate-100/60 border-dashed border-slate-300 opacity-80'
+                      }`}
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] font-bold text-[#075E54]">
+                            {recipient.isPrimary
+                              ? '★ PENERIMA UTAMA · TERIMA SEMUA LAPORAN'
+                              : `TERIMA LAPORAN (${recipient.rwScope})`}
+                          </span>
+                          {/* Tombol Toggle Aktif / Nonaktif Langsung */}
                           <button
                             type="button"
-                            onClick={() => handleSetPrimaryWaRecipient(recipient.id)}
-                            className="px-2.5 py-1 rounded-lg bg-white border border-emerald-300 hover:bg-emerald-50 text-[11px] font-bold text-[#075E54] cursor-pointer"
+                            onClick={() => handleToggleActiveWaRecipient(recipient.id)}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer transition-colors shadow-2xs ${
+                              recipient.isActive
+                                ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300'
+                                : 'bg-slate-200 hover:bg-slate-300 text-slate-700 border border-slate-300'
+                            }`}
+                            title={
+                              recipient.isActive
+                                ? 'Klik untuk menonaktifkan penerimaan WA'
+                                : 'Klik untuk mengaktifkan penerimaan WA'
+                            }
                           >
-                            Set Utama
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                recipient.isActive ? 'bg-emerald-600 animate-pulse' : 'bg-slate-400'
+                              }`}
+                            />
+                            <span>{recipient.isActive ? 'Aktif' : 'Nonaktif'}</span>
                           </button>
+                        </div>
+                        <h3 className="text-sm font-extrabold text-[#0D3868]">{recipient.name}</h3>
+                        <div className="text-xs text-slate-600">{recipient.role}</div>
+                        <div className="pt-1 flex items-center gap-1.5 text-xs font-mono-num font-bold text-[#128C7E]">
+                          <Phone className="w-3.5 h-3.5" />
+                          <span>{formatDisplayPhone(recipient.phoneNumber)}</span>
+                        </div>
+                        {recipient.notes && (
+                          <p className="text-[11px] text-slate-500 leading-relaxed pt-1">
+                            {recipient.notes}
+                          </p>
                         )}
                       </div>
 
-                      {confirmDeleteWaId === recipient.id ? (
-                        <div className="inline-flex items-center gap-1">
+                      <div className="pt-3 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
                           <button
                             type="button"
-                            onClick={() => handleExecuteDeleteWaRecipient(recipient.id)}
-                            className="px-2.5 py-1 rounded-lg bg-red-600 text-white text-[11px] font-bold cursor-pointer"
+                            disabled={testingWaId === recipient.id}
+                            onClick={() => handleTestAutoWaDispatch(recipient)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#0D3868] hover:bg-[#072647] disabled:opacity-50 text-white text-[11px] font-bold cursor-pointer shadow-2xs"
+                            title="Uji pengiriman notifikasi WA otomatis sistem ke nomor ini tanpa buka WA pribadi"
                           >
-                            Ya, Hapus
+                            <Send className="w-3 h-3" />
+                            <span>
+                              {testingWaId === recipient.id ? 'Mengirim...' : 'Tes Auto-WA'}
+                            </span>
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => setConfirmDeleteWaId(null)}
-                            className="px-2 py-1 rounded-lg bg-slate-200 text-slate-700 text-[11px] font-semibold cursor-pointer"
+                          <a
+                            href={coordWaUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#128C7E] hover:bg-[#075E54] text-white text-[11px] font-bold shadow-2xs"
+                            title="Hubungi & Koordinasi Langsung via WhatsApp beserta Ringkasan Laporan"
                           >
-                            Batal
-                          </button>
+                            <MessageCircle className="w-3 h-3" />
+                            <span>Koordinasi WA</span>
+                            <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                          {!recipient.isPrimary && (
+                            <button
+                              type="button"
+                              onClick={() => handleSetPrimaryWaRecipient(recipient.id)}
+                              className="px-2 py-1 rounded-lg bg-white border border-emerald-300 hover:bg-emerald-50 text-[11px] font-bold text-[#075E54] cursor-pointer"
+                            >
+                              Set Utama
+                            </button>
+                          )}
                         </div>
-                      ) : (
-                        <div className="inline-flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => openEditWaRecipientForm(recipient)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-[11px] font-semibold text-slate-700 cursor-pointer"
-                          >
-                            <Edit3 className="w-3 h-3 text-[#128C7E]" />
-                            <span>Edit</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setConfirmDeleteWaId(recipient.id)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-red-200 bg-red-50/70 hover:bg-red-100 text-[11px] font-semibold text-red-700 cursor-pointer"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                            <span>Hapus</span>
-                          </button>
-                        </div>
-                      )}
+
+                        {confirmDeleteWaId === recipient.id ? (
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleExecuteDeleteWaRecipient(recipient.id)}
+                              className="px-2.5 py-1 rounded-lg bg-red-600 text-white text-[11px] font-bold cursor-pointer"
+                            >
+                              Ya, Hapus
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteWaId(null)}
+                              className="px-2 py-1 rounded-lg bg-slate-200 text-slate-700 text-[11px] font-semibold cursor-pointer"
+                            >
+                              Batal
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => openEditWaRecipientForm(recipient)}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-[11px] font-semibold text-slate-700 cursor-pointer"
+                            >
+                              <Edit3 className="w-3 h-3 text-[#128C7E]" />
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteWaId(recipient.id)}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-red-200 bg-red-50/70 hover:bg-red-100 text-[11px] font-semibold text-red-700 cursor-pointer"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Hapus</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
+                  );
+                })}
+
+                {filteredWaRecipients.length === 0 && (
+                  <div className="col-span-full rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 p-8 text-center space-y-2">
+                    <MessageCircle className="w-8 h-8 text-slate-400 mx-auto" />
+                    <div className="text-sm font-bold text-slate-700">Tidak ada nomor WhatsApp yang cocok</div>
+                    <p className="text-xs text-slate-500 max-w-md mx-auto">
+                      Tidak ada nomor penerima yang sesuai dengan kriteria filter wilayah RW atau status yang dipilih.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWaRecipientRwFilter('SEMUA');
+                        setWaRecipientStatusFilter('SEMUA');
+                        setWaRecipientSearch('');
+                      }}
+                      className="mt-2 inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-xs font-bold text-slate-700 cursor-pointer"
+                    >
+                      Reset Filter &amp; Tampilkan Semua
+                    </button>
                   </div>
-                );
-              })}
+                )}
+              </div>
             </div>
-          </div>
+          </AdminCollapsibleBar>
 
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={reportSearch}
-                onChange={(e) => setReportSearch(e.target.value)}
-                placeholder="Cari tiket, judul laporan, nama pelapor, atau RW..."
-                className="w-full pl-10 pr-4 py-2 text-sm rounded-xl border border-slate-200 focus:border-[#0277BD] focus:outline-none"
-              />
+          {/* 03. KARTU LOG PENGIRIMAN WHATSAPP OTOMATIS */}
+          <AdminCollapsibleBar
+            sectionKey="laporan_whatsapp_logs"
+            title={`03. Riwayat & Log Pengiriman Otomatis WhatsApp Gateaway (${waDispatchLogs.length} Log)`}
+            subtitle="Riwayat pengiriman pesan otomatis pengaduan warga ke nomor Fonnte gateway yang terdaftar"
+            icon={<CheckCircle2 className="w-5 h-5 text-emerald-600" />}
+            badge={
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300">
+                {waDispatchLogs.length} Riwayat Pengiriman
+              </span>
+            }
+            isCollapsed={isSectionCollapsed('laporan_whatsapp_logs')}
+            onToggle={() => toggleSectionCollapse('laporan_whatsapp_logs')}
+          >
+            <div className="p-5 sm:p-6 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs font-extrabold text-[#0D3868] flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>
+                    Daftar Log Pengiriman WhatsApp Otomatis Pengaduan Masuk ({waDispatchLogs.length} Pengiriman)
+                  </span>
+                </div>
+                <span className="text-[11px] text-emerald-700 font-semibold">
+                  Terkirim otomatis saat pengaduan disubmit warga
+                </span>
+              </div>
+              {waDispatchLogs.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/60 p-6 text-center text-xs text-slate-500">
+                  Belum ada riwayat pengiriman otomatis tercatat pada sesi ini. Gunakan tombol <strong>Tes Auto-WA</strong> pada kartu penerima di atas untuk menguji pengiriman.
+                </div>
+              ) : (
+                <div className="max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/60 divide-y divide-slate-200/80 text-xs">
+                  {waDispatchLogs.slice(0, 15).map((log) => (
+                    <div
+                      key={log.id}
+                      className="px-3.5 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="font-mono-num font-bold text-[#0D3868]">
+                            #{log.ticketCode}
+                          </span>
+                          <span className="font-semibold text-slate-800">{log.reportTitle}</span>
+                          {log.status === 'GAGAL_KIRIM' ? (
+                            <span className="px-2 py-0.5 rounded bg-red-100 text-red-800 text-[10px] font-bold">
+                              ✕ GAGAL KIRIM (Fonnte)
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                              ✓ TERKIRIM OTOMATIS (Fonnte)
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          Penerima: <strong>{log.recipientName}</strong> ({log.recipientRole}) ·{' '}
+                          <span className="font-mono-num text-[#128C7E] font-semibold">
+                            {formatDisplayPhone(log.phoneNumber)}
+                          </span>
+                        </div>
+                        {log.status === 'GAGAL_KIRIM' && log.errorMessage && (
+                          <div className="text-[11px] text-red-600 font-medium">
+                            Keterangan: {log.errorMessage}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-[11px] font-mono-num text-slate-400 shrink-0">
+                        {new Date(log.dispatchedAt).toLocaleString('id-ID')}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <button
-              type="button"
-              onClick={openAddReportForm}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#0277BD] hover:bg-[#01579B] text-white text-xs sm:text-sm font-bold cursor-pointer whitespace-nowrap"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Tambah Data Laporan</span>
-            </button>
-          </div>
+          </AdminCollapsibleBar>
+        </div>
+      )}
 
-          {showReportForm && (
+      {/* ================= KARTU 03 ADMIN LAYANAN KELURAHAN: DAFTAR & VERIFIKASI LAPORAN WARGA ================= */}
+      {(activeTab === 'pengurusan_warga' || activeTab === 'laporan') &&
+        (isTabAllowed('pengurusan_warga') || isTabAllowed('laporan')) && (
+        <div className="mt-6 space-y-6">
+          <AdminCollapsibleBar
+            sectionKey="laporan_table"
+            title={`03. Daftar Laporan & Pengaduan Warga Kelurahan Panaikang (${filteredReports.length} Laporan)`}
+            subtitle="Pusat verifikasi pengaduan warga, penugasan tim lapangan, serta dokumentasi tindak lanjut penanganan"
+            icon={<FileText className="w-5 h-5 text-[#0277BD]" />}
+            badge={
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-300">
+                {reports.filter((r) => r.status === 'Selesai').length}/{reports.length} Selesai
+              </span>
+            }
+            isCollapsed={isSectionCollapsed('laporan_table')}
+            onToggle={() => toggleSectionCollapse('laporan_table')}
+            headerActions={
+              <button
+                type="button"
+                onClick={openAddReportForm}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0277BD] hover:bg-[#01579B] text-white text-xs font-bold cursor-pointer whitespace-nowrap shadow-xs"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Tambah Data Laporan</span>
+              </button>
+            }
+          >
+            <div className="p-5 sm:p-6 space-y-5">
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={reportSearch}
+                  onChange={(e) => setReportSearch(e.target.value)}
+                  placeholder="Cari tiket, judul laporan, nama pelapor, atau RW..."
+                  className="w-full pl-10 pr-4 py-2 text-sm rounded-xl border border-slate-200 focus:border-[#0277BD] focus:outline-none"
+                />
+              </div>
+
+              {showReportForm && (
             <form
               onSubmit={handleReportFormSubmit}
               className="bg-white rounded-2xl border-2 border-sky-200 p-6 space-y-5 shadow-xs"
@@ -7809,114 +8606,37 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             </div>
           </div>
         </div>
-      )}
+      </AdminCollapsibleBar>
+    </div>
+  )}
 
-      {/* ================= TAB 3: KELOLA BANK SAMPAH UNIT & TEBA (CRUD) ================= */}
+      {/* ================= TAB: PENGELOLAAN SAMPAH (BILAH PERKARTU) ================= */}
       {activeTab === 'sampah' && isTabAllowed('sampah') && (
         <div className="mt-6 space-y-6">
-          {/* Sub Tab Switcher: BSU vs Teba */}
-          <div className="flex flex-wrap items-center gap-2 p-1.5 rounded-2xl bg-slate-100 border border-slate-200">
-            <button
-              type="button"
-              onClick={() => setSampahSubTab('bsu')}
-              className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                sampahSubTab === 'bsu'
-                  ? 'bg-[#EF6C00] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-              }`}
-            >
-              <Recycle className="w-4 h-4 shrink-0" />
-              <span>Bank Sampah Unit (BSU)</span>
-              <span
-                className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono-num ${
-                  sampahSubTab === 'bsu'
-                    ? 'bg-amber-800/40 text-white'
-                    : 'bg-slate-200 text-slate-700'
-                }`}
-              >
-                {wasteUnits.length} Unit
+          <AdminCollapsibleBar
+            sectionKey="sampah_bsu"
+            title={`01. Manajemen Bank Sampah Unit (BSU) & Timbulan Sampah (${wasteUnits.length} Unit)`}
+            subtitle="Kelola data BSU RW, koordinator, jadwal angkut, dan rekapitulasi volume sampah terpilah"
+            icon={<Recycle className="w-5 h-5 text-[#EF6C00]" />}
+            badge={
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300">
+                {wasteUnits.length} BSU RW
               </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSampahSubTab('teba')}
-              className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                sampahSubTab === 'teba'
-                  ? 'bg-[#1C8237] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-              }`}
-            >
-              <Sprout className="w-4 h-4 shrink-0" />
-              <span>Teba</span>
-              <span
-                className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono-num ${
-                  sampahSubTab === 'teba'
-                    ? 'bg-emerald-800/40 text-white'
-                    : 'bg-slate-200 text-slate-700'
-                }`}
+            }
+            isCollapsed={isSectionCollapsed('sampah_bsu')}
+            onToggle={() => toggleSectionCollapse('sampah_bsu')}
+            headerActions={
+              <button
+                type="button"
+                onClick={openAddUnitForm}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#EF6C00] hover:bg-[#E65100] text-white text-xs font-bold cursor-pointer whitespace-nowrap shadow-xs"
               >
-                {tebaSpots.length} Titik
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSampahSubTab('biopori')}
-              className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                sampahSubTab === 'biopori'
-                  ? 'bg-[#146329] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-              }`}
-            >
-              <Layers className="w-4 h-4 shrink-0" />
-              <span>Biopori</span>
-              <span
-                className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono-num ${
-                  sampahSubTab === 'biopori'
-                    ? 'bg-emerald-900/40 text-white'
-                    : 'bg-slate-200 text-slate-700'
-                }`}
-              >
-                {bioporiPoints.length} Titik
-              </span>
-            </button>
-          </div>
-
-          {sampahSubTab === 'teba' ? (
-            <AdminTebaPanel
-              tebaSpots={tebaSpots}
-              onCreateTebaSpot={auditedOnCreateTebaSpot}
-              onUpdateTebaSpot={auditedOnUpdateTebaSpot}
-              onDeleteTebaSpot={auditedOnDeleteTebaSpot}
-            />
-          ) : sampahSubTab === 'biopori' ? (
-            <AdminBioporiPanel
-              bioporiPoints={bioporiPoints}
-              onCreateBioporiPoint={auditedOnCreateBioporiPoint}
-              onUpdateBioporiPoint={auditedOnUpdateBioporiPoint}
-              onDeleteBioporiPoint={auditedOnDeleteBioporiPoint}
-            />
-          ) : (
-            <div className="space-y-6">
-              <div className="bg-white rounded-2xl border border-slate-200 p-5 flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-bold text-[#0D3868]">
-                Manajemen Data Bank Sampah Unit (BSU) RW & Timbulan Sampah
-              </h2>
-              <p className="text-xs text-slate-500">
-                Tambah BSU baru, edit volume Organik/Anorganik/Residu, atau hapus entri.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={openAddUnitForm}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#EF6C00] hover:bg-[#E65100] text-white text-xs sm:text-sm font-bold cursor-pointer whitespace-nowrap"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Tambah BSU Baru</span>
-            </button>
-          </div>
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Tambah BSU</span>
+              </button>
+            }
+          >
+            <div className="p-5 sm:p-6 space-y-5">
 
           {showUnitForm && (
             <form
@@ -8245,32 +8965,34 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               </table>
             </div>
           </div>
+        </div>
+      </AdminCollapsibleBar>
 
-          {/* Menu Input Timbangan Harian BSU & Riwayat Log */}
-          <div className="bg-white rounded-2xl border-2 border-emerald-300 p-6 space-y-4 shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-800 shrink-0">
-                  <Scale className="w-5 h-5 text-emerald-700" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-[#0D3868]">
-                    Menu Input Timbangan Harian BSU & Rekapitulasi Mutasi
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Pusat pencatatan timbangan sampah harian BSU terintegrasi ({wasteLogs.length} Entri tercatat).
-                  </p>
-                </div>
-              </div>
+          {/* 02. Menu Input Timbangan Harian BSU & Riwayat Log */}
+          <AdminCollapsibleBar
+            sectionKey="sampah_logs"
+            title={`02. Input Timbangan Harian BSU & Rekapitulasi Mutasi (${wasteLogs.length} Log)`}
+            subtitle="Pusat pencatatan timbangan sampah harian BSU terintegrasi se-Kelurahan Panaikang"
+            icon={<Scale className="w-5 h-5 text-emerald-700" />}
+            badge={
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300">
+                {wasteLogs.length} Log Tercatat
+              </span>
+            }
+            isCollapsed={isSectionCollapsed('sampah_logs')}
+            onToggle={() => toggleSectionCollapse('sampah_logs')}
+            headerActions={
               <button
                 type="button"
                 onClick={openAddLogForm}
-                className="self-start sm:self-auto inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs sm:text-sm font-bold cursor-pointer transition-colors shadow-xs"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold cursor-pointer transition-colors shadow-xs"
               >
-                <Plus className="w-4 h-4" />
-                <span>+ Input Timbangan Harian BSU</span>
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Input Timbangan</span>
               </button>
-            </div>
+            }
+          >
+            <div className="p-5 sm:p-6 space-y-4">
 
             {showLogForm && (
               <form
@@ -8482,10 +9204,57 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               ))}
             </div>
           </div>
+        </AdminCollapsibleBar>
+
+          {/* 03. KARTU MANAJEMEN TITIK TEBA KOMUNAL */}
+          <AdminCollapsibleBar
+            sectionKey="sampah_teba"
+            title={`03. Manajemen Titik Teba Komunal & Pengolahan Sampah Organik (${tebaSpots.length} Titik)`}
+            subtitle="Kelola lokasi komposter Teba modern, kapasitas lubang, panen kompos, dan penanggung jawab RW"
+            icon={<Sprout className="w-5 h-5 text-[#1C8237]" />}
+            badge={
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300">
+                {tebaSpots.length} Titik Teba
+              </span>
+            }
+            isCollapsed={isSectionCollapsed('sampah_teba')}
+            onToggle={() => toggleSectionCollapse('sampah_teba')}
+          >
+            <div className="p-4 sm:p-5">
+              <AdminTebaPanel
+                tebaSpots={tebaSpots}
+                onCreateTebaSpot={auditedOnCreateTebaSpot}
+                onUpdateTebaSpot={auditedOnUpdateTebaSpot}
+                onDeleteTebaSpot={auditedOnDeleteTebaSpot}
+              />
+            </div>
+          </AdminCollapsibleBar>
+
+          {/* 04. KARTU MANAJEMEN LUBANG RESAPAN BIOPORI */}
+          <AdminCollapsibleBar
+            sectionKey="sampah_biopori"
+            title={`04. Manajemen Lubang Resapan Biopori Kelurahan Panaikang (${bioporiPoints.length} Titik)`}
+            subtitle="Kelola titik sumur resapan biopori, kedalaman, daya serap air hujan, dan jadwal kuras kompos"
+            icon={<Layers className="w-5 h-5 text-[#146329]" />}
+            badge={
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300">
+                {bioporiPoints.length} Titik Biopori
+              </span>
+            }
+            isCollapsed={isSectionCollapsed('sampah_biopori')}
+            onToggle={() => toggleSectionCollapse('sampah_biopori')}
+          >
+            <div className="p-4 sm:p-5">
+              <AdminBioporiPanel
+                bioporiPoints={bioporiPoints}
+                onCreateBioporiPoint={auditedOnCreateBioporiPoint}
+                onUpdateBioporiPoint={auditedOnUpdateBioporiPoint}
+                onDeleteBioporiPoint={auditedOnDeleteBioporiPoint}
+              />
+            </div>
+          </AdminCollapsibleBar>
         </div>
       )}
-    </div>
-  )}
 
       {/* ================= TAB 4: KELOLA JADWAL & UPLOAD FOTO KERJA BAKTI (CRUD) ================= */}
       {activeTab === 'kerjabakti' && isTabAllowed('kerjabakti') && (
@@ -8870,18 +9639,20 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           {/* PEMISAHAN DAFTAR KERJA BAKTI: 1. TERJADWAL (TANPA FOTO) & 2. TELAH DILAKSANAKAN (DENGAN FOTO) */}
           <div className="space-y-6">
             {/* TABEL 1: KERJA BAKTI TERJADWAL (TANPA FOTO) */}
-            <div className="bg-white rounded-2xl border border-amber-200 overflow-hidden">
-              <div className="px-5 py-3.5 bg-amber-50/80 border-b border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-amber-700" />
-                  <h3 className="text-xs sm:text-sm font-bold text-amber-950">
-                    1. Daftar Kerja Bakti Terjadwal (Akan Datang — Tidak Menggunakan Foto)
-                  </h3>
-                </div>
-                <span className="text-xs font-bold text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-full">
-                  {cleanupEvents.filter((e) => e.status !== 'Tuntas').length} Agenda Terjadwal
+            <AdminCollapsibleBar
+              sectionKey="kerjabakti_jadwal"
+              title={`1. Daftar Kerja Bakti Terjadwal (${cleanupEvents.filter((e) => e.status !== 'Tuntas').length} Agenda Terjadwal)`}
+              subtitle="Agenda kerja bakti yang akan datang — tidak menggunakan foto"
+              icon={<Clock className="w-5 h-5 text-amber-700" />}
+              badge={
+                <span className="text-xs font-bold text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300">
+                  {cleanupEvents.filter((e) => e.status !== 'Tuntas').length} Agenda
                 </span>
-              </div>
+              }
+              headerBg="bg-amber-50/70"
+              isCollapsed={isSectionCollapsed('kerjabakti_jadwal')}
+              onToggle={() => toggleSectionCollapse('kerjabakti_jadwal')}
+            >
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
@@ -8969,21 +9740,23 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                   </tbody>
                 </table>
               </div>
-            </div>
+            </AdminCollapsibleBar>
 
             {/* TABEL 2: KERJA BAKTI TELAH DILAKSANAKAN / TUNTAS (DENGAN FOTO DOKUMENTASI) */}
-            <div className="bg-white rounded-2xl border border-emerald-200 overflow-hidden">
-              <div className="px-5 py-3.5 bg-emerald-50/80 border-b border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <Camera className="w-4 h-4 text-[#1C8237]" />
-                  <h3 className="text-xs sm:text-sm font-bold text-emerald-950">
-                    2. Daftar Kerja Bakti Telah Dilaksanakan / Tuntas (Dengan Lampiran Foto Dokumentasi)
-                  </h3>
-                </div>
-                <span className="text-xs font-bold text-emerald-900 bg-emerald-100 px-2.5 py-0.5 rounded-full">
-                  {cleanupEvents.filter((e) => e.status === 'Tuntas').length} Kegiatan Terlaksana
+            <AdminCollapsibleBar
+              sectionKey="kerjabakti_dokumentasi"
+              title={`2. Daftar Kerja Bakti Telah Dilaksanakan / Tuntas (${cleanupEvents.filter((e) => e.status === 'Tuntas').length} Kegiatan Terlaksana)`}
+              subtitle="Daftar kerja bakti tuntas dengan lampiran foto dokumentasi kegiatan"
+              icon={<Camera className="w-5 h-5 text-[#1C8237]" />}
+              badge={
+                <span className="text-xs font-bold text-emerald-900 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300">
+                  {cleanupEvents.filter((e) => e.status === 'Tuntas').length} Terlaksana
                 </span>
-              </div>
+              }
+              headerBg="bg-emerald-50/70"
+              isCollapsed={isSectionCollapsed('kerjabakti_dokumentasi')}
+              onToggle={() => toggleSectionCollapse('kerjabakti_dokumentasi')}
+            >
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
@@ -9096,32 +9869,25 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                   </tbody>
                 </table>
               </div>
-            </div>
+            </AdminCollapsibleBar>
 
             {/* ================= PANEL 3: BILAH TERSENDIRI SOROTAN KERJA BAKTI INSTAGRAM (3 STORY TERBARU) ================= */}
-            <div className="rounded-2xl border border-pink-200 bg-gradient-to-br from-pink-50/70 via-white to-purple-50/60 overflow-hidden shadow-xs">
-              <div className="px-4 py-4 bg-white/90 border-b border-pink-200/80 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                <div className="flex items-start sm:items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#F58529] via-[#DD2A7B] to-[#8134AF] flex items-center justify-center text-white shrink-0 shadow-xs">
-                    <Instagram className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs sm:text-sm font-extrabold text-slate-900 uppercase tracking-wider">
-                        3. Sinkronisasi Bilah Sorotan Kerja Bakti Instagram @kelurahan.panaikang
-                      </span>
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-pink-100 text-pink-800 border border-pink-200 text-[11px] font-bold">
-                        Bilah Tersendiri · Maks. 3 Story Terbaru
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
-                      Terpisah dari Foto Dokumentasi Kerja Bakti reguler di atas. Panel ini menyinkronkan dan menampilkan <strong>hanya 3 postingan story Sorotan Kerja Bakti terbaru</strong> pada bilah khusus di bawah bagian Foto Kerja Bakti halaman publik/warga.
-                    </p>
-                  </div>
-                </div>
-
+            <AdminCollapsibleBar
+              sectionKey="kerjabakti_sorotan_ig"
+              title="3. Sinkronisasi Bilah Sorotan Kerja Bakti Instagram @kelurahan.panaikang"
+              subtitle="Menampilkan 3 postingan story Sorotan Kerja Bakti terbaru pada bilah khusus"
+              icon={<Instagram className="w-5 h-5 text-[#DD2A7B]" />}
+              badge={
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-pink-100 text-pink-800 border border-pink-200 text-xs font-bold">
+                  Maks. 3 Story Terbaru
+                </span>
+              }
+              headerBg="bg-gradient-to-r from-pink-50/70 via-white to-purple-50/60"
+              isCollapsed={isSectionCollapsed('kerjabakti_sorotan_ig')}
+              onToggle={() => toggleSectionCollapse('kerjabakti_sorotan_ig')}
+              headerActions={
                 <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                  <div className="text-[11px] text-slate-600 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl font-medium">
+                  <div className="text-[11px] text-slate-600 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl font-medium hidden sm:block">
                     Sinkron terakhir:{' '}
                     <span className="font-bold text-slate-900">
                       {kerjaBaktiHighlightsSyncedAt || 'Tersinkron Otomatis'}
@@ -9143,8 +9909,8 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     </span>
                   </button>
                 </div>
-              </div>
-
+              }
+            >
               <div className="p-4 sm:p-5">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {(kerjaBaktiHighlights || INITIAL_KERJABAKTI_IG_HIGHLIGHTS)
@@ -9209,7 +9975,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     ))}
                 </div>
               </div>
-            </div>
+            </AdminCollapsibleBar>
           </div>
         </div>
       )}
@@ -9217,95 +9983,51 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       {/* ================= TAB URBAN FARMING (CRUD KEBUN, BIBIT, UPLOAD GAMBAR, SIMPAN DATA) ================= */}
       {activeTab === 'urban_farming' && isTabAllowed('urban_farming') && (
         <div className="mt-6">
-          <AdminUrbanFarmingPanel
-            spots={urbanFarmingSpots}
-            seedRequests={seedRequests}
-            rwGroups={rwGroups}
-            profile={profile}
-            adminOfficerName={
-              adminSession?.fullName || 'Administrator Satu Data Panaikang'
+          <AdminCollapsibleBar
+            sectionKey="urban_kebun"
+            title={`Manajemen Terpadu Urban Farming (${urbanFarmingSpots.length} Titik Binaan & ${seedRequests.length} Permohonan Bibit)`}
+            subtitle="Pusat kelola data kebun binaan warga RW 01 – RW 07, kelompok tani, upload foto dokumentasi, dan distribusi benih gratis"
+            icon={<Sprout className="w-5 h-5 text-[#059669]" />}
+            badge={
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300">
+                {urbanFarmingSpots.length} Titik Binaan
+              </span>
             }
-            onAddSpot={auditedOnAddUrbanFarmingSpot}
-            onUpdateSpot={auditedOnUpdateUrbanFarmingSpot}
-            onDeleteSpot={auditedOnDeleteUrbanFarmingSpot}
-            onAddSeedRequest={auditedOnAddSeedRequest}
-            onUpdateSeedRequest={auditedOnUpdateSeedRequest}
-            onDeleteSeedRequest={auditedOnDeleteSeedRequest}
-          />
+            headerBg="bg-emerald-50/70"
+            isCollapsed={isSectionCollapsed('urban_kebun')}
+            onToggle={() => toggleSectionCollapse('urban_kebun')}
+          >
+            <div className="p-4 sm:p-6 bg-slate-50/50">
+              <AdminUrbanFarmingPanel
+                spots={urbanFarmingSpots}
+                seedRequests={seedRequests}
+                rwGroups={rwGroups}
+                profile={profile}
+                adminOfficerName={
+                  adminSession?.fullName || 'Administrator Satu Data Panaikang'
+                }
+                onAddSpot={auditedOnAddUrbanFarmingSpot}
+                onUpdateSpot={auditedOnUpdateUrbanFarmingSpot}
+                onDeleteSpot={auditedOnDeleteUrbanFarmingSpot}
+                onAddSeedRequest={auditedOnAddSeedRequest}
+                onUpdateSeedRequest={auditedOnUpdateSeedRequest}
+                onDeleteSeedRequest={auditedOnDeleteSeedRequest}
+              />
+            </div>
+          </AdminCollapsibleBar>
         </div>
       )}
 
-      {/* ================= TAB 6: KELOLA DATA RT & RW (CRUD PER RW & RT) ================= */}
+      {/* ================= TAB: DATA RT RW (BILAH PERKARTU) ================= */}
       {activeTab === 'rtrw' && isTabAllowed('rtrw') && (
         <div className="mt-6 space-y-6">
-          {/* RT/RW Sub-Navigation Bar */}
-          <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-100 rounded-2xl border border-slate-200">
-            <button
-              type="button"
-              onClick={() => setRtrwSubTab('wilayah')}
-              className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                rtrwSubTab === 'wilayah'
-                  ? 'bg-[#0D3868] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-              }`}
-            >
-              <Users className="w-4 h-4" />
-              <span>Data Wilayah RT & RW</span>
-              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono-num bg-white/20 text-white">
-                {rwGroups.length} RW · {totalRtInKelurahan} RT
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setRtrwSubTab('siskamling')}
-              className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                rtrwSubTab === 'siskamling'
-                  ? 'bg-[#0277BD] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-              }`}
-            >
-              <ShieldCheck className="w-4 h-4 text-amber-300" />
-              <span>Daftar Siskamling RT/RW</span>
-              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono-num bg-amber-400 text-slate-950">
-                RW 01 s/d RW 07
-              </span>
-            </button>
-          </div>
-
-          {rtrwSubTab === 'siskamling' ? (
-            <AdminSiskamlingPanel
-              schedules={siskamlingSchedules}
-              rwGroups={rwGroups}
-              profile={profile}
-              adminOfficerName={adminSession?.fullName || 'Administrator Kelurahan Panaikang'}
-              onSaveSchedules={async (updated: SiskamlingRwSchedule[]) => {
-                if (onSaveSiskamlingSchedules) {
-                  const res = await onSaveSiskamlingSchedules(updated);
-                  if (res.ok) {
-                    recordAudit({
-                      actionType: 'UPDATE',
-                      module: 'SISKAMLING',
-                      targetLabel: 'Jadwal Ronda Siskamling RW 001 s/d RW 007',
-                      summary: 'Memperbarui matriks roster penugasan Siskamling RT/RW & lokasi posko',
-                      severity: 'info',
-                    });
-                  }
-                  return res;
-                }
-                return { ok: true };
-              }}
-            />
-          ) : (
-            <>
-
           <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h2 className="text-base font-bold text-[#0D3868]">
                 Manajemen Data Rukun Warga (RW) & Rukun Tetangga (RT) Kelurahan Panaikang
               </h2>
               <p className="text-xs text-slate-500">
-                Setiap RT dibagi berdasarkan RW masing-masing. Seluruh data RW dan RT otomatis terhubung ke Bagan Struktur Organisasi RT/RW secara dinamis.
+                Setiap sub-menu ditampilkan dalam bilah kartu terpisah. Klik tombol Tampilkan Detail / Tutup pada masing-masing kartu.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2.5">
@@ -9335,108 +10057,135 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             </div>
           </div>
 
-          {/* Menu Input Nama Ketua LPM & Pratinjau Bagan Struktur Organisasi RT/RW Dinamis */}
-          <div className="bg-gradient-to-r from-sky-50/90 via-white to-emerald-50/60 rounded-2xl border border-sky-200/90 p-5 shadow-2xs space-y-4">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-[#0D3868] text-white">
-                    <Layers className="w-3 h-3" />
-                    <span>Bagan Struktur RT/RW Dinamis</span>
-                  </span>
-                  <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-100/80 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                    Otomatis Mengikuti Data {rwGroups.length} RW & {rwGroups.reduce((a, r) => a + (r.rtList?.length || 0), 0)} RT
-                  </span>
+          {/* 01. KARTU PENGATURAN KETUA LPM & BAGAN STRUKTUR ORGANISASI RT/RW */}
+          <AdminCollapsibleBar
+            sectionKey="rtrw_lpm_bagan"
+            title="01. Pengaturan Ketua LPM & Bagan Struktur Organisasi RT/RW"
+            subtitle={`Bagan organisasi dinamis: Lurah, Ketua LPM (${profileDraft.ketuaLpmName || 'Belum diisi'}), RW 01-07, dan ${rwGroups.reduce((a, r) => a + (r.rtList?.length || 0), 0)} RT`}
+            icon={<Layers className="w-5 h-5 text-[#0D3868]" />}
+            badge={
+              <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-100/80 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                {rwGroups.length} RW · {rwGroups.reduce((a, r) => a + (r.rtList?.length || 0), 0)} RT
+              </span>
+            }
+            isCollapsed={isSectionCollapsed('rtrw_lpm_bagan')}
+            onToggle={() => toggleSectionCollapse('rtrw_lpm_bagan')}
+          >
+            <div className="bg-gradient-to-r from-sky-50/90 via-white to-emerald-50/60 p-5 space-y-4">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-[#0D3868] text-white">
+                      <Layers className="w-3 h-3" />
+                      <span>Bagan Struktur RT/RW Dinamis</span>
+                    </span>
+                  </div>
+                  <h3 className="text-sm sm:text-base font-extrabold text-[#0D3868]">
+                    Pengaturan Ketua LPM &amp; Bagan Struktur Organisasi RT/RW Kelurahan Panaikang
+                  </h3>
+                  <p className="text-xs text-slate-600">
+                    Masukkan nama <strong>Ketua LPM (Lembaga Pemberdayaan Masyarakat)</strong> di bawah ini untuk ditampilkan berdampingan dengan Lurah Panaikang pada Bagan Struktur Organisasi RT/RW.
+                  </p>
                 </div>
-                <h3 className="text-sm sm:text-base font-extrabold text-[#0D3868]">
-                  Pengaturan Ketua LPM & Bagan Struktur Organisasi RT/RW Kelurahan Panaikang
-                </h3>
-                <p className="text-xs text-slate-600">
-                  Masukkan nama <strong>Ketua LPM (Lembaga Pemberdayaan Masyarakat)</strong> di bawah ini untuk ditampilkan berdampingan dengan Lurah Panaikang pada Bagan Struktur Organisasi RT/RW.
-                </p>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2.5 shrink-0">
+                  <div className="sm:w-72">
+                    <label className="block text-[11px] font-bold text-[#0D3868] mb-1">
+                      Nama Ketua LPM Kelurahan Panaikang
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: EDY MEDY, SM, M.Th"
+                      value={profileDraft.ketuaLpmName || ''}
+                      onChange={(e) =>
+                        setProfileDraft((prev) => ({
+                          ...prev,
+                          ketuaLpmName: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs sm:text-sm font-bold text-slate-900 focus:border-[#0D3868] focus:ring-1 focus:ring-[#0D3868] outline-hidden"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSaveKetuaLpm}
+                    disabled={isSubmitting}
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#0D3868] hover:bg-[#072647] disabled:opacity-50 text-white text-xs font-bold transition shadow-xs cursor-pointer whitespace-nowrap"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>Simpan Ketua LPM</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowInlineRtRwChartPreview((prev) => !prev)}
+                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-sky-300 bg-white hover:bg-sky-50 text-[#0D3868] text-xs font-bold transition cursor-pointer whitespace-nowrap"
+                  >
+                    <Eye className="w-4 h-4" />
+                    <span>{showInlineRtRwChartPreview ? 'Sembunyikan Bagan' : 'Tampilkan Bagan'}</span>
+                  </button>
+                </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2.5 shrink-0">
-                <div className="sm:w-72">
-                  <label className="block text-[11px] font-bold text-[#0D3868] mb-1">
-                    Nama Ketua LPM Kelurahan Panaikang
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: EDY MEDY, SM, M.Th"
-                    value={profileDraft.ketuaLpmName || ''}
-                    onChange={(e) =>
-                      setProfileDraft((prev) => ({
-                        ...prev,
-                        ketuaLpmName: e.target.value,
-                      }))
-                    }
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs sm:text-sm font-bold text-slate-900 focus:border-[#0D3868] focus:ring-1 focus:ring-[#0D3868] outline-hidden"
+              {showInlineRtRwChartPreview && (
+                <div className="pt-4 border-t border-sky-200/70 space-y-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-slate-700">
+                      Pratinjau Bagan Struktur Organisasi RT/RW (Lurah: {profileDraft.lurahName || '-'} · Ketua LPM: {profileDraft.ketuaLpmName || '-'})
+                    </span>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-[#146329]">
+                      Responsif HP · Tablet · PC (Perkecil / Perbesar)
+                    </span>
+                  </div>
+                  <BaganStrukturRtRwInteractiveViewer
+                    rwGroups={rwGroups}
+                    profile={profileDraft}
+                    onExpandFullScreen={() => setShowAdminBaganRtRw(true)}
                   />
                 </div>
-                <button
-                  type="button"
-                  onClick={handleSaveKetuaLpm}
-                  disabled={isSubmitting}
-                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#0D3868] hover:bg-[#072647] disabled:opacity-50 text-white text-xs font-bold transition shadow-xs cursor-pointer whitespace-nowrap"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>Simpan Ketua LPM</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowInlineRtRwChartPreview((prev) => !prev)}
-                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-sky-300 bg-white hover:bg-sky-50 text-[#0D3868] text-xs font-bold transition cursor-pointer whitespace-nowrap"
-                >
-                  <Eye className="w-4 h-4" />
-                  <span>{showInlineRtRwChartPreview ? 'Sembunyikan Bagan' : 'Tampilkan Bagan'}</span>
-                </button>
-              </div>
+              )}
             </div>
+          </AdminCollapsibleBar>
 
-            {showInlineRtRwChartPreview && (
-              <div className="pt-4 border-t border-sky-200/70 space-y-2.5">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-bold text-slate-700">
-                    Pratinjau Bagan Struktur Organisasi RT/RW (Lurah: {profileDraft.lurahName || '-'} · Ketua LPM: {profileDraft.ketuaLpmName || '-'})
-                  </span>
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-[#146329]">
-                    Responsif HP · Tablet · PC (Perkecil / Perbesar)
-                  </span>
-                </div>
-                <BaganStrukturRtRwInteractiveViewer
-                  rwGroups={rwGroups}
-                  profile={profileDraft}
-                  onExpandFullScreen={() => setShowAdminBaganRtRw(true)}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Menu Cetak Laporan Data RT/RW (Per RW, Per RT, & Rekapitulasi Seluruh RW/RT) */}
-          <AdminRtRwReportPanel
-            profile={profile}
-            rwGroups={rwGroups}
-            reports={reports}
-            externalSelection={rtrwPrintSelection}
-            onReportPrintedOrExported={(result, actionMode) => {
-              recordAudit({
-                actionType: 'EXPORT',
-                module: 'STRUKTUR_RTRW',
-                targetLabel: result.titleLabel,
-                summary: `${
-                  actionMode === 'PRINT' ? 'Mencetak laporan' : 'Mengunduh dokumen PDF'
-                } ${result.titleLabel}`,
-                afterValue: `${result.scopeLabel} · ${result.totalRtCount} RT · ${result.totalKkCount} KK`,
-                severity: 'info',
-              });
-              setSuccessMessage(
-                `${
-                  actionMode === 'PRINT' ? 'Lembar cetak' : 'Dokumen PDF'
-                } "${result.titleLabel}" berhasil diproses.`
-              );
-            }}
-          />
+          {/* 02. KARTU CETAK LAPORAN DATA RT/RW */}
+          <AdminCollapsibleBar
+            sectionKey="rtrw_cetak_laporan"
+            title="02. Cetak & Unduh Laporan Data RT/RW Kelurahan Panaikang"
+            subtitle="Ekspor PDF & Cetak lembar resmi rekapitulasi data RT/RW per wilayah maupun seluruh kelurahan"
+            icon={<Printer className="w-5 h-5 text-[#1C8237]" />}
+            badge={
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300">
+                Ekspor Resmi PDF
+              </span>
+            }
+            isCollapsed={isSectionCollapsed('rtrw_cetak_laporan')}
+            onToggle={() => toggleSectionCollapse('rtrw_cetak_laporan')}
+          >
+            <div className="p-4 sm:p-5">
+              <AdminRtRwReportPanel
+                profile={profile}
+                rwGroups={rwGroups}
+                reports={reports}
+                externalSelection={rtrwPrintSelection}
+                onReportPrintedOrExported={(result, actionMode) => {
+                  recordAudit({
+                    actionType: 'EXPORT',
+                    module: 'STRUKTUR_RTRW',
+                    targetLabel: result.titleLabel,
+                    summary: `${
+                      actionMode === 'PRINT' ? 'Mencetak laporan' : 'Mengunduh dokumen PDF'
+                    } ${result.titleLabel}`,
+                    afterValue: `${result.scopeLabel} · ${result.totalRtCount} RT · ${result.totalKkCount} KK`,
+                    severity: 'info',
+                  });
+                  setSuccessMessage(
+                    `${
+                      actionMode === 'PRINT' ? 'Lembar cetak' : 'Dokumen PDF'
+                    } "${result.titleLabel}" berhasil diproses.`
+                  );
+                }}
+              />
+            </div>
+          </AdminCollapsibleBar>
 
           {/* Form Tambah / Edit RW */}
           {showRwForm && (
@@ -9542,39 +10291,39 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             </form>
           )}
 
-          {/* Header Bar: Daftar RW se-Kelurahan Panaikang */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#1C8237]" />
-                <h3 className="text-sm sm:text-base font-extrabold text-[#0D3868]">
-                  Daftar Wilayah Rukun Warga (RW) se-Kelurahan Panaikang ({rwGroups.length} RW)
-                </h3>
+          {/* 03. KARTU DAFTAR WILAYAH RW & RT SE-KELURAHAN PANAIKANG */}
+          <AdminCollapsibleBar
+            sectionKey="rtrw_daftar_rw"
+            title={`03. Daftar Wilayah Rukun Warga (RW) & Rukun Tetangga (RT) (${rwGroups.length} RW)`}
+            subtitle="Kelola data ketua RW, nomor kontak, cakupan wilayah, serta daftar RT masing-masing RW"
+            icon={<Users className="w-5 h-5 text-[#0D3868]" />}
+            badge={
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-300">
+                {rwGroups.length} RW · {totalRtInKelurahan} RT
+              </span>
+            }
+            isCollapsed={isSectionCollapsed('rtrw_daftar_rw')}
+            onToggle={() => toggleSectionCollapse('rtrw_daftar_rw')}
+            headerActions={
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={expandAllAdminRw}
+                  className="px-2.5 py-1 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 cursor-pointer shadow-2xs"
+                >
+                  Buka Semua RT
+                </button>
+                <button
+                  type="button"
+                  onClick={collapseAllAdminRw}
+                  className="px-2.5 py-1 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 cursor-pointer shadow-2xs"
+                >
+                  Tutup Semua RT
+                </button>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Tampilan awal disederhanakan hanya daftar RW. Klik <strong>"Lihat Detail RT"</strong> pada setiap bilah RW untuk melihat atau mengelola RT.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={expandAllAdminRw}
-                className="px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 cursor-pointer"
-              >
-                Buka Semua RT
-              </button>
-              <button
-                type="button"
-                onClick={collapseAllAdminRw}
-                className="px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 cursor-pointer"
-              >
-                Tutup Semua RT
-              </button>
-            </div>
-          </div>
-
-          {/* Daftar RW beserta Pembagian RT di Masing-Masing RW */}
-          <div className="space-y-4">
+            }
+          >
+            <div className="p-4 sm:p-5 space-y-4">
             {rwGroups.map((rw) => {
               const isRwExpanded = !!adminExpandedRwIds[rw.id] || activeRwForRt === rw.id;
               return (
@@ -9610,8 +10359,8 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                           : 'bg-white hover:bg-sky-50 text-[#0D3868]'
                       }`}
                     >
-                      <Layers className="w-3.5 h-3.5 text-[#0277BD]" />
-                      <span>{isRwExpanded ? 'Tutup RT' : `Lihat Detail RT (${rw.rtList?.length || 0} RT)`}</span>
+                      <Eye className="w-3.5 h-3.5 text-[#0277BD]" />
+                      <span>{isRwExpanded ? 'Tutup' : `Tampilkan Detail (${rw.rtList?.length || 0} RT)`}</span>
                       {isRwExpanded ? (
                         <ChevronUp className="w-3.5 h-3.5 ml-0.5" />
                       ) : (
@@ -9962,8 +10711,47 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         );
       })}
     </div>
-            </>
-          )}
+  </AdminCollapsibleBar>
+
+          {/* 04. KARTU DAFTAR & JADWAL SISKAMLING RT/RW */}
+          <AdminCollapsibleBar
+            sectionKey="rtrw_siskamling"
+            title="04. Daftar & Jadwal Ronda Siskamling RT/RW (RW 01 s/d RW 07)"
+            subtitle="Kelola matriks roster penugasan Siskamling RT/RW, lokasi posko keamanan, dan cetak jadwal ronda"
+            icon={<ShieldCheck className="w-5 h-5 text-[#0277BD]" />}
+            badge={
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300">
+                RW 01 s/d RW 07
+              </span>
+            }
+            isCollapsed={isSectionCollapsed('rtrw_siskamling')}
+            onToggle={() => toggleSectionCollapse('rtrw_siskamling')}
+          >
+            <div className="p-4 sm:p-5">
+              <AdminSiskamlingPanel
+                schedules={siskamlingSchedules}
+                rwGroups={rwGroups}
+                profile={profile}
+                adminOfficerName={adminSession?.fullName || 'Administrator Kelurahan Panaikang'}
+                onSaveSchedules={async (updated: SiskamlingRwSchedule[]) => {
+                  if (onSaveSiskamlingSchedules) {
+                    const res = await onSaveSiskamlingSchedules(updated);
+                    if (res.ok) {
+                      recordAudit({
+                        actionType: 'UPDATE',
+                        module: 'SISKAMLING',
+                        targetLabel: 'Jadwal Ronda Siskamling RW 001 s/d RW 007',
+                        summary: 'Memperbarui matriks roster penugasan Siskamling RT/RW & lokasi posko',
+                        severity: 'info',
+                      });
+                    }
+                    return res;
+                  }
+                  return { ok: true };
+                }}
+              />
+            </div>
+          </AdminCollapsibleBar>
         </div>
       )}
 

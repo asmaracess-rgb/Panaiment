@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
@@ -1631,17 +1632,272 @@ async function startServer() {
     res.json({ ok: true, deletedId: id });
   });
 
-  // 3B. Automatic Multi-Recipient WhatsApp Dispatch for Citizen Reports
-  app.post('/api/reports/dispatch-whatsapp', (req, res) => {
-    const activeRecipients = (db.whatsappRecipients || []).filter((r) => r.isActive);
-    const ticketCode = req.body?.ticketCode || req.body?.report?.ticketCode || '';
-    res.json({
-      ok: true,
-      ticketCode,
-      totalDispatched: activeRecipients.length,
-      dispatchedAt: new Date().toISOString(),
-    });
-  });
+  // 3B. Automatic Multi-Recipient WhatsApp Dispatch for Citizen Complaint Reports (Fonnte Gateway Only)
+  const FONNTE_ENDPOINT = 'https://api.fonnte.com/send';
+  const FONNTE_DEVICE_ENDPOINT = 'https://api.fonnte.com/device';
+
+  const sanitizeFonnteError = (rawMessage: unknown, secretToken: string): string => {
+    let text =
+      rawMessage instanceof Error
+        ? rawMessage.message
+        : typeof rawMessage === 'string'
+        ? rawMessage
+        : 'Gagal mengirim pesan melalui Fonnte';
+    if (secretToken && secretToken.length >= 4) {
+      text = text.split(secretToken).join('[REDACTED]');
+    }
+    if (/disconnected|disconnect/i.test(text)) {
+      return 'Perangkat WhatsApp belum tersambung di Fonnte (Status: Disconnected). Silakan buka fonnte.com > menu Device, lalu scan QR Code WhatsApp di HP Anda.';
+    }
+    if (/invalid token|token invalid/i.test(text)) {
+      return 'Token Fonnte tidak valid. Periksa kembali environment variable FONNTE_TOKEN di server.';
+    }
+    if (/out of quota|quota habis/i.test(text)) {
+      return 'Kuota pesan WhatsApp di akun Fonnte telah habis. Silakan top up di fonnte.com.';
+    }
+    if (/package expired/i.test(text)) {
+      return 'Paket langganan Fonnte Anda telah kedaluwarsa. Silakan perpanjang di fonnte.com.';
+    }
+    return text.slice(0, 240);
+  };
+
+  const getCleanFonnteToken = (): string => {
+    const raw =
+      process.env.FONNTE_TOKEN ||
+      process.env.FONNTE_API_TOKEN ||
+      process.env.FONNTETOKEN ||
+      '';
+    return raw
+      .replace(/^Bearer\s+/i, '')
+      .replace(/^["']|["']$/g, '')
+      .trim();
+  };
+
+  const handleWhatsAppAutoDispatch = async (req: express.Request, res: express.Response) => {
+    const fonnteToken = getCleanFonnteToken();
+    try {
+      const report = req.body?.report || req.body || {};
+      const isExplicitRecipients = Array.isArray(req.body?.recipients);
+      const rawRecipients = isExplicitRecipients
+        ? req.body.recipients
+        : db.whatsappRecipients || [];
+      const reportRw = String(report.rw || '').trim();
+
+      const normalizePhone = (rawPhone?: string) => {
+        if (!rawPhone) return '';
+        const str = String(rawPhone).trim();
+        if (!str || str === '-' || /x/i.test(str)) return '';
+        let digits = str.replace(/\D+/g, '');
+        if (!digits) return '';
+        if (digits.startsWith('0062')) digits = `62${digits.slice(4)}`;
+        else if (digits.startsWith('620')) digits = `62${digits.slice(3)}`;
+        else if (digits.startsWith('0')) digits = `62${digits.slice(1)}`;
+        else if (digits.startsWith('8')) digits = `62${digits}`;
+        return digits.length >= 10 ? digits : '';
+      };
+
+      const validRecipients = rawRecipients.filter((r: any) => {
+        if (!r) return false;
+        const norm = normalizePhone(r.phoneNumber);
+        if (!norm) return false;
+        if (isExplicitRecipients) {
+          // If explicitly provided by caller (e.g. testing or already resolved), accept directly!
+          return true;
+        }
+        if (r.isActive === false) return false;
+        const scope = String(r.rwScope || 'Seluruh Wilayah').trim();
+        return !scope || scope === 'Seluruh Wilayah' || !reportRw || scope === reportRw;
+      });
+
+      const dispatchedAt = new Date().toISOString();
+      const deliveries = await Promise.all(
+        validRecipients.map(async (recipient: any) => {
+          const normalizedPhone = normalizePhone(recipient.phoneNumber);
+          const greetingName = recipient?.name
+            ? `Yth. *${recipient.name}* (${recipient.role || 'Pejabat / Tim Terkait'})`
+            : 'Yth. *Lurah Panaikang & Tim Penerima Laporan Warga*';
+          const message = [
+            `*🔔 NOTIFIKASI OTOMATIS PENGADUAN WARGA MASUK*`,
+            `*PEMERINTAH KELURAHAN PANAIKANG — KOTA MAKASSAR*`,
+            `----------------------------------------`,
+            greetingName,
+            `Telah masuk laporan pengaduan warga baru yang diteruskan otomatis oleh sistem ke *${validRecipients.length} nomor pejabat/pihak terkait terdaftar*:`,
+            ``,
+            `• *No. Tiket:* ${report.ticketCode || '-'}`,
+            `• *Judul Pengaduan:* ${report.title || '-'}`,
+            `• *Kategori:* ${report.category || 'Pengaduan Warga'}`,
+            `• *Tingkat Urgensi:* ${report.urgency || 'Normal'}`,
+            `• *Wilayah:* ${report.rw || '-'} / ${report.rt || '-'}`,
+            `• *Lokasi Kejadian:* ${report.locationName || '-'}`,
+            `• *Tanggal / Waktu:* ${report.submittedAt || report.createdAt || '-'}`,
+            `• *Pelapor:* ${report.reporterName || 'Warga Kelurahan Panaikang'}`,
+            `• *Kontak Pelapor:* ${report.reporterPhone && report.reporterPhone !== '-' ? report.reporterPhone : 'Anonim / Tidak Dicantumkan'}`,
+            `----------------------------------------`,
+            `*Uraian Masalah / Isi Pengaduan:*`,
+            `${report.description || report.content || '-'}`,
+            `----------------------------------------`,
+            `_Pesan ini dikirim secara otomatis oleh Sistem Satu Data Kelurahan Panaikang saat laporan disubmit warga (tanpa melalui WA pribadi pelapor)._`,
+          ].join('\n');
+
+          let deliveryStatus: 'TERKIRIM_OTOMATIS' | 'GAGAL_KIRIM' = 'GAGAL_KIRIM';
+          let errorMessage = '';
+
+          if (!fonnteToken) {
+            deliveryStatus = 'GAGAL_KIRIM';
+            errorMessage = 'Konfigurasi FONNTE_TOKEN belum tersedia di server.';
+          } else {
+            try {
+              const resp = await fetch(FONNTE_ENDPOINT, {
+                method: 'POST',
+                headers: {
+                  Authorization: fonnteToken,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  target: normalizedPhone,
+                  message,
+                  countryCode: '62',
+                  connectOnly: false,
+                }),
+              });
+
+              let respData: any = null;
+              try {
+                respData = await resp.json();
+              } catch {
+                respData = null;
+              }
+
+              const fonnteOk =
+                resp.ok &&
+                respData &&
+                (respData.status === true || respData.status === 'true');
+
+              if (fonnteOk) {
+                deliveryStatus = 'TERKIRIM_OTOMATIS';
+              } else {
+                deliveryStatus = 'GAGAL_KIRIM';
+                const reason =
+                  respData?.reason ||
+                  respData?.detail ||
+                  respData?.message ||
+                  `Fonnte HTTP ${resp.status}`;
+                errorMessage = sanitizeFonnteError(reason, fonnteToken);
+              }
+            } catch (err) {
+              deliveryStatus = 'GAGAL_KIRIM';
+              errorMessage = sanitizeFonnteError(err, fonnteToken);
+            }
+          }
+
+          return {
+            id: `wad-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            ticketCode: report.ticketCode || '-',
+            reportTitle: report.title || '-',
+            reportCategory: report.category || 'Pengaduan Warga',
+            reportRw: report.rw || '-',
+            reportRt: report.rt || '-',
+            recipientId: recipient.id || normalizedPhone,
+            recipientName: recipient.name || 'Pejabat Terkait',
+            recipientRole: recipient.role || 'Tim Kelurahan Panaikang',
+            phoneNumber: normalizedPhone,
+            rwScope: recipient.rwScope || 'Seluruh Wilayah',
+            status: deliveryStatus,
+            provider: 'fonnte',
+            errorMessage: errorMessage || undefined,
+            dispatchedAt,
+            messagePreview: message,
+          };
+        })
+      );
+
+      const successCount = deliveries.filter((d) => d.status === 'TERKIRIM_OTOMATIS').length;
+      const failedCount = deliveries.length - successCount;
+
+      res.json({
+        ok: deliveries.length > 0 && failedCount === 0,
+        ticketCode: report.ticketCode || '-',
+        totalDispatched: successCount,
+        totalFailed: failedCount,
+        dispatchedAt,
+        deliveries,
+      });
+    } catch (err) {
+      res.status(500).json({
+        ok: false,
+        error: sanitizeFonnteError(err, fonnteToken),
+      });
+    }
+  };
+
+  const handleWhatsAppGatewayStatus = async (req: express.Request, res: express.Response) => {
+    const fonnteToken = getCleanFonnteToken();
+    if (!fonnteToken) {
+      return res.json({
+        ok: false,
+        configured: false,
+        deviceStatus: 'unconfigured',
+        message: 'Environment variable FONNTE_TOKEN belum dikonfigurasi di server.',
+      });
+    }
+
+    try {
+      const resp = await fetch(FONNTE_DEVICE_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          Authorization: fonnteToken,
+        },
+      });
+
+      let data: any = null;
+      try {
+        data = await resp.json();
+      } catch {
+        data = null;
+      }
+
+      if (resp.ok && data && (data.status === true || data.status === 'true')) {
+        const rawStatus = String(data.device_status || data.status || '').toLowerCase();
+        const isConnected = rawStatus === 'connect' || rawStatus === 'connected' || rawStatus === 'true';
+
+        return res.json({
+          ok: isConnected,
+          configured: true,
+          deviceStatus: isConnected ? 'connect' : 'disconnect',
+          device: data.device || '',
+          name: data.name || '',
+          quota: data.quota !== undefined ? String(data.quota) : '',
+          package: data.package || '',
+          expired: data.expired || '',
+          messagesCount: data.messages !== undefined ? Number(data.messages) : undefined,
+          message: isConnected
+            ? 'Perangkat WhatsApp terhubung dan siap mengirim pesan.'
+            : 'Perangkat WhatsApp berstatus Disconnected di Fonnte. Silakan scan QR Code di menu Device pada dashboard fonnte.com.',
+        });
+      }
+
+      const reason = (data && (data.reason || data.detail || data.message)) || `HTTP ${resp.status}`;
+      return res.json({
+        ok: false,
+        configured: true,
+        deviceStatus: /invalid token/i.test(reason) ? 'invalid_token' : 'disconnect',
+        reason,
+        message: sanitizeFonnteError(reason, fonnteToken),
+      });
+    } catch (err) {
+      return res.json({
+        ok: false,
+        configured: true,
+        deviceStatus: 'error',
+        message: err instanceof Error ? err.message : 'Koneksi ke server Fonnte gagal.',
+      });
+    }
+  };
+
+  app.post('/api/reports/dispatch-whatsapp', handleWhatsAppAutoDispatch);
+  app.post('/api/whatsapp-dispatch', handleWhatsAppAutoDispatch);
+  app.all('/api/whatsapp-gateway/status', handleWhatsAppGatewayStatus);
+  app.all('/api/whatsapp-status', handleWhatsAppGatewayStatus);
 
   // 4. Waste Bank Units (BSU) CRUD
   app.post('/api/waste-units', (req, res) => {

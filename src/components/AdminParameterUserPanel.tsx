@@ -89,29 +89,14 @@ export const ADMIN_MODULE_OPTIONS: {
     id: 'dashboard_lurah',
     label: 'Dashboard Lurah',
     description:
-      'Monitoring eksekutif Lurah, disposisi cepat laporan, grafik kinerja & cetak arsip PDF bulanan',
-    subMenus: ['Ringkasan Eksekutif', 'Disposisi Cepat', 'Cetak Arsip PDF Bulanan'],
+      'Monitoring eksekutif Lurah, persetujuan layanan, disposisi cepat laporan, grafik kinerja & cetak arsip PDF bulanan',
+    subMenus: ['Ringkasan Eksekutif', 'Persetujuan Layanan', 'Disposisi Cepat', 'Cetak Arsip PDF Bulanan'],
     structuralUnit: 'Lurah Panaikang',
     badgeColor: 'bg-emerald-50 text-emerald-800 border-emerald-200',
   },
   {
-    id: 'pengurusan_warga',
-    label: 'Admin Pelayanan Kelurahan (Pra Registrasi & Pengaduan)',
-    description:
-      'Operasional Pelayanan Kelurahan terpadu: Pra Registrasi Online (13 Layanan Surat), Pengaduan Online (10 Kategori), Verifikasi Berkas Fisik, Scan QR / Cek Tiket & Koordinasi Petugas',
-    subMenus: [
-      'Pra Registrasi Online',
-      'Pengaduan Online',
-      'Scan QR / Cek Tiket',
-      'Verifikasi Dokumen Fisik',
-      'Notifikasi & Riwayat Aktivitas',
-    ],
-    structuralUnit: 'Operator Admin Pelayanan Kelurahan & Loket PTSP',
-    badgeColor: 'bg-sky-50 text-[#0D3868] border-sky-200',
-  },
-  {
     id: 'profil',
-    label: 'Profil & Bagan Struktur Kelurahan',
+    label: 'Profil Kelurahan',
     description:
       'Data & Foto Lurah, Sekretaris, 3 Kasi & Staf (Perwali No. 65/2023), Visi-Misi, Batas Wilayah & Bagan Struktur Dinamis',
     subMenus: [
@@ -124,17 +109,37 @@ export const ADMIN_MODULE_OPTIONS: {
     badgeColor: 'bg-indigo-50 text-indigo-800 border-indigo-200',
   },
   {
-    id: 'info',
-    label: 'Informasi & IG Kelurahan',
+    id: 'pengurusan_warga',
+    label: 'Admin Layanan Kelurahan',
     description:
-      'Publikasi pengumuman resmi warga, agenda kelurahan & sinkronisasi feed Instagram @kelurahan.panaikang',
-    subMenus: ['Artikel & Pengumuman Warga', 'Sinkronisasi IG @kelurahan.panaikang'],
-    structuralUnit: 'Sekretariat & Seksi Pemberdayaan',
-    badgeColor: 'bg-teal-50 text-teal-800 border-teal-200',
+      'Operasional Pelayanan Kelurahan terpadu: Pra Registrasi Online (13 Layanan Surat), Pengaduan Online (10 Kategori), Verifikasi Berkas Fisik & Koordinasi Petugas',
+    subMenus: [
+      'Pra Registrasi Online',
+      'Pengaduan Online',
+      'Scan QR / Cek Tiket',
+      'Verifikasi Dokumen Fisik',
+      'Notifikasi & Riwayat Aktivitas',
+    ],
+    structuralUnit: 'Operator Admin Layanan Kelurahan & Loket PTSP',
+    badgeColor: 'bg-sky-50 text-[#0D3868] border-sky-200',
+  },
+  {
+    id: 'rtrw',
+    label: 'Data RT RW',
+    description:
+      'Database Ketua LPM, Ketua RW 001–007 & RT, Bagan Struktur RT/RW Dinamis, Laporan RT/RW & Jadwal Siskamling',
+    subMenus: [
+      'Database RW 001–007, RT & Ketua LPM',
+      'Bagan Struktur RT/RW Dinamis',
+      'Cetak Laporan RT/RW',
+      'Jadwal Ronda Siskamling',
+    ],
+    structuralUnit: 'Seksi Pemerintahan, Trantibum & LPM',
+    badgeColor: 'bg-slate-100 text-slate-800 border-slate-300',
   },
   {
     id: 'sampah',
-    label: 'Pengelolaan Sampah (BSU, Teba & Biopori)',
+    label: 'Pengelolaan Sampah',
     description:
       'Manajemen terpadu Unit Bank Sampah (BSU RW), Log Timbangan, Titik Teba Komunal & Lubang Resapan Biopori (LRB)',
     subMenus: [
@@ -147,17 +152,8 @@ export const ADMIN_MODULE_OPTIONS: {
     badgeColor: 'bg-amber-50 text-amber-800 border-amber-200',
   },
   {
-    id: 'kerjabakti',
-    label: 'Kerja Bakti Gotong Royong',
-    description:
-      'Jadwal gotong royong warga RW/RT, target peserta, rekap tonase sampah & dokumentasi kegiatan tuntas',
-    subMenus: ['Jadwal Kerja Bakti RW/RT', 'Dokumentasi & Tonase Sampah'],
-    structuralUnit: 'Seksi Pengelolaan Kebersihan & Pertamanan',
-    badgeColor: 'bg-purple-50 text-purple-800 border-purple-200',
-  },
-  {
     id: 'urban_farming',
-    label: 'Urban Farming (7 Sub-Modul Pangan)',
+    label: 'Urban Farming',
     description:
       'Manajemen Lokasi Lahan, Kelompok Tani, Data Tanaman, Log Perawatan, Hasil Panen, Inventaris & Permohonan Bibit',
     subMenus: [
@@ -171,22 +167,53 @@ export const ADMIN_MODULE_OPTIONS: {
     badgeColor: 'bg-emerald-50 text-emerald-800 border-emerald-200',
   },
   {
-    id: 'rtrw',
-    label: 'Data RT/RW, Bagan LPM & Siskamling',
+    id: 'kerjabakti',
+    label: 'Kerja Bakti',
     description:
-      'Database Ketua LPM, Ketua RW 001–007 & RT, Bagan Struktur RT/RW Dinamis, Laporan RT/RW & Jadwal Siskamling',
+      'Jadwal gotong royong warga RW/RT, target peserta, rekap tonase sampah & dokumentasi kegiatan tuntas',
+    subMenus: ['Jadwal Kerja Bakti RW/RT', 'Dokumentasi & Tonase Sampah', 'Sorotan Kerja Bakti IG'],
+    structuralUnit: 'Seksi Pengelolaan Kebersihan & Pertamanan',
+    badgeColor: 'bg-purple-50 text-purple-800 border-purple-200',
+  },
+  {
+    id: 'info',
+    label: 'Informasi dan IG',
+    description:
+      'Publikasi pengumuman resmi warga, agenda kelurahan & sinkronisasi feed Instagram @kelurahan.panaikang',
+    subMenus: ['Artikel & Pengumuman Warga', 'Sinkronisasi IG @kelurahan.panaikang'],
+    structuralUnit: 'Sekretariat & Seksi Pemberdayaan',
+    badgeColor: 'bg-teal-50 text-teal-800 border-teal-200',
+  },
+  {
+    id: 'whatsapp_gateway',
+    label: 'Kelola WhatsApp Gateaway',
+    description:
+      'Konfigurasi Fonnte WhatsApp Gateway, filter RTRW & aktivasi nomor penerima pesan otomatis, uji pengiriman & log otomatis',
     subMenus: [
-      'Database RW 001–007, RT & Ketua LPM',
-      'Bagan Struktur RT/RW Dinamis',
-      'Cetak Laporan RT/RW',
-      'Jadwal Ronda Siskamling',
+      'Status Koneksi WhatsApp Gateway (Fonnte)',
+      'Kelola & Filter Nomor WhatsApp RTRW',
+      'Log Pengiriman Otomatis WhatsApp',
     ],
-    structuralUnit: 'Seksi Pemerintahan, Trantibum & LPM',
-    badgeColor: 'bg-slate-100 text-slate-800 border-slate-300',
+    structuralUnit: 'Lurah & Sekretariat Satu Data',
+    badgeColor: 'bg-emerald-50 text-[#075E54] border-emerald-300',
+  },
+  {
+    id: 'kelola_admin_warga',
+    label: 'Kelola Admin dan User',
+    description:
+      'Pusat terpadu: Otoritas Master Admin, Parameter Admin, User Warga, serta Manajemen Pelayanan & Master Data Layanan',
+    subMenus: [
+      'Otoritas Master Admin',
+      'Parameter Admin',
+      'User Warga Terdaftar',
+      'Manajemen Pelayanan & Master Data Layanan',
+    ],
+    structuralUnit: 'Khusus Otoritas Lurah & Administrator',
+    badgeColor: 'bg-indigo-50 text-indigo-900 border-indigo-200',
   },
   {
     id: 'traffic',
-    label: 'Traffic Web & Aplikasi (Real-Time)',
+    label: 'Traffic Web dan App',
     description:
       'Monitoring analitik pengunjung real-time (tanpa simulasi), sumber trafik, perangkat, sebaran RW & log telemetri live',
     subMenus: [
@@ -198,22 +225,8 @@ export const ADMIN_MODULE_OPTIONS: {
     badgeColor: 'bg-cyan-50 text-cyan-800 border-cyan-200',
   },
   {
-    id: 'kelola_admin_warga',
-    label: 'Kelola Admin, User & Master Data Layanan',
-    description:
-      'Pusat terpadu: Otoritas Master Admin, Parameter Admin, User Warga, serta Manajemen Pelayanan & Master Data Layanan (Form Builder Dinamis, Persyaratan, Template Surat, & Kategori Aduan)',
-    subMenus: [
-      'Otoritas Master Admin',
-      'Parameter Admin',
-      'User Warga Terdaftar',
-      'Manajemen Pelayanan & Master Data Layanan',
-    ],
-    structuralUnit: 'Khusus Otoritas Lurah & Administrator',
-    badgeColor: 'bg-indigo-50 text-indigo-900 border-indigo-200',
-  },
-  {
     id: 'log_aktivitas',
-    label: 'Log Aktivitas (Audit Trail WITA)',
+    label: 'Log Aktifitas Aplikasi',
     description:
       'Rekam jejak real-time WITA seluruh aktivitas login, tambah, ubah, hapus & verifikasi oleh admin untuk pengawasan Lurah',
     subMenus: ['Audit Trail Real-Time WITA', 'Filter Modul & Pejabat', 'Reset / Ekspor Log'],

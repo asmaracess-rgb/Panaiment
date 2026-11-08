@@ -2174,6 +2174,15 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
                 </div>
               </div>
 
+              {/* Info Penerusan WA Otomatis Sistem */}
+              <div className="p-3.5 rounded-xl bg-emerald-50/80 border border-emerald-200/90 flex items-start gap-2.5 text-xs text-emerald-950">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" strokeWidth={1.75} />
+                <div className="leading-relaxed">
+                  <span className="font-bold text-emerald-900">Notifikasi WhatsApp Otomatis ke Pihak Terkait:</span>{' '}
+                  Begitu laporan pengaduan Anda disubmit, sistem secara otomatis mengirimkan rincian laporan langsung ke nomor WhatsApp terdaftar (Lurah &amp; Tim Penanganan Kelurahan) tanpa perlu mengirim pesan dari WhatsApp pribadi Anda.
+                </div>
+              </div>
+
               {/* Action */}
               <div className="pt-4 border-t border-slate-100 flex justify-end">
                 <button
@@ -2182,11 +2191,11 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
                   className="inline-flex items-center gap-2 px-7 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs font-black transition shadow-md cursor-pointer"
                 >
                   {isSubmittingAduan ? (
-                    <span>Mengirimkan Pengaduan...</span>
+                    <span>Mengirimkan Pengaduan &amp; Notifikasi Otomatis...</span>
                   ) : (
                     <>
                       <Send className="w-4 h-4" />
-                      <span>Kirim Pengaduan & Dapatkan Tiket Pelacakan</span>
+                      <span>Kirim Pengaduan &amp; Dapatkan Tiket Pelacakan</span>
                     </>
                   )}
                 </button>
@@ -2203,7 +2212,7 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
 
               <div>
                 <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-black border border-emerald-200 uppercase">
-                  Pengaduan Diterima
+                  Pengaduan Diterima &amp; Diteruskan Otomatis
                 </span>
                 <h3 className="text-2xl font-black text-[#0D3868] mt-2">
                   Nomor Tiket Pengaduan Resmi Diterbitkan
@@ -2219,6 +2228,18 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
                 </div>
                 <div className="text-3xl font-black font-mono-num text-[#0D3868] select-all">
                   {createdAduanTicket}
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-emerald-50/90 border border-emerald-200 text-left flex items-start gap-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" strokeWidth={1.75} />
+                <div className="space-y-1 text-xs">
+                  <div className="font-bold text-emerald-950">
+                    WhatsApp Otomatis Terkirim ke Nomor Terdaftar (Lurah &amp; Pihak Terkait)
+                  </div>
+                  <p className="text-emerald-800 leading-relaxed">
+                    Laporan pengaduan ini telah dikirimkan secara otomatis oleh sistem ke nomor WhatsApp pejabat/petugas terkait yang terdaftar tanpa melalui pengiriman WhatsApp pribadi Anda.
+                  </p>
                 </div>
               </div>
 
