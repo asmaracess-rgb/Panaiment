@@ -166,12 +166,12 @@ export const CITIZEN_MENU_DEFINITIONS: CitizenMenuDefinition[] = [
     subItems: [
       {
         key: 'warga_pengajuan_surat',
-        label: '📝 Pra Registrasi Online (13 Layanan Administrasi)',
+        label: 'Pra Registrasi Online (13 Layanan Administrasi)',
         description: 'Daftar layanan administrasi, persyaratan, formulir, upload dokumen, dan tiket QR Code.',
       },
       {
         key: 'warga_aduan_baru',
-        label: '📢 Pengaduan Online (Keluhan, Aspirasi & Laporan Warga)',
+        label: 'Pengaduan Online (Keluhan, Aspirasi & Laporan Warga)',
         description: 'Sampaikan pengaduan, keluhan, aspirasi, atau laporan lengkap dengan foto bukti dan tiket QR.',
       },
       {

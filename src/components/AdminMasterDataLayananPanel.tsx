@@ -22,6 +22,7 @@ import {
   ToggleLeft,
   ToggleRight,
   ArrowRight,
+  Megaphone,
 } from 'lucide-react';
 import {
   MasterLayananItem,
@@ -652,7 +653,7 @@ export const AdminMasterDataLayananPanel: React.FC<AdminMasterDataLayananPanelPr
             {/* Pra Registrasi Pipeline */}
             <div className="p-5 rounded-2xl border border-sky-200 bg-sky-50/50 space-y-3">
               <div className="flex items-center gap-2">
-                <span className="text-xl">📝</span>
+                <FileText className="w-5 h-5 text-[#0277BD] shrink-0" strokeWidth={1.75} />
                 <h4 className="font-extrabold text-[#0D3868] text-sm">
                   Alur Status Pra Registrasi Online (Persuratan)
                 </h4>
@@ -687,7 +688,7 @@ export const AdminMasterDataLayananPanel: React.FC<AdminMasterDataLayananPanelPr
             {/* Pengaduan Pipeline */}
             <div className="p-5 rounded-2xl border border-emerald-200 bg-emerald-50/50 space-y-3">
               <div className="flex items-center gap-2">
-                <span className="text-xl">📢</span>
+                <Megaphone className="w-5 h-5 text-emerald-600 shrink-0" strokeWidth={1.75} />
                 <h4 className="font-extrabold text-emerald-950 text-sm">
                   Alur Status Pengaduan Online Warga
                 </h4>

@@ -21,6 +21,7 @@ import {
   AlertCircle,
   ExternalLink,
   CheckCircle2,
+  Lock,
 } from 'lucide-react';
 import { RwGroup, AppView, SiskamlingRwSchedule, SiskamlingDay, KelurahanProfile } from '../types';
 import {
@@ -260,7 +261,8 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
             className="px-3.5 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold transition-colors cursor-pointer whitespace-nowrap shadow-xs inline-flex items-center gap-1.5"
           >
             <Users className="w-4 h-4" />
-            <span>Bagan Struktur Organisasi RT/RW {!isAllowed('rtrw_bagan_struktur') && '🔒'}</span>
+            <span>Bagan Struktur Organisasi RT/RW</span>
+            {!isAllowed('rtrw_bagan_struktur') && <Lock className="w-3.5 h-3.5 shrink-0 opacity-85" strokeWidth={1.75} />}
           </button>
 
           <button
@@ -293,7 +295,8 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
             }`}
           >
             <ShieldCheck className="w-4 h-4 text-amber-300" />
-            <span>Jadwal Siskamling RT RW {!isAllowed('rtrw_jadwal_siskamling') && '🔒'}</span>
+            <span>Jadwal Siskamling RT RW</span>
+            {!isAllowed('rtrw_jadwal_siskamling') && <Lock className="w-3.5 h-3.5 shrink-0 opacity-85" strokeWidth={1.75} />}
           </button>
         </div>
       </div>
@@ -314,9 +317,9 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
           }`}
         >
           <Users className="w-4 h-4" />
-          <span>
-            Direktori RT & RW ({totalRwCount} RW · {totalRtCount} RT){' '}
-            {!isAllowed('rtrw_direktori_rw') && '🔒'}
+          <span className="inline-flex items-center gap-1.5">
+            <span>Direktori RT &amp; RW ({totalRwCount} RW · {totalRtCount} RT)</span>
+            {!isAllowed('rtrw_direktori_rw') && <Lock className="w-3.5 h-3.5 shrink-0 opacity-75" strokeWidth={1.75} />}
           </span>
         </button>
 
@@ -334,9 +337,9 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
           }`}
         >
           <ShieldCheck className="w-4 h-4 text-amber-500" />
-          <span>
-            Jadwal Siskamling RT RW (7 Posko RW){' '}
-            {!isAllowed('rtrw_jadwal_siskamling') && '🔒'}
+          <span className="inline-flex items-center gap-1.5">
+            <span>Jadwal Siskamling RT RW (7 Posko RW)</span>
+            {!isAllowed('rtrw_jadwal_siskamling') && <Lock className="w-3.5 h-3.5 shrink-0 opacity-75" strokeWidth={1.75} />}
           </span>
           <span className="text-[10px] bg-amber-100 text-amber-900 font-extrabold px-1.5 py-0.5 rounded-full">
             Hari Ini: {todayDay}
@@ -402,8 +405,9 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
                 <h2 className="text-sm sm:text-base font-extrabold text-[#0D3868] mt-0.5 flex items-center gap-2">
                   <span>Bagan Struktur Organisasi RT dan RW Kelurahan Panaikang</span>
                   {!isAllowed('rtrw_bagan_struktur') && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-bold">
-                      🔒 Perlu Login
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-50 border border-sky-200 text-sky-800 text-[10px] font-bold">
+                      <Lock className="w-3 h-3 shrink-0" strokeWidth={1.75} />
+                      <span>Perlu Login</span>
                     </span>
                   )}
                 </h2>
@@ -422,12 +426,14 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
                       () => setShowInlineRtRwChart((prev) => !prev)
                     )
                   }
-                  className="px-3.5 py-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-[#146329] text-xs font-bold transition cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-[#146329] text-xs font-bold transition cursor-pointer"
                 >
-                  {isAllowed('rtrw_bagan_struktur') && showInlineRtRwChart
-                    ? 'Sembunyikan Pratinjau'
-                    : 'Tampilkan Bagan di Halaman Ini'}
-                  {!isAllowed('rtrw_bagan_struktur') && ' 🔒'}
+                  <span>
+                    {isAllowed('rtrw_bagan_struktur') && showInlineRtRwChart
+                      ? 'Sembunyikan Pratinjau'
+                      : 'Tampilkan Bagan di Halaman Ini'}
+                  </span>
+                  {!isAllowed('rtrw_bagan_struktur') && <Lock className="w-3.5 h-3.5 shrink-0 opacity-80" strokeWidth={1.75} />}
                 </button>
                 <button
                   type="button"
@@ -438,9 +444,10 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
                       () => setShowBaganRtRw(true)
                     )
                   }
-                  className="px-3.5 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold transition cursor-pointer shadow-2xs"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold transition cursor-pointer shadow-2xs"
                 >
-                  Buka Layar Penuh {!isAllowed('rtrw_bagan_struktur') && '🔒'}
+                  <span>Buka Layar Penuh</span>
+                  {!isAllowed('rtrw_bagan_struktur') && <Lock className="w-3.5 h-3.5 shrink-0 opacity-85" strokeWidth={1.75} />}
                 </button>
               </div>
             </div>
@@ -933,9 +940,9 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
                           }`}
                         >
                           <Calendar className="w-3.5 h-3.5 text-amber-300" />
-                          <span>
-                            {isExpanded ? 'Tutup Matriks 7 Hari' : 'Lihat Matriks 7 Hari'}
-                            {!isAllowed('rtrw_matriks_siskamling') && ' 🔒'}
+                          <span className="inline-flex items-center gap-1.5">
+                            <span>{isExpanded ? 'Tutup Matriks 7 Hari' : 'Lihat Matriks 7 Hari'}</span>
+                            {!isAllowed('rtrw_matriks_siskamling') && <Lock className="w-3.5 h-3.5 shrink-0 opacity-85" strokeWidth={1.75} />}
                           </span>
                           {isExpanded ? (
                             <ChevronUp className="w-3.5 h-3.5" />

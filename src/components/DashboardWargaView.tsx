@@ -28,6 +28,7 @@ import {
   Calendar,
   MessageCircle,
   Sprout,
+  Megaphone,
 } from 'lucide-react';
 import {
   AppView,
@@ -495,7 +496,8 @@ export const DashboardWargaView: React.FC<DashboardWargaViewProps> = ({
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
-          <span>📝 Pra Registrasi Online</span>
+          <FileText className="w-4 h-4 shrink-0" strokeWidth={1.75} />
+          <span>Pra Registrasi Online</span>
         </button>
 
         <button
@@ -510,7 +512,8 @@ export const DashboardWargaView: React.FC<DashboardWargaViewProps> = ({
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
-          <span>📢 Pengaduan Online</span>
+          <Megaphone className="w-4 h-4 shrink-0" strokeWidth={1.75} />
+          <span>Pengaduan Online</span>
         </button>
 
         <button
@@ -579,10 +582,12 @@ export const DashboardWargaView: React.FC<DashboardWargaViewProps> = ({
                 setActiveTab('pelayanan');
                 setPelayananSubModule('pra_registrasi');
               }}
-              className="p-5 rounded-2xl border-2 border-slate-200 hover:border-[#0277BD] bg-white hover:shadow-md transition text-left flex flex-col justify-between group cursor-pointer"
+              className="p-5 rounded-2xl border border-slate-200 hover:border-[#0277BD] bg-white hover:shadow-md transition text-left flex flex-col justify-between group cursor-pointer"
             >
               <div className="space-y-2">
-                <span className="text-2xl">📝</span>
+                <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-200 flex items-center justify-center text-[#0277BD]">
+                  <FileText className="w-5 h-5" strokeWidth={1.75} />
+                </div>
                 <h4 className="font-extrabold text-slate-900 text-sm group-hover:text-[#0277BD]">
                   Pra Registrasi Online
                 </h4>
@@ -601,10 +606,12 @@ export const DashboardWargaView: React.FC<DashboardWargaViewProps> = ({
                 setActiveTab('pelayanan');
                 setPelayananSubModule('pengaduan');
               }}
-              className="p-5 rounded-2xl border-2 border-slate-200 hover:border-emerald-600 bg-white hover:shadow-md transition text-left flex flex-col justify-between group cursor-pointer"
+              className="p-5 rounded-2xl border border-slate-200 hover:border-emerald-600 bg-white hover:shadow-md transition text-left flex flex-col justify-between group cursor-pointer"
             >
               <div className="space-y-2">
-                <span className="text-2xl">📢</span>
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
+                  <Megaphone className="w-5 h-5" strokeWidth={1.75} />
+                </div>
                 <h4 className="font-extrabold text-slate-900 text-sm group-hover:text-emerald-700">
                   Pengaduan Online
                 </h4>

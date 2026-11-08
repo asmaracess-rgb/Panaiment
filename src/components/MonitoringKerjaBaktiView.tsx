@@ -15,6 +15,7 @@ import {
   Play,
   Sparkles,
   RefreshCw,
+  Lock,
 } from 'lucide-react';
 import { Instagram } from './Emblems';
 import { CleanupEvent, KerjaBaktiIgHighlightItem, AppView } from '../types';
@@ -206,8 +207,8 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
               {isAllowed('kerjabakti_usulan') && showAddForm
                 ? 'Tutup Formulir'
                 : 'Usulkan Jadwal Kerja Bakti'}
-              {!isAllowed('kerjabakti_usulan') && ' 🔒'}
             </span>
+            {!isAllowed('kerjabakti_usulan') && <Lock className="w-3.5 h-3.5 shrink-0 opacity-85" strokeWidth={1.75} />}
           </button>
         </div>
       </div>
@@ -512,7 +513,7 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
                           <UserPlus className="w-3.5 h-3.5" />
                           <span>Daftar Hadir Warga</span>
                           {!isAllowed('kerjabakti_daftar_relawan') && (
-                            <span className="text-xs ml-0.5" title="Akses Dibatasi">🔒</span>
+                            <Lock className="w-3.5 h-3.5 shrink-0 opacity-85" strokeWidth={1.75} />
                           )}
                         </button>
                       </div>
@@ -613,8 +614,9 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
                     Galeri Foto Kerja Bakti yang Telah Selesai Dilaksanakan
                   </h3>
                   {!isAllowed('kerjabakti_dokumentasi') && (
-                    <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-xs font-bold">
-                      🔒 Akses Dibatasi
+                    <span className="px-2 py-0.5 rounded-md bg-sky-50 border border-sky-200 text-sky-800 text-xs font-bold inline-flex items-center gap-1">
+                      <Lock className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+                      <span>Akses Dibatasi</span>
                     </span>
                   )}
                 </div>

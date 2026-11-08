@@ -24,6 +24,7 @@ import {
   MessageCircle,
   HelpCircle,
   TrendingUp,
+  Lock,
 } from 'lucide-react';
 import {
   AppView,
@@ -453,7 +454,7 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
             <Sprout className="w-3.5 h-3.5" />
             <span>Ajukan Bibit Gratis</span>
             {!isAllowed('urbanfarming_ajukan_bibit') && (
-              <span className="text-xs ml-0.5" title="Akses Dibatasi">🔒</span>
+              <Lock className="w-3.5 h-3.5 shrink-0 opacity-85" strokeWidth={1.75} />
             )}
           </button>
         </div>
@@ -568,7 +569,7 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
           <Sprout className="w-4 h-4" />
           <span>Daftar Kebun ({spots.length})</span>
           {!isAllowed('urbanfarming_kebun') && (
-            <span className="text-xs" title="Akses Dibatasi">🔒</span>
+            <Lock className="w-3.5 h-3.5 shrink-0 opacity-80" strokeWidth={1.75} />
           )}
         </button>
 
@@ -584,7 +585,7 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
           <Calendar className="w-4 h-4" />
           <span>Jadwal Panen Raya</span>
           {!isAllowed('urbanfarming_panen') && (
-            <span className="text-xs" title="Akses Dibatasi">🔒</span>
+            <Lock className="w-3.5 h-3.5 shrink-0 opacity-80" strokeWidth={1.75} />
           )}
         </button>
 
@@ -600,7 +601,7 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
           <BookOpen className="w-4 h-4" />
           <span>Panduan Lahan Sempit</span>
           {!isAllowed('urbanfarming_edukasi') && (
-            <span className="text-xs" title="Akses Dibatasi">🔒</span>
+            <Lock className="w-3.5 h-3.5 shrink-0 opacity-80" strokeWidth={1.75} />
           )}
         </button>
 
@@ -616,7 +617,7 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
           <Package className="w-4 h-4" />
           <span>Katalog Bibit Gratis ({SEED_CATALOG.length})</span>
           {!isAllowed('urbanfarming_bibit') && (
-            <span className="text-xs" title="Akses Dibatasi">🔒</span>
+            <Lock className="w-3.5 h-3.5 shrink-0 opacity-80" strokeWidth={1.75} />
           )}
         </button>
       </div>
@@ -995,7 +996,8 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#059669] hover:bg-[#047857] text-white text-xs font-bold cursor-pointer self-start sm:self-auto"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Ajukan Paket Bibit Sekarang {!isAllowed('urbanfarming_ajukan_bibit') && '🔒'}</span>
+                <span>Ajukan Paket Bibit Sekarang</span>
+                {!isAllowed('urbanfarming_ajukan_bibit') && <Lock className="w-3.5 h-3.5 shrink-0 opacity-85" strokeWidth={1.75} />}
               </button>
             </div>
 
@@ -1027,9 +1029,10 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
                           setShowSeedFormModal(true);
                         })
                       }
-                      className="text-xs font-bold text-[#059669] hover:underline cursor-pointer"
+                      className="inline-flex items-center gap-1 text-xs font-bold text-[#059669] hover:underline cursor-pointer"
                     >
-                      Pilih Bibit Ini → {!isAllowed('urbanfarming_ajukan_bibit') && '🔒'}
+                      <span>Pilih Bibit Ini →</span>
+                      {!isAllowed('urbanfarming_ajukan_bibit') && <Lock className="w-3.5 h-3.5 shrink-0 opacity-80" strokeWidth={1.75} />}
                     </button>
                   </div>
                 </div>

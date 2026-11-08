@@ -3407,7 +3407,7 @@ export default function App() {
                     Portal Pelayanan Kelurahan Panaikang
                   </div>
                   <div className="text-[11px] text-slate-500">
-                    📝 Pra Registrasi Online (13 Layanan Administrasi) &amp; 📢 Pengaduan Online Warga
+                    Pra Registrasi Online (13 Layanan Administrasi) &amp; Pengaduan Online Warga
                   </div>
                 </div>
               </div>
@@ -3421,7 +3421,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => handleNavigate('dashboard_warga')}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-extrabold transition cursor-pointer shadow-xs"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold transition cursor-pointer shadow-xs"
                     >
                       <UserCheck className="w-3.5 h-3.5" />
                       <span>Buka Dashboard Warga Lengkap</span>
@@ -3434,7 +3434,7 @@ export default function App() {
                       setAuthNotice('');
                       handleNavigate('login');
                     }}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-extrabold transition cursor-pointer shadow-xs"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold transition cursor-pointer shadow-xs"
                   >
                     <UserCheck className="w-3.5 h-3.5" />
                     <span>Masuk / Daftar Akun Dashboard Warga</span>

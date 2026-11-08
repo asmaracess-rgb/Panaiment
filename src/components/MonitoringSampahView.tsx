@@ -22,6 +22,7 @@ import {
   Info,
   Layers,
   CircleDot,
+  Lock,
 } from 'lucide-react';
 import {
   WasteBankUnit,
@@ -201,7 +202,7 @@ export const MonitoringSampahView: React.FC<MonitoringSampahViewProps> = ({
           <Recycle className="w-4 h-4 shrink-0" />
           <span>Bank Sampah Unit (BSU)</span>
           {!isAllowed('sampah_bsu_units') && (
-            <span className="text-xs" title="Akses Dibatasi">🔒</span>
+            <Lock className="w-3.5 h-3.5 shrink-0 opacity-80" strokeWidth={1.75} />
           )}
           <span
             className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono-num ${
@@ -225,7 +226,7 @@ export const MonitoringSampahView: React.FC<MonitoringSampahViewProps> = ({
           <Sprout className="w-4 h-4 shrink-0" />
           <span>Teba</span>
           {!isAllowed('sampah_teba_komunal') && (
-            <span className="text-xs" title="Akses Dibatasi">🔒</span>
+            <Lock className="w-3.5 h-3.5 shrink-0 opacity-80" strokeWidth={1.75} />
           )}
           <span
             className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono-num ${
@@ -249,7 +250,7 @@ export const MonitoringSampahView: React.FC<MonitoringSampahViewProps> = ({
           <Droplets className="w-4 h-4 shrink-0" />
           <span>Biopori</span>
           {!isAllowed('sampah_biopori') && (
-            <span className="text-xs" title="Akses Dibatasi">🔒</span>
+            <Lock className="w-3.5 h-3.5 shrink-0 opacity-80" strokeWidth={1.75} />
           )}
           <span
             className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono-num ${
@@ -566,8 +567,9 @@ export const MonitoringSampahView: React.FC<MonitoringSampahViewProps> = ({
                     </h2>
                   </div>
                   {!isAllowed('sampah_kalkulator') && (
-                    <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-xs font-bold flex items-center gap-1">
-                      🔒 Akses Dibatasi
+                    <span className="px-2 py-0.5 rounded-md bg-sky-50 border border-sky-200 text-sky-800 text-xs font-bold inline-flex items-center gap-1">
+                      <Lock className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+                      <span>Akses Dibatasi</span>
                     </span>
                   )}
                 </div>

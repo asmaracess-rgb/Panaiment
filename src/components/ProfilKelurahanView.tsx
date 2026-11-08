@@ -11,6 +11,7 @@ import {
   Compass,
   Users,
   User,
+  Lock,
 } from 'lucide-react';
 import { KelurahanProfile, WasteBankUnit, RwGroup, AppView } from '../types';
 import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
@@ -80,7 +81,8 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-semibold transition-all shadow-xs cursor-pointer whitespace-nowrap"
           >
             <Building2 className="w-3.5 h-3.5" />
-            <span>Bagan Struktur Kelurahan {!isAllowed('profil_bagan_kelurahan') && '🔒'}</span>
+            <span>Bagan Struktur Kelurahan</span>
+            {!isAllowed('profil_bagan_kelurahan') && <Lock className="w-3.5 h-3.5 shrink-0 opacity-85" strokeWidth={1.75} />}
           </button>
 
           <button
@@ -93,7 +95,8 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-semibold transition-all shadow-xs cursor-pointer whitespace-nowrap"
           >
             <Users className="w-3.5 h-3.5" />
-            <span>Bagan Struktur RT / RW {!isAllowed('profil_bagan_rtrw') && '🔒'}</span>
+            <span>Bagan Struktur RT / RW</span>
+            {!isAllowed('profil_bagan_rtrw') && <Lock className="w-3.5 h-3.5 shrink-0 opacity-85" strokeWidth={1.75} />}
           </button>
 
           <button
@@ -145,7 +148,13 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
               >
                 <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0277BD]">
                   <UserCheck className="w-4 h-4" />
-                  <span>DATA PIMPINAN LURAH PANAIKANG {!isAllowed('profil_data_lurah') && '🔒 [Akses Dibatasi]'}</span>
+                  <span>DATA PIMPINAN LURAH PANAIKANG</span>
+                  {!isAllowed('profil_data_lurah') && (
+                    <span className="inline-flex items-center gap-1 text-slate-500 font-semibold">
+                      <Lock className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+                      <span>[Akses Dibatasi]</span>
+                    </span>
+                  )}
                 </div>
 
                 <div className="mt-3 p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-slate-50 via-white to-sky-50/40 border border-slate-200/90 shadow-xs">
@@ -221,8 +230,14 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
                 }
               >
                 <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                  <div className="text-xs font-bold text-slate-700 tracking-wide uppercase">
-                    Struktur Jabatan & Perangkat Kelurahan {!isAllowed('profil_perangkat_seksi') && '🔒 [Akses Dibatasi]'}
+                  <div className="text-xs font-bold text-slate-700 tracking-wide uppercase inline-flex items-center gap-1.5">
+                    <span>Struktur Jabatan &amp; Perangkat Kelurahan</span>
+                    {!isAllowed('profil_perangkat_seksi') && (
+                      <span className="inline-flex items-center gap-1 text-slate-500 font-semibold normal-case">
+                        <Lock className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+                        <span>[Akses Dibatasi]</span>
+                      </span>
+                    )}
                   </div>
                   <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
                     {profile.officials?.length || 0} Pejabat Terdaftar
@@ -316,7 +331,13 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
             <div>
               <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1C8237]">
                 <Building2 className="w-4 h-4" />
-                <span>ALAMAT & KONTAK KANTOR KELURAHAN {!isAllowed('profil_alamat_kontak') && '🔒 [Akses Dibatasi]'}</span>
+                <span>ALAMAT &amp; KONTAK KANTOR KELURAHAN</span>
+                {!isAllowed('profil_alamat_kontak') && (
+                  <span className="inline-flex items-center gap-1 text-slate-500 font-semibold">
+                    <Lock className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+                    <span>[Akses Dibatasi]</span>
+                  </span>
+                )}
               </div>
 
               <h3 className="mt-2 text-base sm:text-lg font-bold text-[#0D3868]">
@@ -429,7 +450,13 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
             <div>
               <div className="inline-flex items-center gap-2 text-xs font-bold text-emerald-300 tracking-wider">
                 <Target className="w-4 h-4" />
-                <span>VISI KELURAHAN PANAIKANG {!isAllowed('profil_visi_misi') && '🔒 [Akses Dibatasi]'}</span>
+                <span>VISI KELURAHAN PANAIKANG</span>
+                {!isAllowed('profil_visi_misi') && (
+                  <span className="inline-flex items-center gap-1 text-sky-200 font-semibold">
+                    <Lock className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+                    <span>[Akses Dibatasi]</span>
+                  </span>
+                )}
               </div>
 
               <blockquote className="mt-4 text-base sm:text-lg font-extrabold leading-relaxed text-white text-balance">
@@ -445,8 +472,9 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
 
           {/* Misi List Card (7 cols) */}
           <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-6 sm:p-8">
-            <h2 className="text-lg font-extrabold text-[#0D3868]">
-              Misi Pembangunan & Pengelolaan Lingkungan Kelurahan Panaikang {!isAllowed('profil_visi_misi') && '🔒'}
+            <h2 className="text-lg font-extrabold text-[#0D3868] flex items-center gap-2">
+              <span>Misi Pembangunan &amp; Pengelolaan Lingkungan Kelurahan Panaikang</span>
+              {!isAllowed('profil_visi_misi') && <Lock className="w-4 h-4 text-slate-500 shrink-0" strokeWidth={1.75} />}
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
               Langkah strategis pelaksanaan program Panaikang Smart Environment
@@ -492,8 +520,14 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
             <div>
-              <h2 className="text-base font-bold text-[#0D3868]">
-                Direktori Wilayah RW 01 – RW 07 & Koordinator Lingkungan {!isAllowed('profil_direktori_rw') && '🔒 [Akses Dibatasi]'}
+              <h2 className="text-base font-bold text-[#0D3868] flex items-center gap-1.5 flex-wrap">
+                <span>Direktori Wilayah RW 01 – RW 07 &amp; Koordinator Lingkungan</span>
+                {!isAllowed('profil_direktori_rw') && (
+                  <span className="inline-flex items-center gap-1 text-xs text-slate-500 font-semibold">
+                    <Lock className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+                    <span>[Akses Dibatasi]</span>
+                  </span>
+                )}
               </h2>
               <p className="text-xs text-slate-500">
                 Jajaran pelaksana lapangan program kebersihan dan Bank Sampah Unit (BSU) tiap RW
