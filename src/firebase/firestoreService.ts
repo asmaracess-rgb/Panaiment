@@ -517,3 +517,183 @@ export function subscribeToFirestoreProfile(
     } catch {}
   };
 }
+
+const WA_GATEWAY_STATE_DOC_ID = 'wa_gateway_state';
+const WA_CIPHER_KEY = 'pnk-wa-gw-2026-sec-key';
+
+export function encodeWaGatewayToken(rawToken: string): string {
+  const clean = (rawToken || '').trim();
+  if (!clean) return '';
+  const bytes: number[] = [];
+  for (let i = 0; i < clean.length; i++) {
+    bytes.push(clean.charCodeAt(i) ^ WA_CIPHER_KEY.charCodeAt(i % WA_CIPHER_KEY.length));
+  }
+  const hex = bytes.map((b) => b.toString(16).padStart(2, '0')).join('');
+  return `v1:${hex}`;
+}
+
+export function decodeWaGatewayToken(encoded: string): string {
+  if (!encoded || !encoded.startsWith('v1:')) return '';
+  const hex = encoded.slice(3);
+  if (hex.length % 2 !== 0) return '';
+  let out = '';
+  for (let i = 0; i < hex.length; i += 2) {
+    const byte = parseInt(hex.slice(i, i + 2), 16);
+    if (Number.isNaN(byte)) return '';
+    const idx = i / 2;
+    out += String.fromCharCode(byte ^ WA_CIPHER_KEY.charCodeAt(idx % WA_CIPHER_KEY.length));
+  }
+  return out.trim();
+}
+
+/**
+ * Persists obfuscated Fonnte token to Firestore (`panaikang_app_data/wa_gateway_state`)
+ * so container restarts and multi-platform deployments automatically recover the token.
+ */
+export async function saveWaGatewayTokenToCloud(rawToken: string): Promise<boolean> {
+  if (isQuotaPaused()) return false;
+  const cleaned = (rawToken || '')
+    .replace(/^Bearer\s+/i, '')
+    .replace(/^["']|["']$/g, '')
+    .trim();
+  if (!cleaned) return false;
+  const encodedToken = encodeWaGatewayToken(cleaned);
+  const tokenMasked =
+    cleaned.length >= 8
+      ? `${cleaned.slice(0, 4)}••••••••${cleaned.slice(-4)}`
+      : `${cleaned.slice(0, 2)}••••`;
+
+  try {
+    const ref = doc(db, APP_STORE_COLLECTION, WA_GATEWAY_STATE_DOC_ID);
+    await setDoc(
+      ref,
+      {
+        encodedToken,
+        tokenMasked,
+        updatedAt: Date.now(),
+        syncedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+    return true;
+  } catch (err) {
+    if (isQuotaError(err)) {
+      tripQuotaCircuitBreaker();
+    }
+    return false;
+  }
+}
+
+/**
+ * Fetches obfuscated Fonnte token from Firestore (`panaikang_app_data/wa_gateway_state`)
+ * and decodes it in memory as a fallback when static hosting (e.g. Cloudflare Pages)
+ * does not have a local Express process.
+ */
+export async function fetchWaGatewayTokenFromCloud(): Promise<{
+  token: string;
+  tokenMasked: string;
+}> {
+  if (isQuotaPaused()) return { token: '', tokenMasked: '' };
+  try {
+    const ref = doc(db, APP_STORE_COLLECTION, WA_GATEWAY_STATE_DOC_ID);
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      const data = snap.data();
+      const encoded = typeof data?.encodedToken === 'string' ? data.encodedToken : '';
+      const decoded = decodeWaGatewayToken(encoded);
+      const masked =
+        typeof data?.tokenMasked === 'string' && data.tokenMasked
+          ? data.tokenMasked
+          : decoded.length >= 8
+          ? `${decoded.slice(0, 4)}••••••••${decoded.slice(-4)}`
+          : decoded
+          ? `${decoded.slice(0, 2)}••••`
+          : '';
+      return { token: decoded, tokenMasked: masked };
+    }
+  } catch (err) {
+    if (isQuotaError(err)) {
+      tripQuotaCircuitBreaker();
+    }
+  }
+  return { token: '', tokenMasked: '' };
+}
+
+/**
+ * Persists WhatsApp auto-dispatch logs (`waDispatchLogs`) to Firestore so logs are synced
+ * across AI Studio, Cloudflare Pages, Vercel, and all administrator devices.
+ */
+export async function saveWaDispatchLogsToCloud(logs: any[]): Promise<void> {
+  if (isQuotaPaused() || !Array.isArray(logs)) return;
+  const sliced = logs.slice(0, 80);
+  try {
+    const gwRef = doc(db, APP_STORE_COLLECTION, WA_GATEWAY_STATE_DOC_ID);
+    const fullRef = doc(db, APP_STORE_COLLECTION, FULL_DB_DOC_ID);
+    await Promise.allSettled([
+      setDoc(
+        gwRef,
+        {
+          waDispatchLogs: sliced,
+          updatedAt: Date.now(),
+          syncedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      ),
+      setDoc(
+        fullRef,
+        {
+          waDispatchLogs: sliced,
+          updatedAt: Date.now(),
+        },
+        { merge: true }
+      ),
+    ]);
+  } catch (err) {
+    if (isQuotaError(err)) {
+      tripQuotaCircuitBreaker();
+    }
+  }
+}
+
+/**
+ * Reads WhatsApp auto-dispatch logs from Firestore (`wa_gateway_state` and `full_snapshot`).
+ */
+export async function fetchWaDispatchLogsFromCloud(): Promise<any[]> {
+  if (isQuotaPaused()) return [];
+  try {
+    const gwRef = doc(db, APP_STORE_COLLECTION, WA_GATEWAY_STATE_DOC_ID);
+    const fullRef = doc(db, APP_STORE_COLLECTION, FULL_DB_DOC_ID);
+    const [gwSnap, fullSnap] = await Promise.allSettled([getDoc(gwRef), getDoc(fullRef)]);
+
+    const mergedMap = new Map<string, any>();
+    if (gwSnap.status === 'fulfilled' && gwSnap.value.exists()) {
+      const gwLogs = gwSnap.value.data()?.waDispatchLogs;
+      if (Array.isArray(gwLogs)) {
+        for (const item of gwLogs) {
+          if (item && item.id) mergedMap.set(item.id, item);
+        }
+      }
+    }
+    if (fullSnap.status === 'fulfilled' && fullSnap.value.exists()) {
+      const fullLogs = fullSnap.value.data()?.waDispatchLogs;
+      if (Array.isArray(fullLogs)) {
+        for (const item of fullLogs) {
+          if (item && item.id && !mergedMap.has(item.id)) {
+            mergedMap.set(item.id, item);
+          }
+        }
+      }
+    }
+    return Array.from(mergedMap.values()).sort((a, b) => {
+      const tA = new Date(a.dispatchedAt || 0).getTime() || 0;
+      const tB = new Date(b.dispatchedAt || 0).getTime() || 0;
+      return tB - tA;
+    });
+  } catch (err) {
+    if (isQuotaError(err)) {
+      tripQuotaCircuitBreaker();
+    }
+    return [];
+  }
+}
+

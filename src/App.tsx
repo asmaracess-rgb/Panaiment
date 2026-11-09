@@ -87,6 +87,7 @@ import {
   isValidWhatsAppPhone,
   resolveCitizenWhatsAppPhone,
   dispatchComplaintToRegisteredWhatsApp,
+  loadWhatsAppAutoDispatchLogs,
 } from './utils/whatsappHelper';
 import {
   testConnection,
@@ -692,6 +693,7 @@ export default function App() {
         cleanupEvents: (partial.cleanupEvents ?? stateRef.current.cleanupEvents).filter((e) => e && e.id && !deletedSet.has(e.id)),
         kelurahanInfos: (partial.kelurahanInfos ?? stateRef.current.kelurahanInfos).filter((i) => i && i.id && !deletedSet.has(i.id)),
         whatsappRecipients: (partial.whatsappRecipients ?? stateRef.current.whatsappRecipients).filter((w) => w && w.id && !deletedSet.has(w.id)),
+        waDispatchLogs: partial.waDispatchLogs ?? loadWhatsAppAutoDispatchLogs(),
         serviceCatalog: partial.serviceCatalog ?? stateRef.current.serviceCatalog,
         adminUsers: (partial.adminUsers ?? stateRef.current.adminUsers).filter((u) => u && u.id && !deletedSet.has(u.id)),
         activityLogs: partial.activityLogs ?? stateRef.current.activityLogs,
@@ -2910,8 +2912,19 @@ export default function App() {
   const handleSaveWhatsAppRecipients = async (
     updatedRecipients: WhatsAppRecipient[]
   ): Promise<{ ok: boolean; errors?: string[] }> => {
+    const updatedIds = new Set(updatedRecipients.map((r) => r.id));
+    for (const prev of stateRef.current.whatsappRecipients || []) {
+      if (prev && prev.id && !updatedIds.has(prev.id)) {
+        recordDeletedItemId(prev.id);
+      }
+    }
     setWhatsappRecipients(updatedRecipients);
     commitPersistence({ whatsappRecipients: updatedRecipients });
+    fetchLocalExpressOnly('/api/whatsapp-recipients', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ whatsappRecipients: updatedRecipients }),
+    }).catch(() => {});
     return { ok: true };
   };
 

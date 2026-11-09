@@ -141,6 +141,7 @@ import {
   dispatchComplaintToRegisteredWhatsApp,
   loadWhatsAppAutoDispatchLogs,
   loadWhatsAppAutoDispatchLogsAsync,
+  saveWhatsAppGatewayToken,
   WhatsAppAutoDispatchReceipt,
   checkWhatsAppGatewayStatus,
   WhatsAppGatewayStatusResult,
@@ -162,6 +163,7 @@ import {
 import { AdminUrbanFarmingPanel } from './AdminUrbanFarmingPanel';
 import { AdminTebaPanel } from './AdminTebaPanel';
 import { AdminBioporiPanel } from './AdminBioporiPanel';
+import { generateApplicationWorkflowPdf } from '../utils/workflowPdfGenerator';
 import { AdminTrafficView } from './AdminTrafficView';
 import {
   BaganStrukturKelurahanModal,
@@ -2082,6 +2084,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     try {
       const res = await checkWhatsAppGatewayStatus();
       setWaGatewayStatus(res);
+      if (!res.hasToken || res.deviceStatus === 'invalid_token' || res.deviceStatus === 'unconfigured') {
+        setShowTokenForm(true);
+      }
     } finally {
       setIsCheckingWaGateway(false);
     }
@@ -2096,19 +2101,15 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     if (!tokenInputValue.trim()) return;
     setIsSavingToken(true);
     try {
-      const res = await fetch('/api/whatsapp-gateway/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: tokenInputValue.trim() }),
-      });
-      const data = await res.json().catch(() => null);
-      if (res.ok && data?.ok) {
-        setSuccessMessage(data.message || 'FONNTE_TOKEN berhasil disimpan secara aman di server.');
+      const result = await saveWhatsAppGatewayToken(tokenInputValue.trim());
+      if (result.ok) {
+        setValidationErrors([]);
+        setSuccessMessage(result.message);
         setTokenInputValue('');
         setShowTokenForm(false);
-        fetchAdminWaGatewayStatus();
+        await fetchAdminWaGatewayStatus();
       } else {
-        setValidationErrors([data?.message || 'Gagal menyimpan token Fonnte ke server.']);
+        setValidationErrors([result.message]);
       }
     } catch {
       setValidationErrors(['Gagal menghubungi server untuk menyimpan token Fonnte.']);
@@ -4734,6 +4735,16 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
             <button
               type="button"
+              onClick={() => generateApplicationWorkflowPdf(profile)}
+              title="Unduh Dokumen PDF Panduan & Alur Kerja (SOP) Seluruh Menu Aplikasi"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-extrabold border border-amber-300 shadow-xs transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <FileText className="w-3.5 h-3.5 text-slate-950" />
+              <span>Unduh PDF Alur Kerja</span>
+            </button>
+
+            <button
+              type="button"
               disabled={isCloudSyncing}
               onClick={handleForceCloudSync}
               title="Sinkronkan seluruh modul (Warga, Sampah, RT/RW, Urban Farming, Peta, Profil, Kerja Bakti) ke Google Cloud Firestore"
@@ -5216,13 +5227,13 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
       {/* Global Validation Errors or Success Banner */}
       {validationErrors.length > 0 && (
-        <div className="mt-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-900">
+        <div className="mt-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-900 space-y-3">
           <div className="flex items-start gap-2.5">
             <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
             <div className="flex-1 text-xs sm:text-sm">
               <div className="font-bold">
                 {validationErrors.every((err) =>
-                  /gagal mengirim wa|whatsapp|fonnte|gateway/i.test(err)
+                  /gagal mengirim wa|whatsapp|fonnte|gateway|token/i.test(err)
                 )
                   ? 'Pemberitahuan Kendala WhatsApp Gateway (Fonnte):'
                   : 'Validasi Data Gagal — Mohon Periksa Kembali:'}
@@ -5241,6 +5252,33 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               <X className="w-4 h-4" />
             </button>
           </div>
+
+          {validationErrors.some((err) => /fonnte_token|token fonnte/i.test(err)) && (
+            <form
+              onSubmit={handleSaveFonnteToken}
+              className="p-3.5 rounded-xl bg-white border border-red-200 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shadow-2xs"
+            >
+              <div className="flex items-center gap-2 text-xs font-bold text-[#0D3868] shrink-0">
+                <Key className="w-4 h-4 text-amber-500 shrink-0" />
+                <span>Input Cepat FONNTE_TOKEN:</span>
+              </div>
+              <input
+                type="password"
+                value={tokenInputValue}
+                onChange={(e) => setTokenInputValue(e.target.value)}
+                placeholder="Pastekan Token Device / Account dari fonnte.com di sini..."
+                className="flex-1 rounded-xl border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-mono text-slate-900 focus:border-[#0D3868] focus:bg-white outline-hidden"
+              />
+              <button
+                type="submit"
+                disabled={isSavingToken || !tokenInputValue.trim()}
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-xl bg-[#128C7E] hover:bg-[#075E54] disabled:opacity-50 text-white text-xs font-bold cursor-pointer whitespace-nowrap shadow-xs"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>{isSavingToken ? 'Menyimpan...' : 'Simpan Token & Aktifkan WA'}</span>
+              </button>
+            </form>
+          )}
         </div>
       )}
 

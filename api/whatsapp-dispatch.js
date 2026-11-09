@@ -1,4 +1,71 @@
 const FONNTE_ENDPOINT = 'https://api.fonnte.com/send';
+const FONNTE_GET_DEVICES_ENDPOINT = 'https://api.fonnte.com/get-devices';
+const FIRESTORE_WA_STATE_REST_URL =
+  'https://firestore.googleapis.com/v1/projects/panaikang-smart-environment/databases/ai-studio-panaikangsmarten-4feb23ef-f14d-4f7d-ab34-e0951be3a4fd/documents/panaikang_app_data/wa_gateway_state';
+const WA_CIPHER_KEY = 'pnk-wa-gw-2026-sec-key';
+
+function decodeServerWaToken(encoded) {
+  if (!encoded || !encoded.startsWith('v1:')) return '';
+  const hex = encoded.slice(3);
+  if (hex.length % 2 !== 0) return '';
+  let out = '';
+  for (let i = 0; i < hex.length; i += 2) {
+    const byte = parseInt(hex.slice(i, i + 2), 16);
+    if (Number.isNaN(byte)) return '';
+    const idx = i / 2;
+    out += String.fromCharCode(byte ^ WA_CIPHER_KEY.charCodeAt(idx % WA_CIPHER_KEY.length));
+  }
+  return out.trim();
+}
+
+async function getFonnteToken() {
+  const rawToken =
+    process.env.FONNTE_TOKEN ||
+    process.env.FONNTE_API_TOKEN ||
+    process.env.FONNTETOKEN ||
+    '';
+  const cleaned = rawToken
+    .replace(/^Bearer\s+/i, '')
+    .replace(/^["']|["']$/g, '')
+    .trim();
+  if (cleaned && !cleaned.includes('YOUR_FONNTE_TOKEN') && cleaned !== 'undefined') {
+    return cleaned;
+  }
+  try {
+    const resp = await fetch(FIRESTORE_WA_STATE_REST_URL);
+    if (resp.ok) {
+      const docJson = await resp.json().catch(() => null);
+      const encoded = docJson?.fields?.encodedToken?.stringValue || '';
+      const decoded = decodeServerWaToken(encoded);
+      if (decoded) {
+        process.env.FONNTE_TOKEN = decoded;
+        return decoded;
+      }
+    }
+  } catch {}
+  return '';
+}
+
+async function resolveDeviceTokenIfAccountToken(candidateToken) {
+  if (!candidateToken) return '';
+  try {
+    const resp = await fetch(FONNTE_GET_DEVICES_ENDPOINT, {
+      method: 'POST',
+      headers: { Authorization: candidateToken },
+    });
+    if (!resp.ok) return candidateToken;
+    const data = await resp.json().catch(() => null);
+    if (data && (data.status === true || data.status === 'true') && Array.isArray(data.data) && data.data.length > 0) {
+      const connectedDev =
+        data.data.find((d) => String(d?.status || '').toLowerCase() === 'connect') ||
+        data.data[0];
+      if (connectedDev?.token && typeof connectedDev.token === 'string') {
+        return connectedDev.token.trim();
+      }
+    }
+  } catch {}
+  return candidateToken;
+}
 
 function normalizePhone(rawPhone) {
   if (!rawPhone) return '';
@@ -28,7 +95,7 @@ function sanitizeErrorText(rawError, token) {
     return 'Perangkat WhatsApp belum tersambung di Fonnte (Status: Disconnected). Silakan buka fonnte.com > menu Device, lalu scan QR Code WhatsApp di HP Anda.';
   }
   if (/invalid token|token invalid/i.test(msg)) {
-    return 'Token Fonnte tidak valid. Periksa kembali environment variable FONNTE_TOKEN di server.';
+    return 'Token Fonnte tidak valid (pastikan menggunakan Token Perangkat dari menu Device di fonnte.com). Silakan klik "Ganti Token Fonnte" di Kartu 01 untuk memperbarui token.';
   }
   if (/out of quota|quota habis/i.test(msg)) {
     return 'Kuota pesan WhatsApp di akun Fonnte telah habis. Silakan top up di fonnte.com.';
@@ -69,47 +136,76 @@ function buildComplaintAutoMessage(report, recipient, totalRecipients) {
 }
 
 async function sendViaFonnte(phoneNumber, message) {
-  const rawToken =
-    process.env.FONNTE_TOKEN ||
-    process.env.FONNTE_API_TOKEN ||
-    process.env.FONNTETOKEN ||
-    '';
-  const fonnteToken = rawToken
-    .replace(/^Bearer\s+/i, '')
-    .replace(/^["']|["']$/g, '')
-    .trim();
+  let fonnteToken = await getFonnteToken();
 
   if (!fonnteToken) {
     return {
       delivered: false,
       provider: 'fonnte',
-      errorMessage: 'Konfigurasi FONNTE_TOKEN belum tersedia di environment server.',
+      errorMessage:
+        'Token FONNTE_TOKEN belum dikonfigurasi di server. Silakan masukkan Token Fonnte Anda pada Kartu 01 di menu Kelola WhatsApp Gateway.',
     };
   }
 
-  try {
+  const executeSend = async (tokenToUse) => {
+    const params = new URLSearchParams();
+    params.append('target', phoneNumber);
+    params.append('message', message);
+    params.append('countryCode', '62');
+
     const resp = await fetch(FONNTE_ENDPOINT, {
       method: 'POST',
       headers: {
-        Authorization: fonnteToken,
-        'Content-Type': 'application/json',
+        Authorization: tokenToUse,
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: JSON.stringify({
-        target: phoneNumber,
-        message,
-        countryCode: '62',
-        connectOnly: false,
-      }),
+      body: params.toString(),
     });
 
     let payload = null;
+    let rawText = '';
     try {
-      payload = await resp.json();
+      rawText = await resp.text();
+      try {
+        payload = JSON.parse(rawText);
+      } catch {
+        payload = { message: rawText };
+      }
     } catch {
       payload = null;
     }
+    return { resp, payload, rawText };
+  };
 
-    if (resp.ok && payload && payload.status !== false) {
+  try {
+    let { resp, payload, rawText } = await executeSend(fonnteToken);
+    const firstReason = String(
+      (payload && (payload.reason || payload.detail || payload.message)) || ''
+    );
+    if (/token invalid|invalid token/i.test(firstReason)) {
+      const resolved = await resolveDeviceTokenIfAccountToken(fonnteToken);
+      if (resolved && resolved !== fonnteToken) {
+        fonnteToken = resolved;
+        const retry = await executeSend(fonnteToken);
+        resp = retry.resp;
+        payload = retry.payload;
+        rawText = retry.rawText;
+      }
+    }
+
+    const fonnteOk =
+      resp.ok &&
+      payload &&
+      (payload.status === true ||
+        payload.status === 'true' ||
+        String(payload.status).toLowerCase() === 'connect' ||
+        String(payload.status).toLowerCase() === 'connected' ||
+        String(payload.status).toLowerCase() === 'success' ||
+        Boolean(payload.id) ||
+        Boolean(payload.requestid) ||
+        /success/i.test(String(payload.detail || payload.message || rawText)));
+
+    if (fonnteOk) {
       return {
         delivered: true,
         provider: 'fonnte',
@@ -119,6 +215,7 @@ async function sendViaFonnte(phoneNumber, message) {
 
     const reason =
       (payload && (payload.reason || payload.detail || payload.message)) ||
+      rawText ||
       `HTTP ${resp.status}`;
     return {
       delivered: false,

@@ -349,10 +349,19 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin() && isValidId(lockId);
     }
 
+    function isValidAppDataDoc(docId, data) {
+      return (docId == 'full_snapshot' || docId == 'wa_gateway_state') &&
+        data.keys().size() >= 1 &&
+        data.keys().size() <= 45 &&
+        (!('encodedToken' in data) || (data.encodedToken is string && data.encodedToken.size() <= 512)) &&
+        (!('tokenMasked' in data) || (data.tokenMasked is string && data.tokenMasked.size() <= 64)) &&
+        (!('waDispatchLogs' in data) || (data.waDispatchLogs is list && data.waDispatchLogs.size() <= 150));
+    }
+
     match /panaikang_app_data/{docId} {
-      allow get: if isValidId(docId);
+      allow get: if isValidId(docId) && (docId == 'full_snapshot' || docId == 'wa_gateway_state');
       allow list: if false;
-      allow create, update: if isSignedIn() && isValidId(docId);
+      allow create, update: if isValidId(docId) && isValidAppDataDoc(docId, incoming());
       allow delete: if isAdmin() && isValidId(docId);
     }
 

@@ -255,7 +255,16 @@ function getRecoveredLurahPhotoUrl(): string {
 const INITIAL_REPORT_IDS = new Set(INITIAL_REPORTS.map((r) => r.id));
 const INITIAL_WASTE_LOG_IDS = new Set(INITIAL_WASTE_LOGS.map((l) => l.id));
 
-const LEGACY_DEFAULT_OFFICIAL_IDS = ['off-1', 'off-2', 'off-3', 'off-4'];
+const LEGACY_DEFAULT_OFFICIAL_IDS = [
+  'off-1',
+  'off-2',
+  'off-3',
+  'off-4',
+  'wa-rec-lurah',
+  'wa-rec-seklur',
+  'wa-rec-kebersihan',
+  'wa-rec-pemerintahan',
+];
 
 /**
  * Returns the Set of permanently deleted entity IDs across all sessions
@@ -749,9 +758,41 @@ export function smartMergeDatabases(
     localIsNewer
   );
 
-  const resolvedWaDispatchLogs = Array.isArray(incoming?.waDispatchLogs) && incoming!.waDispatchLogs.length > 0
-    ? incoming!.waDispatchLogs
-    : (localDb?.waDispatchLogs || []);
+  const resolvedWaDispatchLogs = (() => {
+    const map = new Map<string, any>();
+    const addLogs = (arr?: any[]) => {
+      if (!Array.isArray(arr)) return;
+      for (const item of arr) {
+        if (item && item.id && !map.has(item.id)) {
+          map.set(item.id, item);
+        }
+      }
+    };
+    addLogs(incoming?.waDispatchLogs);
+    addLogs(localDb?.waDispatchLogs);
+    if (typeof window !== 'undefined') {
+      try {
+        const rawLogs = window.localStorage.getItem('pnk_wa_auto_dispatch_logs_v1');
+        if (rawLogs) {
+          const parsedLogs = JSON.parse(rawLogs);
+          addLogs(parsedLogs);
+        }
+      } catch {}
+    }
+    const mergedLogs = Array.from(map.values())
+      .sort((a, b) => {
+        const tA = new Date(a.dispatchedAt || 0).getTime() || 0;
+        const tB = new Date(b.dispatchedAt || 0).getTime() || 0;
+        return tB - tA;
+      })
+      .slice(0, 100);
+    if (typeof window !== 'undefined' && mergedLogs.length > 0) {
+      try {
+        window.localStorage.setItem('pnk_wa_auto_dispatch_logs_v1', JSON.stringify(mergedLogs));
+      } catch {}
+    }
+    return mergedLogs;
+  })();
 
   const resolvedServiceCatalog = Array.isArray(incoming?.serviceCatalog) && incoming!.serviceCatalog.length > 0
     ? incoming!.serviceCatalog

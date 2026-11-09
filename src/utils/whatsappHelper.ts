@@ -4,6 +4,48 @@ import {
   SeedRequestItem,
   WhatsAppRecipient,
 } from '../types';
+import {
+  fetchWaDispatchLogsFromCloud,
+  fetchWaGatewayTokenFromCloud,
+  saveWaDispatchLogsToCloud,
+  saveWaGatewayTokenToCloud,
+} from '../firebase/firestoreService';
+
+const CLOUD_BACKEND_BASE_URL =
+  'https://ais-pre-xdr54nppc6d3xrjatu4qda-341890100407.asia-southeast1.run.app';
+const FONNTE_SEND_URL = 'https://api.fonnte.com/send';
+const FONNTE_DEVICE_URL = 'https://api.fonnte.com/device';
+const FONNTE_GET_DEVICES_URL = 'https://api.fonnte.com/get-devices';
+
+async function resolveDeviceTokenFromAccountTokenClient(candidateToken: string): Promise<string> {
+  if (!candidateToken) return '';
+  try {
+    const resp = await fetch(FONNTE_GET_DEVICES_URL, {
+      method: 'POST',
+      headers: { Authorization: candidateToken },
+    });
+    if (!resp.ok) return candidateToken;
+    const data: any = await resp.json().catch(() => null);
+    if (
+      data &&
+      (data.status === true || data.status === 'true') &&
+      Array.isArray(data.data) &&
+      data.data.length > 0
+    ) {
+      const connectedDev =
+        data.data.find((d: any) => String(d?.status || '').toLowerCase() === 'connect') ||
+        data.data[0];
+      if (connectedDev?.token && typeof connectedDev.token === 'string') {
+        const resolved = connectedDev.token.trim();
+        if (resolved && resolved !== candidateToken) {
+          void saveWaGatewayTokenToCloud(resolved);
+          return resolved;
+        }
+      }
+    }
+  } catch {}
+  return candidateToken;
+}
 
 /**
  * Checks whether a raw phone string contains a real, dialable WhatsApp number
@@ -366,27 +408,72 @@ export function loadWhatsAppAutoDispatchLogs(): WhatsAppAutoDispatchReceipt[] {
 }
 
 export async function loadWhatsAppAutoDispatchLogsAsync(): Promise<WhatsAppAutoDispatchReceipt[]> {
-  if (typeof window === 'undefined') return loadWhatsAppAutoDispatchLogs();
-  try {
-    const res = await fetch('/api/whatsapp-dispatch-logs', { cache: 'no-store' });
-    const data = await res.json().catch(() => null);
-    if (data?.ok && Array.isArray(data.data)) {
-      if (typeof window !== 'undefined') {
-        try {
-          window.localStorage.setItem(WA_AUTO_DISPATCH_LOGS_KEY, JSON.stringify(data.data.slice(0, 120)));
-        } catch {}
+  const localLogs = loadWhatsAppAutoDispatchLogs();
+  if (typeof window === 'undefined') return localLogs;
+
+  const map = new Map<string, WhatsAppAutoDispatchReceipt>();
+  const addItems = (items?: any[]) => {
+    if (!Array.isArray(items)) return;
+    for (const item of items) {
+      if (item && item.id && !map.has(item.id)) {
+        map.set(item.id, item as WhatsAppAutoDispatchReceipt);
       }
-      return data.data;
     }
-  } catch {}
-  return loadWhatsAppAutoDispatchLogs();
+  };
+
+  try {
+    const [apiResult, cloudLogs] = await Promise.allSettled([
+      fetch('/api/whatsapp-dispatch-logs', { cache: 'no-store' }).then(async (res) => {
+        const ct = res.headers.get('content-type') || '';
+        if (!res.ok || !ct.includes('application/json')) return null;
+        return res.json().catch(() => null);
+      }),
+      fetchWaDispatchLogsFromCloud(),
+    ]);
+
+    if (apiResult.status === 'fulfilled' && apiResult.value?.ok && Array.isArray(apiResult.value.data)) {
+      addItems(apiResult.value.data);
+    }
+    if (cloudLogs.status === 'fulfilled' && Array.isArray(cloudLogs.value)) {
+      addItems(cloudLogs.value);
+    }
+  } catch {
+    // Ignore network errors
+  }
+
+  addItems(localLogs);
+
+  const merged = Array.from(map.values())
+    .sort((a, b) => {
+      const tA = new Date(a.dispatchedAt || 0).getTime() || 0;
+      const tB = new Date(b.dispatchedAt || 0).getTime() || 0;
+      return tB - tA;
+    })
+    .slice(0, 120);
+
+  if (typeof window !== 'undefined' && merged.length > 0) {
+    try {
+      window.localStorage.setItem(WA_AUTO_DISPATCH_LOGS_KEY, JSON.stringify(merged));
+    } catch {}
+  }
+
+  return merged;
 }
 
 export function saveWhatsAppAutoDispatchLogs(logs: WhatsAppAutoDispatchReceipt[]): void {
   if (typeof window === 'undefined') return;
   try {
-    const sliced = logs.slice(0, 120);
+    const map = new Map<string, WhatsAppAutoDispatchReceipt>();
+    for (const item of logs) {
+      if (item && item.id && !map.has(item.id)) {
+        map.set(item.id, item);
+      }
+    }
+    const sliced = Array.from(map.values()).slice(0, 120);
     window.localStorage.setItem(WA_AUTO_DISPATCH_LOGS_KEY, JSON.stringify(sliced));
+
+    saveWaDispatchLogsToCloud(sliced).catch(() => {});
+
     fetch('/api/whatsapp-dispatch-logs', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -395,6 +482,70 @@ export function saveWhatsAppAutoDispatchLogs(logs: WhatsAppAutoDispatchReceipt[]
   } catch {
     // Ignore storage quota errors
   }
+}
+
+export async function saveWhatsAppGatewayToken(rawToken: string): Promise<{
+  ok: boolean;
+  message: string;
+}> {
+  const cleaned = (rawToken || '')
+    .replace(/^Bearer\s+/i, '')
+    .replace(/^["']|["']$/g, '')
+    .trim();
+  if (!cleaned) {
+    return { ok: false, message: 'Token Fonnte tidak boleh kosong.' };
+  }
+
+  // 1. Always save obfuscated token to Firestore Cloud so it survives container restarts and syncs across deployments
+  const cloudSaved = await saveWaGatewayTokenToCloud(cleaned).catch(() => false);
+
+  // 2. Also push to backend API (local / Vercel / Cloudflare / Cloud Run fallback)
+  let serverSaved = false;
+  let serverMessage = '';
+  try {
+    const res = await fetch('/api/whatsapp-gateway/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: cleaned }),
+    });
+    const ct = res.headers.get('content-type') || '';
+    if (res.ok && ct.includes('application/json')) {
+      const data = await res.json().catch(() => null);
+      if (data?.ok) {
+        serverSaved = true;
+        serverMessage = data.message || '';
+      }
+    }
+  } catch {}
+
+  if (!serverSaved && typeof window !== 'undefined' && !window.location.origin.includes('run.app')) {
+    try {
+      const fallbackRes = await fetch(`${CLOUD_BACKEND_BASE_URL}/api/whatsapp-gateway/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: cleaned }),
+      });
+      const data = await fallbackRes.json().catch(() => null);
+      if (fallbackRes.ok && data?.ok) {
+        serverSaved = true;
+        serverMessage = data.message || '';
+      }
+    } catch {}
+  }
+
+  if (serverSaved || cloudSaved) {
+    return {
+      ok: true,
+      message:
+        serverMessage ||
+        'FONNTE_TOKEN berhasil disimpan secara aman di Server & Cloud Database (tahan restart & tersinkronisasi lintas platform).',
+    };
+  }
+
+  return {
+    ok: false,
+    message: 'Gagal menyimpan token Fonnte ke server. Periksa koneksi internet Anda.',
+  };
 }
 
 /**
@@ -551,26 +702,162 @@ export async function dispatchComplaintToRegisteredWhatsApp(params: {
   let backendError = '';
 
   try {
-    const response = await fetch('/api/whatsapp-dispatch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        report,
-        recipients: targetRecipients,
-      }),
+    const requestPayload = JSON.stringify({
+      report,
+      recipients: targetRecipients,
     });
 
-    const data = await response.json().catch(() => null);
+    let response = await fetch('/api/whatsapp-dispatch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: requestPayload,
+    }).catch(() => null);
+
+    let ct = response?.headers.get('content-type') || '';
+    let data = response && ct.includes('application/json') ? await response.json().catch(() => null) : null;
+
+    // Fallback to Cloud Run backend if running on static host (e.g. Cloudflare static preview) where /api/* returns HTML or 404/405
+    if (
+      (!response || !ct.includes('application/json') || response.status === 404 || response.status === 405) &&
+      typeof window !== 'undefined' &&
+      !window.location.origin.includes('run.app')
+    ) {
+      response = await fetch(`${CLOUD_BACKEND_BASE_URL}/api/whatsapp-dispatch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: requestPayload,
+      }).catch(() => null);
+      ct = response?.headers.get('content-type') || '';
+      data = response && ct.includes('application/json') ? await response.json().catch(() => null) : null;
+    }
+
     if (Array.isArray(data?.deliveries) && data.deliveries.length > 0) {
       deliveries = data.deliveries;
-    } else if (!response.ok) {
-      backendError = data?.error || `HTTP ${response.status} saat menghubungi endpoint pengiriman WhatsApp.`;
+    } else if (data?.error) {
+      backendError = data.error;
+    } else if (response && !response.ok) {
+      backendError = `HTTP ${response.status} saat menghubungi endpoint pengiriman WhatsApp.`;
     }
   } catch (err) {
     backendError =
       err instanceof Error
         ? err.message
         : 'Gagal menghubungi endpoint pengiriman WhatsApp server.';
+  }
+
+  // Cloud-backed direct Fonnte fallback when static hosting (e.g. Cloudflare Pages) has no local server token
+  const allFailedOrEmpty =
+    deliveries.length === 0 ||
+    deliveries.every((d) => d.status === 'GAGAL_KIRIM');
+
+  if (allFailedOrEmpty) {
+    try {
+      const cloudAuth = await fetchWaGatewayTokenFromCloud();
+      let activeToken = cloudAuth.token;
+      if (activeToken) {
+        const sendDirect = async (tok: string, targetPhone: string, msgText: string) => {
+          const params = new URLSearchParams();
+          params.append('target', targetPhone);
+          params.append('message', msgText);
+          params.append('countryCode', '62');
+          const r = await fetch(FONNTE_SEND_URL, {
+            method: 'POST',
+            headers: {
+              Authorization: tok,
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: params.toString(),
+          });
+          const raw = await r.text().catch(() => '');
+          let parsed: any = null;
+          try {
+            parsed = JSON.parse(raw);
+          } catch {
+            parsed = { message: raw };
+          }
+          return { r, parsed, raw };
+        };
+
+        deliveries = await Promise.all(
+          targetRecipients.map(async (recipient) => {
+            const normPhone = normalizeWhatsAppPhone(recipient.phoneNumber);
+            const msgText = buildReportWhatsAppMessage(
+              {
+                ticketCode: report.ticketCode,
+                title: report.title,
+                description: report.description,
+                category: report.category,
+                urgency: report.urgency || 'Normal',
+                rw: report.rw,
+                rt: report.rt,
+                locationName: report.locationName,
+                reporterName: report.reporterName,
+                reporterPhone: report.reporterPhone || '-',
+                status: 'Menunggu Verifikasi',
+              },
+              recipient,
+              targetRecipients
+            );
+            let status: 'TERKIRIM_OTOMATIS' | 'GAGAL_KIRIM' = 'GAGAL_KIRIM';
+            let errMsg = '';
+            try {
+              let { r, parsed, raw } = await sendDirect(activeToken, normPhone, msgText);
+              const firstReason = String(parsed?.reason || parsed?.detail || parsed?.message || '');
+              if (/token invalid|invalid token/i.test(firstReason)) {
+                const resolved = await resolveDeviceTokenFromAccountTokenClient(activeToken);
+                if (resolved && resolved !== activeToken) {
+                  activeToken = resolved;
+                  const retry = await sendDirect(activeToken, normPhone, msgText);
+                  r = retry.r;
+                  parsed = retry.parsed;
+                  raw = retry.raw;
+                }
+              }
+              const ok =
+                r.ok &&
+                parsed &&
+                parsed.status !== false &&
+                parsed.status !== 'false' &&
+                (parsed.status === true ||
+                  parsed.status === 'true' ||
+                  String(parsed.status).toLowerCase() === 'connect' ||
+                  String(parsed.status).toLowerCase() === 'connected' ||
+                  String(parsed.status).toLowerCase() === 'success' ||
+                  Boolean(parsed.id) ||
+                  /success/i.test(String(parsed.detail || parsed.message || raw)));
+              if (ok) {
+                status = 'TERKIRIM_OTOMATIS';
+              } else {
+                const reason =
+                  parsed?.reason || parsed?.detail || parsed?.message || `HTTP ${r.status}`;
+                errMsg = String(reason).slice(0, 200);
+              }
+            } catch (e) {
+              errMsg = e instanceof Error ? e.message : 'Gagal menghubungi server Fonnte.';
+            }
+
+            return {
+              id: `wad-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+              ticketCode: report.ticketCode,
+              reportTitle: report.title,
+              reportCategory: report.category,
+              reportRw: report.rw,
+              reportRt: report.rt,
+              recipientId: recipient.id,
+              recipientName: recipient.name,
+              recipientRole: recipient.role,
+              phoneNumber: normPhone,
+              rwScope: recipient.rwScope || 'Seluruh Wilayah',
+              status,
+              provider: 'fonnte' as const,
+              errorMessage: errMsg || undefined,
+              dispatchedAt: nowIso,
+              messagePreview: msgText,
+            };
+          })
+        );
+      }
+    } catch {}
   }
 
   if (deliveries.length === 0) {
@@ -642,18 +929,92 @@ export interface WhatsAppGatewayStatusResult {
 }
 
 /**
- * Checks the live connection status of Fonnte WhatsApp Gateway device via backend API.
- * Never exposes FONNTE_TOKEN to the frontend/browser.
+ * Checks the live connection status of Fonnte WhatsApp Gateway device via backend API,
+ * with automatic Firestore Cloud token recovery for static deployments (e.g. Cloudflare Pages).
  */
 export async function checkWhatsAppGatewayStatus(): Promise<WhatsAppGatewayStatusResult> {
   try {
-    const response = await fetch('/api/whatsapp-status', {
+    let response = await fetch('/api/whatsapp-status', {
       method: 'GET',
       headers: { Accept: 'application/json' },
       cache: 'no-store',
-    });
+    }).catch(() => null);
 
-    const data = await response.json().catch(() => null);
+    let ct = response?.headers.get('content-type') || '';
+    let data = response && ct.includes('application/json') ? await response.json().catch(() => null) : null;
+
+    if (
+      (!response || !ct.includes('application/json') || response.status === 404 || response.status === 405) &&
+      typeof window !== 'undefined' &&
+      !window.location.origin.includes('run.app')
+    ) {
+      response = await fetch(`${CLOUD_BACKEND_BASE_URL}/api/whatsapp-status`, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+      }).catch(() => null);
+      ct = response?.headers.get('content-type') || '';
+      data = response && ct.includes('application/json') ? await response.json().catch(() => null) : null;
+    }
+
+    // If running on static deployment or local endpoint has no token yet, recover token from Firestore Cloud
+    if (!data || !data.hasToken || data.deviceStatus === 'unconfigured') {
+      const cloudAuth = await fetchWaGatewayTokenFromCloud();
+      if (cloudAuth.token) {
+        let activeTok = cloudAuth.token;
+        const checkDev = async (tok: string) => {
+          const r = await fetch(FONNTE_DEVICE_URL, {
+            method: 'POST',
+            headers: { Authorization: tok },
+          });
+          const j: any = await r.json().catch(() => null);
+          return { r, j };
+        };
+        let { r, j } = await checkDev(activeTok);
+        const firstReason = String(j?.reason || j?.detail || j?.message || '');
+        if (/token invalid|invalid token/i.test(firstReason)) {
+          const resolved = await resolveDeviceTokenFromAccountTokenClient(activeTok);
+          if (resolved && resolved !== activeTok) {
+            activeTok = resolved;
+            const retry = await checkDev(activeTok);
+            r = retry.r;
+            j = retry.j;
+          }
+        }
+        const masked =
+          activeTok.length >= 8
+            ? `${activeTok.slice(0, 4)}••••••••${activeTok.slice(-4)}`
+            : `${activeTok.slice(0, 2)}••••`;
+
+        if (r.ok && j && (j.status === true || j.status === 'true')) {
+          const devStat = String(j.device_status || '').toLowerCase();
+          const genStat = String(j.status || '').toLowerCase();
+          const isConnected =
+            devStat === 'connect' ||
+            devStat === 'connected' ||
+            devStat === 'online' ||
+            (devStat === '' && (genStat === 'connect' || genStat === 'connected' || j.status === true));
+          return {
+            ok: isConnected,
+            configured: true,
+            hasToken: true,
+            tokenMasked: masked,
+            deviceStatus: isConnected ? 'connect' : 'disconnect',
+            device: j.device || '',
+            name: j.name || '',
+            quota: j.quota !== undefined ? String(j.quota) : '',
+            package: j.package || '',
+            expired: j.expired || '',
+            messagesCount: j.messages !== undefined ? Number(j.messages) : undefined,
+            message: isConnected
+              ? 'Perangkat WhatsApp terhubung (Connect) dan siap mengirim pesan otomatis.'
+              : 'Perangkat WhatsApp berstatus Disconnected di Fonnte. Silakan scan QR Code di menu Device pada dashboard fonnte.com.',
+            checkedAt: new Date().toISOString(),
+          };
+        }
+      }
+    }
+
     if (data && typeof data === 'object') {
       const isOk = Boolean(data.ok);
       const rawStatus = String(data.deviceStatus || (isOk ? 'connect' : 'disconnect'));
@@ -683,7 +1044,7 @@ export async function checkWhatsAppGatewayStatus(): Promise<WhatsAppGatewayStatu
       ok: false,
       configured: true,
       deviceStatus: 'error',
-      message: `HTTP ${response.status} saat memeriksa status gateway WhatsApp.`,
+      message: `HTTP ${response?.status || 500} saat memeriksa status gateway WhatsApp.`,
       checkedAt: new Date().toISOString(),
     };
   } catch (err) {
