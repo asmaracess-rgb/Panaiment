@@ -70,6 +70,7 @@ interface PelayananKelurahanModuleProps {
   onAddPengaduan: (record: Omit<PengaduanOnlineRecord, 'id' | 'ticketCode' | 'submittedAt' | 'updatedAt' | 'status'>) => Promise<string>;
   onNavigate?: (view: AppView) => void;
   defaultActiveModule?: 'hub' | 'pra_registrasi' | 'pengaduan';
+  moduleTriggerSeq?: number;
 }
 
 export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> = ({
@@ -84,6 +85,7 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
   onAddPengaduan,
   onNavigate,
   defaultActiveModule = 'hub',
+  moduleTriggerSeq = 0,
 }) => {
   // Navigation within module
   const [activeModule, setActiveModule] = useState<'hub' | 'pra_registrasi' | 'pengaduan'>(defaultActiveModule);
@@ -107,26 +109,28 @@ export const PelayananKelurahanModule: React.FC<PelayananKelurahanModuleProps> =
     return true;
   };
 
-  React.useEffect(() => {
-    if ((defaultActiveModule === 'pra_registrasi' || defaultActiveModule === 'pengaduan') && !userProfile) {
-      setActiveModule('hub');
-      setRestrictedModal({
-        isOpen: true,
-        title: defaultActiveModule === 'pra_registrasi' ? 'Pra Registrasi Online' : 'Pengaduan Online',
-        description: `Layanan ${
-          defaultActiveModule === 'pra_registrasi' ? 'Pra Registrasi Online' : 'Pengaduan Online'
-        } memerlukan akun warga terdaftar. Silakan masuk atau mendaftar akun warga terlebih dahulu untuk mengakses layanan ini.`,
-      });
-      return;
-    }
-    setActiveModule(defaultActiveModule);
-  }, [defaultActiveModule, userProfile]);
-  
   // Pra Registrasi Submenus: 'daftar' | 'form' | 'saya' | 'sukses'
   const [praSubmenu, setPraSubmenu] = useState<'daftar' | 'form' | 'saya' | 'sukses'>('daftar');
   
   // Pengaduan Submenus: 'buat' | 'saya' | 'sukses'
   const [pengaduanSubmenu, setPengaduanSubmenu] = useState<'buat' | 'saya' | 'sukses'>('buat');
+
+  React.useEffect(() => {
+    if (defaultActiveModule === 'pra_registrasi' && !userProfile) {
+      setActiveModule('hub');
+      setRestrictedModal({
+        isOpen: true,
+        title: 'Pra Registrasi Online',
+        description:
+          'Layanan Pra Registrasi Online memerlukan akun warga terdaftar. Silakan masuk atau mendaftar akun warga terlebih dahulu untuk mengakses layanan ini.',
+      });
+      return;
+    }
+    setActiveModule(defaultActiveModule);
+    if (defaultActiveModule === 'pengaduan') {
+      setPengaduanSubmenu('buat');
+    }
+  }, [defaultActiveModule, moduleTriggerSeq, userProfile]);
 
   // Selected Service for Pra-Registrasi
   const [selectedService, setSelectedService] = useState<MasterLayananItem | null>(null);

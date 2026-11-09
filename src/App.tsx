@@ -1287,7 +1287,21 @@ export default function App() {
     [dismissToast]
   );
 
-  const handleNavigate = (view: AppView) => {
+  const [wargaModuleState, setWargaModuleState] = useState<{
+    module: 'hub' | 'pra_registrasi' | 'pengaduan';
+    seq: number;
+  }>({ module: 'hub', seq: 0 });
+
+  const handleNavigate = (
+    view: AppView,
+    initialWargaModule: 'hub' | 'pra_registrasi' | 'pengaduan' = 'hub'
+  ) => {
+    if (view === 'warga') {
+      setWargaModuleState((prev) => ({
+        module: initialWargaModule,
+        seq: prev.seq + 1,
+      }));
+    }
     setActiveView(view);
     setShowPublicWargaCatalog(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -3341,11 +3355,11 @@ export default function App() {
           )}
           <button
             type="button"
-            onClick={() => handleNavigate('warga')}
+            onClick={() => handleNavigate('warga', 'pengaduan')}
             className="px-3 py-1.5 text-[11px] font-bold text-white bg-[#1C8237] rounded-lg hover:bg-[#146329] transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-xs"
-            title="Pelayanan Kelurahan: Pra Registrasi Online & Pengaduan Online"
+            title="Pengaduan Online Warga Kelurahan Panaikang"
           >
-            Pelayanan Kelurahan
+            Pengaduan Online
           </button>
         </div>
       </header>
@@ -3426,7 +3440,7 @@ export default function App() {
             rwGroups={rwGroups}
             urbanFarmingSpots={urbanFarmingSpots}
             onSyncInstagram={handleSyncInstagram}
-            onQuickReportClick={() => handleNavigate('warga')}
+            onQuickReportClick={() => handleNavigate('warga', 'pengaduan')}
           />
         )}
 
@@ -3464,6 +3478,8 @@ export default function App() {
               onAddPraRegistrasi={handleAddPraRegistrasi}
               onAddPengaduan={handleAddPengaduan}
               onNavigate={handleNavigate}
+              defaultActiveModule={wargaModuleState.module}
+              moduleTriggerSeq={wargaModuleState.seq}
             />
           </div>
         )}
