@@ -308,7 +308,48 @@ Salah satunya melalui fasilitasi akses Kredit Usaha Rakyat (KUR) dengan menggand
   },
 ];
 
-export const INITIAL_WHATSAPP_RECIPIENTS: WhatsAppRecipient[] = [];
+export const INITIAL_WHATSAPP_RECIPIENTS: WhatsAppRecipient[] = [
+  {
+    id: 'wa-rec-lurah',
+    name: 'Lurah Panaikang',
+    role: 'Lurah / Pimpinan Kelurahan',
+    phoneNumber: '081242108800',
+    isPrimary: true,
+    isActive: true,
+    rwScope: 'Seluruh Wilayah',
+    notes: 'Penerima Utama Notifikasi Pengaduan Warga',
+  },
+  {
+    id: 'wa-rec-seklur',
+    name: 'Sekretaris Kelurahan Panaikang',
+    role: 'Sekretaris Kelurahan (Seklur)',
+    phoneNumber: '081342109900',
+    isPrimary: false,
+    isActive: true,
+    rwScope: 'Seluruh Wilayah',
+    notes: 'Penerima Notifikasi Koordinasi Administrasi',
+  },
+  {
+    id: 'wa-rec-kebersihan',
+    name: 'Kasi Kebersihan & Lingkungan',
+    role: 'Kepala Seksi Kebersihan',
+    phoneNumber: '085242107700',
+    isPrimary: false,
+    isActive: true,
+    rwScope: 'Seluruh Wilayah',
+    notes: 'Penerima Notifikasi Pengaduan Sampah & Lingkungan',
+  },
+  {
+    id: 'wa-rec-pemerintahan',
+    name: 'Kasi Pemerintahan',
+    role: 'Kepala Seksi Pemerintahan',
+    phoneNumber: '082142106600',
+    isPrimary: false,
+    isActive: true,
+    rwScope: 'Seluruh Wilayah',
+    notes: 'Penerima Notifikasi Pengaduan Wilayah & RT/RW',
+  },
+];
 
 export const INITIAL_ADMIN_USERS: AdminUserAccount[] = [
   {

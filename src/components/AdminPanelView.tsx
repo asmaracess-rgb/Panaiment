@@ -2123,7 +2123,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   }, []);
 
   useEffect(() => {
-    setWaDispatchLogs(loadWhatsAppAutoDispatchLogs());
+    loadWhatsAppAutoDispatchLogsAsync().then((logs) => setWaDispatchLogs(logs));
   }, [reports.length]);
 
   const handleTestAutoWaDispatch = async (recipient: WhatsAppRecipient) => {
@@ -8032,9 +8032,23 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     Daftar Log Pengiriman WhatsApp Otomatis Pengaduan Masuk ({waDispatchLogs.length} Pengiriman)
                   </span>
                 </div>
-                <span className="text-[11px] text-emerald-700 font-semibold">
-                  Terkirim otomatis saat pengaduan disubmit warga
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const logs = await loadWhatsAppAutoDispatchLogsAsync();
+                      setWaDispatchLogs(logs);
+                    }}
+                    className="px-2.5 py-1 text-[11px] font-bold text-[#0D3868] bg-white border border-slate-300 rounded-lg shadow-2xs hover:bg-slate-50 flex items-center gap-1 cursor-pointer transition-colors"
+                    title="Muat ulang riwayat pengiriman WA dari database server"
+                  >
+                    <RefreshCw className="w-3 h-3 text-[#0D3868]" />
+                    <span>Sinkronkan Log Server</span>
+                  </button>
+                  <span className="text-[11px] text-emerald-700 font-semibold hidden sm:inline">
+                    Terkirim otomatis saat pengaduan disubmit warga
+                  </span>
+                </div>
               </div>
               {waDispatchLogs.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/60 p-6 text-center text-xs text-slate-500">

@@ -81,6 +81,7 @@ import {
   buildInterRecipientCoordinationMessage,
   dispatchComplaintToRegisteredWhatsApp,
   loadWhatsAppAutoDispatchLogs,
+  loadWhatsAppAutoDispatchLogsAsync,
   WhatsAppAutoDispatchReceipt,
   checkWhatsAppGatewayStatus,
   WhatsAppGatewayStatusResult,
@@ -261,10 +262,11 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
 
   useEffect(() => {
     fetchGatewayStatus();
+    loadWhatsAppAutoDispatchLogsAsync().then((logs) => setWaDispatchLogs(logs));
   }, []);
 
   useEffect(() => {
-    setWaDispatchLogs(loadWhatsAppAutoDispatchLogs());
+    loadWhatsAppAutoDispatchLogsAsync().then((logs) => setWaDispatchLogs(logs));
   }, [reports.length]);
 
   const scrollToWhatsAppManager = () => {

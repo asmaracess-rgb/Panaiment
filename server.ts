@@ -221,7 +221,10 @@ function loadDatabase(): DatabaseSchema {
             }
             return Array.from(map.values());
           })(),
-          whatsappRecipients: filterDeleted(parsed.whatsappRecipients, INITIAL_WHATSAPP_RECIPIENTS),
+          whatsappRecipients: (() => {
+            const list = filterDeleted(parsed.whatsappRecipients, INITIAL_WHATSAPP_RECIPIENTS);
+            return list.length > 0 ? list : INITIAL_WHATSAPP_RECIPIENTS;
+          })(),
           serviceCatalog:
             Array.isArray(parsed.serviceCatalog) && parsed.serviceCatalog.length > 0
               ? parsed.serviceCatalog
@@ -1688,6 +1691,15 @@ async function startServer() {
       process.env.FONNTE_API_TOKEN ||
       process.env.FONNTETOKEN ||
       '';
+    if (
+      raw &&
+      (raw.includes('YOUR_FONNTE_TOKEN') ||
+        raw.includes('placeholder') ||
+        raw === 'undefined' ||
+        raw === 'null')
+    ) {
+      raw = '';
+    }
     if (!raw) {
       try {
         const envPath = path.join(__dirname, '.env');
@@ -1699,6 +1711,15 @@ async function startServer() {
           }
         }
       } catch {}
+    }
+    if (
+      raw &&
+      (raw.includes('YOUR_FONNTE_TOKEN') ||
+        raw.includes('placeholder') ||
+        raw === 'undefined' ||
+        raw === 'null')
+    ) {
+      raw = '';
     }
     if (!raw && fs.existsSync(FONNTE_TOKEN_FILE)) {
       try {
@@ -1747,6 +1768,17 @@ async function startServer() {
         return !scope || scope === 'Seluruh Wilayah' || !reportRw || scope === reportRw;
       });
 
+      if (validRecipients.length === 0) {
+        return res.json({
+          ok: false,
+          error:
+            'Tidak ada nomor WhatsApp penerima aktif yang valid (nomor HP belum diisi atau format belum sesuai). Silakan atur nomor WhatsApp pejabat/koordinator penerima di menu Kelola WhatsApp Gateway.',
+          totalDispatched: 0,
+          totalFailed: 0,
+          deliveries: [],
+        });
+      }
+
       const dispatchedAt = new Date().toISOString();
       const deliveries = await Promise.all(
         validRecipients.map(async (recipient: any) => {
@@ -1788,8 +1820,10 @@ async function startServer() {
               const params = new URLSearchParams();
               params.append('target', normalizedPhone);
               params.append('message', message);
+              params.append('token', fonnteToken);
 
-              const resp = await fetch(FONNTE_ENDPOINT, {
+              const urlWithToken = `${FONNTE_ENDPOINT}?token=${encodeURIComponent(fonnteToken)}`;
+              const resp = await fetch(urlWithToken, {
                 method: 'POST',
                 headers: {
                   Authorization: fonnteToken,
@@ -1913,12 +1947,17 @@ async function startServer() {
     }
 
     try {
-      const resp = await fetch(FONNTE_DEVICE_ENDPOINT, {
+      const params = new URLSearchParams();
+      params.append('token', fonnteToken);
+
+      const urlWithToken = `${FONNTE_DEVICE_ENDPOINT}?token=${encodeURIComponent(fonnteToken)}`;
+      const resp = await fetch(urlWithToken, {
         method: 'POST',
         headers: {
           Authorization: fonnteToken,
           'Content-Type': 'application/x-www-form-urlencoded',
         },
+        body: params.toString(),
       });
 
       let data: any = null;

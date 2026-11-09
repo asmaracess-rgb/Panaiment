@@ -371,7 +371,11 @@ export async function loadWhatsAppAutoDispatchLogsAsync(): Promise<WhatsAppAutoD
     const res = await fetch('/api/whatsapp-dispatch-logs', { cache: 'no-store' });
     const data = await res.json().catch(() => null);
     if (data?.ok && Array.isArray(data.data)) {
-      saveWhatsAppAutoDispatchLogs(data.data);
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.setItem(WA_AUTO_DISPATCH_LOGS_KEY, JSON.stringify(data.data.slice(0, 120)));
+        } catch {}
+      }
       return data.data;
     }
   } catch {}
