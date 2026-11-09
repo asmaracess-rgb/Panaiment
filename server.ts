@@ -1771,7 +1771,14 @@ async function startServer() {
               const fonnteOk =
                 resp.ok &&
                 respData &&
-                (respData.status === true || respData.status === 'true');
+                (respData.status === true ||
+                 respData.status === 'true' ||
+                 String(respData.status).toLowerCase() === 'connect' ||
+                 String(respData.status).toLowerCase() === 'connected' ||
+                 String(respData.status).toLowerCase() === 'success' ||
+                 Boolean(respData.id) ||
+                 Boolean(respData.requestid) ||
+                 /success/i.test(String(respData.detail || respData.message || '')));
 
               if (fonnteOk) {
                 deliveryStatus = 'TERKIRIM_OTOMATIS';
@@ -1857,9 +1864,27 @@ async function startServer() {
         data = null;
       }
 
-      if (resp.ok && data && (data.status === true || data.status === 'true')) {
-        const rawStatus = String(data.device_status || data.status || '').toLowerCase();
-        const isConnected = rawStatus === 'connect' || rawStatus === 'connected' || rawStatus === 'true';
+      if (resp.ok && data) {
+        const deviceStatusStr = String(data.device_status || '').toLowerCase();
+        const generalStatus = String(data.status || '').toLowerCase();
+
+        const isConnected =
+          deviceStatusStr === 'connect' ||
+          deviceStatusStr === 'connected' ||
+          deviceStatusStr === 'online' ||
+          deviceStatusStr === 'true' ||
+          generalStatus === 'connect' ||
+          generalStatus === 'connected' ||
+          generalStatus === 'online' ||
+          generalStatus === 'true' ||
+          data.status === true ||
+          (data.status !== false &&
+           generalStatus !== 'false' &&
+           deviceStatusStr !== 'disconnect' &&
+           deviceStatusStr !== 'disconnected' &&
+           generalStatus !== 'disconnect' &&
+           generalStatus !== 'disconnected' &&
+           (data.device || data.name || data.quota !== undefined));
 
         return res.json({
           ok: isConnected,
