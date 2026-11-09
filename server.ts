@@ -1680,13 +1680,32 @@ async function startServer() {
     return text.slice(0, 240);
   };
 
+  const FONNTE_TOKEN_FILE = path.join(DATA_DIR, 'fonnte_token.txt');
+
   const getCleanFonnteToken = (): string => {
-    const raw =
+    let raw =
       process.env.FONNTE_TOKEN ||
       process.env.FONNTE_API_TOKEN ||
       process.env.FONNTETOKEN ||
       '';
-    return raw
+    if (!raw) {
+      try {
+        const envPath = path.join(__dirname, '.env');
+        if (fs.existsSync(envPath)) {
+          const envContent = fs.readFileSync(envPath, 'utf-8');
+          const match = envContent.match(/FONNTE_TOKEN\s*=\s*["']?([^"'\r\n]+)["']?/i);
+          if (match && match[1]) {
+            raw = match[1];
+          }
+        }
+      } catch {}
+    }
+    if (!raw && fs.existsSync(FONNTE_TOKEN_FILE)) {
+      try {
+        raw = fs.readFileSync(FONNTE_TOKEN_FILE, 'utf-8');
+      } catch {}
+    }
+    return (raw || '')
       .replace(/^Bearer\s+/i, '')
       .replace(/^["']|["']$/g, '')
       .trim();
@@ -1878,12 +1897,18 @@ async function startServer() {
 
   const handleWhatsAppGatewayStatus = async (req: express.Request, res: express.Response) => {
     const fonnteToken = getCleanFonnteToken();
+    const tokenMasked = fonnteToken
+      ? `${fonnteToken.slice(0, 4)}••••••••${fonnteToken.slice(-4)}`
+      : '';
+
     if (!fonnteToken) {
       return res.json({
         ok: false,
         configured: false,
+        hasToken: false,
+        tokenMasked: '',
         deviceStatus: 'unconfigured',
-        message: 'Environment variable FONNTE_TOKEN belum dikonfigurasi di server.',
+        message: 'Token FONNTE_TOKEN belum dikonfigurasi di server.',
       });
     }
 
@@ -1934,6 +1959,8 @@ async function startServer() {
         return res.json({
           ok: isConnected,
           configured: true,
+          hasToken: true,
+          tokenMasked,
           deviceStatus: isConnected ? 'connect' : 'disconnect',
           device: data.device || '',
           name: data.name || '',
@@ -1951,6 +1978,8 @@ async function startServer() {
       return res.json({
         ok: false,
         configured: true,
+        hasToken: true,
+        tokenMasked,
         deviceStatus: /invalid token/i.test(reason) ? 'invalid_token' : 'disconnect',
         reason,
         message: sanitizeFonnteError(reason, fonnteToken),
@@ -1959,11 +1988,31 @@ async function startServer() {
       return res.json({
         ok: false,
         configured: true,
+        hasToken: true,
+        tokenMasked,
         deviceStatus: 'error',
         message: err instanceof Error ? err.message : 'Koneksi ke server Fonnte gagal.',
       });
     }
   };
+
+  app.post('/api/whatsapp-gateway/token', (req, res) => {
+    const tokenInput = String(req.body?.token || req.body?.fonnteToken || '').trim();
+    if (!tokenInput) {
+      return res.status(400).json({ ok: false, message: 'Token Fonnte tidak boleh kosong.' });
+    }
+    const cleaned = tokenInput.replace(/^Bearer\s+/i, '').replace(/^["']|["']$/g, '').trim();
+    try {
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
+      fs.writeFileSync(FONNTE_TOKEN_FILE, cleaned, 'utf-8');
+      process.env.FONNTE_TOKEN = cleaned;
+      return res.json({ ok: true, message: 'FONNTE_TOKEN berhasil disimpan secara aman di server.' });
+    } catch {
+      return res.status(500).json({ ok: false, message: 'Gagal menyimpan token Fonnte ke server.' });
+    }
+  });
 
   app.post('/api/reports/dispatch-whatsapp', handleWhatsAppAutoDispatch);
   app.post('/api/whatsapp-dispatch', handleWhatsAppAutoDispatch);

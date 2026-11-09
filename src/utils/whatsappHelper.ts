@@ -623,6 +623,8 @@ export async function dispatchComplaintToRegisteredWhatsApp(params: {
 export interface WhatsAppGatewayStatusResult {
   ok: boolean;
   configured: boolean;
+  hasToken?: boolean;
+  tokenMasked?: string;
   deviceStatus: 'connect' | 'disconnect' | 'invalid_token' | 'unconfigured' | 'error';
   device?: string;
   name?: string;
@@ -654,6 +656,8 @@ export async function checkWhatsAppGatewayStatus(): Promise<WhatsAppGatewayStatu
       return {
         ok: isOk,
         configured: data.configured !== undefined ? Boolean(data.configured) : true,
+        hasToken: Boolean(data.hasToken),
+        tokenMasked: data.tokenMasked || '',
         deviceStatus: (rawStatus as WhatsAppGatewayStatusResult['deviceStatus']) || (isOk ? 'connect' : 'disconnect'),
         device: data.device || '',
         name: data.name || '',

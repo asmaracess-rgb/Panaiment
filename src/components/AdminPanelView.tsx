@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   Search,
   Lock,
+  Key,
   User,
   Eye,
   EyeOff,
@@ -2083,6 +2084,36 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       setWaGatewayStatus(res);
     } finally {
       setIsCheckingWaGateway(false);
+    }
+  };
+
+  const [tokenInputValue, setTokenInputValue] = useState('');
+  const [isSavingToken, setIsSavingToken] = useState(false);
+  const [showTokenForm, setShowTokenForm] = useState(false);
+
+  const handleSaveFonnteToken = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tokenInputValue.trim()) return;
+    setIsSavingToken(true);
+    try {
+      const res = await fetch('/api/whatsapp-gateway/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: tokenInputValue.trim() }),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.ok) {
+        setSuccessMessage(data.message || 'FONNTE_TOKEN berhasil disimpan secara aman di server.');
+        setTokenInputValue('');
+        setShowTokenForm(false);
+        fetchAdminWaGatewayStatus();
+      } else {
+        setValidationErrors([data?.message || 'Gagal menyimpan token Fonnte ke server.']);
+      }
+    } catch {
+      setValidationErrors(['Gagal menghubungi server untuk menyimpan token Fonnte.']);
+    } finally {
+      setIsSavingToken(false);
     }
   };
 
@@ -5189,7 +5220,13 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           <div className="flex items-start gap-2.5">
             <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
             <div className="flex-1 text-xs sm:text-sm">
-              <div className="font-bold">Validasi Data Gagal — Mohon Periksa Kembali:</div>
+              <div className="font-bold">
+                {validationErrors.every((err) =>
+                  /gagal mengirim wa|whatsapp|fonnte|gateway/i.test(err)
+                )
+                  ? 'Pemberitahuan Kendala WhatsApp Gateway (Fonnte):'
+                  : 'Validasi Data Gagal — Mohon Periksa Kembali:'}
+              </div>
               <ul className="mt-1 list-disc list-inside space-y-0.5 text-red-800">
                 {validationErrors.map((err, i) => (
                   <li key={i}>{err}</li>
@@ -7436,7 +7473,82 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                   </div>
                 </div>
 
-                {/* Panduan jika status Disconnected */}
+              {/* Konfigurasi FONNTE_TOKEN Server-Side */}
+              <div className="rounded-xl border border-sky-200 bg-sky-50/50 p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-[#0D3868] text-white flex items-center justify-center shrink-0 shadow-xs">
+                      <Key className="w-4 h-4 text-amber-300" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-[#0D3868]">
+                        Autentikasi Server WhatsApp Gateway (`FONNTE_TOKEN`)
+                      </div>
+                      <div className="text-[11px] text-slate-600 mt-0.5">
+                        {waGatewayStatus?.hasToken ? (
+                          <span className="text-emerald-700 font-semibold flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                            <span>Token Server Terpasang: <code className="font-mono text-emerald-900 bg-emerald-100 px-1.5 py-0.5 rounded text-[10px]">{waGatewayStatus.tokenMasked}</code></span>
+                          </span>
+                        ) : (
+                          <span className="text-amber-800 font-semibold flex items-center gap-1">
+                            <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                            <span>FONNTE_TOKEN belum dikonfigurasi di server. Silakan klik tombol di samping untuk menginput token Fonnte Anda.</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowTokenForm((prev) => !prev)}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold cursor-pointer whitespace-nowrap self-start sm:self-center shadow-xs"
+                  >
+                    <Key className="w-3.5 h-3.5 text-amber-300" />
+                    <span>{showTokenForm ? 'Tutup Input Token' : waGatewayStatus?.hasToken ? 'Ganti Token Fonnte' : '+ Input Token Fonnte'}</span>
+                  </button>
+                </div>
+
+                {showTokenForm && (
+                  <form onSubmit={handleSaveFonnteToken} className="pt-3 border-t border-sky-200/80 space-y-3">
+                    <div>
+                      <label className="block text-xs font-bold text-[#0D3868] mb-1">
+                        Input / Perbarui FONNTE_TOKEN Server-Side *
+                      </label>
+                      <input
+                        type="password"
+                        value={tokenInputValue}
+                        onChange={(e) => setTokenInputValue(e.target.value)}
+                        placeholder="Pastekan token API Fonnte dari fonnte.com di sini (contoh: 4a3f89xxxx...)"
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-mono text-slate-900 focus:border-[#0D3868] outline-hidden"
+                      />
+                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                        Token akan disimpan secara aman dan rahasia di server (tidak pernah dikirimkan ke frontend/browser, console, atau log). Token didapatkan dari menu <strong>Device</strong> pada dashboard <strong>fonnte.com</strong>.
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowTokenForm(false)}
+                        className="px-3.5 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-700 cursor-pointer"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isSavingToken || !tokenInputValue.trim()}
+                        className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-[#128C7E] hover:bg-[#075E54] disabled:opacity-50 text-white text-xs font-bold cursor-pointer shadow-xs"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>{isSavingToken ? 'Menyimpan...' : 'Simpan Token ke Server'}</span>
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+
+              {/* Panduan jika status Disconnected */}
                 {waGatewayStatus && !waGatewayStatus.ok && (
                   <div className="mt-3 pt-3 border-t border-amber-200/80 bg-amber-50/70 rounded-xl p-3 text-xs text-amber-900 space-y-1.5">
                     <div className="font-bold flex items-center gap-1.5 text-amber-950">
