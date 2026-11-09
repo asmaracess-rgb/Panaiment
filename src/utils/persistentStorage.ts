@@ -89,6 +89,7 @@ export interface PersistedDatabase {
   farmingInventories?: FarmingInventoryItem[];
   supplyRequests?: SupplyRequestItem[];
   siskamlingSchedules?: SiskamlingRwSchedule[];
+  waDispatchLogs?: any[];
   citizenUsers?: AuthenticatedUserProfile[];
   citizenMenuConfig?: CitizenMenuAccessConfig;
   praRegistrasiRecords?: PraRegistrasiRecord[];
@@ -748,6 +749,10 @@ export function smartMergeDatabases(
     localIsNewer
   );
 
+  const resolvedWaDispatchLogs = Array.isArray(incoming?.waDispatchLogs) && incoming!.waDispatchLogs.length > 0
+    ? incoming!.waDispatchLogs
+    : (localDb?.waDispatchLogs || []);
+
   const resolvedServiceCatalog = Array.isArray(incoming?.serviceCatalog) && incoming!.serviceCatalog.length > 0
     ? incoming!.serviceCatalog
     : (localDb?.serviceCatalog || SERVICE_CATEGORY_GROUPS);
@@ -959,6 +964,7 @@ export function smartMergeDatabases(
     cleanupEvents: resolvedCleanupEvents,
     kelurahanInfos: resolvedKelurahanInfos,
     whatsappRecipients: resolvedWhatsappRecipients,
+    waDispatchLogs: resolvedWaDispatchLogs,
     serviceCatalog: resolvedServiceCatalog,
     adminUsers: resolvedAdminUsers,
     activityLogs: resolvedActivityLogs,

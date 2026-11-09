@@ -365,10 +365,29 @@ export function loadWhatsAppAutoDispatchLogs(): WhatsAppAutoDispatchReceipt[] {
   }
 }
 
+export async function loadWhatsAppAutoDispatchLogsAsync(): Promise<WhatsAppAutoDispatchReceipt[]> {
+  if (typeof window === 'undefined') return loadWhatsAppAutoDispatchLogs();
+  try {
+    const res = await fetch('/api/whatsapp-dispatch-logs', { cache: 'no-store' });
+    const data = await res.json().catch(() => null);
+    if (data?.ok && Array.isArray(data.data)) {
+      saveWhatsAppAutoDispatchLogs(data.data);
+      return data.data;
+    }
+  } catch {}
+  return loadWhatsAppAutoDispatchLogs();
+}
+
 export function saveWhatsAppAutoDispatchLogs(logs: WhatsAppAutoDispatchReceipt[]): void {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(WA_AUTO_DISPATCH_LOGS_KEY, JSON.stringify(logs.slice(0, 120)));
+    const sliced = logs.slice(0, 120);
+    window.localStorage.setItem(WA_AUTO_DISPATCH_LOGS_KEY, JSON.stringify(sliced));
+    fetch('/api/whatsapp-dispatch-logs', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ waDispatchLogs: sliced }),
+    }).catch(() => {});
   } catch {
     // Ignore storage quota errors
   }

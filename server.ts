@@ -104,6 +104,7 @@ interface DatabaseSchema {
   farmingInventories: FarmingInventoryItem[];
   supplyRequests: SupplyRequestItem[];
   siskamlingSchedules?: SiskamlingRwSchedule[];
+  waDispatchLogs?: any[];
   citizenUsers?: AuthenticatedUserProfile[];
   citizenMenuConfig?: CitizenMenuAccessConfig;
   deletedItemIds?: string[];
@@ -244,6 +245,7 @@ function loadDatabase(): DatabaseSchema {
             Array.isArray(parsed.siskamlingSchedules) && parsed.siskamlingSchedules.length > 0
               ? parsed.siskamlingSchedules
               : INITIAL_SISKAMLING_SCHEDULES,
+          waDispatchLogs: Array.isArray(parsed.waDispatchLogs) ? parsed.waDispatchLogs : [],
           citizenUsers: Array.isArray(parsed.citizenUsers)
             ? parsed.citizenUsers.filter((c) => c && c.uid && !deletedSet.has(c.uid))
             : [],
@@ -282,6 +284,7 @@ function loadDatabase(): DatabaseSchema {
     farmingInventories: INITIAL_FARMING_INVENTORIES,
     supplyRequests: INITIAL_SUPPLY_REQUESTS,
     siskamlingSchedules: INITIAL_SISKAMLING_SCHEDULES,
+    waDispatchLogs: [],
     deletedItemIds: [],
     lastModified: new Date().toISOString(),
     updatedAt: 0,
@@ -1414,6 +1417,22 @@ async function startServer() {
     res.json({ ok: true, data: db.whatsappRecipients });
   });
 
+  // WhatsApp Dispatch Logs Persistence
+  app.get('/api/whatsapp-dispatch-logs', (_req, res) => {
+    res.json({ ok: true, data: db.waDispatchLogs || [] });
+  });
+
+  app.put('/api/whatsapp-dispatch-logs', (req, res) => {
+    const incoming = Array.isArray(req.body?.waDispatchLogs)
+      ? req.body.waDispatchLogs
+      : Array.isArray(req.body)
+      ? req.body
+      : [];
+    db.waDispatchLogs = incoming;
+    saveDatabase(db);
+    res.json({ ok: true, data: db.waDispatchLogs });
+  });
+
   // 2. Update Kelurahan Profile (Edit, Validate & Save)
   app.put('/api/profile', (req, res) => {
     const incoming = req.body as KelurahanProfile;
@@ -1747,17 +1766,17 @@ async function startServer() {
             errorMessage = 'Konfigurasi FONNTE_TOKEN belum tersedia di server.';
           } else {
             try {
-              const formData = new FormData();
-              formData.append('target', normalizedPhone);
-              formData.append('message', message);
-              formData.append('countryCode', '0');
+              const params = new URLSearchParams();
+              params.append('target', normalizedPhone);
+              params.append('message', message);
 
               const resp = await fetch(FONNTE_ENDPOINT, {
                 method: 'POST',
                 headers: {
                   Authorization: fonnteToken,
+                  'Content-Type': 'application/x-www-form-urlencoded',
                 },
-                body: formData,
+                body: params.toString(),
               });
 
               let respData: any = null;
@@ -1834,6 +1853,12 @@ async function startServer() {
 
       const successCount = deliveries.filter((d) => d.status === 'TERKIRIM_OTOMATIS').length;
       const failedCount = deliveries.length - successCount;
+
+      if (!Array.isArray(db.waDispatchLogs)) {
+        db.waDispatchLogs = [];
+      }
+      db.waDispatchLogs = [...deliveries, ...db.waDispatchLogs].slice(0, 100);
+      saveDatabase(db);
 
       res.json({
         ok: deliveries.length > 0 && failedCount === 0,

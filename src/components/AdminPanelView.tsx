@@ -139,6 +139,7 @@ import {
   normalizeWhatsAppPhone,
   dispatchComplaintToRegisteredWhatsApp,
   loadWhatsAppAutoDispatchLogs,
+  loadWhatsAppAutoDispatchLogsAsync,
   WhatsAppAutoDispatchReceipt,
   checkWhatsAppGatewayStatus,
   WhatsAppGatewayStatusResult,
@@ -2087,6 +2088,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
   useEffect(() => {
     fetchAdminWaGatewayStatus();
+    loadWhatsAppAutoDispatchLogsAsync().then((logs) => setWaDispatchLogs(logs));
   }, []);
 
   useEffect(() => {
