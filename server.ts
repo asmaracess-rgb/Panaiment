@@ -1870,6 +1870,12 @@ async function startServer() {
         data = null;
       }
 
+      console.log('[FONNTE DEBUG DEVICE]', {
+        status: resp.status,
+        ok: resp.ok,
+        data,
+      });
+
       if (resp.ok && data) {
         const deviceStatusStr = String(data.device_status || '').toLowerCase();
         const generalStatus = String(data.status || '').toLowerCase();
