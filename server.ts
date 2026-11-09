@@ -1761,8 +1761,14 @@ async function startServer() {
               });
 
               let respData: any = null;
+              let rawText = '';
               try {
-                respData = await resp.json();
+                rawText = await resp.text();
+                try {
+                  respData = JSON.parse(rawText);
+                } catch {
+                  respData = { message: rawText };
+                }
               } catch {
                 respData = null;
               }
@@ -1770,6 +1776,7 @@ async function startServer() {
               console.log('[FONNTE DEBUG SEND]', {
                 status: resp.status,
                 ok: resp.ok,
+                rawText,
                 respData,
                 target: normalizedPhone,
               });
@@ -1784,7 +1791,7 @@ async function startServer() {
                  String(respData.status).toLowerCase() === 'success' ||
                  Boolean(respData.id) ||
                  Boolean(respData.requestid) ||
-                 /success/i.test(String(respData.detail || respData.message || '')));
+                 /success/i.test(String(respData.detail || respData.message || rawText)));
 
               if (fonnteOk) {
                 deliveryStatus = 'TERKIRIM_OTOMATIS';
@@ -1794,6 +1801,7 @@ async function startServer() {
                   respData?.reason ||
                   respData?.detail ||
                   respData?.message ||
+                  rawText ||
                   `Fonnte HTTP ${resp.status}`;
                 errorMessage = sanitizeFonnteError(reason, fonnteToken);
               }
