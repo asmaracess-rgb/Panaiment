@@ -1750,7 +1750,7 @@ async function startServer() {
               const formData = new FormData();
               formData.append('target', normalizedPhone);
               formData.append('message', message);
-              formData.append('countryCode', '62');
+              formData.append('countryCode', '0');
 
               const resp = await fetch(FONNTE_ENDPOINT, {
                 method: 'POST',
