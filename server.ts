@@ -1747,18 +1747,18 @@ async function startServer() {
             errorMessage = 'Konfigurasi FONNTE_TOKEN belum tersedia di server.';
           } else {
             try {
+              const params = new URLSearchParams();
+              params.append('target', normalizedPhone);
+              params.append('message', message);
+              params.append('countryCode', '62');
+
               const resp = await fetch(FONNTE_ENDPOINT, {
                 method: 'POST',
                 headers: {
                   Authorization: fonnteToken,
-                  'Content-Type': 'application/json',
+                  'Content-Type': 'application/x-www-form-urlencoded',
                 },
-                body: JSON.stringify({
-                  target: normalizedPhone,
-                  message,
-                  countryCode: '62',
-                  connectOnly: false,
-                }),
+                body: params.toString(),
               });
 
               let respData: any = null;
@@ -1846,6 +1846,7 @@ async function startServer() {
         method: 'POST',
         headers: {
           Authorization: fonnteToken,
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
       });
 
