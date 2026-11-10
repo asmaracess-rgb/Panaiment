@@ -66,6 +66,18 @@ export const DecisionInfoPopupModal: React.FC<DecisionInfoPopupModalProps> = ({
   data,
   onClose,
 }) => {
+  const [waPhoneInput, setWaPhoneInput] = React.useState<string>('');
+  const [customNote, setCustomNote] = React.useState<string>('');
+
+  React.useEffect(() => {
+    if (data) {
+      const initialPhone =
+        data.phone && data.phone !== '-' && !/x/i.test(data.phone) ? data.phone : '';
+      setWaPhoneInput(initialPhone);
+      setCustomNote(data.note || '');
+    }
+  }, [data]);
+
   if (!data) return null;
 
   const isApprove = data.action === 'SETUJUI';
@@ -74,66 +86,77 @@ export const DecisionInfoPopupModal: React.FC<DecisionInfoPopupModalProps> = ({
   const isGuide = data.action === 'GUIDE';
 
   const headerBg = isApprove
-    ? 'bg-gradient-to-r from-emerald-800 via-emerald-700 to-emerald-600'
+    ? 'bg-emerald-600'
     : isReturn
-    ? 'bg-gradient-to-r from-amber-700 via-amber-600 to-amber-500'
+    ? 'bg-amber-500 text-slate-950'
     : isReject
-    ? 'bg-gradient-to-r from-rose-800 via-rose-700 to-rose-600'
-    : 'bg-gradient-to-r from-[#072647] via-[#0D3868] to-[#0277BD]';
+    ? 'bg-rose-600'
+    : 'bg-[#0D3868]';
 
-  const badgeText = isApprove
-    ? 'STATUS KEPUTUSAN: BERKAS DISETUJUI'
+  const statusLabel = isApprove
+    ? 'BERKAS DISETUJUI'
     : isReturn
-    ? 'STATUS KEPUTUSAN: BERKAS DIKEMBALIKAN'
+    ? 'BERKAS DIKEMBALIKAN'
     : isReject
-    ? 'STATUS KEPUTUSAN: BERKAS DITOLAK'
-    : 'PANDUAN INFORMASI STATUS KEPUTUSAN BERKAS';
+    ? 'BERKAS DITOLAK'
+    : 'INFO STATUS BERKAS';
 
-  const mainTitle = isApprove
-    ? 'Informasi Berkas Disetujui'
+  const shortDesc = isApprove
+    ? 'Berkas persyaratan lengkap dan telah disetujui. Surat resmi siap diterbitkan atau diambil oleh pemohon.'
     : isReturn
-    ? 'Informasi Berkas Dikembalikan (Perlu Perbaikan)'
+    ? 'Berkas dikembalikan sementara kepada pemohon untuk dilengkapi atau diperbaiki sesuai catatan.'
     : isReject
-    ? 'Informasi Berkas Ditolak'
-    : 'Informasi Status Berkas: Disetujui, Dikembalikan & Ditolak';
+    ? 'Permohonan berkas tidak dapat diproses karena belum memenuhi persyaratan administrasi.'
+    : 'Ringkasan status pemeriksaan berkas permohonan warga.';
 
-  const hasValidWa = isValidWhatsAppPhone(data.phone || '');
+  const effectiveNote = customNote.trim() || data.note;
+  const targetPhone = waPhoneInput.trim();
+  const canSendWa = isValidWhatsAppPhone(targetPhone);
 
   const waMessage = isApprove
-    ? `Halo Bapak/Ibu *${data.applicantName}*, salam dari Pemerintah Kelurahan Panaikang.\n\n*INFORMASI BERKAS DISETUJUI*\nNomor Tiket: *${data.ticketCode}*\nLayanan: *${data.serviceName}*\nStatus: *BERKAS DISETUJUI*\nCatatan: ${data.note}\n\nBerkas permohonan Anda telah disetujui. Silakan mengambil atau mengunduh dokumen surat resmi Anda. Terima kasih.`
+    ? `Halo Bapak/Ibu *${data.applicantName}*,\n\nStatus Permohonan Surat Anda:\n- Tiket: *${data.ticketCode}*\n- Layanan: *${data.serviceName}*\n- Status: *DISETUJUI*\n- Catatan: ${effectiveNote}\n\nSilakan mengambil atau mengunduh surat resmi Anda di Kelurahan Panaikang. Terima kasih.`
     : isReturn
-    ? `Halo Bapak/Ibu *${data.applicantName}*, salam dari Pemerintah Kelurahan Panaikang.\n\n*INFORMASI BERKAS DIKEMBALIKAN (PERLU PERBAIKAN)*\nNomor Tiket: *${data.ticketCode}*\nLayanan: *${data.serviceName}*\nStatus: *DIKEMBALIKAN UNTUK PERBAIKAN*\nCatatan Perbaikan: ${data.note}\n\nMohon melengkapi/memperbaiki berkas persyaratan sesuai catatan di atas. Terima kasih.`
-    : `Halo Bapak/Ibu *${data.applicantName}*, salam dari Pemerintah Kelurahan Panaikang.\n\n*INFORMASI BERKAS DITOLAK*\nNomor Tiket: *${data.ticketCode}*\nLayanan: *${data.serviceName}*\nStatus: *PERMOHONAN DITOLAK*\nAlasan Penolakan: ${data.note}\n\nTerima kasih atas pengertian Anda.`;
+    ? `Halo Bapak/Ibu *${data.applicantName}*,\n\nStatus Permohonan Surat Anda:\n- Tiket: *${data.ticketCode}*\n- Layanan: *${data.serviceName}*\n- Status: *DIKEMBALIKAN (PERLU PERBAIKAN)*\n- Catatan Perbaikan: ${effectiveNote}\n\nMohon lengkapi/perbaiki berkas sesuai catatan di atas. Terima kasih.`
+    : isReject
+    ? `Halo Bapak/Ibu *${data.applicantName}*,\n\nStatus Permohonan Surat Anda:\n- Tiket: *${data.ticketCode}*\n- Layanan: *${data.serviceName}*\n- Status: *DITOLAK*\n- Alasan: ${effectiveNote}\n\nTerima kasih — Pemerintah Kelurahan Panaikang.`
+    : `Halo Bapak/Ibu *${data.applicantName}*,\n\nInformasi Permohonan Surat (*${data.ticketCode}* - ${data.serviceName}):\n${effectiveNote}\n\nTerima kasih — Pemerintah Kelurahan Panaikang.`;
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/80 backdrop-blur-xs p-3 sm:p-6 overflow-y-auto animate-fadeIn"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/75 backdrop-blur-xs p-4 animate-fadeIn"
       role="dialog"
       aria-modal="true"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-3xl max-w-2xl w-full overflow-hidden shadow-2xl border border-slate-200 my-auto"
+        className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-200"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Top Header */}
-        <div className={`${headerBg} px-5 sm:px-6 py-5 text-white flex items-start justify-between gap-4`}>
-          <div className="flex items-start gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-white/20 border border-white/30 flex items-center justify-center shrink-0 shadow-xs">
-              {isApprove && <CheckCircle2 className="w-7 h-7 text-white" />}
-              {isReturn && <RotateCcw className="w-7 h-7 text-white" />}
-              {isReject && <XCircle className="w-7 h-7 text-white" />}
-              {isGuide && <Info className="w-7 h-7 text-amber-300" />}
+        {/* Header Sederhana */}
+        <div
+          className={`${headerBg} px-5 py-4 ${
+            isReturn ? 'text-slate-950' : 'text-white'
+          } flex items-center justify-between gap-3`}
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                isReturn ? 'bg-black/10 text-slate-950' : 'bg-white/20 text-white'
+              }`}
+            >
+              {isApprove && <CheckCircle2 className="w-6 h-6" />}
+              {isReturn && <RotateCcw className="w-6 h-6" />}
+              {isReject && <XCircle className="w-6 h-6" />}
+              {isGuide && <Info className="w-6 h-6" />}
             </div>
-            <div>
-              <span className="inline-block px-2.5 py-0.5 rounded-md bg-black/25 text-white text-[10px] font-black uppercase tracking-wider">
-                {badgeText}
-              </span>
-              <h3 className="text-lg sm:text-xl font-black text-white mt-1">
-                {mainTitle}
-              </h3>
-              <p className="text-xs text-white/90 mt-0.5">
-                Tiket #{data.ticketCode} · {data.serviceName}
+            <div className="min-w-0">
+              <h3 className="text-base font-black tracking-tight truncate">{statusLabel}</h3>
+              <p
+                className={`text-xs truncate ${
+                  isReturn ? 'text-slate-900/80 font-semibold' : 'text-white/90'
+                }`}
+              >
+                #{data.ticketCode} · {data.serviceName}
               </p>
             </div>
           </div>
@@ -141,204 +164,111 @@ export const DecisionInfoPopupModal: React.FC<DecisionInfoPopupModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition cursor-pointer shrink-0"
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition cursor-pointer shrink-0 ${
+              isReturn
+                ? 'bg-black/10 hover:bg-black/20 text-slate-950'
+                : 'bg-white/15 hover:bg-white/25 text-white'
+            }`}
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Popup Body */}
-        <div className="p-5 sm:p-6 space-y-4 max-h-[78vh] overflow-y-auto bg-slate-50/50">
-          {/* Active Decision Detail Banner (When Setujui / Kembalikan / Tolak is clicked) */}
-          {!isGuide && (
+        {/* Body Sederhana */}
+        <div className="p-5 space-y-4 text-xs">
+          {/* Info Singkat Status */}
+          {!isGuide ? (
             <div
-              className={`p-4 rounded-2xl border-2 space-y-2.5 ${
+              className={`p-3.5 rounded-xl border ${
                 isApprove
-                  ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
                   : isReturn
-                  ? 'bg-amber-50/90 border-amber-300 text-amber-950'
-                  : 'bg-rose-50/90 border-rose-300 text-rose-950'
+                  ? 'bg-amber-50 border-amber-200 text-amber-950'
+                  : 'bg-rose-50 border-rose-200 text-rose-950'
               }`}
             >
-              <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-black/10">
-                <div className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
-                  {isApprove && <CheckCircle2 className="w-4 h-4 text-emerald-700" />}
-                  {isReturn && <RotateCcw className="w-4 h-4 text-amber-700" />}
-                  {isReject && <XCircle className="w-4 h-4 text-rose-700" />}
-                  <span>
-                    {isApprove
-                      ? 'Keputusan Berhasil Disimpan: Berkas Disetujui'
-                      : isReturn
-                      ? 'Keputusan Berhasil Disimpan: Berkas Dikembalikan'
-                      : 'Keputusan Berhasil Disimpan: Berkas Ditolak'}
-                  </span>
-                </div>
-                <span className="text-[11px] font-mono font-bold opacity-80">
-                  {data.decidedAt}
-                </span>
+              <div className="font-bold mb-1">
+                Pemohon: {data.applicantName}{' '}
+                {data.rw ? `(${data.rw}/${data.rt || 'RT 01'})` : ''}
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                <div>
-                  <span className="opacity-75">Nama Pemohon:</span>{' '}
-                  <strong>{data.applicantName}</strong>
-                  {data.rw ? ` (${data.rw}/${data.rt || 'RT 01'})` : ''}
-                </div>
-                {data.applicantNik && (
-                  <div>
-                    <span className="opacity-75">NIK Pemohon:</span>{' '}
-                    <strong className="font-mono">{data.applicantNik}</strong>
-                  </div>
-                )}
+              <p className="leading-relaxed opacity-90">{shortDesc}</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950">
+                <strong className="text-emerald-800">1. Disetujui:</strong> Berkas lengkap & sah, surat resmi siap diterbitkan/diambil.
               </div>
-
-              <div className="p-3 rounded-xl bg-white/90 border border-black/10 text-xs space-y-1">
-                <div className="font-bold text-slate-700">
-                  {isApprove
-                    ? 'Catatan Persetujuan Berkas:'
-                    : isReturn
-                    ? 'Catatan & Instruksi Perbaikan Berkas:'
-                    : 'Alasan Penolakan Berkas:'}
-                </div>
-                <div className="font-semibold text-slate-900 leading-relaxed">
-                  {data.note}
-                </div>
+              <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950">
+                <strong className="text-amber-800">2. Dikembalikan:</strong> Berkas belum lengkap/buram, dikembalikan untuk diperbaiki warga.
+              </div>
+              <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-950">
+                <strong className="text-rose-800">3. Ditolak:</strong> Permohonan ditolak karena tidak memenuhi syarat administrasi.
               </div>
             </div>
           )}
 
-          {/* Complete Information Cards About the 3 Statuses: Disetujui, Dikembalikan, Ditolak */}
-          <div className="space-y-3">
-            <div className="text-xs font-black uppercase tracking-wider text-[#0D3868] flex items-center gap-1.5">
-              <Info className="w-4 h-4 text-[#0277BD]" />
-              <span>Penjelasan Lengkap Status Berkas (Disetujui, Dikembalikan & Ditolak)</span>
+          {/* Catatan & Fitur Kirim WA */}
+          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                Catatan / Keterangan untuk Pemohon:
+              </label>
+              <textarea
+                rows={2}
+                value={customNote}
+                onChange={(e) => setCustomNote(e.target.value)}
+                placeholder="Tulis catatan singkat untuk pemohon..."
+                className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:border-[#0D3868]"
+              />
             </div>
 
-            {/* 1. Informasi Berkas Disetujui */}
-            <div
-              className={`p-4 rounded-2xl border transition-all ${
-                isApprove
-                  ? 'bg-emerald-50 border-2 border-emerald-500 shadow-sm ring-2 ring-emerald-200'
-                  : 'bg-white border-slate-200'
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5 font-bold">
-                  <Check className="w-5 h-5" />
-                </div>
-                <div className="space-y-1 text-xs">
-                  <div className="flex items-center gap-2">
-                    <h4 className="font-black text-emerald-900 text-sm">
-                      1. Berkas Disetujui (Setujui Permohonan)
-                    </h4>
-                    {isApprove && (
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-black uppercase">
-                        Status Aktif Saat Ini
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-slate-700 leading-relaxed">
-                    <strong>Arti Status:</strong> Seluruh dokumen persyaratan dan data formulir pemohon telah diperiksa, dinyatakan <strong>lengkap, sah, dan disetujui</strong> oleh Lurah / Pejabat Berwenang Kelurahan Panaikang.
-                  </p>
-                  <p className="text-slate-600 leading-relaxed">
-                    <strong>Tindak Lanjut:</strong> Berkas diteruskan ke loket untuk penerbitan <strong>Nomor Registrasi Surat Resmi</strong>. Warga dapat langsung mengambil fisik surat atau mengunduh PDF surat resmi ber-QR Code.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* 2. Informasi Berkas Dikembalikan */}
-            <div
-              className={`p-4 rounded-2xl border transition-all ${
-                isReturn
-                  ? 'bg-amber-50 border-2 border-amber-500 shadow-sm ring-2 ring-amber-200'
-                  : 'bg-white border-slate-200'
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 mt-0.5 font-bold">
-                  <RotateCcw className="w-5 h-5" />
-                </div>
-                <div className="space-y-1 text-xs">
-                  <div className="flex items-center gap-2">
-                    <h4 className="font-black text-amber-900 text-sm">
-                      2. Berkas Dikembalikan (Kembalikan untuk Perbaikan)
-                    </h4>
-                    {isReturn && (
-                      <span className="px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black uppercase">
-                        Status Aktif Saat Ini
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-slate-700 leading-relaxed">
-                    <strong>Arti Status:</strong> Berkas permohonan <strong>dikembalikan sementara kepada warga</strong> karena masih ada dokumen persyaratan yang belum lengkap, foto dokumen buram/tidak terbaca, atau data isian yang perlu diperbaiki.
-                  </p>
-                  <p className="text-slate-600 leading-relaxed">
-                    <strong>Tindak Lanjut:</strong> Permohonan <strong>tidak ditolak permanen</strong>. Warga akan melihat catatan perbaikan dari kelurahan dan dapat melengkapi kekurangan berkas untuk diverifikasi kembali.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* 3. Informasi Berkas Ditolak */}
-            <div
-              className={`p-4 rounded-2xl border transition-all ${
-                isReject
-                  ? 'bg-rose-50 border-2 border-rose-500 shadow-sm ring-2 ring-rose-200'
-                  : 'bg-white border-slate-200'
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0 mt-0.5 font-bold">
-                  <XCircle className="w-5 h-5" />
-                </div>
-                <div className="space-y-1 text-xs">
-                  <div className="flex items-center gap-2">
-                    <h4 className="font-black text-rose-900 text-sm">
-                      3. Berkas Ditolak (Tolak Permohonan)
-                    </h4>
-                    {isReject && (
-                      <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-black uppercase">
-                        Status Aktif Saat Ini
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-slate-700 leading-relaxed">
-                    <strong>Arti Status:</strong> Permohonan berkas warga <strong>ditolak secara resmi</strong> karena tidak memenuhi syarat administratif, bukan warga/domisili Kelurahan Panaikang, atau bertentangan dengan ketentuan yang berlaku.
-                  </p>
-                  <p className="text-slate-600 leading-relaxed">
-                    <strong>Tindak Lanjut:</strong> Status tiket pengajuan berubah menjadi <strong>Ditolak / Ditutup</strong> disertai alasan penolakan yang tercatat pada riwayat pemohon dan audit sistem.
-                  </p>
-                </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+                <span>Nomor WhatsApp (WA) Pemohon:</span>
+                {canSendWa && (
+                  <span className="text-[10px] font-semibold text-emerald-700">
+                    {formatDisplayPhone(targetPhone)}
+                  </span>
+                )}
+              </label>
+              <div className="relative">
+                <Phone className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="tel"
+                  value={waPhoneInput}
+                  onChange={(e) => setWaPhoneInput(e.target.value)}
+                  placeholder="Contoh: 081242108800"
+                  className="w-full pl-8 pr-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-mono text-slate-900 focus:outline-none focus:border-emerald-600"
+                />
               </div>
             </div>
           </div>
         </div>
 
-        {/* Popup Footer */}
-        <div className="px-5 sm:px-6 py-4 bg-white border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
-          {!isGuide && hasValidWa && data.phone ? (
+        {/* Footer Tombol Kirim WA & Tutup */}
+        <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2">
+          {canSendWa ? (
             <a
-              href={buildWhatsAppUrl(data.phone, waMessage)}
+              href={buildWhatsAppUrl(targetPhone, waMessage)}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#128C7E] hover:bg-[#075E54] text-white text-xs font-bold transition shadow-xs"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#25D366] hover:bg-[#1DA851] text-white text-xs font-black transition shadow-xs cursor-pointer"
             >
               <MessageCircle className="w-4 h-4" />
-              <span>Kirim Info Status via WhatsApp ke Pemohon</span>
+              <span>Kirim WA ke Pemohon</span>
             </a>
           ) : (
-            <span className="text-[11px] text-slate-500">
-              Status berkas tersimpan otomatis ke database Cloud Firestore.
-            </span>
+            <div className="flex-1 text-[11px] text-amber-700 font-semibold">
+              Isi nomor WA di atas untuk mengirim pesan ke pemohon.
+            </div>
           )}
 
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-black transition cursor-pointer ml-auto shadow-xs"
+            className="px-4 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold transition cursor-pointer shrink-0"
           >
-            Mengerti & Tutup Popup
+            Tutup
           </button>
         </div>
       </div>
