@@ -37,6 +37,7 @@ import {
 } from '../types';
 import { compressImageFile } from '../utils/compressImage';
 import { resolveUrbanFarmingPhoto } from '../utils/resolveImageUrl';
+import { setExplicitUrbanFarmingSpotPhoto } from '../utils/persistentStorage';
 import { buildOfficialKopSuratHtml } from '../utils/officialKopSurat';
 import {
   buildWhatsAppUrl,
@@ -232,7 +233,7 @@ export const AdminUrbanFarmingPanel: React.FC<AdminUrbanFarmingPanelProps> = ({
       return;
     }
     try {
-      const compressed = await compressImageFile(file);
+      const compressed = await compressImageFile(file, 720, 0.72);
       setPhotoPreview(compressed);
       setSpotForm((prev) => ({ ...prev, photoUrl: compressed }));
     } catch {
@@ -329,6 +330,10 @@ export const AdminUrbanFarmingPanel: React.FC<AdminUrbanFarmingPanelProps> = ({
           locationAddress: spotForm.locationAddress,
         }),
     };
+
+    if (payload.photoUrl) {
+      setExplicitUrbanFarmingSpotPhoto(payload.id, payload.photoUrl);
+    }
 
     try {
       if (editingSpotId) {

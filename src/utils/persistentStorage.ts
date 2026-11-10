@@ -123,6 +123,51 @@ const JOURNAL_CITIZENS_KEY = 'pnk_smart_env_user_citizens_v2';
 const CITIZEN_MENU_ACCESS_KEY = 'pnk_citizen_menu_access_v2';
 const ADMIN_USERS_JOURNAL_KEY = 'pnk_admin_users_journal_v1';
 const DELETED_IDS_KEY = 'pnk_smart_env_deleted_ids_v2';
+const URBAN_FARMING_PHOTOS_KEY = 'pnk_smart_env_uf_photos_v1';
+
+export function saveUrbanFarmingPhotosBackup(spots?: UrbanFarmingSpot[]): void {
+  if (typeof window === 'undefined' || !Array.isArray(spots)) return;
+  try {
+    const existingRaw = window.localStorage.getItem(URBAN_FARMING_PHOTOS_KEY);
+    const existingMap: Record<string, string> = existingRaw ? JSON.parse(existingRaw) : {};
+    for (const s of spots) {
+      if (!s || !s.id) continue;
+      const p = (s.photoUrl || '').trim();
+      if (p.startsWith('data:') || (p && !p.includes('/images/uf_') && !p.includes('ig_post_'))) {
+        existingMap[s.id] = p;
+      } else if (p.includes('/images/uf_') && !existingMap[s.id]?.startsWith('data:')) {
+        existingMap[s.id] = p;
+      }
+    }
+    window.localStorage.setItem(URBAN_FARMING_PHOTOS_KEY, JSON.stringify(existingMap));
+  } catch {
+    // Ignore storage write errors
+  }
+}
+
+export function setExplicitUrbanFarmingSpotPhoto(spotId: string, photoUrl: string): void {
+  if (typeof window === 'undefined' || !spotId || !photoUrl) return;
+  try {
+    const existingRaw = window.localStorage.getItem(URBAN_FARMING_PHOTOS_KEY);
+    const existingMap: Record<string, string> = existingRaw ? JSON.parse(existingRaw) : {};
+    existingMap[spotId] = photoUrl.trim();
+    window.localStorage.setItem(URBAN_FARMING_PHOTOS_KEY, JSON.stringify(existingMap));
+  } catch {
+    // Ignore storage write errors
+  }
+}
+
+export function loadUrbanFarmingPhotosBackup(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(URBAN_FARMING_PHOTOS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
 
 export function saveCitizenMenuAccessJournal(config: CitizenMenuAccessConfig): void {
   if (typeof window === 'undefined' || !config) return;
@@ -697,16 +742,44 @@ export function smartMergeDatabases(
   ).filter((item) => item && item.id && !item.id.startsWith('ig-kb-'));
 
   // 7. Urban Farming Spots & Seed Requests
+  const ufPhotosBackup = loadUrbanFarmingPhotosBackup();
+  const localUfMap = new Map(
+    (localDb?.urbanFarmingSpots || []).map((s) => [s?.id, s])
+  );
+  const incUfMap = new Map(
+    (incoming?.urbanFarmingSpots || []).map((s) => [s?.id, s])
+  );
+
   const resolvedUrbanFarmingSpots = mergeEntityCollection(
     localDb?.urbanFarmingSpots,
     incoming?.urbanFarmingSpots,
     INITIAL_URBAN_FARMING_SPOTS,
     deletedIds,
     localIsNewer
-  ).map((spot, idx) => ({
-    ...spot,
-    photoUrl: resolveUrbanFarmingPhoto(spot, idx),
-  }));
+  ).map((spot, idx) => {
+    const localPhoto = (localUfMap.get(spot.id)?.photoUrl || '').trim();
+    const incPhoto = (incUfMap.get(spot.id)?.photoUrl || '').trim();
+    const backupPhoto = (ufPhotosBackup[spot.id] || '').trim();
+
+    // Prioritize custom uploaded data: URLs so Firestore/server defaults never overwrite user uploads
+    let chosenPhoto = (spot.photoUrl || '').trim();
+    if (localIsNewer && localPhoto.startsWith('data:')) {
+      chosenPhoto = localPhoto;
+    } else if (incPhoto.startsWith('data:')) {
+      chosenPhoto = incPhoto;
+    } else if (localPhoto.startsWith('data:')) {
+      chosenPhoto = localPhoto;
+    } else if (backupPhoto.startsWith('data:')) {
+      chosenPhoto = backupPhoto;
+    } else if (backupPhoto) {
+      chosenPhoto = backupPhoto;
+    }
+
+    return {
+      ...spot,
+      photoUrl: resolveUrbanFarmingPhoto({ ...spot, photoUrl: chosenPhoto }, idx),
+    };
+  });
 
   const resolvedSeedRequests = mergeEntityCollection(
     localDb?.seedRequests,
@@ -1122,17 +1195,19 @@ export function savePersistedDatabase(db: PersistedDatabase): void {
       db.activityLogs = db.activityLogs.slice(0, 100);
     }
 
-    const serialized = JSON.stringify(db);
-    // 1. Primary storage
-    window.localStorage.setItem(STORAGE_KEY, serialized);
-    // 2. Redundant backup storage
-    window.localStorage.setItem(BACKUP_KEY, serialized);
-    // 2B. Dedicated Lurah photo backup
-    if (db.profile?.lurahPhotoUrl && db.profile.lurahPhotoUrl.trim()) {
-      window.localStorage.setItem(LURAH_PHOTO_BACKUP_KEY, db.profile.lurahPhotoUrl.trim());
+    // 0. Dedicated Urban Farming Photos backup & Lurah photo backup (saved first before monolithic DB)
+    if (Array.isArray(db.urbanFarmingSpots)) {
+      saveUrbanFarmingPhotosBackup(db.urbanFarmingSpots);
     }
-    // 2C. Remove obsolete legacy v1–v3 keys to free browser localStorage quota
+    if (db.profile?.lurahPhotoUrl && db.profile.lurahPhotoUrl.trim()) {
+      try {
+        window.localStorage.setItem(LURAH_PHOTO_BACKUP_KEY, db.profile.lurahPhotoUrl.trim());
+      } catch {}
+    }
+
+    // Remove obsolete legacy keys & heavy duplicate backup key to maximize localStorage quota
     for (const legacyKey of [
+      BACKUP_KEY,
       LEGACY_STORAGE_KEY_V3,
       LEGACY_BACKUP_KEY_V3,
       'pnk_smart_env_db_v2',
@@ -1140,8 +1215,14 @@ export function savePersistedDatabase(db: PersistedDatabase): void {
       'pnk_smart_env_user_reports_v1',
       'pnk_smart_env_user_logs_v1',
     ]) {
-      window.localStorage.removeItem(legacyKey);
+      try {
+        window.localStorage.removeItem(legacyKey);
+      } catch {}
     }
+
+    const serialized = JSON.stringify(db);
+    // 1. Primary storage
+    window.localStorage.setItem(STORAGE_KEY, serialized);
     // 3. Persistent tombstone storage
     window.localStorage.setItem(DELETED_IDS_KEY, JSON.stringify(db.deletedItemIds));
 

@@ -112,6 +112,7 @@ import {
   saveAdminUsersJournal,
   loadKerjaBaktiIgHighlights,
   saveKerjaBaktiIgHighlights,
+  setExplicitUrbanFarmingSpotPhoto,
 } from './utils/persistentStorage';
 import {
   getRealtimeDateTimeString,
@@ -870,7 +871,16 @@ export default function App() {
 
   const applyRemoteDatabase = useCallback((serverDb: Partial<PersistedDatabase>) => {
     if (!serverDb) return;
-    const currentLocal = loadPersistedDatabase();
+    const storedLocal = loadPersistedDatabase();
+    const currentLocal: PersistedDatabase | null = storedLocal
+      ? {
+          ...storedLocal,
+          urbanFarmingSpots:
+            stateRef.current.urbanFarmingSpots?.length > 0
+              ? stateRef.current.urbanFarmingSpots
+              : storedLocal.urbanFarmingSpots,
+        }
+      : null;
     const merged = smartMergeDatabases(currentLocal, serverDb);
 
     setKelurahanProfile(merged.profile);
@@ -3118,6 +3128,9 @@ export default function App() {
   // 11. Urban Farming Spots & Seed Requests Admin CRUD
   const handleAdminAddUrbanFarmingSpot = useCallback(
     async (spot: UrbanFarmingSpot): Promise<{ ok: boolean; errors?: string[] }> => {
+      if (spot.id && spot.photoUrl) {
+        setExplicitUrbanFarmingSpotPhoto(spot.id, spot.photoUrl);
+      }
       const nextSpots = [spot, ...stateRef.current.urbanFarmingSpots];
       setUrbanFarmingSpots(nextSpots);
       commitPersistence({ urbanFarmingSpots: nextSpots });
@@ -3145,6 +3158,9 @@ export default function App() {
         return { ok: false, errors: ['Data kebun urban farming tidak ditemukan.'] };
       }
       const merged: UrbanFarmingSpot = { ...existing, ...updated };
+      if (merged.photoUrl) {
+        setExplicitUrbanFarmingSpotPhoto(id, merged.photoUrl);
+      }
       const nextSpots = stateRef.current.urbanFarmingSpots.map((s) => (s.id === id ? merged : s));
       setUrbanFarmingSpots(nextSpots);
       commitPersistence({ urbanFarmingSpots: nextSpots });

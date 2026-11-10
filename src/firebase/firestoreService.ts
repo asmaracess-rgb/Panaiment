@@ -215,9 +215,24 @@ export function createSafeSnapshot(database: PersistedDatabase): PersistedDataba
       ? database.profile.lurahPhotoUrl
       : '';
 
+  const preservedUfPhotos = new Map<string, string>();
+  if (Array.isArray(database.urbanFarmingSpots)) {
+    for (const s of database.urbanFarmingSpots) {
+      if (s && s.id && typeof s.photoUrl === 'string' && s.photoUrl.length < 150_000) {
+        preservedUfPhotos.set(s.id, s.photoUrl);
+      }
+    }
+  }
+
   const safeClone = cleanObject(database) as PersistedDatabase;
   if (safeClone.profile && preservedLurahPhoto) {
     safeClone.profile.lurahPhotoUrl = preservedLurahPhoto;
+  }
+  if (Array.isArray(safeClone.urbanFarmingSpots)) {
+    safeClone.urbanFarmingSpots = safeClone.urbanFarmingSpots.map((s) => {
+      const savedPhoto = s?.id ? preservedUfPhotos.get(s.id) : undefined;
+      return savedPhoto ? { ...s, photoUrl: savedPhoto } : s;
+    });
   }
 
   if (Array.isArray(safeClone.activityLogs)) {
@@ -238,7 +253,7 @@ export function createSafeSnapshot(database: PersistedDatabase): PersistedDataba
   }
 
   let jsonString = JSON.stringify(safeClone);
-  if (jsonString.length > 600_000) {
+  if (jsonString.length > 750_000) {
     if (Array.isArray(safeClone.reports)) {
       safeClone.reports = safeClone.reports.slice(0, 20);
     }
