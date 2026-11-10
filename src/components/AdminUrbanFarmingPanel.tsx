@@ -36,7 +36,7 @@ import {
   KelurahanProfile,
 } from '../types';
 import { compressImageFile } from '../utils/compressImage';
-import { resolveImageUrl } from '../utils/resolveImageUrl';
+import { resolveUrbanFarmingPhoto } from '../utils/resolveImageUrl';
 import { buildOfficialKopSuratHtml } from '../utils/officialKopSurat';
 import {
   buildWhatsAppUrl,
@@ -76,13 +76,13 @@ const FARM_TYPES: FarmType[] = [
 ];
 
 const PRESET_PHOTOS = [
-  { label: 'Hidroponik Vertikal Selada', url: '/images/ig_post_5_DeGDDkFPvJs.jpg' },
-  { label: 'Sayuran Hijau & Pembibitan', url: '/images/ig_post_6_Dd-xlSLvXKn.jpg' },
-  { label: 'Pekarangan Cabe Katokkon', url: '/images/ig_post_7_Dd33fJSy13M.jpg' },
-  { label: 'Akuaponik Budikdamber Lele', url: '/images/ig_post_4_DeJpFcVJ6jq.jpg' },
-  { label: 'Kumbung Jamur Tiram', url: '/images/ig_post_2_DbnJW3OvANh.jpg' },
-  { label: 'Green Wall Pipa PVC', url: '/images/ig_post_10_DdfhgGQPaJX.jpg' },
-  { label: 'Bedengan Terong & Sayur', url: '/images/ig_post_1_DdrMaapvrr4.jpg' },
+  { label: 'KWT Kesadaran Bersatu (RW 07)', url: '/images/uf_kesadaran_rw07.jpg' },
+  { label: 'KWT RT04 RW 05 Angkasa I', url: '/images/uf_angkasa_rw05.jpg' },
+  { label: 'KWT Teratai (RW 05)', url: '/images/uf_teratai_rw05.jpg' },
+  { label: 'KWT Sipakainga Akuaponik (RW 04)', url: '/images/uf_sipakainga_rw04.jpg' },
+  { label: 'KWT Campagaya (RW 03)', url: '/images/uf_campagaya_rw03.jpg' },
+  { label: 'KWT Bersatu Hidroponik (RW 02)', url: '/images/uf_bersatu_rw02.jpg' },
+  { label: 'KWT Tunas Hijau Asteba (RW 01)', url: '/images/uf_asteba_rw01.jpg' },
 ];
 
 export const AdminUrbanFarmingPanel: React.FC<AdminUrbanFarmingPanelProps> = ({
@@ -131,10 +131,10 @@ export const AdminUrbanFarmingPanel: React.FC<AdminUrbanFarmingPanelProps> = ({
     harvestEstimatedKg: 20,
     status: 'Aktif Produktif',
     description: '',
-    photoUrl: '/images/ig_post_5_DeGDDkFPvJs.jpg',
+    photoUrl: '/images/uf_kesadaran_rw07.jpg',
   });
   const [commoditiesText, setCommoditiesText] = useState('Pakcoy, Selada, Seledri');
-  const [photoPreview, setPhotoPreview] = useState<string>('/images/ig_post_5_DeGDDkFPvJs.jpg');
+  const [photoPreview, setPhotoPreview] = useState<string>('/images/uf_kesadaran_rw07.jpg');
 
   // Confirm Delete Dialog for Spot
   const [confirmDeleteSpotId, setConfirmDeleteSpotId] = useState<string | null>(null);
@@ -259,20 +259,21 @@ export const AdminUrbanFarmingPanel: React.FC<AdminUrbanFarmingPanelProps> = ({
       harvestEstimatedKg: 20,
       status: 'Aktif Produktif',
       description: '',
-      photoUrl: '/images/ig_post_5_DeGDDkFPvJs.jpg',
+      photoUrl: '/images/uf_asteba_rw01.jpg',
     });
     setCommoditiesText('Pakcoy, Selada, Seledri');
-    setPhotoPreview('/images/ig_post_5_DeGDDkFPvJs.jpg');
+    setPhotoPreview('/images/uf_asteba_rw01.jpg');
     setShowSpotModal(true);
     setFeedbackMessage(null);
   };
 
   // Open Edit Spot Modal
   const openEditSpotModal = (spot: UrbanFarmingSpot) => {
+    const resolvedPhoto = resolveUrbanFarmingPhoto(spot);
     setEditingSpotId(spot.id);
-    setSpotForm({ ...spot });
+    setSpotForm({ ...spot, photoUrl: resolvedPhoto });
     setCommoditiesText(spot.commodities.join(', '));
-    setPhotoPreview(spot.photoUrl || '/images/ig_post_5_DeGDDkFPvJs.jpg');
+    setPhotoPreview(resolvedPhoto);
     setShowSpotModal(true);
     setFeedbackMessage(null);
   };
@@ -318,7 +319,15 @@ export const AdminUrbanFarmingPanel: React.FC<AdminUrbanFarmingPanelProps> = ({
       harvestEstimatedKg: Number(spotForm.harvestEstimatedKg) || 15,
       status: spotForm.status || 'Aktif Produktif',
       description: spotForm.description?.trim() || 'Kebun binaan ketahanan pangan Kelurahan Panaikang.',
-      photoUrl: photoPreview || '/images/ig_post_5_DeGDDkFPvJs.jpg',
+      photoUrl:
+        photoPreview ||
+        resolveUrbanFarmingPhoto({
+          id: editingSpotId || '',
+          name: spotForm.name,
+          groupName: spotForm.groupName,
+          rw: spotForm.rw,
+          locationAddress: spotForm.locationAddress,
+        }),
     };
 
     try {
@@ -898,16 +907,20 @@ export const AdminUrbanFarmingPanel: React.FC<AdminUrbanFarmingPanelProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 text-xs">
-                  {filteredSpots.map((spot) => (
+                  {filteredSpots.map((spot, idx) => (
                     <tr key={spot.id} className="hover:bg-slate-50/80 transition-colors">
                       {/* Photo & Name */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
                           <img
-                            src={resolveImageUrl(spot.photoUrl)}
+                            src={resolveUrbanFarmingPhoto(spot, idx)}
                             alt={spot.name}
+                            referrerPolicy="no-referrer"
                             onError={(e) => {
-                              (e.target as HTMLImageElement).src = '/images/ig_post_5_DeGDDkFPvJs.jpg';
+                              const fallback = resolveUrbanFarmingPhoto({ ...spot, photoUrl: '' }, idx);
+                              if ((e.target as HTMLImageElement).src !== window.location.origin + fallback) {
+                                (e.target as HTMLImageElement).src = fallback;
+                              }
                             }}
                             className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0 bg-slate-100"
                           />
@@ -1410,11 +1423,12 @@ export const AdminUrbanFarmingPanel: React.FC<AdminUrbanFarmingPanelProps> = ({
                 <div className="flex flex-col sm:flex-row items-center gap-4">
                   <div className="relative w-36 h-28 rounded-xl overflow-hidden bg-slate-200 border border-slate-300 shrink-0 shadow-xs">
                     <img
-                      src={resolveImageUrl(photoPreview)}
+                      src={resolveUrbanFarmingPhoto(photoPreview)}
                       alt="Pratinjau Kebun"
+                      referrerPolicy="no-referrer"
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        (e.target as HTMLImageElement).src = '/images/ig_post_5_DeGDDkFPvJs.jpg';
+                        (e.target as HTMLImageElement).src = '/images/uf_kesadaran_rw07.jpg';
                       }}
                     />
                     <div className="absolute inset-0 bg-black/20 flex items-end p-1.5">

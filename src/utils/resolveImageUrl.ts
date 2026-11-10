@@ -16,6 +16,8 @@ export function extractInstagramShortcode(
 ): string | null {
   const combined = `${rawUrl || ''} ${instagramPostUrl || ''}`;
 
+  if (combined.includes('Dfiuay9j8M0') || combined.includes('ig_post_latest_0_')) return 'Dfiuay9j8M0';
+  if (combined.includes('DfgPz35v2Ed') || combined.includes('ig_post_latest_0b_')) return 'DfgPz35v2Ed';
   if (combined.includes('DfZsJAUvDQG') || combined.includes('ig_post_kerjabakti_0_')) return 'DfZsJAUvDQG';
   if (combined.includes('DfYirNrJjaT') || combined.includes('ig_post_kerjabakti_1_')) return 'DfYirNrJjaT';
   if (combined.includes('DfHDLK2vqk0') || combined.includes('ig_post_kerjabakti_2_')) return 'DfHDLK2vqk0';
@@ -35,6 +37,12 @@ export function extractInstagramShortcode(
   if (combined.includes('DdfU_r-PUM3') || combined.includes('ig_post_11_')) return 'DdfU_r-PUM3';
   if (combined.includes('Dda51qXP4nb') || combined.includes('ig_post_12_')) return 'Dda51qXP4nb';
 
+  // Check ?code= parameter from /api/ig-media?code=...
+  const codeQueryMatch = combined.match(/[?&]code=([A-Za-z0-9_-]+)/i);
+  if (codeQueryMatch && codeQueryMatch[1]) {
+    return codeQueryMatch[1];
+  }
+
   // Generic Instagram /p/ or /reel/ URL parser
   const match = combined.match(/instagram\.com\/(?:p|reel|tv)\/([A-Za-z0-9_-]+)/i);
   if (match && match[1]) {
@@ -45,6 +53,8 @@ export function extractInstagramShortcode(
 }
 
 const SHORTCODE_TO_STATIC_PATH: Record<string, string> = {
+  Dfiuay9j8M0: '/images/ig_post_latest_0_Dfiuay9j8M0.jpg',
+  DfgPz35v2Ed: '/images/ig_post_latest_0b_DfgPz35v2Ed.jpg',
   DfZsJAUvDQG: '/images/ig_post_kerjabakti_0_DfZsJAUvDQG.jpg',
   DfYirNrJjaT: '/images/ig_post_kerjabakti_1_DfYirNrJjaT.jpg',
   DfHDLK2vqk0: '/images/ig_post_kerjabakti_2_DfHDLK2vqk0.jpg',
@@ -92,7 +102,7 @@ export function getInstagramProxyUrl(
   }
   const code = extractInstagramShortcode(rawUrl, instagramPostUrl);
   if (!code) return null;
-  return SHORTCODE_TO_STATIC_PATH[code] || '/images/ig_post_latest_1_DfT7acUJdwh.jpg';
+  return SHORTCODE_TO_STATIC_PATH[code] || `/api/ig-media?code=${code}`;
 }
 
 /**
@@ -111,10 +121,10 @@ export function resolveImageUrl(
     return '/images/ig_profile_panaikang.jpg';
   }
 
-  // Map @kelurahan.panaikang Instagram post images to static build path
+  // Map @kelurahan.panaikang Instagram post images to static build path or live proxy
   const shortcode = extractInstagramShortcode(trimmed, instagramPostUrl);
   if (shortcode) {
-    return SHORTCODE_TO_STATIC_PATH[shortcode] || '/images/ig_post_latest_1_DfT7acUJdwh.jpg';
+    return SHORTCODE_TO_STATIC_PATH[shortcode] || `/api/ig-media?code=${shortcode}`;
   }
 
   if (!trimmed) {
@@ -149,6 +159,113 @@ export function resolveImageUrl(
   if (trimmed.includes('hero_panaikang_makassar')) {
     return BUNDLED_HERO_PANAIKANG;
   }
+  if (trimmed.includes('uf_kesadaran_rw07')) {
+    return '/images/uf_kesadaran_rw07.jpg';
+  }
+  if (trimmed.includes('uf_angkasa_rw05')) {
+    return '/images/uf_angkasa_rw05.jpg';
+  }
+  if (trimmed.includes('uf_teratai_rw05')) {
+    return '/images/uf_teratai_rw05.jpg';
+  }
+  if (trimmed.includes('uf_sipakainga_rw04')) {
+    return '/images/uf_sipakainga_rw04.jpg';
+  }
+  if (trimmed.includes('uf_campagaya_rw03')) {
+    return '/images/uf_campagaya_rw03.jpg';
+  }
+  if (trimmed.includes('uf_bersatu_rw02')) {
+    return '/images/uf_bersatu_rw02.jpg';
+  }
+  if (trimmed.includes('uf_asteba_rw01')) {
+    return '/images/uf_asteba_rw01.jpg';
+  }
 
   return trimmed;
 }
+
+export const URBAN_FARMING_DEFAULT_PHOTOS: string[] = [
+  '/images/uf_kesadaran_rw07.jpg',
+  '/images/uf_angkasa_rw05.jpg',
+  '/images/uf_teratai_rw05.jpg',
+  '/images/uf_sipakainga_rw04.jpg',
+  '/images/uf_campagaya_rw03.jpg',
+  '/images/uf_bersatu_rw02.jpg',
+  '/images/uf_asteba_rw01.jpg',
+];
+
+/**
+ * Resolves the photo URL for an Urban Farming spot so that:
+ * 1) Custom uploaded photos (data: URLs, external URLs, or explicit /images/uf_* paths) are preserved.
+ * 2) Empty photoUrl ("") or legacy Instagram fallback URLs (/images/ig_post_*) are mapped to
+ *    each of the 7 distinct Urban Farming KWT photos based on spot ID, name/group, RW, or index.
+ */
+export function resolveUrbanFarmingPhoto(
+  spotOrUrl?:
+    | {
+        id?: string;
+        name?: string;
+        groupName?: string;
+        rw?: string;
+        locationAddress?: string;
+        photoUrl?: string | null;
+      }
+    | string
+    | null,
+  fallbackIndex = 0
+): string {
+  const rawPhoto =
+    typeof spotOrUrl === 'string'
+      ? spotOrUrl.trim()
+      : (spotOrUrl?.photoUrl || '').trim();
+
+  // If the spot has a genuine custom photo (not empty and not an Instagram post image), use it
+  const isIgFallback =
+    !rawPhoto ||
+    rawPhoto.includes('ig_post_') ||
+    Boolean(extractInstagramShortcode(rawPhoto, null));
+
+  if (!isIgFallback) {
+    return resolveImageUrl(rawPhoto);
+  }
+
+  if (typeof spotOrUrl === 'object' && spotOrUrl !== null) {
+    const id = (spotOrUrl.id || '').toLowerCase();
+    const text = `${spotOrUrl.name || ''} ${spotOrUrl.groupName || ''} ${spotOrUrl.locationAddress || ''}`.toUpperCase();
+    const rw = (spotOrUrl.rw || '').toUpperCase();
+
+    if (id === 'uf-1793540638611' || text.includes('KESADARAN')) {
+      return '/images/uf_kesadaran_rw07.jpg';
+    }
+    if (id === 'uf-1793540562848' || text.includes('RT04 RW 05') || text.includes('ANGKASA I')) {
+      return '/images/uf_angkasa_rw05.jpg';
+    }
+    if (id === 'uf-1793540452922' || text.includes('TERATAI') || text.includes('KALLA RAYA')) {
+      return '/images/uf_teratai_rw05.jpg';
+    }
+    if (id === 'uf-1793540321274' || text.includes('SIPAKAINGA') || text.includes('ANGKASA IV')) {
+      return '/images/uf_sipakainga_rw04.jpg';
+    }
+    if (id === 'uf-1793540217986' || text.includes('CAMPAGAYA')) {
+      return '/images/uf_campagaya_rw03.jpg';
+    }
+    if (id === 'uf-1793540084454' || (text.includes('BERSATU') && !text.includes('KESADARAN'))) {
+      return '/images/uf_bersatu_rw02.jpg';
+    }
+    if (id === 'uf-1793539872515' || text.includes('ASTEBA') || text.includes('TUNAS HIJAU') || text.includes('ASPOL')) {
+      return '/images/uf_asteba_rw01.jpg';
+    }
+
+    if (rw.includes('07')) return '/images/uf_kesadaran_rw07.jpg';
+    if (rw.includes('06')) return '/images/uf_angkasa_rw05.jpg';
+    if (rw.includes('05')) return '/images/uf_teratai_rw05.jpg';
+    if (rw.includes('04')) return '/images/uf_sipakainga_rw04.jpg';
+    if (rw.includes('03')) return '/images/uf_campagaya_rw03.jpg';
+    if (rw.includes('02')) return '/images/uf_bersatu_rw02.jpg';
+    if (rw.includes('01')) return '/images/uf_asteba_rw01.jpg';
+  }
+
+  const safeIdx = Math.abs(fallbackIndex) % URBAN_FARMING_DEFAULT_PHOTOS.length;
+  return URBAN_FARMING_DEFAULT_PHOTOS[safeIdx];
+}
+

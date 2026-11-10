@@ -25,6 +25,11 @@ import {
   ExternalLink,
   Download,
   Eye,
+  Filter,
+  ChevronLeft,
+  LayoutList,
+  LayoutGrid,
+  RotateCcw,
 } from 'lucide-react';
 import {
   CitizenReport,
@@ -133,12 +138,20 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
   // Main Category Filter: 'ALL' | 'SURAT' | 'ADUAN'
   const [activeMainFilter, setActiveMainFilter] = useState<'ALL' | 'SURAT' | 'ADUAN'>('ALL');
 
-  // Sub-filters
+  // Sub-filters & Search
   const [selectedSuratCode, setSelectedSuratCode] = useState<string>('ALL');
   const [selectedAduanCategory, setSelectedAduanCategory] = useState<string>('ALL');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('ALL');
   const [selectedRwFilter, setSelectedRwFilter] = useState<string>('ALL');
+  const [selectedRtFilter, setSelectedRtFilter] = useState<string>('ALL');
+  const [attachmentFilter, setAttachmentFilter] = useState<'ALL' | 'WITH_ATTACHMENT'>('ALL');
+  const [sortBy, setSortBy] = useState<'NEWEST' | 'WAITING_FIRST' | 'NAME_ASC'>('NEWEST');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Compact View Mode & Pagination
+  const [viewMode, setViewMode] = useState<'table' | 'compact_card'>('table');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
 
   // UI state
   const [feedbackMsg, setFeedbackMsg] = useState<string>('');
@@ -256,9 +269,28 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
         return false;
       }
 
+      // RT filter
+      if (selectedRtFilter !== 'ALL' && (item.rt || 'RT 01') !== selectedRtFilter) {
+        return false;
+      }
+
+      // Attachment filter
+      if (attachmentFilter === 'WITH_ATTACHMENT') {
+        const matchedPra = praRegistrasiList.find(
+          (p) => p.ticketCode === item.ticketCode || p.id === item.id
+        );
+        const matchedPgd = pengaduanList.find(
+          (p) => p.ticketCode === item.ticketCode || p.id === item.id
+        );
+        const hasDocs = (matchedPra?.uploadedDocs?.length || 0) > 0;
+        const hasPhotos =
+          (matchedPgd?.proofPhotos?.length || 0) > 0 || Boolean(item.imageUrl && item.imageUrl.trim());
+        if (!hasDocs && !hasPhotos) return false;
+      }
+
       // Search query
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
+        const q = searchQuery.toLowerCase().trim();
         const matches =
           item.ticketCode.toLowerCase().includes(q) ||
           item.title.toLowerCase().includes(q) ||
@@ -267,22 +299,86 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
           (item.reporterPhone || '').toLowerCase().includes(q) ||
           (item.locationName || '').toLowerCase().includes(q) ||
           (item.letterRegisterNumber || '').toLowerCase().includes(q) ||
+          (item.category || '').toLowerCase().includes(q) ||
           item.description.toLowerCase().includes(q) ||
           item.rw.toLowerCase().includes(q);
         if (!matches) return false;
       }
 
       return true;
+    }).sort((a, b) => {
+      if (sortBy === 'WAITING_FIRST') {
+        const rank = (s: ReportStatus) =>
+          s === 'Menunggu Verifikasi' ? 0 : s === 'Sedang Ditangani' ? 1 : 2;
+        const diff = rank(a.status) - rank(b.status);
+        if (diff !== 0) return diff;
+      }
+      if (sortBy === 'NAME_ASC') {
+        return (a.reporterName || '').localeCompare(b.reporterName || '', 'id');
+      }
+      return 0;
     });
   }, [
     reports,
+    praRegistrasiList,
+    pengaduanList,
     activeMainFilter,
     selectedSuratCode,
     selectedAduanCategory,
     selectedStatusFilter,
     selectedRwFilter,
+    selectedRtFilter,
+    attachmentFilter,
+    sortBy,
     searchQuery,
   ]);
+
+  // Reset to page 1 whenever filters change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    activeMainFilter,
+    selectedSuratCode,
+    selectedAduanCategory,
+    selectedStatusFilter,
+    selectedRwFilter,
+    selectedRtFilter,
+    attachmentFilter,
+    sortBy,
+    searchQuery,
+    pageSize,
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredReports.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedReports = useMemo(() => {
+    const start = (safeCurrentPage - 1) * pageSize;
+    return filteredReports.slice(start, start + pageSize);
+  }, [filteredReports, safeCurrentPage, pageSize]);
+
+  const hasActiveFilter =
+    activeMainFilter !== 'ALL' ||
+    selectedSuratCode !== 'ALL' ||
+    selectedAduanCategory !== 'ALL' ||
+    selectedStatusFilter !== 'ALL' ||
+    selectedRwFilter !== 'ALL' ||
+    selectedRtFilter !== 'ALL' ||
+    attachmentFilter !== 'ALL' ||
+    sortBy !== 'NEWEST' ||
+    Boolean(searchQuery.trim());
+
+  const handleResetAllFilters = () => {
+    setActiveMainFilter('ALL');
+    setSelectedSuratCode('ALL');
+    setSelectedAduanCategory('ALL');
+    setSelectedStatusFilter('ALL');
+    setSelectedRwFilter('ALL');
+    setSelectedRtFilter('ALL');
+    setAttachmentFilter('ALL');
+    setSortBy('NEWEST');
+    setSearchQuery('');
+    setCurrentPage(1);
+  };
 
   // Open Add modal
   const handleOpenAdd = (preferredType: 'SURAT' | 'ADUAN' = 'SURAT') => {
@@ -898,100 +994,222 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
         </button>
       </div>
 
-      {/* Filter Bar & Sub-Filters */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3.5 shadow-2xs">
-        {/* Sub-Filter: 13 Jenis Layanan Surat Resmi */}
-        {activeMainFilter === 'SURAT' && (
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 whitespace-nowrap mr-1">
-              Pilih Surat:
-            </span>
-            <button
-              type="button"
-              onClick={() => setSelectedSuratCode('ALL')}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap cursor-pointer transition ${
-                selectedSuratCode === 'ALL'
-                  ? 'bg-[#1C8237] text-white shadow-2xs'
-                  : 'bg-slate-50 hover:bg-emerald-50 text-slate-700 border border-slate-200'
-              }`}
-            >
-              Semua 13 Surat
-            </button>
-            {OFFICIAL_13_WARGA_SERVICES.map((s) => {
-              const isSelected = selectedSuratCode === s.code;
-              return (
-                <button
-                  key={s.code}
-                  type="button"
-                  onClick={() => setSelectedSuratCode(s.code)}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap cursor-pointer transition flex items-center gap-1 ${
-                    isSelected
-                      ? 'bg-[#1C8237] text-white shadow-2xs'
-                      : 'bg-slate-50 hover:bg-emerald-50 text-slate-700 border border-slate-200'
-                  }`}
-                >
-                  <span>{s.code}</span>
-                  <span className="text-[10px] opacity-80 max-w-[130px] truncate">{s.name}</span>
-                </button>
-              );
-            })}
+      {/* Filter Bar & Pencarian Terpadu */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 space-y-3.5 shadow-2xs">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          {/* Search Input Utama */}
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Cari No. Tiket (SRT/ADU), Nama Pemohon/Pelapor, NIK, No. WA, Layanan, atau Alamat..."
+              className="w-full pl-10 pr-9 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:border-[#0D3868] bg-slate-50/50 focus:bg-white transition"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+                title="Hapus kata kunci pencarian"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
-        )}
 
-        {/* Sub-Filter: Kategori Aduan Lingkungan */}
-        {activeMainFilter === 'ADUAN' && (
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-            <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 whitespace-nowrap mr-1">
-              Kategori Masalah:
-            </span>
-            <button
-              type="button"
-              onClick={() => setSelectedAduanCategory('ALL')}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap cursor-pointer transition ${
-                selectedAduanCategory === 'ALL'
-                  ? 'bg-amber-600 text-white shadow-2xs'
-                  : 'bg-slate-50 hover:bg-amber-50 text-slate-700 border border-slate-200'
-              }`}
+          {/* Toggle Mode Tampilan (Tabel Ringkas vs Kartu Ringkas) & Jumlah Baris */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <div className="inline-flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                  viewMode === 'table'
+                    ? 'bg-[#0D3868] text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Tampilan Tabel Ringkas (Hemat Ruang)"
+              >
+                <LayoutList className="w-3.5 h-3.5" />
+                <span>Tabel Ringkas</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('compact_card')}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                  viewMode === 'compact_card'
+                    ? 'bg-[#0D3868] text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Tampilan Kartu Ringkas"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Kartu Ringkas</span>
+              </button>
+            </div>
+
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              className="px-2.5 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-white text-slate-700 focus:outline-none focus:border-[#0D3868]"
+              title="Jumlah baris per halaman"
             >
-              Semua Aduan
-            </button>
-            {REPORT_COMPLAINT_CATEGORIES.map((cat) => {
-              const isSelected = selectedAduanCategory === cat;
-              return (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setSelectedAduanCategory(cat)}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap cursor-pointer transition ${
-                    isSelected
-                      ? 'bg-amber-600 text-white shadow-2xs'
-                      : 'bg-slate-50 hover:bg-amber-50 text-slate-700 border border-slate-200'
-                  }`}
-                >
-                  {cat}
-                </button>
-              );
-            })}
+              <option value={10}>10 / hal</option>
+              <option value={20}>20 / hal</option>
+              <option value={50}>50 / hal</option>
+            </select>
           </div>
-        )}
+        </div>
 
-        {/* Status Tabs, RW Filter, & Search */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-2 border-t border-slate-100">
-          {/* Status Tabs */}
-          <div className="flex flex-wrap items-center gap-1">
+        {/* Multi-Filter Dropdowns Row */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 pt-2 border-t border-slate-100">
+          {/* 1. Jenis Pengajuan */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+              Jenis Pengajuan
+            </label>
+            <select
+              value={activeMainFilter}
+              onChange={(e) => {
+                const v = e.target.value as 'ALL' | 'SURAT' | 'ADUAN';
+                setActiveMainFilter(v);
+                setSelectedSuratCode('ALL');
+                setSelectedAduanCategory('ALL');
+              }}
+              className="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 text-xs font-bold bg-white text-[#0D3868] focus:outline-none focus:border-[#0D3868]"
+            >
+              <option value="ALL">Semua ({reports.length})</option>
+              <option value="SURAT">Surat Administrasi ({totalSuratCount})</option>
+              <option value="ADUAN">Pengaduan Warga ({totalAduanCount})</option>
+            </select>
+          </div>
+
+          {/* 2. Sub-Filter Layanan / Kategori */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+              {activeMainFilter === 'ADUAN' ? 'Kategori Aduan' : 'Jenis Layanan / Kategori'}
+            </label>
+            {activeMainFilter === 'ADUAN' ? (
+              <select
+                value={selectedAduanCategory}
+                onChange={(e) => setSelectedAduanCategory(e.target.value)}
+                className="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:border-[#0D3868]"
+              >
+                <option value="ALL">Semua Kategori Aduan</option>
+                {REPORT_COMPLAINT_CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <select
+                value={selectedSuratCode}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedSuratCode(val);
+                  if (val !== 'ALL' && activeMainFilter === 'ALL') {
+                    setActiveMainFilter('SURAT');
+                  }
+                }}
+                className="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:border-[#0D3868]"
+              >
+                <option value="ALL">Semua 13 Layanan Surat</option>
+                {OFFICIAL_13_WARGA_SERVICES.map((s) => (
+                  <option key={s.code} value={s.code}>
+                    {s.code} - {s.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* 3. Status Proses */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+              Status Verifikasi
+            </label>
+            <select
+              value={selectedStatusFilter}
+              onChange={(e) => setSelectedStatusFilter(e.target.value)}
+              className="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:border-[#0D3868]"
+            >
+              <option value="ALL">Semua Status ({reports.length})</option>
+              <option value="Menunggu Verifikasi">Menunggu Verifikasi ({waitingCount})</option>
+              <option value="Sedang Ditangani">Sedang Diproses ({inProgressCount})</option>
+              <option value="Selesai">Selesai ({completedCount})</option>
+            </select>
+          </div>
+
+          {/* 4. Wilayah RW */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+              Wilayah RW
+            </label>
+            <select
+              value={selectedRwFilter}
+              onChange={(e) => setSelectedRwFilter(e.target.value)}
+              className="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:border-[#0D3868]"
+            >
+              <option value="ALL">Semua RW (01–07)</option>
+              {RW_OPTIONS.map((rw) => (
+                <option key={rw} value={rw}>
+                  {rw}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 5. Filter Lampiran */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+              Lampiran Berkas/Foto
+            </label>
+            <select
+              value={attachmentFilter}
+              onChange={(e) => setAttachmentFilter(e.target.value as 'ALL' | 'WITH_ATTACHMENT')}
+              className="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:border-[#0D3868]"
+            >
+              <option value="ALL">Semua Data</option>
+              <option value="WITH_ATTACHMENT">Ada Foto / Berkas</option>
+            </select>
+          </div>
+
+          {/* 6. Urutan Data */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+              Urutkan Berdasarkan
+            </label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as 'NEWEST' | 'WAITING_FIRST' | 'NAME_ASC')}
+              className="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:border-[#0D3868]"
+            >
+              <option value="NEWEST">Terbaru Masuk</option>
+              <option value="WAITING_FIRST">Prioritas Menunggu</option>
+              <option value="NAME_ASC">Nama Warga (A–Z)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Quick Status Pills & Active Filter Summary */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
+          <div className="flex flex-wrap items-center gap-1.5">
             {[
-              { id: 'ALL', label: 'Semua Status' },
-              { id: 'Menunggu Verifikasi', label: `Menunggu (${waitingCount})` },
-              { id: 'Sedang Ditangani', label: `Diproses (${inProgressCount})` },
-              { id: 'Selesai', label: `Selesai (${completedCount})` },
+              { id: 'ALL', label: `Semua (${reports.length})` },
+              { id: 'Menunggu Verifikasi', label: `⏳ Menunggu (${waitingCount})` },
+              { id: 'Sedang Ditangani', label: `🔄 Diproses (${inProgressCount})` },
+              { id: 'Selesai', label: `✓ Selesai (${completedCount})` },
             ].map((tab) => (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => setSelectedStatusFilter(tab.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
                   selectedStatusFilter === tab.id
-                    ? 'bg-[#0D3868] text-white shadow-xs'
+                    ? 'bg-[#0D3868] text-white shadow-2xs'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
@@ -1000,187 +1218,213 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
             ))}
           </div>
 
-          {/* RW Filter & Search Bar */}
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={selectedRwFilter}
-              onChange={(e) => setSelectedRwFilter(e.target.value)}
-              className="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:border-[#0D3868]"
-            >
-              <option value="ALL">Semua RW</option>
-              {RW_OPTIONS.map((rw) => (
-                <option key={rw} value={rw}>
-                  {rw}
-                </option>
-              ))}
-            </select>
-
-            <div className="relative flex-1 sm:w-64">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari tiket, nama, NIK, jalan..."
-                className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-[#0D3868]"
-              />
-            </div>
+          <div className="flex items-center gap-3">
+            {hasActiveFilter && (
+              <button
+                type="button"
+                onClick={handleResetAllFilters}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-bold cursor-pointer transition"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset Filter</span>
+              </button>
+            )}
+            <span className="text-[11px] font-semibold text-slate-500">
+              Menampilkan{' '}
+              <strong className="text-[#0D3868]">
+                {filteredReports.length === 0
+                  ? 0
+                  : (safeCurrentPage - 1) * pageSize + 1}
+                –{Math.min(safeCurrentPage * pageSize, filteredReports.length)}
+              </strong>{' '}
+              dari <strong className="text-[#0D3868]">{filteredReports.length}</strong> data
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Submissions List */}
-      <div className="space-y-3.5">
-        <div className="flex items-center justify-between text-xs text-slate-500 font-bold px-1">
-          <span>Menampilkan {filteredReports.length} berkas / permohonan warga</span>
-          <span>Database: Google Cloud Firestore</span>
+      {/* Submissions Compact Table / Compact Cards */}
+      <div className="space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1 text-xs text-slate-500">
+          <span className="font-semibold">
+            💡 Klik tombol <strong className="text-[#0D3868]">&ldquo;Lihat Detail&rdquo;</strong> atau klik baris data untuk membuka seluruh rincian pengurusan surat, isi pengaduan, berkas persyaratan, dan foto lampiran.
+          </span>
         </div>
 
         {filteredReports.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-500 space-y-2">
-            <FileText className="w-10 h-10 text-slate-300 mx-auto" />
+          <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center text-slate-500 space-y-2.5">
+            <Filter className="w-9 h-9 text-slate-300 mx-auto" />
             <div className="text-sm font-extrabold text-slate-700">
-              Tidak ada data pengurusan atau laporan warga yang sesuai filter.
+              Tidak ada pengajuan berkas atau pengaduan yang sesuai filter pencarian.
             </div>
-            <div className="text-xs">
-              Silakan atur filter status, jenis layanan, atau gunakan tombol input baru.
+            <div className="text-xs text-slate-500">
+              Silakan ubah kata kunci pencarian atau tekan tombol Reset Filter di bawah.
             </div>
-          </div>
-        ) : (
-          filteredReports.map((item) => {
-            const isSurat = isSuratAdministrasi(item);
-            const isWaiting = item.status === 'Menunggu Verifikasi';
-            const isDone = item.status === 'Selesai';
-            const hasLetterNumber = !!item.letterRegisterNumber;
-            const matchedPra = praRegistrasiList.find(
-              (p) => p.ticketCode === item.ticketCode || p.id === item.id
-            );
-            const matchedPgd = pengaduanList.find(
-              (p) => p.ticketCode === item.ticketCode || p.id === item.id
-            );
-
-            // Collect complaint photos attached by citizen
-            const complaintPhotos: string[] = [];
-            if (Array.isArray(matchedPgd?.proofPhotos)) {
-              for (const p of matchedPgd.proofPhotos) {
-                if (p && p.trim() && !complaintPhotos.includes(p.trim())) {
-                  complaintPhotos.push(p.trim());
-                }
-              }
-            }
-            if (item.imageUrl && item.imageUrl.trim() && !complaintPhotos.includes(item.imageUrl.trim())) {
-              complaintPhotos.push(item.imageUrl.trim());
-            }
-
-            const uploadedDocsCount = matchedPra?.uploadedDocs?.length || 0;
-
-            return (
-              <div
-                key={item.id}
-                className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs hover:border-[#0277BD]/50 transition-all space-y-4"
+            {hasActiveFilter && (
+              <button
+                type="button"
+                onClick={handleResetAllFilters}
+                className="mt-1 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold cursor-pointer"
               >
-                {/* Header row: Badge, Ticket Code, Status, Time */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider font-mono-num ${
-                        isSurat
-                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300/60'
-                          : 'bg-amber-100 text-amber-900 border border-amber-300/60'
-                      }`}
-                    >
-                      {isSurat ? 'SURAT ADMINISTRASI' : 'LAPORAN ADUAN'}
-                    </span>
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Tampilkan Semua Data</span>
+              </button>
+            )}
+          </div>
+        ) : viewMode === 'table' ? (
+          /* ================= MODE 1: TABEL RINGKAS PADAT (DEFAULT) ================= */
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold uppercase tracking-wider text-slate-600">
+                    <th className="py-3 px-3.5 w-10 text-center">No</th>
+                    <th className="py-3 px-3.5">Tiket & Waktu</th>
+                    <th className="py-3 px-3.5">Pemohon / Pelapor</th>
+                    <th className="py-3 px-3.5">Jenis Pengurusan / Aduan</th>
+                    <th className="py-3 px-3.5 text-center">Lampiran</th>
+                    <th className="py-3 px-3.5 text-center">Status</th>
+                    <th className="py-3 px-3.5 text-right">Aksi & Detail</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs">
+                  {paginatedReports.map((item, idx) => {
+                    const rowNumber = (safeCurrentPage - 1) * pageSize + idx + 1;
+                    const isSurat = isSuratAdministrasi(item);
+                    const matchedPra = praRegistrasiList.find(
+                      (p) => p.ticketCode === item.ticketCode || p.id === item.id
+                    );
+                    const matchedPgd = pengaduanList.find(
+                      (p) => p.ticketCode === item.ticketCode || p.id === item.id
+                    );
 
-                    <span className="font-mono-num font-extrabold text-xs sm:text-sm text-[#0D3868]">
-                      {item.ticketCode}
-                    </span>
-
-                    <span className="text-xs font-bold text-slate-400">·</span>
-
-                    <span className="text-xs font-semibold text-slate-600 flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{item.createdAt}</span>
-                    </span>
-
-                    {!isSurat && complaintPhotos.length > 0 && (
-                      <span className="px-2 py-0.5 rounded-md bg-sky-50 text-[#0277BD] border border-sky-200 text-[10px] font-bold">
-                        📷 {complaintPhotos.length} Foto Lampiran
-                      </span>
-                    )}
-
-                    {isSurat && uploadedDocsCount > 0 && (
-                      <span className="px-2 py-0.5 rounded-md bg-sky-50 text-[#0D3868] border border-sky-200 text-[10px] font-bold">
-                        📎 {uploadedDocsCount} Berkas Persyaratan
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setDetailModalState({
-                          report: item,
-                          praRecord: matchedPra || null,
-                          pengaduanRecord: matchedPgd || null,
-                        })
+                    const complaintPhotos: string[] = [];
+                    if (Array.isArray(matchedPgd?.proofPhotos)) {
+                      for (const p of matchedPgd.proofPhotos) {
+                        if (p && p.trim() && !complaintPhotos.includes(p.trim())) {
+                          complaintPhotos.push(p.trim());
+                        }
                       }
-                      className="px-2.5 py-1 rounded-lg bg-[#0D3868] hover:bg-[#072647] text-white text-[11px] font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
-                    >
-                      <Eye className="w-3 h-3" />
-                      <span>Lihat Detail</span>
-                    </button>
+                    }
+                    if (
+                      item.imageUrl &&
+                      item.imageUrl.trim() &&
+                      !complaintPhotos.includes(item.imageUrl.trim())
+                    ) {
+                      complaintPhotos.push(item.imageUrl.trim());
+                    }
+                    const uploadedDocsCount = matchedPra?.uploadedDocs?.length || 0;
 
-                    <span
-                      className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold ${
-                        item.status === 'Selesai'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : item.status === 'Sedang Ditangani'
-                          ? 'bg-sky-100 text-[#0277BD]'
-                          : 'bg-amber-100 text-amber-900'
-                      }`}
-                    >
-                      {item.status}
-                    </span>
-                  </div>
-                </div>
+                    return (
+                      <tr
+                        key={item.id}
+                        onClick={() =>
+                          setDetailModalState({
+                            report: item,
+                            praRecord: matchedPra || null,
+                            pengaduanRecord: matchedPgd || null,
+                          })
+                        }
+                        className="hover:bg-sky-50/50 transition-colors cursor-pointer group"
+                      >
+                        <td className="py-3 px-3.5 text-center font-mono-num text-slate-400 font-bold">
+                          {rowNumber}
+                        </td>
 
-                {/* Main Content: Title, Citizen Info, Description, Notes */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                  {/* Left 8 Cols: Detail & Catatan */}
-                  <div className="lg:col-span-8 space-y-2.5">
-                    <h3 className="text-base font-extrabold text-[#0D3868]">
-                      {item.title}
-                    </h3>
+                        {/* Tiket & Waktu */}
+                        <td className="py-3 px-3.5 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
+                                isSurat
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300/60'
+                                  : 'bg-amber-100 text-amber-900 border border-amber-300/60'
+                              }`}
+                            >
+                              {isSurat ? 'SURAT' : 'ADUAN'}
+                            </span>
+                            <span className="font-mono-num font-extrabold text-[#0D3868] group-hover:text-[#0277BD]">
+                              {item.ticketCode}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span>{item.createdAt}</span>
+                          </div>
+                        </td>
 
-                    <p className="text-xs text-slate-700 leading-relaxed bg-slate-50/80 p-3 rounded-xl border border-slate-200/70">
-                      {item.description}
-                    </p>
+                        {/* Pemohon / Pelapor */}
+                        <td className="py-3 px-3.5">
+                          <div className="font-extrabold text-slate-900 line-clamp-1">
+                            {item.reporterName}
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500">
+                            <span className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 font-mono-num font-bold text-[10px]">
+                              {item.rw} · {item.rt || 'RT 01'}
+                            </span>
+                            {item.applicantNik && (
+                              <span className="font-mono-num truncate max-w-[120px]">
+                                NIK: {item.applicantNik}
+                              </span>
+                            )}
+                          </div>
+                        </td>
 
-                    {/* Pratinjau Foto Bukti Pengaduan jika ada */}
-                    {complaintPhotos.length > 0 && (
-                      <div className="pt-1">
-                        <div className="text-[11px] font-bold text-slate-600 mb-1.5 flex items-center gap-2">
-                          <span>📷 Foto yang Dilampirkan Saat Pengaduan ({complaintPhotos.length} Foto):</span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setDetailModalState({
-                                report: item,
-                                praRecord: matchedPra || null,
-                                pengaduanRecord: matchedPgd || null,
-                              })
-                            }
-                            className="text-[#0277BD] hover:underline font-extrabold cursor-pointer"
+                        {/* Jenis Pengurusan / Aduan (Bagian Penting Saja) */}
+                        <td className="py-3 px-3.5 max-w-[280px]">
+                          <div className="font-bold text-[#0D3868] line-clamp-1">
+                            {item.title}
+                          </div>
+                          <div className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
+                            {isSurat
+                              ? item.letterRegisterNumber
+                                ? `No. Surat: ${item.letterRegisterNumber}`
+                                : item.description
+                              : `${item.category} · ${item.locationName}`}
+                          </div>
+                        </td>
+
+                        {/* Indikator Lampiran */}
+                        <td className="py-3 px-3.5 text-center whitespace-nowrap">
+                          {isSurat ? (
+                            uploadedDocsCount > 0 ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 text-[#0D3868] border border-sky-200 text-[10px] font-bold">
+                                📎 {uploadedDocsCount} Berkas
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-slate-400">Loket</span>
+                            )
+                          ) : complaintPhotos.length > 0 ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 text-[#0277BD] border border-sky-200 text-[10px] font-bold">
+                              📷 {complaintPhotos.length} Foto
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-slate-400">-</span>
+                          )}
+                        </td>
+
+                        {/* Status */}
+                        <td className="py-3 px-3.5 text-center whitespace-nowrap">
+                          <span
+                            className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-extrabold ${
+                              item.status === 'Selesai'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : item.status === 'Sedang Ditangani'
+                                ? 'bg-sky-100 text-[#0277BD]'
+                                : 'bg-amber-100 text-amber-900'
+                            }`}
                           >
-                            Klik untuk perbesar →
-                          </button>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2.5">
-                          {complaintPhotos.map((photoUrl, pIdx) => (
+                            {item.status}
+                          </span>
+                        </td>
+
+                        {/* Aksi Cepat & Tombol Lihat Detail */}
+                        <td
+                          className="py-3 px-3.5 text-right whitespace-nowrap"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="inline-flex items-center justify-end gap-1.5">
                             <button
-                              key={pIdx}
                               type="button"
                               onClick={() =>
                                 setDetailModalState({
@@ -1189,209 +1433,245 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
                                   pengaduanRecord: matchedPgd || null,
                                 })
                               }
-                              className="relative w-28 h-20 rounded-xl overflow-hidden border-2 border-slate-200 hover:border-[#0277BD] bg-slate-100 group cursor-pointer shadow-2xs"
-                              title="Klik untuk melihat detail pengaduan & memperbesar foto"
+                              className="px-2.5 py-1.5 rounded-lg bg-[#0D3868] hover:bg-[#072647] text-white text-[11px] font-extrabold transition inline-flex items-center gap-1 cursor-pointer shadow-2xs"
+                              title="Lihat seluruh rincian berkas, persyaratan, foto pengaduan, dan tindak lanjut"
                             >
-                              <img
-                                src={resolveImageUrl(photoUrl)}
-                                alt={`Foto Pengaduan ${pIdx + 1}`}
-                                referrerPolicy="no-referrer"
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                              />
-                              <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-slate-900/75 text-white text-[9px] font-bold">
-                                Perbesar
-                              </span>
+                              <Eye className="w-3.5 h-3.5 text-amber-300" />
+                              <span>Lihat Detail</span>
                             </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
 
-                    {/* Official Letter Number pill if available */}
-                    {hasLetterNumber && (
-                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 font-bold">
-                        <FileText className="w-3.5 h-3.5 text-emerald-700" />
-                        <span>Nomor Surat Resmi: <strong className="font-mono-num">{item.letterRegisterNumber}</strong></span>
-                        {item.signedByOfficer && (
-                          <span className="text-[11px] text-emerald-700">· {item.signedByOfficer}</span>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Response Note */}
-                    {item.responseNote && (
-                      <div className="text-xs text-slate-600 flex items-start gap-1.5 pt-1">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                        <span>
-                          <strong>Respon Petugas:</strong> {item.responseNote}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Right 4 Cols: Citizen Profile & Contact */}
-                  <div className="lg:col-span-4 bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2 text-xs">
-                    <div className="font-extrabold text-slate-800 flex items-center justify-between">
-                      <span className="flex items-center gap-1.5">
-                        <UserCheck className="w-4 h-4 text-[#0D3868]" />
-                        <span>{item.reporterName}</span>
-                      </span>
-                      <span className="px-1.5 py-0.5 rounded bg-white text-slate-700 font-mono-num text-[10px] font-bold border border-slate-200">
-                        {item.rw} · {item.rt || 'RT 01'}
-                      </span>
-                    </div>
-
-                    {item.applicantNik && (
-                      <div className="text-[11px] text-slate-600">
-                        NIK: <strong className="font-mono-num text-slate-800">{item.applicantNik}</strong>
-                      </div>
-                    )}
-
-                    <div className="text-[11px] text-slate-600 flex items-start gap-1">
-                      <MapPin className="w-3 h-3 text-emerald-700 shrink-0 mt-0.5" />
-                      <span className="line-clamp-2">{item.locationName}</span>
-                    </div>
-
-                    {(() => {
-                      const resolvedPhone = resolveCitizenWhatsAppPhone({
-                        rawPhone: item.reporterPhone,
-                        citizenName: item.reporterName,
-                        ownerId: item.ownerId,
-                        ownerEmail: item.ownerEmail,
-                        nik: item.applicantNik,
-                        citizenUsers,
-                      });
-                      const hasValidWa = isValidWhatsAppPhone(resolvedPhone);
-                      return (
-                        <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between gap-2">
-                          <span className="font-mono-num text-slate-700 flex items-center gap-1">
-                            <Phone className="w-3 h-3 text-slate-500 shrink-0" />
-                            <span>
-                              {hasValidWa
-                                ? formatDisplayPhone(resolvedPhone)
-                                : 'No. WA belum terdaftar'}
-                            </span>
-                          </span>
-                          {hasValidWa ? (
-                            <a
-                              href={buildWhatsAppUrl(
-                                resolvedPhone,
-                                `Halo Bapak/Ibu ${item.reporterName}, salam dari Kantor Kelurahan Panaikang.\n\nMengenai pengurusan Anda (${item.ticketCode} - ${item.title}):\nStatus saat ini: *${item.status}*.\nCatatan: ${item.responseNote || 'Berkas Anda sedang kami proses.'}\n\nTerima kasih.`
-                              )}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="px-2.5 py-1 rounded-lg bg-[#128C7E] hover:bg-[#075E54] text-white font-bold text-[10px] flex items-center gap-1 transition shrink-0 shadow-2xs"
+                            <button
+                              type="button"
+                              onClick={() => setPrintReport(item)}
+                              className="p-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 border border-sky-200 text-[#0D3868] transition cursor-pointer"
+                              title="Cetak Surat / Tanda Terima Resmi"
                             >
-                              <MessageCircle className="w-3 h-3" />
-                              <span>Balas / Kirim WA</span>
-                            </a>
-                          ) : (
+                              <Printer className="w-3.5 h-3.5 text-[#0277BD]" />
+                            </button>
+
                             <button
                               type="button"
                               onClick={() => handleOpenEdit(item)}
-                              className="px-2 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold text-[10px] flex items-center gap-1 transition cursor-pointer shrink-0"
-                              title="Nomor WhatsApp warga belum diisi atau tidak valid. Klik untuk mengisi nomor WA agar dapat dikirim pesan."
+                              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 transition cursor-pointer"
+                              title="Edit Data"
                             >
-                              <Edit3 className="w-3 h-3" />
-                              <span>Isi No. WA</span>
+                              <Edit3 className="w-3.5 h-3.5 text-sky-600" />
                             </button>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                </div>
 
-                {/* Footer Action Bar */}
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100">
-                  {/* Status Actions */}
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setDetailModalState({
-                          report: item,
-                          praRecord: matchedPra || null,
-                          pengaduanRecord: matchedPgd || null,
-                        })
-                      }
-                      className="px-3 py-1.5 rounded-lg bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                    >
-                      <Eye className="w-3.5 h-3.5 text-amber-300" />
-                      <span>
-                        {isSurat
-                          ? 'Lihat Detail Pengurusan Surat'
-                          : 'Lihat Detail Aduan & Foto'}
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteId(item.id)}
+                              className="p-1.5 rounded-lg border border-slate-200 hover:bg-rose-50 text-rose-600 transition cursor-pointer"
+                              title="Hapus Data"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          /* ================= MODE 2: KARTU RINGKAS (2 KOLOM HEMAT RUANG) ================= */
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            {paginatedReports.map((item) => {
+              const isSurat = isSuratAdministrasi(item);
+              const matchedPra = praRegistrasiList.find(
+                (p) => p.ticketCode === item.ticketCode || p.id === item.id
+              );
+              const matchedPgd = pengaduanList.find(
+                (p) => p.ticketCode === item.ticketCode || p.id === item.id
+              );
+              const complaintPhotosCount =
+                (matchedPgd?.proofPhotos?.length || 0) +
+                (item.imageUrl && !matchedPgd?.proofPhotos?.includes(item.imageUrl) ? 1 : 0);
+              const uploadedDocsCount = matchedPra?.uploadedDocs?.length || 0;
+
+              return (
+                <div
+                  key={item.id}
+                  onClick={() =>
+                    setDetailModalState({
+                      report: item,
+                      praRecord: matchedPra || null,
+                      pengaduanRecord: matchedPgd || null,
+                    })
+                  }
+                  className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs hover:border-[#0277BD] transition-all cursor-pointer flex flex-col justify-between gap-3"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                            isSurat
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-amber-100 text-amber-900'
+                          }`}
+                        >
+                          {isSurat ? 'SURAT' : 'ADUAN'}
+                        </span>
+                        <span className="font-mono-num font-extrabold text-xs text-[#0D3868]">
+                          {item.ticketCode}
+                        </span>
+                      </div>
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold ${
+                          item.status === 'Selesai'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : item.status === 'Sedang Ditangani'
+                            ? 'bg-sky-100 text-[#0277BD]'
+                            : 'bg-amber-100 text-amber-900'
+                        }`}
+                      >
+                        {item.status}
                       </span>
-                    </button>
+                    </div>
 
-                    {isWaiting && (
-                      <button
-                        type="button"
-                        onClick={() => handleQuickVerify(item)}
-                        className="px-3 py-1.5 rounded-lg bg-[#0277BD] hover:bg-[#01579B] text-white text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Verifikasi Berkas</span>
-                      </button>
-                    )}
+                    <div>
+                      <h3 className="text-sm font-extrabold text-[#0D3868] line-clamp-1">
+                        {item.title}
+                      </h3>
+                      <div className="text-xs text-slate-600 mt-0.5 flex items-center gap-2">
+                        <span className="font-bold text-slate-800">{item.reporterName}</span>
+                        <span>·</span>
+                        <span className="font-mono-num text-[11px] font-semibold text-slate-500">
+                          {item.rw} / {item.rt || 'RT 01'}
+                        </span>
+                      </div>
+                    </div>
 
-                    {isSurat && !hasLetterNumber && (
-                      <button
-                        type="button"
-                        onClick={() => handleQuickIssueLetter(item)}
-                        className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-                      >
-                        <FileText className="w-3.5 h-3.5 text-amber-300" />
-                        <span>Terbitkan No. Surat</span>
-                      </button>
-                    )}
-
-                    {!isDone && (
-                      <button
-                        type="button"
-                        onClick={() => handleQuickComplete(item)}
-                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Tandai Selesai</span>
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => setPrintReport(item)}
-                      className="px-3 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 border border-sky-200 text-[#0D3868] text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                    >
-                      <Printer className="w-3.5 h-3.5 text-[#0277BD]" />
-                      <span>Cetak Surat / Tanda Terima</span>
-                    </button>
+                    <p className="text-xs text-slate-500 line-clamp-1">
+                      {item.locationName} — {item.description}
+                    </p>
                   </div>
 
-                  {/* Edit & Delete */}
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEdit(item)}
-                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-                    >
-                      <Edit3 className="w-3.5 h-3.5 text-sky-600" />
-                      <span>Edit</span>
-                    </button>
+                  <div
+                    className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                      <span>{item.createdAt}</span>
+                      {isSurat && uploadedDocsCount > 0 && (
+                        <span className="px-1.5 py-0.5 rounded bg-sky-50 text-[#0D3868] font-bold text-[10px]">
+                          📎 {uploadedDocsCount} Berkas
+                        </span>
+                      )}
+                      {!isSurat && complaintPhotosCount > 0 && (
+                        <span className="px-1.5 py-0.5 rounded bg-sky-50 text-[#0277BD] font-bold text-[10px]">
+                          📷 {complaintPhotosCount} Foto
+                        </span>
+                      )}
+                    </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setConfirmDeleteId(item.id)}
-                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-rose-50 text-rose-600 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Hapus</span>
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDetailModalState({
+                            report: item,
+                            praRecord: matchedPra || null,
+                            pengaduanRecord: matchedPgd || null,
+                          })
+                        }
+                        className="px-2.5 py-1.5 rounded-lg bg-[#0D3868] hover:bg-[#072647] text-white text-[11px] font-extrabold inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        <Eye className="w-3 h-3 text-amber-300" />
+                        <span>Lihat Detail</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPrintReport(item)}
+                        className="p-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-[#0D3868] border border-sky-200 cursor-pointer"
+                        title="Cetak Surat / Tanda Terima"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEdit(item)}
+                        className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 cursor-pointer"
+                        title="Edit"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })
+              );
+            })}
+          </div>
+        )}
+
+        {/* Pagination Bar */}
+        {filteredReports.length > pageSize && (
+          <div className="bg-white rounded-2xl border border-slate-200 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+            <div className="text-xs text-slate-600">
+              Halaman <strong className="text-[#0D3868]">{safeCurrentPage}</strong> dari{' '}
+              <strong className="text-[#0D3868]">{totalPages}</strong> ({filteredReports.length} total data)
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                disabled={safeCurrentPage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-40 text-xs font-bold text-slate-700 inline-flex items-center gap-1 cursor-pointer"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span>Sebelumnya</span>
+              </button>
+
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(
+                  (page) =>
+                    page === 1 ||
+                    page === totalPages ||
+                    Math.abs(page - safeCurrentPage) <= 1
+                )
+                .reduce<number[]>((acc, page) => {
+                  if (acc.length > 0 && page - acc[acc.length - 1] > 1) {
+                    acc.push(-1);
+                  }
+                  acc.push(page);
+                  return acc;
+                }, [])
+                .map((page, i) =>
+                  page === -1 ? (
+                    <span key={`ellipsis-${i}`} className="px-2 text-xs text-slate-400">
+                      ...
+                    </span>
+                  ) : (
+                    <button
+                      key={page}
+                      type="button"
+                      onClick={() => setCurrentPage(page)}
+                      className={`w-8 h-8 rounded-xl text-xs font-bold font-mono-num transition cursor-pointer ${
+                        safeCurrentPage === page
+                          ? 'bg-[#0D3868] text-white shadow-2xs'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  )
+                )}
+
+              <button
+                type="button"
+                disabled={safeCurrentPage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-40 text-xs font-bold text-slate-700 inline-flex items-center gap-1 cursor-pointer"
+              >
+                <span>Berikutnya</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
         )}
       </div>
 

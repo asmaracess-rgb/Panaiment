@@ -40,7 +40,7 @@ import {
   INITIAL_SEED_REQUESTS,
 } from '../data/initialData';
 import { buildOfficialKopSuratHtml } from '../utils/officialKopSurat';
-import { resolveImageUrl } from '../utils/resolveImageUrl';
+import { resolveUrbanFarmingPhoto } from '../utils/resolveImageUrl';
 import { buildWhatsAppUrl } from '../utils/whatsappHelper';
 import { RestrictedAccessModal } from './RestrictedAccessModal';
 
@@ -296,7 +296,12 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
       harvestEstimatedKg: Math.round((Number(newProductionKg) || 40) * 0.4),
       status: newStatus,
       description: newDescription.trim() || 'Kebun lorong binaan ketahanan pangan Kelurahan Panaikang.',
-      photoUrl: '/images/ig_post_5_DeGDDkFPvJs.jpg',
+      photoUrl: resolveUrbanFarmingPhoto({
+        name: newSpotName.trim(),
+        groupName: newGroupName.trim() || `Kelompok Tani ${newSpotRw}`,
+        rw: newSpotRw,
+        locationAddress: newSpotAddress.trim(),
+      }, spots.length),
     };
 
     if (onAddSpot) {
@@ -712,9 +717,10 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredSpots.map((spot) => {
+              {filteredSpots.map((spot, idx) => {
                 const typeInfo = FARM_TYPE_CONFIG[spot.farmingType] || FARM_TYPE_CONFIG['Hidroponik / NFT'];
                 const TypeIcon = typeInfo.icon;
+                const resolvedPhoto = resolveUrbanFarmingPhoto(spot, idx);
 
                 return (
                   <div
@@ -725,11 +731,15 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
                       {/* Photo Header */}
                       <div className="relative h-44 w-full bg-slate-100 overflow-hidden">
                         <img
-                          src={resolveImageUrl(spot.photoUrl)}
+                          src={resolvedPhoto}
                           alt={spot.name}
+                          referrerPolicy="no-referrer"
                           className="w-full h-full object-cover"
                           onError={(e) => {
-                            (e.target as HTMLImageElement).src = '/images/ig_post_5_DeGDDkFPvJs.jpg';
+                            const fallback = resolveUrbanFarmingPhoto({ ...spot, photoUrl: '' }, idx);
+                            if ((e.target as HTMLImageElement).src !== window.location.origin + fallback) {
+                              (e.target as HTMLImageElement).src = fallback;
+                            }
                           }}
                         />
                         <div className="absolute top-3 left-3 flex items-center gap-1.5">
@@ -1111,11 +1121,15 @@ export const UrbanFarmingView: React.FC<UrbanFarmingViewProps> = ({
 
             <div className="h-52 w-full rounded-2xl overflow-hidden bg-slate-100">
               <img
-                src={resolveImageUrl(selectedSpotModal.photoUrl)}
+                src={resolveUrbanFarmingPhoto(selectedSpotModal)}
                 alt={selectedSpotModal.name}
+                referrerPolicy="no-referrer"
                 className="w-full h-full object-cover"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = '/images/ig_post_5_DeGDDkFPvJs.jpg';
+                  const fallback = resolveUrbanFarmingPhoto({ ...selectedSpotModal, photoUrl: '' });
+                  if ((e.target as HTMLImageElement).src !== window.location.origin + fallback) {
+                    (e.target as HTMLImageElement).src = fallback;
+                  }
                 }}
               />
             </div>

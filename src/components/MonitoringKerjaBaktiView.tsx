@@ -85,11 +85,11 @@ export const MonitoringKerjaBaktiView: React.FC<MonitoringKerjaBaktiViewProps> =
   } | null>(null);
 
   const topThreeHighlights = React.useMemo(() => {
-    const list = Array.isArray(igHighlights) && igHighlights.length > 0
-      ? igHighlights
-      : INITIAL_KERJABAKTI_IG_HIGHLIGHTS;
-    const hasLatest = list.some((s) => s.shortcode === 'DfZsJAUvDQG');
-    return (hasLatest ? list : INITIAL_KERJABAKTI_IG_HIGHLIGHTS).slice(0, 3);
+    const list =
+      Array.isArray(igHighlights) && igHighlights.length > 0
+        ? igHighlights
+        : INITIAL_KERJABAKTI_IG_HIGHLIGHTS;
+    return list.slice(0, 3);
   }, [igHighlights]);
 
   // Add new scheduled cleanup state (scheduled events do NOT use photos)

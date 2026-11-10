@@ -495,7 +495,13 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
   // Persetujuan Pelayanan state
   const [persetujuanTab, setPersetujuanTab] = useState<'pra_registrasi' | 'pengaduan'>('pra_registrasi');
   const [praStatusFilter, setPraStatusFilter] = useState<'SEMUA' | 'MENUNGGU' | 'DIPROSES' | 'DISETUJUI' | 'DITOLAK' | 'SELESAI'>('SEMUA');
+  const [praSearchQuery, setPraSearchQuery] = useState<string>('');
+  const [praRwFilter, setPraRwFilter] = useState<string>('SEMUA');
+  const [praPage, setPraPage] = useState<number>(1);
   const [pengaduanFilterMode, setPengaduanFilterMode] = useState<'SEMUA' | 'AKTIF' | 'PRIORITAS' | 'SELESAI'>('SEMUA');
+  const [pengaduanSearchQuery, setPengaduanSearchQuery] = useState<string>('');
+  const [pengaduanRwFilter, setPengaduanRwFilter] = useState<string>('SEMUA');
+  const [pengaduanPage, setPengaduanPage] = useState<number>(1);
   const [selectedPraRecord, setSelectedPraRecord] = useState<PraRegistrasiRecord | null>(null);
   const [lurahNoteInput, setLurahNoteInput] = useState<string>('');
   const [isProcessingApproval, setIsProcessingApproval] = useState<boolean>(false);
@@ -1069,233 +1075,315 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
                   </div>
                 </div>
 
-                {/* Status Filters */}
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1">
-                    Status:
-                  </span>
-                  {(
-                    [
-                      { key: 'SEMUA', label: 'Semua Pengajuan' },
-                      { key: 'MENUNGGU', label: 'Menunggu Persetujuan' },
-                      { key: 'DIPROSES', label: 'Sedang Diproses' },
-                      { key: 'DISETUJUI', label: 'Disetujui' },
-                      { key: 'SELESAI', label: 'Selesai' },
-                      { key: 'DITOLAK', label: 'Ditolak' },
-                    ] as const
-                  ).map((st) => (
-                    <button
-                      key={st.key}
-                      type="button"
-                      onClick={() => setPraStatusFilter(st.key)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                        praStatusFilter === st.key
-                          ? 'bg-[#0D3868] text-white shadow-2xs'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      }`}
+                {/* Search, RW Filter & Status Filters */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                  <div className="flex flex-col sm:flex-row gap-2.5">
+                    <div className="relative flex-1">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={praSearchQuery}
+                        onChange={(e) => {
+                          setPraSearchQuery(e.target.value);
+                          setPraPage(1);
+                        }}
+                        placeholder="Cari No. Tiket, Nama Pemohon, NIK, atau Jenis Surat..."
+                        className="w-full pl-9 pr-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-medium text-slate-800 focus:outline-none focus:border-[#0D3868]"
+                      />
+                    </div>
+                    <select
+                      value={praRwFilter}
+                      onChange={(e) => {
+                        setPraRwFilter(e.target.value);
+                        setPraPage(1);
+                      }}
+                      className="px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold text-slate-700 focus:outline-none focus:border-[#0D3868]"
                     >
-                      {st.label}
-                    </button>
-                  ))}
+                      <option value="SEMUA">Semua RW</option>
+                      <option value="RW 01">RW 01</option>
+                      <option value="RW 02">RW 02</option>
+                      <option value="RW 03">RW 03</option>
+                      <option value="RW 04">RW 04</option>
+                      <option value="RW 05">RW 05</option>
+                      <option value="RW 06">RW 06</option>
+                      <option value="RW 07">RW 07</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1">
+                      Status:
+                    </span>
+                    {(
+                      [
+                        { key: 'SEMUA', label: 'Semua Pengajuan' },
+                        { key: 'MENUNGGU', label: 'Menunggu Persetujuan' },
+                        { key: 'DIPROSES', label: 'Sedang Diproses' },
+                        { key: 'DISETUJUI', label: 'Disetujui' },
+                        { key: 'SELESAI', label: 'Selesai' },
+                        { key: 'DITOLAK', label: 'Ditolak' },
+                      ] as const
+                    ).map((st) => (
+                      <button
+                        key={st.key}
+                        type="button"
+                        onClick={() => {
+                          setPraStatusFilter(st.key);
+                          setPraPage(1);
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                          praStatusFilter === st.key
+                            ? 'bg-[#0D3868] text-white shadow-2xs'
+                            : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        {st.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Pra Registrasi List */}
                 {(() => {
                   const filteredPra = mergedPraList.filter((item) => {
                     if (praStatusFilter === 'MENUNGGU') {
-                      return (
+                      const ok =
                         item.status === 'MENUNGGU_PERSETUJUAN' ||
                         item.status === 'BERKAS_LENGKAP' ||
                         item.status === 'VERIFIKASI_PETUGAS' ||
                         item.status === 'MENUNGGU_KEDATANGAN' ||
                         item.status === 'DIAJUKAN' ||
-                        item.lurahApprovalStatus === 'MENUNGGU'
-                      );
-                    }
-                    if (praStatusFilter === 'DIPROSES') {
-                      return (
+                        item.lurahApprovalStatus === 'MENUNGGU';
+                      if (!ok) return false;
+                    } else if (praStatusFilter === 'DIPROSES') {
+                      const ok =
                         item.status === 'DIPROSES' ||
                         item.status === 'VERIFIKASI_PETUGAS' ||
-                        item.status === 'BERKAS_LENGKAP'
-                      );
+                        item.status === 'BERKAS_LENGKAP';
+                      if (!ok) return false;
+                    } else if (praStatusFilter === 'DISETUJUI') {
+                      if (!(item.status === 'DISETUJUI' || item.lurahApprovalStatus === 'DISETUJUI')) return false;
+                    } else if (praStatusFilter === 'DITOLAK') {
+                      if (!(item.status === 'DITUTUP' || item.lurahApprovalStatus === 'DITOLAK')) return false;
+                    } else if (praStatusFilter === 'SELESAI') {
+                      if (item.status !== 'SURAT_SELESAI') return false;
                     }
-                    if (praStatusFilter === 'DISETUJUI') {
-                      return item.status === 'DISETUJUI' || item.lurahApprovalStatus === 'DISETUJUI';
+
+                    if (praRwFilter !== 'SEMUA') {
+                      const targetNum = praRwFilter.replace(/\D/g, '').replace(/^0+/, '');
+                      const itemNum = (item.applicantRw || '').replace(/\D/g, '').replace(/^0+/, '');
+                      if (targetNum !== itemNum) return false;
                     }
-                    if (praStatusFilter === 'DITOLAK') {
-                      return item.status === 'DITUTUP' || item.lurahApprovalStatus === 'DITOLAK';
-                    }
-                    if (praStatusFilter === 'SELESAI') {
-                      return item.status === 'SURAT_SELESAI';
+
+                    if (praSearchQuery.trim()) {
+                      const q = praSearchQuery.trim().toLowerCase();
+                      const match =
+                        (item.ticketCode || '').toLowerCase().includes(q) ||
+                        (item.applicantName || '').toLowerCase().includes(q) ||
+                        (item.applicantNik || '').toLowerCase().includes(q) ||
+                        (item.serviceName || '').toLowerCase().includes(q) ||
+                        (item.applicantRw || '').toLowerCase().includes(q);
+                      if (!match) return false;
                     }
                     return true;
                   });
 
+                  const pageSize = 6;
+                  const totalPages = Math.max(1, Math.ceil(filteredPra.length / pageSize));
+                  const safePage = Math.min(praPage, totalPages);
+                  const pagedPra = filteredPra.slice((safePage - 1) * pageSize, safePage * pageSize);
+
                   if (filteredPra.length === 0) {
                     return (
                       <div className="p-8 text-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-slate-500 text-xs">
-                        Tidak ada berkas pra registrasi dalam status &ldquo;{praStatusFilter}&rdquo;.
+                        Tidak ada berkas pra registrasi yang sesuai dengan filter pencarian.
                       </div>
                     );
                   }
 
                   return (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {filteredPra.map((pra) => {
-                        const isSelected = selectedPraRecord?.ticketCode === pra.ticketCode;
-                        return (
-                          <div
-                            key={pra.id}
-                            className={`p-4 rounded-2xl border transition-all ${
-                              isSelected
-                                ? 'border-[#0D3868] ring-2 ring-sky-300 bg-sky-50/30'
-                                : 'border-slate-200 bg-white hover:border-slate-300 shadow-2xs'
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <span className="font-mono text-xs font-black text-[#0D3868] bg-sky-100 px-2 py-0.5 rounded-md">
-                                  {pra.ticketCode}
-                                </span>
-                                <h4 className="text-sm font-black text-slate-900 mt-1">
-                                  {pra.serviceName}
-                                </h4>
-                                <div className="text-xs text-slate-600 mt-0.5">
-                                  Pemohon: <span className="font-bold text-slate-800">{pra.applicantName}</span> ({pra.applicantRw})
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                        {pagedPra.map((pra) => {
+                          const isSelected = selectedPraRecord?.ticketCode === pra.ticketCode;
+                          return (
+                            <div
+                              key={pra.id}
+                              className={`p-3.5 rounded-2xl border transition-all ${
+                                isSelected
+                                  ? 'border-[#0D3868] ring-2 ring-sky-300 bg-sky-50/30'
+                                  : 'border-slate-200 bg-white hover:border-slate-300 shadow-2xs'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-mono text-xs font-black text-[#0D3868] bg-sky-100 px-2 py-0.5 rounded-md">
+                                      {pra.ticketCode}
+                                    </span>
+                                    <span className="text-[11px] text-slate-500">
+                                      {pra.submittedAt}
+                                    </span>
+                                  </div>
+                                  <h4 className="text-sm font-black text-slate-900 mt-1 line-clamp-1">
+                                    {pra.serviceName}
+                                  </h4>
+                                  <div className="text-xs text-slate-600 mt-0.5">
+                                    Pemohon: <span className="font-bold text-slate-800">{pra.applicantName}</span> ({pra.applicantRw}/{pra.applicantRt})
+                                  </div>
                                 </div>
-                              </div>
-                              <span
-                                className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md ${
-                                  pra.status === 'SURAT_SELESAI'
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : pra.status === 'DISETUJUI'
-                                    ? 'bg-teal-100 text-teal-800'
-                                    : pra.status === 'DIPROSES'
-                                    ? 'bg-blue-100 text-blue-800'
-                                    : pra.status === 'PERLU_PERBAIKAN'
-                                    ? 'bg-amber-100 text-amber-800'
-                                    : pra.status === 'MENUNGGU_PERSETUJUAN'
-                                    ? 'bg-purple-100 text-purple-800'
-                                    : pra.status === 'BERKAS_LENGKAP'
-                                    ? 'bg-sky-100 text-sky-800'
-                                    : pra.status === 'VERIFIKASI_PETUGAS'
-                                    ? 'bg-indigo-100 text-indigo-800'
-                                    : pra.status === 'MENUNGGU_KEDATANGAN'
-                                    ? 'bg-orange-100 text-orange-800'
-                                    : pra.status === 'DITUTUP'
-                                    ? 'bg-rose-100 text-rose-800'
-                                    : 'bg-slate-100 text-slate-700'
-                                }`}
-                              >
-                                {pra.status === 'SURAT_SELESAI'
-                                  ? 'Surat Selesai'
-                                  : pra.status === 'DISETUJUI'
-                                  ? 'Disetujui Lurah'
-                                  : pra.status === 'DIPROSES'
-                                  ? 'Sedang Diproses'
-                                  : pra.status === 'MENUNGGU_PERSETUJUAN'
-                                  ? 'Menunggu Persetujuan'
-                                  : pra.status === 'BERKAS_LENGKAP'
-                                  ? 'Berkas Lengkap'
-                                  : pra.status === 'VERIFIKASI_PETUGAS'
-                                  ? 'Verifikasi Petugas'
-                                  : pra.status === 'MENUNGGU_KEDATANGAN'
-                                  ? 'Menunggu Kedatangan'
-                                  : pra.status.replace(/_/g, ' ')}
-                              </span>
-                            </div>
-
-                            {/* Verification status & notes */}
-                            <div className="mt-3 p-2.5 rounded-xl bg-slate-50 text-xs space-y-1">
-                              <div className="flex items-center justify-between text-slate-600">
-                                <span>Tgl Pengajuan:</span>
-                                <span className="font-bold text-slate-800">{pra.submittedAt}</span>
-                              </div>
-                              <div className="flex items-center justify-between text-slate-600">
-                                <span>Verifikasi Fisik Loket:</span>
                                 <span
-                                  className={`font-black ${
-                                    pra.physicalDocsChecked ? 'text-emerald-700' : 'text-amber-700'
+                                  className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md shrink-0 ${
+                                    pra.status === 'SURAT_SELESAI'
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : pra.status === 'DISETUJUI'
+                                      ? 'bg-teal-100 text-teal-800'
+                                      : pra.status === 'DIPROSES'
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : pra.status === 'PERLU_PERBAIKAN'
+                                      ? 'bg-amber-100 text-amber-800'
+                                      : pra.status === 'MENUNGGU_PERSETUJUAN'
+                                      ? 'bg-purple-100 text-purple-800'
+                                      : pra.status === 'BERKAS_LENGKAP'
+                                      ? 'bg-sky-100 text-sky-800'
+                                      : pra.status === 'VERIFIKASI_PETUGAS'
+                                      ? 'bg-indigo-100 text-indigo-800'
+                                      : pra.status === 'MENUNGGU_KEDATANGAN'
+                                      ? 'bg-orange-100 text-orange-800'
+                                      : pra.status === 'DITUTUP'
+                                      ? 'bg-rose-100 text-rose-800'
+                                      : 'bg-slate-100 text-slate-700'
                                   }`}
                                 >
-                                  {pra.physicalDocsChecked ? '✓ Dokumen Asli Diperiksa' : '⏳ Belum Verifikasi Fisik'}
+                                  {pra.status === 'SURAT_SELESAI'
+                                    ? 'Surat Selesai'
+                                    : pra.status === 'DISETUJUI'
+                                    ? 'Disetujui Lurah'
+                                    : pra.status === 'DIPROSES'
+                                    ? 'Sedang Diproses'
+                                    : pra.status === 'MENUNGGU_PERSETUJUAN'
+                                    ? 'Menunggu Persetujuan'
+                                    : pra.status === 'BERKAS_LENGKAP'
+                                    ? 'Berkas Lengkap'
+                                    : pra.status === 'VERIFIKASI_PETUGAS'
+                                    ? 'Verifikasi Petugas'
+                                    : pra.status === 'MENUNGGU_KEDATANGAN'
+                                    ? 'Menunggu Kedatangan'
+                                    : pra.status.replace(/_/g, ' ')}
                                 </span>
                               </div>
-                              {pra.officerNotes && (
-                                <div className="text-slate-600 pt-1 border-t border-slate-200">
-                                  <span className="font-bold">Catatan Petugas:</span> {pra.officerNotes}
-                                </div>
-                              )}
-                              {pra.uploadedDocs && pra.uploadedDocs.length > 0 && (
-                                <div className="text-slate-600 pt-1 border-t border-slate-200">
-                                  <span className="font-bold">Dokumen Di-upload:</span> {pra.uploadedDocs.length} berkas
-                                </div>
-                              )}
-                            </div>
 
-                            {/* Action toggle */}
-                            <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const matchedRep = reports.find(
-                                    (r) => r.ticketCode === pra.ticketCode || r.id === pra.id
-                                  );
-                                  setSelectedPraRecord(pra);
-                                  setLurahNoteInput(pra.lurahNotes || '');
-                                  setDetailModalState({
-                                    praRecord: pra,
-                                    report: matchedRep || null,
-                                  });
-                                }}
-                                className="px-3 py-1.5 rounded-lg bg-[#0D3868] text-white text-xs font-bold hover:bg-[#072647] transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                              >
-                                <Eye className="w-3.5 h-3.5" />
-                                <span>Lihat Detail Permohonan & Berkas</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  downloadOfficialLetterOrReceiptPdf(
-                                    {
-                                      ticketCode: pra.ticketCode,
-                                      isSurat:
-                                        pra.status === 'SURAT_SELESAI' || pra.status === 'DISETUJUI',
-                                      documentTitle:
-                                        pra.status === 'SURAT_SELESAI' || pra.status === 'DISETUJUI'
-                                          ? `SURAT KETERANGAN / PENGANTAR (${pra.serviceName.toUpperCase()})`
-                                          : 'TANDA TERIMA PRA REGISTRASI LAYANAN KELURAHAN',
-                                      registerNumber: pra.serviceCode,
-                                      applicantName: pra.applicantName,
-                                      applicantNik: pra.applicantNik,
-                                      applicantPhone: pra.applicantPhone,
-                                      rw: pra.applicantRw,
-                                      rt: pra.applicantRt,
-                                      address: pra.applicantAddress,
-                                      serviceOrCategoryName: pra.serviceName,
-                                      descriptionOrPurpose:
-                                        String(pra.formData?.keperluan || `Permohonan ${pra.serviceName}`),
-                                      statusText: pra.status.replace(/_/g, ' '),
-                                      assignedUnit:
-                                        pra.assignedOfficerName || 'Operator Loket Kelurahan Panaikang',
-                                      officerNotes:
-                                        pra.lurahNotes ||
-                                        pra.officerNotes ||
-                                        'Telah diverifikasi oleh Lurah Panaikang.',
-                                      submittedAt: pra.submittedAt,
-                                    },
-                                    profile
-                                  )
-                                }
-                                className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-                              >
-                                <Printer className="w-3.5 h-3.5" />
-                                <span>Cetak Surat / Tanda Terima</span>
-                              </button>
+                              {/* Compact Indicators */}
+                              <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+                                <span
+                                  className={`px-2 py-0.5 rounded-md font-bold ${
+                                    pra.physicalDocsChecked
+                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                      : 'bg-amber-50 text-amber-700 border border-amber-200'
+                                  }`}
+                                >
+                                  {pra.physicalDocsChecked ? '✓ Fisik Diperiksa' : '⏳ Belum Cek Fisik'}
+                                </span>
+                                {pra.uploadedDocs && pra.uploadedDocs.length > 0 && (
+                                  <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-800 border border-indigo-200 font-bold">
+                                    📎 {pra.uploadedDocs.length} Berkas
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Action toggle */}
+                              <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const matchedRep = reports.find(
+                                      (r) => r.ticketCode === pra.ticketCode || r.id === pra.id
+                                    );
+                                    setSelectedPraRecord(pra);
+                                    setLurahNoteInput(pra.lurahNotes || '');
+                                    setDetailModalState({
+                                      praRecord: pra,
+                                      report: matchedRep || null,
+                                    });
+                                  }}
+                                  className="px-3 py-1.5 rounded-lg bg-[#0D3868] text-white text-xs font-bold hover:bg-[#072647] transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>Lihat Detail & Berkas</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    downloadOfficialLetterOrReceiptPdf(
+                                      {
+                                        ticketCode: pra.ticketCode,
+                                        isSurat:
+                                          pra.status === 'SURAT_SELESAI' || pra.status === 'DISETUJUI',
+                                        documentTitle:
+                                          pra.status === 'SURAT_SELESAI' || pra.status === 'DISETUJUI'
+                                            ? `SURAT KETERANGAN / PENGANTAR (${pra.serviceName.toUpperCase()})`
+                                            : 'TANDA TERIMA PRA REGISTRASI LAYANAN KELURAHAN',
+                                        registerNumber: pra.serviceCode,
+                                        applicantName: pra.applicantName,
+                                        applicantNik: pra.applicantNik,
+                                        applicantPhone: pra.applicantPhone,
+                                        rw: pra.applicantRw,
+                                        rt: pra.applicantRt,
+                                        address: pra.applicantAddress,
+                                        serviceOrCategoryName: pra.serviceName,
+                                        descriptionOrPurpose:
+                                          String(pra.formData?.keperluan || `Permohonan ${pra.serviceName}`),
+                                        statusText: pra.status.replace(/_/g, ' '),
+                                        assignedUnit:
+                                          pra.assignedOfficerName || 'Operator Loket Kelurahan Panaikang',
+                                        officerNotes:
+                                          pra.lurahNotes ||
+                                          pra.officerNotes ||
+                                          'Telah diverifikasi oleh Lurah Panaikang.',
+                                        submittedAt: pra.submittedAt,
+                                      },
+                                      profile
+                                    )
+                                  }
+                                  className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Printer className="w-3.5 h-3.5" />
+                                  <span>Cetak PDF</span>
+                                </button>
+                              </div>
                             </div>
+                          );
+                        })}
+                      </div>
+
+                      {totalPages > 1 && (
+                        <div className="flex items-center justify-between pt-2 text-xs text-slate-600">
+                          <span>
+                            Menampilkan {(safePage - 1) * pageSize + 1}–
+                            {Math.min(safePage * pageSize, filteredPra.length)} dari {filteredPra.length} berkas
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              disabled={safePage <= 1}
+                              onClick={() => setPraPage((p) => Math.max(1, p - 1))}
+                              className="px-3 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 font-bold cursor-pointer"
+                            >
+                              ← Seb.
+                            </button>
+                            <span className="px-2 font-bold">
+                              Hal. {safePage}/{totalPages}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={safePage >= totalPages}
+                              onClick={() => setPraPage((p) => Math.min(totalPages, p + 1))}
+                              className="px-3 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 font-bold cursor-pointer"
+                            >
+                              Ber. →
+                            </button>
                           </div>
-                        );
-                      })}
+                        </div>
+                      )}
                     </div>
                   );
                 })()}
@@ -1627,210 +1715,254 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
                   </div>
                 </div>
 
-                {/* Complaint Filters */}
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1">
-                    Filter:
-                  </span>
-                  {(
-                    [
-                      { key: 'SEMUA', label: 'Semua Pengaduan' },
-                      { key: 'AKTIF', label: 'Pengaduan Aktif' },
-                      { key: 'PRIORITAS', label: 'Pengaduan Prioritas' },
-                      { key: 'SELESAI', label: 'Pengaduan Selesai' },
-                    ] as const
-                  ).map((f) => (
-                    <button
-                      key={f.key}
-                      type="button"
-                      onClick={() => setPengaduanFilterMode(f.key)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                        pengaduanFilterMode === f.key
-                          ? 'bg-[#0D3868] text-white shadow-2xs'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      }`}
+                {/* Complaint Search, RW & Status Filters */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                  <div className="flex flex-col sm:flex-row gap-2.5">
+                    <div className="relative flex-1">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={pengaduanSearchQuery}
+                        onChange={(e) => {
+                          setPengaduanSearchQuery(e.target.value);
+                          setPengaduanPage(1);
+                        }}
+                        placeholder="Cari No. Tiket, Judul Aduan, Pelapor, atau Lokasi..."
+                        className="w-full pl-9 pr-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-medium text-slate-800 focus:outline-none focus:border-[#0D3868]"
+                      />
+                    </div>
+                    <select
+                      value={pengaduanRwFilter}
+                      onChange={(e) => {
+                        setPengaduanRwFilter(e.target.value);
+                        setPengaduanPage(1);
+                      }}
+                      className="px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold text-slate-700 focus:outline-none focus:border-[#0D3868]"
                     >
-                      {f.label}
-                    </button>
-                  ))}
+                      <option value="SEMUA">Semua RW</option>
+                      <option value="RW 01">RW 01</option>
+                      <option value="RW 02">RW 02</option>
+                      <option value="RW 03">RW 03</option>
+                      <option value="RW 04">RW 04</option>
+                      <option value="RW 05">RW 05</option>
+                      <option value="RW 06">RW 06</option>
+                      <option value="RW 07">RW 07</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1">
+                      Filter:
+                    </span>
+                    {(
+                      [
+                        { key: 'SEMUA', label: 'Semua Pengaduan' },
+                        { key: 'AKTIF', label: 'Pengaduan Aktif' },
+                        { key: 'PRIORITAS', label: 'Pengaduan Prioritas' },
+                        { key: 'SELESAI', label: 'Pengaduan Selesai' },
+                      ] as const
+                    ).map((f) => (
+                      <button
+                        key={f.key}
+                        type="button"
+                        onClick={() => {
+                          setPengaduanFilterMode(f.key);
+                          setPengaduanPage(1);
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                          pengaduanFilterMode === f.key
+                            ? 'bg-[#0D3868] text-white shadow-2xs'
+                            : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
-                {/* Complaints List Table / Cards */}
+                {/* Complaints Compact List */}
                 {(() => {
                   const filteredPengaduan = mergedPengaduanList.filter((item) => {
-                    if (pengaduanFilterMode === 'AKTIF') return item.status !== 'SELESAI';
-                    if (pengaduanFilterMode === 'PRIORITAS') return item.isPriority;
-                    if (pengaduanFilterMode === 'SELESAI') return item.status === 'SELESAI';
+                    if (pengaduanFilterMode === 'AKTIF' && item.status === 'SELESAI') return false;
+                    if (pengaduanFilterMode === 'PRIORITAS' && !item.isPriority) return false;
+                    if (pengaduanFilterMode === 'SELESAI' && item.status !== 'SELESAI') return false;
+
+                    if (pengaduanRwFilter !== 'SEMUA') {
+                      const targetNum = pengaduanRwFilter.replace(/\D/g, '').replace(/^0+/, '');
+                      const itemNum = (item.reporterRw || '').replace(/\D/g, '').replace(/^0+/, '');
+                      if (targetNum !== itemNum) return false;
+                    }
+
+                    if (pengaduanSearchQuery.trim()) {
+                      const q = pengaduanSearchQuery.trim().toLowerCase();
+                      const match =
+                        (item.ticketCode || '').toLowerCase().includes(q) ||
+                        (item.title || '').toLowerCase().includes(q) ||
+                        (item.category || '').toLowerCase().includes(q) ||
+                        (item.reporterName || '').toLowerCase().includes(q) ||
+                        (item.locationAddress || '').toLowerCase().includes(q);
+                      if (!match) return false;
+                    }
                     return true;
                   });
+
+                  const pageSize = 6;
+                  const totalPages = Math.max(1, Math.ceil(filteredPengaduan.length / pageSize));
+                  const safePage = Math.min(pengaduanPage, totalPages);
+                  const pagedPengaduan = filteredPengaduan.slice(
+                    (safePage - 1) * pageSize,
+                    safePage * pageSize
+                  );
 
                   if (filteredPengaduan.length === 0) {
                     return (
                       <div className="p-8 text-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-slate-500 text-xs">
-                        Tidak ada pengaduan dalam kategori filter &ldquo;{pengaduanFilterMode}&rdquo;.
+                        Tidak ada pengaduan yang sesuai dengan filter pencarian.
                       </div>
                     );
                   }
 
                   return (
                     <div className="space-y-3">
-                      {filteredPengaduan.map((pgd) => (
-                        <div
-                          key={pgd.id}
-                          className="p-4 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 shadow-2xs space-y-2.5"
-                        >
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-xs font-black text-[#0D3868] bg-sky-100 px-2 py-0.5 rounded-md">
-                                {pgd.ticketCode}
-                              </span>
-                              <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
-                                {pgd.category}
-                              </span>
-                              {pgd.isPriority && (
-                                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-rose-100 text-rose-800">
-                                  Prioritas Tinggi
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                        {pagedPengaduan.map((pgd) => (
+                          <div
+                            key={pgd.id}
+                            className="p-3.5 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 shadow-2xs flex flex-col justify-between gap-2.5"
+                          >
+                            <div className="space-y-1.5">
+                              <div className="flex flex-wrap items-center justify-between gap-1.5">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-mono text-xs font-black text-[#0D3868] bg-sky-100 px-2 py-0.5 rounded-md">
+                                    {pgd.ticketCode}
+                                  </span>
+                                  <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+                                    {pgd.category}
+                                  </span>
+                                  {pgd.isPriority && (
+                                    <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-rose-100 text-rose-800">
+                                      Prioritas
+                                    </span>
+                                  )}
+                                </div>
+                                <span
+                                  className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md ${
+                                    pgd.status === 'SELESAI'
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : pgd.status === 'DITINDAKLANJUTI'
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : pgd.status === 'MENUNGGU_INFORMASI'
+                                      ? 'bg-amber-100 text-amber-800'
+                                      : 'bg-sky-100 text-sky-800'
+                                  }`}
+                                >
+                                  {pgd.status === 'DITINDAKLANJUTI' ? 'Ditindaklanjuti' : pgd.status}
                                 </span>
-                              )}
-                            </div>
-                            <span
-                              className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md self-start sm:self-auto ${
-                                pgd.status === 'SELESAI'
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : pgd.status === 'DITINDAKLANJUTI'
-                                  ? 'bg-blue-100 text-blue-800'
-                                  : pgd.status === 'MENUNGGU_INFORMASI'
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : pgd.status === 'DIVERIFIKASI'
-                                  ? 'bg-purple-100 text-purple-800'
-                                  : pgd.status === 'DITERIMA'
-                                  ? 'bg-sky-100 text-sky-800'
-                                  : 'bg-slate-100 text-slate-800'
-                              }`}
-                            >
-                              {pgd.status === 'DITINDAKLANJUTI' ? 'Sedang Ditindaklanjuti' : pgd.status}
-                            </span>
-                          </div>
-
-                          <h4 className="text-sm font-black text-slate-900">{pgd.title}</h4>
-                          <p className="text-xs text-slate-600 leading-relaxed">{pgd.content}</p>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-2.5 rounded-xl bg-slate-50 text-xs">
-                            <div>
-                              <span className="text-slate-500">Lokasi:</span>{' '}
-                              <strong className="text-slate-800">{pgd.locationAddress}</strong> ({pgd.reporterRw})
-                            </div>
-                            <div>
-                              <span className="text-slate-500">Pelapor:</span>{' '}
-                              <strong className="text-slate-800">{pgd.isAnonymous ? 'Anonim (Dirahasiakan)' : pgd.reporterName}</strong>
-                            </div>
-                            <div>
-                              <span className="text-slate-500">Tgl Kejadian:</span>{' '}
-                              <strong className="text-slate-800">{pgd.incidentDate}</strong>
-                            </div>
-                          </div>
-
-                          {pgd.followUpNotes && (
-                            <div className="p-2.5 rounded-xl bg-sky-50 text-xs border border-sky-200 text-sky-950">
-                              <span className="font-bold">Tindak Lanjut Petugas:</span> {pgd.followUpNotes}
-                            </div>
-                          )}
-
-                          {/* Thumbnail Foto Lampiran Pengaduan jika tersedia */}
-                          {pgd.proofPhotos && pgd.proofPhotos.length > 0 && (
-                            <div className="pt-1">
-                              <div className="text-[11px] font-bold text-slate-600 mb-1.5 flex items-center gap-1.5">
-                                <span>📷 Lampiran Foto Pengaduan ({pgd.proofPhotos.length} Foto):</span>
-                                <span className="text-[10px] font-normal text-slate-400">(Klik untuk lihat ukuran penuh)</span>
                               </div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                {pgd.proofPhotos.map((photoUrl, pIdx) => (
-                                  <button
-                                    key={pIdx}
-                                    type="button"
-                                    onClick={() => {
-                                      const matchedRep = reports.find(
-                                        (r) => r.ticketCode === pgd.ticketCode || r.id === pgd.id
-                                      );
-                                      setDetailModalState({
-                                        pengaduanRecord: pgd,
-                                        report: matchedRep || null,
-                                      });
-                                    }}
-                                    className="relative w-24 h-16 rounded-xl overflow-hidden border-2 border-slate-200 hover:border-[#0D3868] group cursor-pointer shadow-2xs"
-                                    title="Klik untuk melihat detail pengaduan & memperbesar foto"
-                                  >
-                                    <img
-                                      src={resolveImageUrl(photoUrl)}
-                                      alt={`Bukti Aduan ${pIdx + 1}`}
-                                      referrerPolicy="no-referrer"
-                                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                                    />
-                                  </button>
-                                ))}
+
+                              <h4 className="text-sm font-black text-slate-900 line-clamp-1">
+                                {pgd.title}
+                              </h4>
+                              <div className="text-xs text-slate-600">
+                                Pelapor:{' '}
+                                <strong className="text-slate-800">
+                                  {pgd.isAnonymous ? 'Anonim' : pgd.reporterName}
+                                </strong>{' '}
+                                · {pgd.reporterRw} · <span className="text-slate-500">{pgd.locationAddress}</span>
                               </div>
                             </div>
-                          )}
 
-                          <div className="pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                            <div className="pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const matchedRep = reports.find(
+                                    (r) => r.ticketCode === pgd.ticketCode || r.id === pgd.id
+                                  );
+                                  setDetailModalState({
+                                    pengaduanRecord: pgd,
+                                    report: matchedRep || null,
+                                  });
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>
+                                  Lihat Detail
+                                  {pgd.proofPhotos && pgd.proofPhotos.length > 0
+                                    ? ` (${pgd.proofPhotos.length} Foto)`
+                                    : ''}
+                                </span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  downloadOfficialLetterOrReceiptPdf(
+                                    {
+                                      ticketCode: pgd.ticketCode,
+                                      isSurat: false,
+                                      documentTitle: 'TANDA TERIMA PENGADUAN & ASPIRASI WARGA',
+                                      applicantName: pgd.isAnonymous
+                                        ? 'Warga Pelapor (Identitas Dirahasiakan)'
+                                        : pgd.reporterName,
+                                      applicantPhone: pgd.reporterPhone,
+                                      rw: pgd.reporterRw || 'RW 001',
+                                      rt: pgd.reporterRt || 'RT 001',
+                                      address: pgd.locationAddress,
+                                      serviceOrCategoryName: `${pgd.category} — ${pgd.title}`,
+                                      descriptionOrPurpose: pgd.content,
+                                      statusText: pgd.status.replace(/_/g, ' '),
+                                      assignedUnit:
+                                        pgd.assignedOfficer || 'Tim Respon Kelurahan Panaikang',
+                                      officerNotes:
+                                        pgd.followUpNotes ||
+                                        'Pengaduan warga tercatat dalam sistem monitoring Kelurahan Panaikang.',
+                                      submittedAt: pgd.submittedAt || pgd.incidentDate,
+                                    },
+                                    profile
+                                  )
+                                }
+                                className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                              >
+                                <Printer className="w-3.5 h-3.5" />
+                                <span>Cetak PDF</span>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {totalPages > 1 && (
+                        <div className="flex items-center justify-between pt-2 text-xs text-slate-600">
+                          <span>
+                            Menampilkan {(safePage - 1) * pageSize + 1}–
+                            {Math.min(safePage * pageSize, filteredPengaduan.length)} dari{' '}
+                            {filteredPengaduan.length} aduan
+                          </span>
+                          <div className="flex items-center gap-1.5">
                             <button
                               type="button"
-                              onClick={() => {
-                                const matchedRep = reports.find(
-                                  (r) => r.ticketCode === pgd.ticketCode || r.id === pgd.id
-                                );
-                                setDetailModalState({
-                                  pengaduanRecord: pgd,
-                                  report: matchedRep || null,
-                                });
-                              }}
-                              className="px-3.5 py-1.5 rounded-lg bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                              disabled={safePage <= 1}
+                              onClick={() => setPengaduanPage((p) => Math.max(1, p - 1))}
+                              className="px-3 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 font-bold cursor-pointer"
                             >
-                              <Eye className="w-3.5 h-3.5" />
-                              <span>
-                                Lihat Detail & Foto Aduan
-                                {pgd.proofPhotos && pgd.proofPhotos.length > 0
-                                  ? ` (${pgd.proofPhotos.length} Foto)`
-                                  : ''}
-                              </span>
+                              ← Seb.
                             </button>
-
+                            <span className="px-2 font-bold">
+                              Hal. {safePage}/{totalPages}
+                            </span>
                             <button
                               type="button"
-                              onClick={() =>
-                                downloadOfficialLetterOrReceiptPdf(
-                                  {
-                                    ticketCode: pgd.ticketCode,
-                                    isSurat: false,
-                                    documentTitle: 'TANDA TERIMA PENGADUAN & ASPIRASI WARGA',
-                                    applicantName: pgd.isAnonymous
-                                      ? 'Warga Pelapor (Identitas Dirahasiakan)'
-                                      : pgd.reporterName,
-                                    applicantPhone: pgd.reporterPhone,
-                                    rw: pgd.reporterRw || 'RW 001',
-                                    rt: pgd.reporterRt || 'RT 001',
-                                    address: pgd.locationAddress,
-                                    serviceOrCategoryName: `${pgd.category} — ${pgd.title}`,
-                                    descriptionOrPurpose: pgd.content,
-                                    statusText: pgd.status.replace(/_/g, ' '),
-                                    assignedUnit:
-                                      pgd.assignedOfficer || 'Tim Respon Kelurahan Panaikang',
-                                    officerNotes:
-                                      pgd.followUpNotes ||
-                                      'Pengaduan warga tercatat dalam sistem monitoring Kelurahan Panaikang.',
-                                    submittedAt: pgd.submittedAt || pgd.incidentDate,
-                                  },
-                                  profile
-                                )
-                              }
-                              className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                              disabled={safePage >= totalPages}
+                              onClick={() => setPengaduanPage((p) => Math.min(totalPages, p + 1))}
+                              className="px-3 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 font-bold cursor-pointer"
                             >
-                              <Printer className="w-3.5 h-3.5" />
-                              <span>Cetak Tanda Terima Pengaduan (PDF)</span>
+                              Ber. →
                             </button>
                           </div>
                         </div>
-                      ))}
+                      )}
                     </div>
                   );
                 })()}

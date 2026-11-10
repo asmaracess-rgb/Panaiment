@@ -301,25 +301,28 @@ export default function App() {
 
   const [kelurahanInfos, setKelurahanInfos] = useState<KelurahanInfoItem[]>(() => {
     const deleted = getDeletedItemIds();
+    const legacyIds = new Set(['info-1', 'info-2', 'info-3', 'info-4', 'info-5', 'info-6']);
     const persistedList = Array.isArray(initialPersisted?.kelurahanInfos)
-      ? initialPersisted.kelurahanInfos.filter((i) => i && i.id && !deleted.has(i.id))
+      ? initialPersisted.kelurahanInfos.filter(
+          (i) => i && i.id && !deleted.has(i.id) && !legacyIds.has(i.id)
+        )
       : [];
-    const currentInitIds = new Set(INITIAL_KELURAHAN_INFOS.map((i) => i.id));
-    const currentInitUrls = new Set(
-      INITIAL_KELURAHAN_INFOS.map((i) => i.instagramPostUrl).filter(Boolean)
-    );
     const map = new Map<string, KelurahanInfoItem>();
-    for (const initItem of INITIAL_KELURAHAN_INFOS) {
-      if (initItem && initItem.id && !deleted.has(initItem.id)) {
-        map.set(initItem.id, initItem);
-      }
-    }
+    const seenUrls = new Set<string>();
     for (const item of persistedList) {
       if (!item || !item.id || deleted.has(item.id)) continue;
-      if (item.id.startsWith('ig-latest-') && !currentInitIds.has(item.id)) continue;
-      if (item.instagramPostUrl && currentInitUrls.has(item.instagramPostUrl) && !currentInitIds.has(item.id)) continue;
-      if (!map.has(item.id)) {
-        map.set(item.id, item);
+      const urlKey = item.instagramPostUrl ? item.instagramPostUrl.trim() : '';
+      if (urlKey && seenUrls.has(urlKey)) continue;
+      if (urlKey) seenUrls.add(urlKey);
+      map.set(item.id, item);
+    }
+    for (const initItem of INITIAL_KELURAHAN_INFOS) {
+      if (!initItem || !initItem.id || deleted.has(initItem.id)) continue;
+      const urlKey = initItem.instagramPostUrl ? initItem.instagramPostUrl.trim() : '';
+      if (urlKey && seenUrls.has(urlKey)) continue;
+      if (!map.has(initItem.id)) {
+        if (urlKey) seenUrls.add(urlKey);
+        map.set(initItem.id, initItem);
       }
     }
     return Array.from(map.values());
@@ -2855,21 +2858,41 @@ export default function App() {
     return { ok: true };
   };
 
-  const handleSyncInstagram = async (): Promise<{ ok: boolean; syncedAt?: string }> => {
+  const handleSyncInstagram = useCallback(async (): Promise<{ ok: boolean; syncedAt?: string }> => {
     const nowDate = new Date();
     const syncedTime = getRealtimeTimeString(nowDate);
     const syncedFull = `${getRealtimeDateTimeString(nowDate)} WITA`;
-
-    // Also refresh Kerja Bakti Instagram highlights whenever Instagram sync runs
-    const latestHighlights = INITIAL_KERJABAKTI_IG_HIGHLIGHTS.slice(0, 3);
-    setKerjaBaktiHighlights(latestHighlights);
-    setKerjaBaktiHighlightsSyncedAt(syncedFull);
-    saveKerjaBaktiIgHighlights(latestHighlights, syncedFull);
+    const cloudBackendBase =
+      'https://ais-pre-xdr54nppc6d3xrjatu4qda-341890100407.asia-southeast1.run.app';
 
     try {
-      const res = await fetchLocalExpressOnly('/api/infos/sync-instagram', { method: 'POST' });
-      if (res && res.ok) {
+      let res = await fetch('/api/infos/sync-instagram', { method: 'POST' }).catch(() => null);
+      let ct = res?.headers.get('content-type') || '';
+      if (
+        (!res || !res.ok || !ct.includes('application/json')) &&
+        typeof window !== 'undefined' &&
+        !window.location.origin.includes('run.app')
+      ) {
+        res = await fetch(`${cloudBackendBase}/api/infos/sync-instagram`, {
+          method: 'POST',
+        }).catch(() => null);
+        ct = res?.headers.get('content-type') || '';
+      }
+
+      if (res && res.ok && ct.includes('application/json')) {
         const json = await res.json();
+        if (Array.isArray(json.kerjaBaktiHighlights) && json.kerjaBaktiHighlights.length > 0) {
+          const top3 = (json.kerjaBaktiHighlights as KerjaBaktiIgHighlightItem[]).slice(0, 3);
+          setKerjaBaktiHighlights(top3);
+          setKerjaBaktiHighlightsSyncedAt(syncedFull);
+          saveKerjaBaktiIgHighlights(top3, syncedFull);
+        } else {
+          const fallbackTop3 = INITIAL_KERJABAKTI_IG_HIGHLIGHTS.slice(0, 3);
+          setKerjaBaktiHighlights(fallbackTop3);
+          setKerjaBaktiHighlightsSyncedAt(syncedFull);
+          saveKerjaBaktiIgHighlights(fallbackTop3, syncedFull);
+        }
+
         if (json.ok && Array.isArray(json.data) && json.data.length > 0) {
           setKelurahanInfos(json.data);
           commitPersistence({ kelurahanInfos: json.data });
@@ -2879,6 +2902,11 @@ export default function App() {
     } catch {
       // Fallback to local sync below
     }
+
+    const latestHighlights = INITIAL_KERJABAKTI_IG_HIGHLIGHTS.slice(0, 3);
+    setKerjaBaktiHighlights(latestHighlights);
+    setKerjaBaktiHighlightsSyncedAt(syncedFull);
+    saveKerjaBaktiIgHighlights(latestHighlights, syncedFull);
 
     const legacyIds = new Set(['info-1', 'info-2', 'info-3', 'info-4', 'info-5', 'info-6']);
     const initUrls = new Set(
@@ -2897,36 +2925,37 @@ export default function App() {
     setKelurahanInfos(nextInfos);
     commitPersistence({ kelurahanInfos: nextInfos });
     return { ok: true, syncedAt: syncedTime };
-  };
+  }, [commitPersistence]);
 
-  const handleSyncKerjaBaktiHighlights = async (): Promise<{
+  const handleSyncKerjaBaktiHighlights = useCallback(async (): Promise<{
     ok: boolean;
     syncedAt?: string;
   }> => {
     const nowDate = new Date();
     const syncedAt = `${getRealtimeDateTimeString(nowDate)} WITA`;
+    const cloudBackendBase =
+      'https://ais-pre-xdr54nppc6d3xrjatu4qda-341890100407.asia-southeast1.run.app';
 
-    // Also refresh HomePortal Instagram posts so both views stay in sync
-    const legacyIds = new Set(['info-1', 'info-2', 'info-3', 'info-4', 'info-5', 'info-6']);
-    const initUrls = new Set(
-      INITIAL_KELURAHAN_INFOS.map((init) => init.instagramPostUrl).filter(Boolean)
-    );
-    const customPosts = stateRef.current.kelurahanInfos.filter(
-      (i) =>
-        i &&
-        i.id &&
-        !legacyIds.has(i.id) &&
-        !i.id.startsWith('ig-latest-') &&
-        !(i.instagramPostUrl && initUrls.has(i.instagramPostUrl)) &&
-        !INITIAL_KELURAHAN_INFOS.some((init) => init.id === i.id)
-    );
-    const nextInfos = [...INITIAL_KELURAHAN_INFOS, ...customPosts];
-    setKelurahanInfos(nextInfos);
-    commitPersistence({ kelurahanInfos: nextInfos });
+    // Also trigger full Instagram sync so Beranda and Sorotan Kerja Bakti both get the latest live posts
+    void handleSyncInstagram();
 
     try {
-      const res = await fetchLocalExpressOnly('/api/cleanup-events/sync-ig-highlights', { method: 'POST' });
-      if (res && res.ok) {
+      let res = await fetch('/api/cleanup-events/sync-ig-highlights', {
+        method: 'POST',
+      }).catch(() => null);
+      let ct = res?.headers.get('content-type') || '';
+      if (
+        (!res || !res.ok || !ct.includes('application/json')) &&
+        typeof window !== 'undefined' &&
+        !window.location.origin.includes('run.app')
+      ) {
+        res = await fetch(`${cloudBackendBase}/api/cleanup-events/sync-ig-highlights`, {
+          method: 'POST',
+        }).catch(() => null);
+        ct = res?.headers.get('content-type') || '';
+      }
+
+      if (res && res.ok && ct.includes('application/json')) {
         const json = await res.json();
         if (json.ok && Array.isArray(json.data) && json.data.length > 0) {
           const top3 = (json.data as KerjaBaktiIgHighlightItem[]).slice(0, 3);
@@ -2945,7 +2974,21 @@ export default function App() {
     setKerjaBaktiHighlightsSyncedAt(syncedAt);
     saveKerjaBaktiIgHighlights(top3, syncedAt);
     return { ok: true, syncedAt };
-  };
+  }, [handleSyncInstagram]);
+
+  // Automatically sync Instagram @kelurahan.panaikang posts & Kerja Bakti highlights on app startup and every 5 minutes
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void handleSyncInstagram();
+    }, 800);
+    const interval = window.setInterval(() => {
+      void handleSyncInstagram();
+    }, 5 * 60 * 1000);
+    return () => {
+      window.clearTimeout(timer);
+      window.clearInterval(interval);
+    };
+  }, [handleSyncInstagram]);
 
   // 6. Data RT & RW CRUD
   const handleSaveRwGroups = async (

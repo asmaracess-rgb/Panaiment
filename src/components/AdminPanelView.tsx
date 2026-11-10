@@ -2173,6 +2173,11 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   };
 
   const [reportSearch, setReportSearch] = useState('');
+  const [reportStatusFilter, setReportStatusFilter] = useState<'SEMUA' | ReportStatus>('SEMUA');
+  const [reportRwFilter, setReportRwFilter] = useState<string>('SEMUA');
+  const [reportTypeFilter, setReportTypeFilter] = useState<'SEMUA' | 'SURAT' | 'PENGADUAN'>('SEMUA');
+  const [reportCurrentPage, setReportCurrentPage] = useState<number>(1);
+  const [reportPageSize, setReportPageSize] = useState<number>(10);
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [showReportForm, setShowReportForm] = useState(false);
   const [confirmDeleteReportId, setConfirmDeleteReportId] = useState<string | null>(null);
@@ -4308,12 +4313,41 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     }
   };
 
-  const filteredReports = reports.filter(
-    (r) =>
-      r.ticketCode.toLowerCase().includes(reportSearch.toLowerCase()) ||
-      r.title.toLowerCase().includes(reportSearch.toLowerCase()) ||
-      r.rw.toLowerCase().includes(reportSearch.toLowerCase()) ||
-      r.reporterName.toLowerCase().includes(reportSearch.toLowerCase())
+  const filteredReports = reports.filter((r) => {
+    const isSurat =
+      Boolean(r.serviceCategoryId || r.serviceSubItemId) ||
+      String(r.ticketCode || '').toUpperCase().startsWith('PLY-') ||
+      String(r.ticketCode || '').toUpperCase().startsWith('SRT-');
+    if (reportTypeFilter === 'SURAT' && !isSurat) return false;
+    if (reportTypeFilter === 'PENGADUAN' && isSurat) return false;
+    if (reportStatusFilter !== 'SEMUA' && r.status !== reportStatusFilter) return false;
+    if (reportRwFilter !== 'SEMUA') {
+      const cleanRw = (r.rw || '').replace(/\s+/g, ' ').trim().toUpperCase();
+      const targetNum = reportRwFilter.replace(/\D/g, '').replace(/^0+/, '');
+      const itemNum = cleanRw.replace(/\D/g, '').replace(/^0+/, '');
+      if (cleanRw !== reportRwFilter.toUpperCase() && (!targetNum || targetNum !== itemNum)) {
+        return false;
+      }
+    }
+    if (!reportSearch.trim()) return true;
+    const q = reportSearch.trim().toLowerCase();
+    return (
+      (r.ticketCode || '').toLowerCase().includes(q) ||
+      (r.title || '').toLowerCase().includes(q) ||
+      (r.serviceSubItemLabel || '').toLowerCase().includes(q) ||
+      (r.category || '').toLowerCase().includes(q) ||
+      (r.rw || '').toLowerCase().includes(q) ||
+      (r.reporterName || '').toLowerCase().includes(q) ||
+      (r.applicantNik || '').toLowerCase().includes(q) ||
+      (r.locationName || '').toLowerCase().includes(q)
+    );
+  });
+
+  const reportTotalPages = Math.max(1, Math.ceil(filteredReports.length / reportPageSize));
+  const safeReportCurrentPage = Math.min(reportCurrentPage, reportTotalPages);
+  const paginatedFilteredReports = filteredReports.slice(
+    (safeReportCurrentPage - 1) * reportPageSize,
+    safeReportCurrentPage * reportPageSize
   );
 
   // ================= RENDER LOGIN GATE IF NOT AUTHENTICATED =================
@@ -8176,15 +8210,109 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             }
           >
             <div className="p-5 sm:p-6 space-y-5">
-              <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={reportSearch}
-                  onChange={(e) => setReportSearch(e.target.value)}
-                  placeholder="Cari tiket, judul laporan, nama pelapor, atau RW..."
-                  className="w-full pl-10 pr-4 py-2 text-sm rounded-xl border border-slate-200 focus:border-[#0277BD] focus:outline-none"
-                />
+              {/* Filter & Pencarian Ringkas Tabel 03 */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-3">
+                <div className="flex flex-col lg:flex-row gap-2.5">
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={reportSearch}
+                      onChange={(e) => {
+                        setReportSearch(e.target.value);
+                        setReportCurrentPage(1);
+                      }}
+                      placeholder="Cari No. Tiket, Nama Pemohon/Pelapor, NIK, Layanan/Judul, atau Lokasi..."
+                      className="w-full pl-10 pr-8 py-2 text-xs sm:text-sm rounded-xl bg-white border border-slate-300 focus:border-[#0277BD] focus:outline-none"
+                    />
+                    {reportSearch && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReportSearch('');
+                          setReportCurrentPage(1);
+                        }}
+                        className="p-1 text-slate-400 hover:text-slate-600 absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer"
+                        title="Bersihkan pencarian"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <select
+                    value={reportTypeFilter}
+                    onChange={(e) => {
+                      setReportTypeFilter(e.target.value as 'SEMUA' | 'SURAT' | 'PENGADUAN');
+                      setReportCurrentPage(1);
+                    }}
+                    className="px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold text-slate-700 focus:border-[#0277BD] focus:outline-none"
+                  >
+                    <option value="SEMUA">Semua Jenis ({reports.length})</option>
+                    <option value="SURAT">Surat Administrasi</option>
+                    <option value="PENGADUAN">Pengaduan Warga</option>
+                  </select>
+                  <select
+                    value={reportStatusFilter}
+                    onChange={(e) => {
+                      setReportStatusFilter(e.target.value as 'SEMUA' | ReportStatus);
+                      setReportCurrentPage(1);
+                    }}
+                    className="px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold text-slate-700 focus:border-[#0277BD] focus:outline-none"
+                  >
+                    <option value="SEMUA">Semua Status</option>
+                    <option value="Menunggu Verifikasi">Menunggu Verifikasi</option>
+                    <option value="Sedang Ditangani">Sedang Ditangani</option>
+                    <option value="Selesai">Selesai</option>
+                  </select>
+                  <select
+                    value={reportRwFilter}
+                    onChange={(e) => {
+                      setReportRwFilter(e.target.value);
+                      setReportCurrentPage(1);
+                    }}
+                    className="px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs font-bold text-slate-700 focus:border-[#0277BD] focus:outline-none"
+                  >
+                    <option value="SEMUA">Semua Wilayah RW</option>
+                    <option value="RW 01">RW 01</option>
+                    <option value="RW 02">RW 02</option>
+                    <option value="RW 03">RW 03</option>
+                    <option value="RW 04">RW 04</option>
+                    <option value="RW 05">RW 05</option>
+                    <option value="RW 06">RW 06</option>
+                    <option value="RW 07">RW 07</option>
+                  </select>
+                  {(reportSearch.trim() !== '' ||
+                    reportTypeFilter !== 'SEMUA' ||
+                    reportStatusFilter !== 'SEMUA' ||
+                    reportRwFilter !== 'SEMUA') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReportSearch('');
+                        setReportTypeFilter('SEMUA');
+                        setReportStatusFilter('SEMUA');
+                        setReportRwFilter('SEMUA');
+                        setReportCurrentPage(1);
+                      }}
+                      className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold cursor-pointer whitespace-nowrap"
+                    >
+                      Reset Filter
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+                  <span>
+                    Menampilkan{' '}
+                    <strong className="text-slate-800">
+                      {filteredReports.length === 0
+                        ? 0
+                        : (safeReportCurrentPage - 1) * reportPageSize + 1}
+                      –{Math.min(safeReportCurrentPage * reportPageSize, filteredReports.length)}
+                    </strong>{' '}
+                    dari <strong className="text-slate-800">{filteredReports.length}</strong> data
+                    terfilter · Klik <strong>&ldquo;Lihat Detail&rdquo;</strong> untuk membuka rincian berkas, foto pengaduan, & kirim WA.
+                  </span>
+                </div>
               </div>
 
               {showReportForm && (
@@ -8600,247 +8728,283 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             </form>
           )}
 
-          {/* Reports CRUD Table */}
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          {/* Reports Compact CRUD Table */}
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
-                    <th className="py-3.5 px-4">Tiket</th>
-                    <th className="py-3.5 px-4">Judul & Lokasi</th>
-                    <th className="py-3.5 px-4">Pelapor & RW</th>
-                    <th className="py-3.5 px-4">Status Validasi</th>
-                    <th className="py-3.5 px-4 text-right">Aksi Admin (Edit / Hapus)</th>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-extrabold uppercase tracking-wider text-slate-600">
+                    <th className="py-3 px-3.5 w-10 text-center">No</th>
+                    <th className="py-3 px-3.5">Tiket & Waktu</th>
+                    <th className="py-3 px-3.5">Pemohon / Pelapor</th>
+                    <th className="py-3 px-3.5">Layanan / Judul Pengaduan</th>
+                    <th className="py-3 px-3.5">Lampiran</th>
+                    <th className="py-3 px-3.5">Status</th>
+                    <th className="py-3 px-3.5 text-right">Aksi Cepat</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 text-xs">
-                  {filteredReports.map((rep) => {
-                    const matchedPra = praRegistrasiList.find(
-                      (p) => p.ticketCode === rep.ticketCode || p.id === rep.id
-                    );
-                    const matchedPgd = pengaduanList.find(
-                      (p) => p.ticketCode === rep.ticketCode || p.id === rep.id
-                    );
-                    const citizenPhotoUrl =
-                      (matchedPgd?.proofPhotos && matchedPgd.proofPhotos[0]) || rep.imageUrl || '';
+                  {paginatedFilteredReports.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 px-4 text-center text-slate-500">
+                        Tidak ada data permohonan/pengaduan yang sesuai dengan filter pencarian.
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedFilteredReports.map((rep, idx) => {
+                      const rowNumber = (safeReportCurrentPage - 1) * reportPageSize + idx + 1;
+                      const matchedPra = praRegistrasiList.find(
+                        (p) => p.ticketCode === rep.ticketCode || p.id === rep.id
+                      );
+                      const matchedPgd = pengaduanList.find(
+                        (p) => p.ticketCode === rep.ticketCode || p.id === rep.id
+                      );
+                      const isSurat =
+                        Boolean(rep.serviceCategoryId || rep.serviceSubItemId) ||
+                        String(rep.ticketCode || '').toUpperCase().startsWith('PLY-') ||
+                        String(rep.ticketCode || '').toUpperCase().startsWith('SRT-') ||
+                        Boolean(matchedPra);
+                      const docCount = matchedPra?.uploadedDocs?.length || 0;
+                      const citizenPhotoUrl =
+                        (matchedPgd?.proofPhotos && matchedPgd.proofPhotos[0]) ||
+                        rep.imageUrl ||
+                        '';
 
-                    return (
-                      <tr key={rep.id} className="hover:bg-slate-50/80">
-                        <td className="py-3.5 px-4 font-mono-num font-bold text-[#0D3868] whitespace-nowrap">
-                          {rep.ticketCode}
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <div className="font-bold text-slate-900">{rep.title}</div>
-                          <div className="text-slate-500 mt-0.5">
-                            {rep.category} · {rep.citizenAddress || rep.locationName}
-                          </div>
-                          {rep.applicantNik && (
-                            <div className="text-[11px] font-mono-num text-slate-600 mt-0.5">
-                              NIK: {rep.applicantNik}
-                            </div>
-                          )}
-                          {citizenPhotoUrl && (
-                            <div className="mt-2 flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setAdminReportDetailModal({
-                                    report: rep,
-                                    praRecord: matchedPra || null,
-                                    pengaduanRecord: matchedPgd || null,
-                                  })
-                                }
-                                className="relative w-16 h-11 rounded-lg overflow-hidden border border-sky-300 group cursor-pointer shrink-0"
-                                title="Klik untuk melihat foto lampiran pengaduan"
+                      return (
+                        <tr
+                          key={rep.id}
+                          onClick={() =>
+                            setAdminReportDetailModal({
+                              report: rep,
+                              praRecord: matchedPra || null,
+                              pengaduanRecord: matchedPgd || null,
+                            })
+                          }
+                          className="hover:bg-sky-50/50 transition-colors cursor-pointer"
+                        >
+                          <td className="py-3 px-3.5 text-center font-mono text-[11px] font-bold text-slate-400">
+                            {rowNumber}
+                          </td>
+                          <td className="py-3 px-3.5 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono-num font-black text-[#0D3868]">
+                                {rep.ticketCode}
+                              </span>
+                              <span
+                                className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded uppercase ${
+                                  isSurat
+                                    ? 'bg-indigo-50 text-indigo-800 border border-indigo-200'
+                                    : 'bg-amber-50 text-amber-800 border border-amber-200'
+                                }`}
                               >
-                                <img
-                                  src={resolveImageUrl(citizenPhotoUrl)}
-                                  alt="Foto Lampiran Warga"
-                                  referrerPolicy="no-referrer"
-                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                                />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setAdminReportDetailModal({
-                                    report: rep,
-                                    praRecord: matchedPra || null,
-                                    pengaduanRecord: matchedPgd || null,
-                                  })
-                                }
-                                className="text-[11px] font-bold text-[#0277BD] hover:underline cursor-pointer"
-                              >
-                                📷 Lihat Foto Lampiran Pengaduan →
-                              </button>
-                            </div>
-                          )}
-                          {/* Distribusi & Koordinasi WA Langsung Antar Semua Nomor Penerima Terdaftar */}
-                          {whatsappRecipients.filter((r) => r.isActive).length > 0 && (
-                            <div className="mt-2 pt-2 border-t border-slate-100 space-y-1.5">
-                              <div className="text-[11px] font-bold text-[#075E54] flex items-center gap-1">
-                                <MessageCircle className="w-3 h-3" />
-                                <span>
-                                  Diterima & Koordinasi WA Tim Penerima Terdaftar (
-                                  {whatsappRecipients.filter((r) => r.isActive).length} Nomor):
-                                </span>
-                              </div>
-                              <div className="flex flex-wrap items-center gap-1.5">
-                                {whatsappRecipients
-                                  .filter((r) => r.isActive)
-                                  .map((rec) => {
-                                    const coordHref = buildWhatsAppUrl(
-                                      rec.phoneNumber,
-                                      buildInterRecipientCoordinationMessage(
-                                        rec,
-                                        whatsappRecipients,
-                                        reports,
-                                        rep
-                                      )
-                                    );
-                                    return (
-                                      <a
-                                        key={`${rep.id}-wa-${rec.id}`}
-                                        href={coordHref}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 hover:bg-[#128C7E] text-[#075E54] hover:text-white border border-emerald-200 text-[10px] font-bold transition-colors"
-                                        title={`Koordinasi laporan ${rep.ticketCode} ke ${rec.name} (${rec.role}) - ${formatDisplayPhone(rec.phoneNumber)}`}
-                                      >
-                                        <Phone className="w-2.5 h-2.5" />
-                                        <span>
-                                          {rec.name} ({formatDisplayPhone(rec.phoneNumber)})
-                                        </span>
-                                      </a>
-                                    );
-                                  })}
-                              </div>
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-3.5 px-4 whitespace-nowrap">
-                          <div className="font-semibold text-slate-800">{rep.reporterName}</div>
-                          <div className="text-slate-500">
-                            {rep.rw} / {rep.rt}
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <span
-                            className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                              rep.status === 'Selesai'
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                : rep.status === 'Sedang Ditangani'
-                                ? 'bg-sky-50 text-sky-700 border border-sky-200'
-                                : 'bg-amber-50 text-amber-700 border border-amber-200'
-                            }`}
-                          >
-                            {rep.status}
-                          </span>
-                          {rep.verifiedBy && (
-                            <div className="text-[11px] text-slate-500 mt-1">
-                              Petugas: <span className="font-semibold text-slate-700">{rep.verifiedBy}</span>
-                            </div>
-                          )}
-                          {(rep.completionPhotoUrl ||
-                            (Array.isArray(rep.followUpPhotos) &&
-                              rep.followUpPhotos.length > 0)) && (
-                            <div className="mt-1.5 flex items-center gap-1.5">
-                              <img
-                                src={resolveImageUrl(
-                                  rep.completionPhotoUrl || rep.followUpPhotos?.[0]
-                                )}
-                                alt="Bukti Pengerjaan"
-                                referrerPolicy="no-referrer"
-                                className="w-10 h-7 rounded object-cover border border-emerald-300"
-                              />
-                              <span className="text-[10px] font-bold text-[#1C8237]">
-                                Foto Pengerjaan Terlampir
+                                {isSurat ? 'Surat' : 'Aduan'}
                               </span>
                             </div>
-                          )}
-                        </td>
-                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                          {confirmDeleteReportId === rep.id ? (
-                            <div className="inline-flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => handleExecuteDeleteReport(rep.id)}
-                                className="px-2.5 py-1 rounded-lg bg-red-600 text-white font-bold cursor-pointer"
-                              >
-                                Ya, Hapus
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setConfirmDeleteReportId(null)}
-                                className="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-700 font-semibold cursor-pointer"
-                              >
-                                Batal
-                              </button>
+                            <div className="text-[11px] text-slate-500 mt-0.5">
+                              {rep.createdAt || 'Baru saja'}
                             </div>
-                          ) : (
-                            <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setAdminReportDetailModal({
-                                    report: rep,
-                                    praRecord: matchedPra || null,
-                                    pengaduanRecord: matchedPgd || null,
-                                  })
-                                }
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#0D3868] hover:bg-[#072647] text-white font-bold cursor-pointer shadow-2xs"
-                                title="Lihat Detail Permohonan / Pengaduan & Foto Lampiran"
-                              >
-                                <Eye className="w-3.5 h-3.5 text-amber-300" />
-                                <span>Lihat Detail</span>
-                              </button>
-                              {rep.status === 'Menunggu Verifikasi' && (
+                          </td>
+                          <td className="py-3 px-3.5">
+                            <div className="font-bold text-slate-900">{rep.reporterName}</div>
+                            <div className="text-[11px] text-slate-500 mt-0.5">
+                              <span className="font-semibold text-slate-700">
+                                {rep.rw} / {rep.rt}
+                              </span>
+                              {rep.applicantNik ? ` · NIK: ${rep.applicantNik}` : ''}
+                            </div>
+                          </td>
+                          <td className="py-3 px-3.5 max-w-xs">
+                            <div className="font-bold text-slate-900 line-clamp-1">
+                              {rep.serviceSubItemLabel || rep.title}
+                            </div>
+                            <div className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
+                              {rep.category} · {rep.citizenAddress || rep.locationName}
+                            </div>
+                          </td>
+                          <td
+                            className="py-3 px-3.5 whitespace-nowrap"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="flex flex-wrap items-center gap-1">
+                              {docCount > 0 && (
                                 <button
                                   type="button"
-                                  onClick={() => handleQuickReportAction(rep, 'verifikasi')}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 border border-sky-200 text-[#0277BD] font-bold cursor-pointer"
-                                  title="Verifikasi & Teruskan ke Petugas Lapangan"
+                                  onClick={() =>
+                                    setAdminReportDetailModal({
+                                      report: rep,
+                                      praRecord: matchedPra || null,
+                                      pengaduanRecord: matchedPgd || null,
+                                    })
+                                  }
+                                  className="px-2 py-0.5 rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-[10px] font-bold cursor-pointer"
                                 >
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                  <span>Verifikasi</span>
+                                  📎 {docCount} Berkas
                                 </button>
                               )}
-                              {rep.status !== 'Selesai' && (
+                              {citizenPhotoUrl && (
                                 <button
                                   type="button"
-                                  onClick={() => handleQuickReportAction(rep, 'selesai')}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-[#1C8237] font-bold cursor-pointer"
-                                  title="Selesaikan Laporan & Lampirkan Foto Pengerjaan"
+                                  onClick={() =>
+                                    setAdminReportDetailModal({
+                                      report: rep,
+                                      praRecord: matchedPra || null,
+                                      pengaduanRecord: matchedPgd || null,
+                                    })
+                                  }
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 hover:bg-sky-100 text-[#0277BD] border border-sky-200 text-[10px] font-bold cursor-pointer"
+                                  title="Klik untuk melihat foto lampiran pengaduan"
                                 >
-                                  <Camera className="w-3.5 h-3.5" />
-                                  <span>Selesaikan + Foto</span>
+                                  <span>📷 Foto Aduan</span>
                                 </button>
                               )}
-                              <button
-                                type="button"
-                                onClick={() => openEditReportForm(rep)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-semibold cursor-pointer"
-                              >
-                                <Edit3 className="w-3.5 h-3.5 text-[#0277BD]" />
-                                <span>Tindak Lanjut</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setConfirmDeleteReportId(rep.id)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 bg-red-50/60 hover:bg-red-100 text-red-700 font-semibold cursor-pointer"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                <span>Hapus</span>
-                              </button>
+                              {!docCount && !citizenPhotoUrl && (
+                                <span className="text-[11px] text-slate-400">-</span>
+                              )}
                             </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                          </td>
+                          <td className="py-3 px-3.5 whitespace-nowrap">
+                            <span
+                              className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                                rep.status === 'Selesai'
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : rep.status === 'Sedang Ditangani'
+                                  ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                                  : 'bg-amber-50 text-amber-700 border border-amber-200'
+                              }`}
+                            >
+                              {rep.status}
+                            </span>
+                            {rep.letterRegisterNumber && (
+                              <div className="text-[10px] font-mono text-emerald-700 font-bold mt-0.5">
+                                No: {rep.letterRegisterNumber}
+                              </div>
+                            )}
+                          </td>
+                          <td
+                            className="py-3 px-3.5 text-right whitespace-nowrap"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {confirmDeleteReportId === rep.id ? (
+                              <div className="inline-flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleExecuteDeleteReport(rep.id)}
+                                  className="px-2.5 py-1 rounded-lg bg-red-600 text-white font-bold cursor-pointer"
+                                >
+                                  Ya, Hapus
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmDeleteReportId(null)}
+                                  className="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-700 font-semibold cursor-pointer"
+                                >
+                                  Batal
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setAdminReportDetailModal({
+                                      report: rep,
+                                      praRecord: matchedPra || null,
+                                      pengaduanRecord: matchedPgd || null,
+                                    })
+                                  }
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#0D3868] hover:bg-[#072647] text-white font-bold cursor-pointer shadow-2xs"
+                                  title="Lihat Detail Permohonan / Pengaduan & Foto Lampiran"
+                                >
+                                  <Eye className="w-3.5 h-3.5 text-amber-300" />
+                                  <span>Lihat Detail</span>
+                                </button>
+                                {rep.status === 'Menunggu Verifikasi' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuickReportAction(rep, 'verifikasi')}
+                                    className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 border border-sky-200 text-[#0277BD] font-bold cursor-pointer"
+                                    title="Verifikasi & Teruskan ke Petugas Lapangan"
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <span className="hidden xl:inline">Verifikasi</span>
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => openEditReportForm(rep)}
+                                  className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-semibold cursor-pointer"
+                                  title="Buka Form Tindak Lanjut"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5 text-[#0277BD]" />
+                                  <span className="hidden xl:inline">Tindak Lanjut</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmDeleteReportId(rep.id)}
+                                  className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border border-red-200 bg-red-50/60 hover:bg-red-100 text-red-700 font-semibold cursor-pointer"
+                                  title="Hapus Data"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Footer for Section 03 */}
+            {filteredReports.length > 0 && (
+              <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-xs text-slate-600">
+                  <span>Tampilkan per halaman:</span>
+                  {([10, 20, 50] as const).map((sz) => (
+                    <button
+                      key={sz}
+                      type="button"
+                      onClick={() => {
+                        setReportPageSize(sz);
+                        setReportCurrentPage(1);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg font-bold cursor-pointer transition-colors ${
+                        reportPageSize === sz
+                          ? 'bg-[#0D3868] text-white'
+                          : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      {sz}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={safeReportCurrentPage <= 1}
+                    onClick={() => setReportCurrentPage((p) => Math.max(1, p - 1))}
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 text-xs font-bold text-slate-700 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    ← Sebelumnya
+                  </button>
+                  <span className="px-3 py-1.5 text-xs font-bold text-slate-700">
+                    Hal. {safeReportCurrentPage} / {reportTotalPages}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={safeReportCurrentPage >= reportTotalPages}
+                    onClick={() =>
+                      setReportCurrentPage((p) => Math.min(reportTotalPages, p + 1))
+                    }
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 text-xs font-bold text-slate-700 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    Berikutnya →
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </AdminCollapsibleBar>

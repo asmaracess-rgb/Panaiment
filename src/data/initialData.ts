@@ -33,6 +33,8 @@ export const IMG_DRAINASE = '/images/dokumentasi_drainase_bersih_1791349273322.j
 
 // Official @kelurahan.panaikang Instagram Image Assets
 export const IG_PROFILE_PANAIKANG = '/images/ig_profile_panaikang.jpg';
+export const IG_POST_LATEST_0 = '/images/ig_post_latest_0_Dfiuay9j8M0.jpg';
+export const IG_POST_LATEST_0B = '/images/ig_post_latest_0b_DfgPz35v2Ed.jpg';
 export const IG_POST_KERJABAKTI_0 = '/images/ig_post_kerjabakti_0_DfZsJAUvDQG.jpg';
 export const IG_POST_KERJABAKTI_1 = '/images/ig_post_kerjabakti_1_DfYirNrJjaT.jpg';
 export const IG_POST_KERJABAKTI_2 = '/images/ig_post_kerjabakti_2_DfHDLK2vqk0.jpg';
@@ -64,8 +66,20 @@ export const INITIAL_BIOPORI_POINTS: BioporiPoint[] = [];
 
 export const INITIAL_CLEANUP_EVENTS: CleanupEvent[] = [];
 
-// 3 Postingan Story Sorotan Kerja Bakti Terbaru dari Akun Resmi @kelurahan.panaikang
+// Postingan Story Sorotan Kerja Bakti & Kebersihan Terbaru dari Akun Resmi @kelurahan.panaikang
 export const INITIAL_KERJABAKTI_IG_HIGHLIGHTS: KerjaBaktiIgHighlightItem[] = [
+  {
+    id: 'kb-ig-story-0-Dfiuay9j8M0',
+    shortcode: 'Dfiuay9j8M0',
+    title: 'Penghargaan Terbaik Lomba Kebersihan & Pengelolaan Sampah HUT Makassar ke-419',
+    caption:
+      'Alhamdulillah, dalam rangka HUT Kota Makassar ke-419 Tahun 2026, Kelurahan Panaikang meraih penghargaan Kelurahan Terbaik serta Juara Tingkat RT (RT 002 RW 002) dalam lomba kebersihan dan pengelolaan sampah berkat kerja bakti dan kekompakan seluruh RT/RW, warga, dan petugas kebersihan.',
+    publishedAt: '10 November 2026',
+    rwScope: 'Kelurahan Panaikang & RT 002 / RW 002',
+    imageUrl: IG_POST_LATEST_0,
+    instagramPostUrl: 'https://www.instagram.com/p/Dfiuay9j8M0/',
+    highlightName: 'Sorotan: Kerja Bakti & Kebersihan',
+  },
   {
     id: 'kb-ig-story-1-DfZsJAUvDQG',
     shortcode: 'DfZsJAUvDQG',
@@ -218,7 +232,68 @@ export const INITIAL_KELURAHAN_PROFILE: KelurahanProfile = {
 
 export const INITIAL_KELURAHAN_INFOS: KelurahanInfoItem[] = [
   {
-    id: 'ig-latest-1-DfZsJAUvDQG',
+    id: 'ig-latest-1-Dfiuay9j8M0',
+    title: 'Kelurahan Panaikang Raih Penghargaan Terbaik Lomba Kebersihan & Pengelolaan Sampah HUT Kota Makassar ke-419',
+    category: 'Kegiatan Lingkungan',
+    summary:
+      'Alhamdulillah, dalam rangka memperingati HUT Kota Makassar ke-419 Tahun 2026, Kelurahan Panaikang berhasil meraih penghargaan pada dua kategori lomba kebersihan dan pengelolaan sampah (Tingkat RT 002 RW 002 & Tingkat Kelurahan Terbaik).',
+    content: `Alhamdulillah, dalam rangka memperingati Hari Ulang Tahun (HUT) Kota Makassar ke-419 Tahun 2026, Kelurahan Panaikang berhasil menorehkan prestasi membanggakan dengan meraih penghargaan pada dua kategori lomba kebersihan dan pengelolaan sampah, yaitu:
+
+🥇 TINGKAT RT
+Diraih oleh RT 002 RW 002, dengan perwakilan Ibu Desy Arlin Nusu.
+
+🏆 TINGKAT KELURAHAN
+Kelurahan Panaikang berhasil meraih penghargaan sebagai kelurahan terbaik dalam lomba kebersihan dan pengelolaan sampah tingkat Kota Makassar.
+
+Prestasi ini merupakan hasil dari kerja keras, kebersamaan, kekompakan, serta kepedulian seluruh elemen masyarakat dalam mewujudkan lingkungan yang bersih, sehat, indah, dan berkelanjutan.
+
+Terima kasih dan apresiasi setinggi-tingginya kepada seluruh RT/RW, masyarakat dan petugas kebersihan, serta semua pihak yang telah berpartisipasi dan berkontribusi.
+Kemenangan ini bukanlah akhir, melainkan motivasi untuk terus menjaga kebersihan, meningkatkan pengelolaan sampah, dan mempertahankan budaya hidup bersih di lingkungan kita.`,
+    imageUrl: IG_POST_LATEST_0,
+    publishedAt: '10 November 2026',
+    author: 'Lurah Panaikang · @kelurahan.panaikang',
+    instagramHandle: '@kelurahan.panaikang',
+    instagramPostUrl: 'https://www.instagram.com/p/Dfiuay9j8M0/',
+    instagramLikes: 148,
+    instagramCommentsCount: 30,
+    isInstagramSynced: true,
+    hashtags: [
+      '#HUTMakassar419',
+      '#KelurahanPanaikang',
+      '#PanaikangSmartEnvironment',
+      '#KecamatanPanakkukang',
+      '#KotaMakassar',
+    ],
+  },
+  {
+    id: 'ig-latest-2-DfgPz35v2Ed',
+    title: 'Selamat Hari Ulang Tahun Kota Makassar ke-419 "Nyalakan Harapan, Merawat Masa Depan"',
+    category: 'Pengumuman Kelurahan',
+    summary:
+      'Momentum HUT ke-419 Kota Makassar menjadi pengingat bagi kita semua untuk terus menyalakan harapan, menjaga persatuan, merawat lingkungan, serta memberikan kontribusi nyata demi masa depan yang lebih baik.',
+    content: `SELAMAT HARI ULANG TAHUN KOTA MAKASSAR KE-419 "NYALAKAN HARAPAN, MERAWAT MASA DEPAN”
+
+Momentum HUT ke-419 Kota Makassar menjadi pengingat bagi kita semua untuk terus menyalakan harapan, menjaga persatuan, merawat lingkungan, serta memberikan kontribusi nyata demi masa depan yang lebih baik.
+
+Mari bersama-sama melangkah, berkolaborasi, dan berinovasi untuk mewujudkan Makassar yang semakin unggul, bersih, hijau, dan berkelanjutan.`,
+    imageUrl: IG_POST_LATEST_0B,
+    publishedAt: '09 November 2026',
+    author: 'Lurah Panaikang · @kelurahan.panaikang',
+    instagramHandle: '@kelurahan.panaikang',
+    instagramPostUrl: 'https://www.instagram.com/p/DfgPz35v2Ed/',
+    instagramLikes: 51,
+    instagramCommentsCount: 3,
+    isInstagramSynced: true,
+    hashtags: [
+      '#HUTMakassar419',
+      '#NyalakanHarapan',
+      '#KelurahanPanaikang',
+      '#PanaikangSmartEnvironment',
+      '#KotaMakassar',
+    ],
+  },
+  {
+    id: 'ig-latest-3-DfZsJAUvDQG',
     title: 'Jumat, 6 November 2026, Giat Jumat ASRI Bersama Arhanud dan Jemaat Gereja Silo',
     category: 'Kegiatan Lingkungan',
     summary:
@@ -231,7 +306,7 @@ Kegiatan gotong royong lintas elemen ini merupakan wujud nyata sinergi TNI (Arha
     author: 'Lurah Panaikang · @kelurahan.panaikang',
     instagramHandle: '@kelurahan.panaikang',
     instagramPostUrl: 'https://www.instagram.com/reel/DfZsJAUvDQG/',
-    instagramLikes: 28,
+    instagramLikes: 31,
     instagramCommentsCount: 3,
     isInstagramSynced: true,
     hashtags: [
@@ -243,7 +318,7 @@ Kegiatan gotong royong lintas elemen ini merupakan wujud nyata sinergi TNI (Arha
     ],
   },
   {
-    id: 'ig-latest-2-DfYirNrJjaT',
+    id: 'ig-latest-4-DfYirNrJjaT',
     title: 'Camat Panakkukang Pantau Kerja Bakti Kolaborasi & Toleransi di Kelurahan Panaikang',
     category: 'Kegiatan Lingkungan',
     summary:
@@ -260,7 +335,7 @@ Dalam pantauannya, Camat Panakkukang mengapresiasi tinggi kepedulian dan keikuts
     author: 'Lurah Panaikang · @kelurahan.panaikang',
     instagramHandle: '@kelurahan.panaikang',
     instagramPostUrl: 'https://www.instagram.com/reel/DfYirNrJjaT/',
-    instagramLikes: 38,
+    instagramLikes: 39,
     instagramCommentsCount: 6,
     isInstagramSynced: true,
     hashtags: [
@@ -272,7 +347,7 @@ Dalam pantauannya, Camat Panakkukang mengapresiasi tinggi kepedulian dan keikuts
     ],
   },
   {
-    id: 'ig-latest-3-DfT7acUJdwh',
+    id: 'ig-latest-5-DfT7acUJdwh',
     title: 'Kunjungan Lapangan Wali Kota Makassar Munafri Arifuddin di Kelurahan Panaikang',
     category: 'Kegiatan Lingkungan',
     summary:
@@ -295,7 +370,7 @@ Salah satunya melalui fasilitasi akses Kredit Usaha Rakyat (KUR) dengan menggand
     author: 'Lurah Panaikang · @kelurahan.panaikang',
     instagramHandle: '@kelurahan.panaikang',
     instagramPostUrl: 'https://www.instagram.com/reel/DfT7acUJdwh/',
-    instagramLikes: 136,
+    instagramLikes: 138,
     instagramCommentsCount: 34,
     isInstagramSynced: true,
     hashtags: [
@@ -592,7 +667,141 @@ export const INITIAL_ADMIN_USERS: AdminUserAccount[] = [
 
 export const INITIAL_ACTIVITY_LOGS: AdminActivityLog[] = [];
 
-export const INITIAL_URBAN_FARMING_SPOTS: UrbanFarmingSpot[] = [];
+export const INITIAL_URBAN_FARMING_SPOTS: UrbanFarmingSpot[] = [
+  {
+    id: 'uf-1793540638611',
+    name: 'URBAN FARMING KESADARAN BERSATU',
+    rw: 'RW 07',
+    rt: 'RT 07',
+    locationAddress: 'JL. KESADARAN IV RT. 07 RW. 07',
+    groupName: 'KWT KESADARAN BERSATU',
+    coordinatorName: 'NUR ALANG',
+    coordinatorPhone: '6285341993164',
+    farmingType: 'Hidroponik / NFT',
+    commodities: ['KANGKUNG', 'TOMAT', 'CABAI', 'BAYAM', 'SAWI'],
+    activeMembers: 15,
+    monthlyProductionKg: 45,
+    nextHarvestDate: '20 Nov 2026',
+    harvestEstimatedKg: 20,
+    status: 'Aktif Produktif',
+    description: 'Kebun binaan ketahanan pangan Kelurahan Panaikang.',
+    photoUrl: '/images/uf_kesadaran_rw07.jpg',
+  },
+  {
+    id: 'uf-1793540562848',
+    name: 'URBAN FARMING RT04 RW 05',
+    rw: 'RW 05',
+    rt: 'RT 04',
+    locationAddress: 'JL. ANGKASA I LR. 3 RT. 04 RW. 05',
+    groupName: 'KWT RT04 RW 05',
+    coordinatorName: 'SYAMSIAH',
+    coordinatorPhone: '62895392977493',
+    farmingType: 'Hidroponik / NFT',
+    commodities: ['PARIA', 'TIMUN', 'TOMAT', 'KACANG PANJANG', 'TERONG'],
+    activeMembers: 15,
+    monthlyProductionKg: 45,
+    nextHarvestDate: '20 Nov 2026',
+    harvestEstimatedKg: 20,
+    status: 'Aktif Produktif',
+    description: 'Kebun binaan ketahanan pangan Kelurahan Panaikang.',
+    photoUrl: '/images/uf_angkasa_rw05.jpg',
+  },
+  {
+    id: 'uf-1793540452922',
+    name: 'URBAN FARMING TERATAI',
+    rw: 'RW 05',
+    rt: 'RT 04',
+    locationAddress: 'JL. H KALLA RAYA RT. 04 RW. 05',
+    groupName: 'KWT TERATAI',
+    coordinatorName: 'HJ. MULIATI',
+    coordinatorPhone: '6281241712447',
+    farmingType: 'Hidroponik / NFT',
+    commodities: ['TERONG', 'KANGKUNG', 'PARIA', 'CABAI'],
+    activeMembers: 15,
+    monthlyProductionKg: 45,
+    nextHarvestDate: '20 Nov 2026',
+    harvestEstimatedKg: 20,
+    status: 'Aktif Produktif',
+    description: 'Kebun binaan ketahanan pangan Kelurahan Panaikang.',
+    photoUrl: '/images/uf_teratai_rw05.jpg',
+  },
+  {
+    id: 'uf-1793540321274',
+    name: 'URBAN FARMING SIPAKAINGA',
+    rw: 'RW 04',
+    rt: 'RT 02',
+    locationAddress: 'JL. ANGKASA IV RT. 02 RW. 04',
+    groupName: 'KWT SIPAKAINGA',
+    coordinatorName: 'MULIATI, SP',
+    coordinatorPhone: '6289510803627',
+    farmingType: 'Hidroponik / NFT',
+    commodities: ['KACANG PANJANG', 'SAWI', 'KANGKUNG', 'CABAI', 'IKAN NILA'],
+    activeMembers: 15,
+    monthlyProductionKg: 45,
+    nextHarvestDate: '20 Nov 2026',
+    harvestEstimatedKg: 20,
+    status: 'Aktif Produktif',
+    description: 'Kebun binaan ketahanan pangan Kelurahan Panaikang.',
+    photoUrl: '/images/uf_sipakainga_rw04.jpg',
+  },
+  {
+    id: 'uf-1793540217986',
+    name: 'URBAN FARMING CAMPAGAYA',
+    rw: 'RW 03',
+    rt: 'RT 02',
+    locationAddress: 'JL. H KALLA II CAMPAGAYA RT. 02 RW. 03',
+    groupName: 'KWT CAMPAGAYA',
+    coordinatorName: 'WARDA',
+    coordinatorPhone: '6282398199836',
+    farmingType: 'Hidroponik / NFT',
+    commodities: ['LOMBOK', 'BAYAM', 'SAWI'],
+    activeMembers: 15,
+    monthlyProductionKg: 45,
+    nextHarvestDate: '20 Nov 2026',
+    harvestEstimatedKg: 20,
+    status: 'Aktif Produktif',
+    description: 'Kebun binaan ketahanan pangan Kelurahan Panaikang.',
+    photoUrl: '/images/uf_campagaya_rw03.jpg',
+  },
+  {
+    id: 'uf-1793540084454',
+    name: 'URBAN FARMING BERSATU',
+    rw: 'RW 02',
+    rt: 'RT 02',
+    locationAddress: 'KWT BERSATU',
+    groupName: 'KWT BERSATU',
+    coordinatorName: 'Daiti',
+    coordinatorPhone: '6282196297716',
+    farmingType: 'Hidroponik / NFT',
+    commodities: ['KANGKUNG'],
+    activeMembers: 15,
+    monthlyProductionKg: 45,
+    nextHarvestDate: '20 Nov 2026',
+    harvestEstimatedKg: 20,
+    status: 'Aktif Produktif',
+    description: 'Kebun binaan ketahanan pangan Kelurahan Panaikang.',
+    photoUrl: '/images/uf_bersatu_rw02.jpg',
+  },
+  {
+    id: 'uf-1793539872515',
+    name: 'URBAN FARMING TUNAS HIJAU ASTEBA',
+    rw: 'RW 01',
+    rt: 'RT 06',
+    locationAddress: 'JL. ASPOL TELLO BARU RT. 06 RW. 01',
+    groupName: 'KWT TUNAS HIJAU ASTEBA',
+    coordinatorName: 'Hasia T',
+    coordinatorPhone: '6282196297716',
+    farmingType: 'Hidroponik / NFT',
+    commodities: ['JAGUNG', 'LOMBOK', 'TOMAT', 'SAWI'],
+    activeMembers: 15,
+    monthlyProductionKg: 45,
+    nextHarvestDate: '20 Nov 2026',
+    harvestEstimatedKg: 20,
+    status: 'Aktif Produktif',
+    description: 'Kebun binaan ketahanan pangan Kelurahan Panaikang.',
+    photoUrl: '/images/uf_asteba_rw01.jpg',
+  },
+];
 
 export const INITIAL_URBAN_FARMING_LOCATIONS: UrbanFarmingLocation[] = [];
 

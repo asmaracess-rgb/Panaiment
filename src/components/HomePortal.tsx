@@ -33,6 +33,7 @@ import {
 } from '../data/initialData';
 import {
   resolveImageUrl,
+  resolveUrbanFarmingPhoto,
   getInstagramEmbedUrl,
   getInstagramProxyUrl,
 } from '../utils/resolveImageUrl';
@@ -133,28 +134,25 @@ export const HomePortal: React.FC<HomePortalProps> = ({
     }
   };
 
-  // Display current kelurahanInfos with latest 3 @kelurahan.panaikang posts prioritized
+  // Display current kelurahanInfos with latest @kelurahan.panaikang posts prioritized
   const activeInfos = React.useMemo(() => {
-    const currentInitIds = new Set(INITIAL_KELURAHAN_INFOS.map((i) => i.id));
-    const currentInitUrls = new Set(
-      INITIAL_KELURAHAN_INFOS.map((i) => i.instagramPostUrl).filter(Boolean)
-    );
     const map = new Map<string, KelurahanInfoItem>();
-    for (const initItem of INITIAL_KELURAHAN_INFOS) {
-      map.set(initItem.id, initItem);
-    }
-    if (Array.isArray(kelurahanInfos)) {
+    const seenUrls = new Set<string>();
+    if (Array.isArray(kelurahanInfos) && kelurahanInfos.length > 0) {
       for (const item of kelurahanInfos) {
         if (!item || !item.id) continue;
-        if (item.id.startsWith('ig-latest-') && !currentInitIds.has(item.id)) continue;
-        if (
-          item.instagramPostUrl &&
-          currentInitUrls.has(item.instagramPostUrl) &&
-          !currentInitIds.has(item.id)
-        ) {
-          continue;
-        }
+        const urlKey = item.instagramPostUrl ? item.instagramPostUrl.trim() : '';
+        if (urlKey && seenUrls.has(urlKey)) continue;
+        if (urlKey) seenUrls.add(urlKey);
         map.set(item.id, item);
+      }
+    }
+    for (const initItem of INITIAL_KELURAHAN_INFOS) {
+      const urlKey = initItem.instagramPostUrl ? initItem.instagramPostUrl.trim() : '';
+      if (urlKey && seenUrls.has(urlKey)) continue;
+      if (!map.has(initItem.id)) {
+        if (urlKey) seenUrls.add(urlKey);
+        map.set(initItem.id, initItem);
       }
     }
     return Array.from(map.values());
@@ -485,7 +483,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {urbanFarmingSpotsList.slice(0, 3).map((spot) => (
+            {urbanFarmingSpotsList.slice(0, 3).map((spot, idx) => (
               <div
                 key={spot.id}
                 onClick={() => onNavigate('urbanfarming')}
@@ -494,9 +492,15 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                 <div>
                   <div className="relative h-40 w-full bg-slate-900 overflow-hidden">
                     <img
-                      src={resolveImageUrl(spot.photoUrl)}
+                      src={resolveUrbanFarmingPhoto(spot, idx)}
                       alt={spot.name}
                       referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        const fallback = resolveUrbanFarmingPhoto({ ...spot, photoUrl: '' }, idx);
+                        if ((e.target as HTMLImageElement).src !== window.location.origin + fallback) {
+                          (e.target as HTMLImageElement).src = fallback;
+                        }
+                      }}
                       className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-200"
                     />
                     <div className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-md bg-white/95 backdrop-blur-xs text-[11px] font-extrabold text-[#059669] shadow-xs">
