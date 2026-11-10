@@ -79,6 +79,11 @@ interface AdminPengurusanWargaPanelProps {
   onSaveServiceCatalog?: (
     updatedCatalog: ServiceCategoryGroup[]
   ) => Promise<{ ok: boolean; errors?: string[] }>;
+  onLurahApproveService?: (
+    ticketCode: string,
+    action: 'SETUJUI' | 'TOLAK' | 'KEMBALIKAN',
+    lurahNote: string
+  ) => Promise<void>;
 }
 
 const DEFAULT_RW_LIST = ['RW 01', 'RW 02', 'RW 03', 'RW 04', 'RW 05', 'RW 06', 'RW 07'];
@@ -113,6 +118,7 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
   onCreateReport,
   onUpdateReport,
   onDeleteReport,
+  onLurahApproveService,
 }) => {
   const effectivePerms: AdminActionPermissions = actionPermissions || {
     canCreate: true,
@@ -1932,6 +1938,7 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
         onQuickComplete={handleQuickComplete}
         onOpenEdit={handleOpenEdit}
         onOpenPrint={(rep) => setPrintReport(rep)}
+        onLurahApproveService={onLurahApproveService}
       />
     </div>
   );

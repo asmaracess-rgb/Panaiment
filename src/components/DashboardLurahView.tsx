@@ -70,8 +70,13 @@ import {
 } from '../data/initialData';
 import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
 import { MonthlyArchivePdfPanel } from './MonthlyArchivePdfPanel';
-import { SubmissionDetailModal } from './SubmissionDetailModal';
+import {
+  SubmissionDetailModal,
+  DecisionInfoPopupModal,
+  DecisionPopupData,
+} from './SubmissionDetailModal';
 import { resolveImageUrl } from '../utils/resolveImageUrl';
+import { getRealtimeDateTimeString } from '../utils/realtimeDate';
 
 const RW_LIST = ['RW 01', 'RW 02', 'RW 03', 'RW 04', 'RW 05', 'RW 06', 'RW 07'];
 import { GeneratedPdfResult } from '../utils/monthlyReportPdfGenerator';
@@ -500,6 +505,7 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
     praRecord?: PraRegistrasiRecord | null;
     pengaduanRecord?: PengaduanOnlineRecord | null;
   } | null>(null);
+  const [lurahDecisionPopup, setLurahDecisionPopup] = useState<DecisionPopupData | null>(null);
 
   // Recharts Interactive Controls
   const [chartType, setChartType] = useState<'tren' | 'kategori'>('tren');
@@ -1408,57 +1414,131 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
                           type="button"
                           disabled={isProcessingApproval}
                           onClick={async () => {
-                            if (!onLurahApproveService) return;
-                            setIsProcessingApproval(true);
-                            await onLurahApproveService(selectedPraRecord.ticketCode, 'SETUJUI', lurahNoteInput || 'Disetujui oleh Lurah Panaikang.');
-                            setIsProcessingApproval(false);
+                            const finalNote =
+                              lurahNoteInput.trim() ||
+                              'Berkas permohonan telah diperiksa dan DISETUJUI oleh Lurah Panaikang.';
+                            if (onLurahApproveService) {
+                              setIsProcessingApproval(true);
+                              await onLurahApproveService(selectedPraRecord.ticketCode, 'SETUJUI', finalNote);
+                              setIsProcessingApproval(false);
+                            }
                             setApprovalFeedback(`Permohonan ${selectedPraRecord.ticketCode} berhasil DISETUJUI oleh Lurah.`);
+                            setLurahDecisionPopup({
+                              action: 'SETUJUI',
+                              ticketCode: selectedPraRecord.ticketCode,
+                              serviceName: selectedPraRecord.serviceName,
+                              applicantName: selectedPraRecord.applicantName,
+                              applicantNik: selectedPraRecord.applicantNik || '-',
+                              phone: selectedPraRecord.applicantPhone || '',
+                              rw: selectedPraRecord.applicantRw || 'RW 01',
+                              rt: selectedPraRecord.applicantRt || 'RT 01',
+                              note: finalNote,
+                              decidedAt: getRealtimeDateTimeString(),
+                            });
                             setSelectedPraRecord(null);
                           }}
                           className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
                         >
                           <Check className="w-4 h-4 text-emerald-200" />
-                          <span>Setujui Permohonan</span>
+                          <span>Disetujui (Setujui Permohonan)</span>
                         </button>
 
                         <button
                           type="button"
                           disabled={isProcessingApproval}
                           onClick={async () => {
-                            if (!onLurahApproveService) return;
                             const noteToUse =
                               lurahNoteInput.trim() ||
                               'Mohon lengkapi atau perbaiki berkas persyaratan sesuai ketentuan kelurahan.';
-                            setIsProcessingApproval(true);
-                            await onLurahApproveService(selectedPraRecord.ticketCode, 'KEMBALIKAN', noteToUse);
-                            setIsProcessingApproval(false);
+                            if (onLurahApproveService) {
+                              setIsProcessingApproval(true);
+                              await onLurahApproveService(selectedPraRecord.ticketCode, 'KEMBALIKAN', noteToUse);
+                              setIsProcessingApproval(false);
+                            }
                             setApprovalFeedback(`Permohonan ${selectedPraRecord.ticketCode} dikembalikan untuk perbaikan berkas.`);
+                            setLurahDecisionPopup({
+                              action: 'KEMBALIKAN',
+                              ticketCode: selectedPraRecord.ticketCode,
+                              serviceName: selectedPraRecord.serviceName,
+                              applicantName: selectedPraRecord.applicantName,
+                              applicantNik: selectedPraRecord.applicantNik || '-',
+                              phone: selectedPraRecord.applicantPhone || '',
+                              rw: selectedPraRecord.applicantRw || 'RW 01',
+                              rt: selectedPraRecord.applicantRt || 'RT 01',
+                              note: noteToUse,
+                              decidedAt: getRealtimeDateTimeString(),
+                            });
                             setSelectedPraRecord(null);
                           }}
                           className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
                         >
                           <RotateCcw className="w-4 h-4 text-slate-950" />
-                          <span>Kembalikan untuk Perbaikan</span>
+                          <span>Dikembalikan (Perlu Perbaikan)</span>
                         </button>
 
                         <button
                           type="button"
                           disabled={isProcessingApproval}
                           onClick={async () => {
-                            if (!onLurahApproveService) return;
                             const noteToUse =
                               lurahNoteInput.trim() ||
                               'Permohonan ditolak karena belum memenuhi persyaratan administrasi.';
-                            setIsProcessingApproval(true);
-                            await onLurahApproveService(selectedPraRecord.ticketCode, 'TOLAK', noteToUse);
-                            setIsProcessingApproval(false);
+                            if (onLurahApproveService) {
+                              setIsProcessingApproval(true);
+                              await onLurahApproveService(selectedPraRecord.ticketCode, 'TOLAK', noteToUse);
+                              setIsProcessingApproval(false);
+                            }
                             setApprovalFeedback(`Permohonan ${selectedPraRecord.ticketCode} telah ditolak.`);
+                            setLurahDecisionPopup({
+                              action: 'TOLAK',
+                              ticketCode: selectedPraRecord.ticketCode,
+                              serviceName: selectedPraRecord.serviceName,
+                              applicantName: selectedPraRecord.applicantName,
+                              applicantNik: selectedPraRecord.applicantNik || '-',
+                              phone: selectedPraRecord.applicantPhone || '',
+                              rw: selectedPraRecord.applicantRw || 'RW 01',
+                              rt: selectedPraRecord.applicantRt || 'RT 01',
+                              note: noteToUse,
+                              decidedAt: getRealtimeDateTimeString(),
+                            });
                             setSelectedPraRecord(null);
                           }}
                           className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
                         >
                           <XCircle className="w-4 h-4 text-rose-200" />
-                          <span>Tolak Permohonan</span>
+                          <span>Ditolak (Tolak Permohonan)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const currentAction =
+                              selectedPraRecord.status === 'PERLU_PERBAIKAN'
+                                ? 'KEMBALIKAN'
+                                : selectedPraRecord.status === 'DITUTUP'
+                                ? 'TOLAK'
+                                : 'GUIDE';
+                            setLurahDecisionPopup({
+                              action: currentAction,
+                              ticketCode: selectedPraRecord.ticketCode,
+                              serviceName: selectedPraRecord.serviceName,
+                              applicantName: selectedPraRecord.applicantName,
+                              applicantNik: selectedPraRecord.applicantNik || '-',
+                              phone: selectedPraRecord.applicantPhone || '',
+                              rw: selectedPraRecord.applicantRw || 'RW 01',
+                              rt: selectedPraRecord.applicantRt || 'RT 01',
+                              note:
+                                lurahNoteInput.trim() ||
+                                selectedPraRecord.lurahNotes ||
+                                selectedPraRecord.officerNotes ||
+                                'Menampilkan rincian informasi status berkas Disetujui, Dikembalikan, dan Ditolak.',
+                              decidedAt: selectedPraRecord.updatedAt || getRealtimeDateTimeString(),
+                            });
+                          }}
+                          className="px-3.5 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 text-[#0D3868] border border-sky-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <AlertCircle className="w-3.5 h-3.5 text-[#0277BD]" />
+                          <span>Info Status (Disetujui / Dikembalikan / Ditolak)</span>
                         </button>
 
                         <button
@@ -2695,6 +2775,12 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
         profile={profile}
         isLurahMode={true}
         onLurahApproveService={onLurahApproveService}
+      />
+
+      {/* POPUP INFORMASI BERKAS DISETUJUI, DIKEMBALIKAN, DAN DITOLAK */}
+      <DecisionInfoPopupModal
+        data={lurahDecisionPopup}
+        onClose={() => setLurahDecisionPopup(null)}
       />
     </div>
   );

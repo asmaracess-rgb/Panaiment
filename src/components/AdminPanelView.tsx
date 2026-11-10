@@ -5594,6 +5594,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                   onUpdateReport={auditedOnUpdateReport}
                   onDeleteReport={auditedOnDeleteReport}
                   onSaveServiceCatalog={auditedOnSaveServiceCatalog}
+                  onLurahApproveService={onLurahApproveService}
                 />
               </div>
             </AdminCollapsibleBar>

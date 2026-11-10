@@ -21,6 +21,7 @@ import {
   Edit3,
   Image as ImageIcon,
   Layers,
+  Info,
 } from 'lucide-react';
 import {
   CitizenReport,
@@ -39,6 +40,311 @@ import {
   resolveCitizenWhatsAppPhone,
 } from '../utils/whatsappHelper';
 import { downloadOfficialLetterOrReceiptPdf } from '../utils/officialLetterPdfGenerator';
+import { getRealtimeDateTimeString } from '../utils/realtimeDate';
+
+export type DecisionPopupActionType = 'SETUJUI' | 'KEMBALIKAN' | 'TOLAK' | 'GUIDE';
+
+export interface DecisionPopupData {
+  action: DecisionPopupActionType;
+  ticketCode: string;
+  serviceName: string;
+  applicantName: string;
+  applicantNik?: string;
+  rw?: string;
+  rt?: string;
+  phone?: string;
+  note: string;
+  decidedAt: string;
+}
+
+export interface DecisionInfoPopupModalProps {
+  data: DecisionPopupData | null;
+  onClose: () => void;
+}
+
+export const DecisionInfoPopupModal: React.FC<DecisionInfoPopupModalProps> = ({
+  data,
+  onClose,
+}) => {
+  if (!data) return null;
+
+  const isApprove = data.action === 'SETUJUI';
+  const isReturn = data.action === 'KEMBALIKAN';
+  const isReject = data.action === 'TOLAK';
+  const isGuide = data.action === 'GUIDE';
+
+  const headerBg = isApprove
+    ? 'bg-gradient-to-r from-emerald-800 via-emerald-700 to-emerald-600'
+    : isReturn
+    ? 'bg-gradient-to-r from-amber-700 via-amber-600 to-amber-500'
+    : isReject
+    ? 'bg-gradient-to-r from-rose-800 via-rose-700 to-rose-600'
+    : 'bg-gradient-to-r from-[#072647] via-[#0D3868] to-[#0277BD]';
+
+  const badgeText = isApprove
+    ? 'STATUS KEPUTUSAN: BERKAS DISETUJUI'
+    : isReturn
+    ? 'STATUS KEPUTUSAN: BERKAS DIKEMBALIKAN'
+    : isReject
+    ? 'STATUS KEPUTUSAN: BERKAS DITOLAK'
+    : 'PANDUAN INFORMASI STATUS KEPUTUSAN BERKAS';
+
+  const mainTitle = isApprove
+    ? 'Informasi Berkas Disetujui'
+    : isReturn
+    ? 'Informasi Berkas Dikembalikan (Perlu Perbaikan)'
+    : isReject
+    ? 'Informasi Berkas Ditolak'
+    : 'Informasi Status Berkas: Disetujui, Dikembalikan & Ditolak';
+
+  const hasValidWa = isValidWhatsAppPhone(data.phone || '');
+
+  const waMessage = isApprove
+    ? `Halo Bapak/Ibu *${data.applicantName}*, salam dari Pemerintah Kelurahan Panaikang.\n\n*INFORMASI BERKAS DISETUJUI*\nNomor Tiket: *${data.ticketCode}*\nLayanan: *${data.serviceName}*\nStatus: *BERKAS DISETUJUI*\nCatatan: ${data.note}\n\nBerkas permohonan Anda telah disetujui. Silakan mengambil atau mengunduh dokumen surat resmi Anda. Terima kasih.`
+    : isReturn
+    ? `Halo Bapak/Ibu *${data.applicantName}*, salam dari Pemerintah Kelurahan Panaikang.\n\n*INFORMASI BERKAS DIKEMBALIKAN (PERLU PERBAIKAN)*\nNomor Tiket: *${data.ticketCode}*\nLayanan: *${data.serviceName}*\nStatus: *DIKEMBALIKAN UNTUK PERBAIKAN*\nCatatan Perbaikan: ${data.note}\n\nMohon melengkapi/memperbaiki berkas persyaratan sesuai catatan di atas. Terima kasih.`
+    : `Halo Bapak/Ibu *${data.applicantName}*, salam dari Pemerintah Kelurahan Panaikang.\n\n*INFORMASI BERKAS DITOLAK*\nNomor Tiket: *${data.ticketCode}*\nLayanan: *${data.serviceName}*\nStatus: *PERMOHONAN DITOLAK*\nAlasan Penolakan: ${data.note}\n\nTerima kasih atas pengertian Anda.`;
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/80 backdrop-blur-xs p-3 sm:p-6 overflow-y-auto animate-fadeIn"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-3xl max-w-2xl w-full overflow-hidden shadow-2xl border border-slate-200 my-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Top Header */}
+        <div className={`${headerBg} px-5 sm:px-6 py-5 text-white flex items-start justify-between gap-4`}>
+          <div className="flex items-start gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-white/20 border border-white/30 flex items-center justify-center shrink-0 shadow-xs">
+              {isApprove && <CheckCircle2 className="w-7 h-7 text-white" />}
+              {isReturn && <RotateCcw className="w-7 h-7 text-white" />}
+              {isReject && <XCircle className="w-7 h-7 text-white" />}
+              {isGuide && <Info className="w-7 h-7 text-amber-300" />}
+            </div>
+            <div>
+              <span className="inline-block px-2.5 py-0.5 rounded-md bg-black/25 text-white text-[10px] font-black uppercase tracking-wider">
+                {badgeText}
+              </span>
+              <h3 className="text-lg sm:text-xl font-black text-white mt-1">
+                {mainTitle}
+              </h3>
+              <p className="text-xs text-white/90 mt-0.5">
+                Tiket #{data.ticketCode} · {data.serviceName}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition cursor-pointer shrink-0"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Popup Body */}
+        <div className="p-5 sm:p-6 space-y-4 max-h-[78vh] overflow-y-auto bg-slate-50/50">
+          {/* Active Decision Detail Banner (When Setujui / Kembalikan / Tolak is clicked) */}
+          {!isGuide && (
+            <div
+              className={`p-4 rounded-2xl border-2 space-y-2.5 ${
+                isApprove
+                  ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
+                  : isReturn
+                  ? 'bg-amber-50/90 border-amber-300 text-amber-950'
+                  : 'bg-rose-50/90 border-rose-300 text-rose-950'
+              }`}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-black/10">
+                <div className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+                  {isApprove && <CheckCircle2 className="w-4 h-4 text-emerald-700" />}
+                  {isReturn && <RotateCcw className="w-4 h-4 text-amber-700" />}
+                  {isReject && <XCircle className="w-4 h-4 text-rose-700" />}
+                  <span>
+                    {isApprove
+                      ? 'Keputusan Berhasil Disimpan: Berkas Disetujui'
+                      : isReturn
+                      ? 'Keputusan Berhasil Disimpan: Berkas Dikembalikan'
+                      : 'Keputusan Berhasil Disimpan: Berkas Ditolak'}
+                  </span>
+                </div>
+                <span className="text-[11px] font-mono font-bold opacity-80">
+                  {data.decidedAt}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="opacity-75">Nama Pemohon:</span>{' '}
+                  <strong>{data.applicantName}</strong>
+                  {data.rw ? ` (${data.rw}/${data.rt || 'RT 01'})` : ''}
+                </div>
+                {data.applicantNik && (
+                  <div>
+                    <span className="opacity-75">NIK Pemohon:</span>{' '}
+                    <strong className="font-mono">{data.applicantNik}</strong>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-3 rounded-xl bg-white/90 border border-black/10 text-xs space-y-1">
+                <div className="font-bold text-slate-700">
+                  {isApprove
+                    ? 'Catatan Persetujuan Berkas:'
+                    : isReturn
+                    ? 'Catatan & Instruksi Perbaikan Berkas:'
+                    : 'Alasan Penolakan Berkas:'}
+                </div>
+                <div className="font-semibold text-slate-900 leading-relaxed">
+                  {data.note}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Complete Information Cards About the 3 Statuses: Disetujui, Dikembalikan, Ditolak */}
+          <div className="space-y-3">
+            <div className="text-xs font-black uppercase tracking-wider text-[#0D3868] flex items-center gap-1.5">
+              <Info className="w-4 h-4 text-[#0277BD]" />
+              <span>Penjelasan Lengkap Status Berkas (Disetujui, Dikembalikan & Ditolak)</span>
+            </div>
+
+            {/* 1. Informasi Berkas Disetujui */}
+            <div
+              className={`p-4 rounded-2xl border transition-all ${
+                isApprove
+                  ? 'bg-emerald-50 border-2 border-emerald-500 shadow-sm ring-2 ring-emerald-200'
+                  : 'bg-white border-slate-200'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5 font-bold">
+                  <Check className="w-5 h-5" />
+                </div>
+                <div className="space-y-1 text-xs">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-black text-emerald-900 text-sm">
+                      1. Berkas Disetujui (Setujui Permohonan)
+                    </h4>
+                    {isApprove && (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-black uppercase">
+                        Status Aktif Saat Ini
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-slate-700 leading-relaxed">
+                    <strong>Arti Status:</strong> Seluruh dokumen persyaratan dan data formulir pemohon telah diperiksa, dinyatakan <strong>lengkap, sah, dan disetujui</strong> oleh Lurah / Pejabat Berwenang Kelurahan Panaikang.
+                  </p>
+                  <p className="text-slate-600 leading-relaxed">
+                    <strong>Tindak Lanjut:</strong> Berkas diteruskan ke loket untuk penerbitan <strong>Nomor Registrasi Surat Resmi</strong>. Warga dapat langsung mengambil fisik surat atau mengunduh PDF surat resmi ber-QR Code.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Informasi Berkas Dikembalikan */}
+            <div
+              className={`p-4 rounded-2xl border transition-all ${
+                isReturn
+                  ? 'bg-amber-50 border-2 border-amber-500 shadow-sm ring-2 ring-amber-200'
+                  : 'bg-white border-slate-200'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 mt-0.5 font-bold">
+                  <RotateCcw className="w-5 h-5" />
+                </div>
+                <div className="space-y-1 text-xs">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-black text-amber-900 text-sm">
+                      2. Berkas Dikembalikan (Kembalikan untuk Perbaikan)
+                    </h4>
+                    {isReturn && (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black uppercase">
+                        Status Aktif Saat Ini
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-slate-700 leading-relaxed">
+                    <strong>Arti Status:</strong> Berkas permohonan <strong>dikembalikan sementara kepada warga</strong> karena masih ada dokumen persyaratan yang belum lengkap, foto dokumen buram/tidak terbaca, atau data isian yang perlu diperbaiki.
+                  </p>
+                  <p className="text-slate-600 leading-relaxed">
+                    <strong>Tindak Lanjut:</strong> Permohonan <strong>tidak ditolak permanen</strong>. Warga akan melihat catatan perbaikan dari kelurahan dan dapat melengkapi kekurangan berkas untuk diverifikasi kembali.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Informasi Berkas Ditolak */}
+            <div
+              className={`p-4 rounded-2xl border transition-all ${
+                isReject
+                  ? 'bg-rose-50 border-2 border-rose-500 shadow-sm ring-2 ring-rose-200'
+                  : 'bg-white border-slate-200'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0 mt-0.5 font-bold">
+                  <XCircle className="w-5 h-5" />
+                </div>
+                <div className="space-y-1 text-xs">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-black text-rose-900 text-sm">
+                      3. Berkas Ditolak (Tolak Permohonan)
+                    </h4>
+                    {isReject && (
+                      <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-black uppercase">
+                        Status Aktif Saat Ini
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-slate-700 leading-relaxed">
+                    <strong>Arti Status:</strong> Permohonan berkas warga <strong>ditolak secara resmi</strong> karena tidak memenuhi syarat administratif, bukan warga/domisili Kelurahan Panaikang, atau bertentangan dengan ketentuan yang berlaku.
+                  </p>
+                  <p className="text-slate-600 leading-relaxed">
+                    <strong>Tindak Lanjut:</strong> Status tiket pengajuan berubah menjadi <strong>Ditolak / Ditutup</strong> disertai alasan penolakan yang tercatat pada riwayat pemohon dan audit sistem.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Popup Footer */}
+        <div className="px-5 sm:px-6 py-4 bg-white border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+          {!isGuide && hasValidWa && data.phone ? (
+            <a
+              href={buildWhatsAppUrl(data.phone, waMessage)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#128C7E] hover:bg-[#075E54] text-white text-xs font-bold transition shadow-xs"
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span>Kirim Info Status via WhatsApp ke Pemohon</span>
+            </a>
+          ) : (
+            <span className="text-[11px] text-slate-500">
+              Status berkas tersimpan otomatis ke database Cloud Firestore.
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-black transition cursor-pointer ml-auto shadow-xs"
+          >
+            Mengerti & Tutup Popup
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export interface SubmissionDetailModalProps {
   isOpen: boolean;
@@ -88,7 +394,11 @@ function isImageSource(url?: string, fileName?: string): boolean {
   ) {
     return true;
   }
-  if (lowerUrl.includes('unsplash.com') || lowerUrl.includes('/images/') || lowerUrl.includes('googleusercontent')) {
+  if (
+    lowerUrl.includes('unsplash.com') ||
+    lowerUrl.includes('/images/') ||
+    lowerUrl.includes('googleusercontent')
+  ) {
     return true;
   }
   return false;
@@ -102,7 +412,6 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
   pengaduanRecord,
   profile = INITIAL_KELURAHAN_PROFILE,
   citizenUsers = [],
-  isLurahMode = false,
   onLurahApproveService,
   onQuickVerify,
   onQuickIssueLetter,
@@ -116,10 +425,12 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
   );
   const [isProcessingApproval, setIsProcessingApproval] = useState<boolean>(false);
   const [actionFeedback, setActionFeedback] = useState<string>('');
+  const [decisionPopupData, setDecisionPopupData] = useState<DecisionPopupData | null>(null);
 
   React.useEffect(() => {
     setLurahNoteInput(praRecord?.lurahNotes || report?.responseNote || '');
     setActionFeedback('');
+    setDecisionPopupData(null);
   }, [praRecord?.ticketCode, pengaduanRecord?.ticketCode, report?.id, isOpen]);
 
   if (!isOpen || (!report && !praRecord && !pengaduanRecord)) {
@@ -299,12 +610,60 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
     for (const [k, v] of Object.entries(report.specificFieldsData)) {
       if (v !== undefined && v !== null && String(v).trim() !== '') {
         const label = formatFieldLabel(k);
-        if (!dynamicFormEntries.some(([existingKey]) => existingKey.toLowerCase() === label.toLowerCase())) {
+        if (
+          !dynamicFormEntries.some(
+            ([existingKey]) => existingKey.toLowerCase() === label.toLowerCase()
+          )
+        ) {
           dynamicFormEntries.push([label, String(v)]);
         }
       }
     }
   }
+
+  const handleDecisionClick = async (action: 'SETUJUI' | 'KEMBALIKAN' | 'TOLAK') => {
+    const defaultNote =
+      action === 'SETUJUI'
+        ? 'Berkas persyaratan telah lengkap, sesuai, dan disetujui oleh Kelurahan Panaikang.'
+        : action === 'KEMBALIKAN'
+        ? 'Mohon lengkapi atau perbaiki berkas persyaratan sesuai ketentuan kelurahan.'
+        : 'Permohonan ditolak karena belum memenuhi persyaratan administrasi kelurahan.';
+
+    const finalNote = lurahNoteInput.trim() || defaultNote;
+    setIsProcessingApproval(true);
+    try {
+      if (onLurahApproveService) {
+        await onLurahApproveService(ticketCode, action, finalNote);
+      } else if (report) {
+        if (action === 'SETUJUI' && onQuickVerify) {
+          onQuickVerify(report);
+        } else if (action === 'TOLAK' && onQuickComplete) {
+          onQuickComplete(report);
+        }
+      }
+      setActionFeedback(
+        action === 'SETUJUI'
+          ? `Berkas permohonan ${ticketCode} berhasil DISETUJUI.`
+          : action === 'KEMBALIKAN'
+          ? `Berkas permohonan ${ticketCode} DIKEMBALIKAN untuk perbaikan.`
+          : `Berkas permohonan ${ticketCode} telah DITOLAK.`
+      );
+      setDecisionPopupData({
+        action,
+        ticketCode,
+        serviceName: title,
+        applicantName,
+        applicantNik,
+        rw,
+        rt,
+        phone: resolvedPhone || rawPhone,
+        note: finalNote,
+        decidedAt: getRealtimeDateTimeString(),
+      });
+    } finally {
+      setIsProcessingApproval(false);
+    }
+  };
 
   const handleDownloadPdfSummary = () => {
     downloadOfficialLetterOrReceiptPdf(
@@ -330,7 +689,8 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
         descriptionOrPurpose: descriptionOrContent,
         statusText: statusLabel,
         assignedUnit: assignedUnitOrOfficer,
-        officerNotes: lurahNotes || officerNotes || 'Telah tercatat dalam sistem Kelurahan Panaikang.',
+        officerNotes:
+          lurahNotes || officerNotes || 'Telah tercatat dalam sistem Kelurahan Panaikang.',
         submittedAt,
         signerName: report?.signedByOfficer || profile.lurahName,
         signerNip: profile.lurahNip,
@@ -362,7 +722,9 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
             <div className="space-y-1 min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="px-2.5 py-0.5 rounded-md bg-white/20 text-white text-[10px] font-black uppercase tracking-wider">
-                  {isSurat ? 'DETAIL PERMOHONAN SURAT / PRA REGISTRASI' : 'DETAIL PENGADUAN & LAPORAN WARGA'}
+                  {isSurat
+                    ? 'DETAIL PERMOHONAN SURAT / PRA REGISTRASI'
+                    : 'DETAIL PENGADUAN & LAPORAN WARGA'}
                 </span>
                 <span className="font-mono text-xs font-black bg-amber-400 text-slate-950 px-2.5 py-0.5 rounded-md">
                   #{ticketCode}
@@ -373,9 +735,7 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
                   </span>
                 )}
               </div>
-              <h3 className="text-base sm:text-xl font-black text-white truncate">
-                {title}
-              </h3>
+              <h3 className="text-base sm:text-xl font-black text-white truncate">{title}</h3>
               <div className="flex flex-wrap items-center gap-3 text-xs text-sky-100">
                 <span className="inline-flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5" />
@@ -447,7 +807,9 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
                   )}
                   <div className="flex justify-between gap-2">
                     <span className="text-slate-500">Wilayah RT / RW:</span>
-                    <strong className="text-slate-900">{rt} · {rw}</strong>
+                    <strong className="text-slate-900">
+                      {rt} · {rw}
+                    </strong>
                   </div>
                   <div className="pt-1 border-t border-slate-100">
                     <span className="text-slate-500 block mb-0.5">
@@ -805,92 +1167,88 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
               </div>
             )}
 
-            {/* 6. PANEL OTORITAS PERSETUJUAN LURAH (JIKA DIBUKA OLEH LURAH UNTUK SURAT) */}
-            {isLurahMode && isSurat && onLurahApproveService && (
-              <div className="bg-white rounded-2xl border-2 border-[#0D3868] p-4 sm:p-5 space-y-3 shadow-xs">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-[#0D3868] flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-amber-600" />
-                    <span>Keputusan & Persetujuan Lurah Panaikang</span>
-                  </h4>
-                  <span className="text-[11px] font-bold text-slate-500">
-                    Otoritas Pimpinan Kelurahan
-                  </span>
+            {/* 6. PANEL KEPUTUSAN PERMOHONAN BERKAS: DISETUJUI, DIKEMBALIKAN, DITOLAK (SELALU TAMPIL UNTUK SURAT) */}
+            {isSurat && (
+              <div className="bg-white rounded-2xl border-2 border-[#0D3868] p-4 sm:p-5 space-y-3.5 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+                  <div>
+                    <h4 className="text-xs font-black uppercase tracking-wider text-[#0D3868] flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-amber-600" />
+                      <span>Keputusan & Persetujuan Permohonan Berkas</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Klik tombol Disetujui, Dikembalikan, atau Ditolak untuk menyimpan keputusan dan menampilkan popup informasi berkas.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDecisionPopupData({
+                        action: 'GUIDE',
+                        ticketCode,
+                        serviceName: title,
+                        applicantName,
+                        applicantNik,
+                        rw,
+                        rt,
+                        phone: resolvedPhone || rawPhone,
+                        note:
+                          lurahNoteInput.trim() ||
+                          officerNotes ||
+                          'Panduan informasi status keputusan berkas permohonan warga.',
+                        decidedAt: getRealtimeDateTimeString(),
+                      })
+                    }
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-[#0D3868] border border-sky-200 text-[11px] font-extrabold transition cursor-pointer shrink-0 self-start sm:self-auto"
+                  >
+                    <Info className="w-3.5 h-3.5 text-[#0277BD]" />
+                    <span>Info Status (Disetujui / Dikembalikan / Ditolak)</span>
+                  </button>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Catatan / Instruksi Lurah:
+                    Catatan / Alasan Keputusan Berkas (Ditampilkan pada Popup & Status Warga):
                   </label>
                   <textarea
                     rows={2}
                     value={lurahNoteInput}
                     onChange={(e) => setLurahNoteInput(e.target.value)}
-                    placeholder="Contoh: Berkas persyaratan telah lengkap dan disetujui. Silakan terbitkan nomor surat resmi."
+                    placeholder="Contoh: Berkas persyaratan telah lengkap dan disetujui / Mohon lengkapi fotokopi KK yang jelas..."
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 focus:outline-none focus:border-[#0D3868]"
                   />
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2.5">
                   <button
                     type="button"
                     disabled={isProcessingApproval}
-                    onClick={async () => {
-                      setIsProcessingApproval(true);
-                      await onLurahApproveService(
-                        ticketCode,
-                        'SETUJUI',
-                        lurahNoteInput.trim() || 'Disetujui oleh Lurah Panaikang.'
-                      );
-                      setIsProcessingApproval(false);
-                      setActionFeedback(`Permohonan ${ticketCode} berhasil DISETUJUI oleh Lurah.`);
-                    }}
-                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                    onClick={() => handleDecisionClick('SETUJUI')}
+                    className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
                   >
                     <Check className="w-4 h-4" />
-                    <span>Setujui Permohonan</span>
+                    <span>Disetujui (Setujui Permohonan)</span>
                   </button>
 
                   <button
                     type="button"
                     disabled={isProcessingApproval}
-                    onClick={async () => {
-                      setIsProcessingApproval(true);
-                      await onLurahApproveService(
-                        ticketCode,
-                        'KEMBALIKAN',
-                        lurahNoteInput.trim() ||
-                          'Mohon lengkapi atau perbaiki berkas persyaratan sesuai ketentuan kelurahan.'
-                      );
-                      setIsProcessingApproval(false);
-                      setActionFeedback(
-                        `Permohonan ${ticketCode} dikembalikan untuk perbaikan berkas.`
-                      );
-                    }}
-                    className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                    onClick={() => handleDecisionClick('KEMBALIKAN')}
+                    className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
                   >
                     <RotateCcw className="w-4 h-4" />
-                    <span>Kembalikan untuk Perbaikan</span>
+                    <span>Dikembalikan (Perlu Perbaikan)</span>
                   </button>
 
                   <button
                     type="button"
                     disabled={isProcessingApproval}
-                    onClick={async () => {
-                      setIsProcessingApproval(true);
-                      await onLurahApproveService(
-                        ticketCode,
-                        'TOLAK',
-                        lurahNoteInput.trim() ||
-                          'Permohonan ditolak karena belum memenuhi persyaratan administrasi.'
-                      );
-                      setIsProcessingApproval(false);
-                      setActionFeedback(`Permohonan ${ticketCode} telah ditolak.`);
-                    }}
-                    className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                    onClick={() => handleDecisionClick('TOLAK')}
+                    className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
                   >
                     <XCircle className="w-4 h-4" />
-                    <span>Tolak Permohonan</span>
+                    <span>Ditolak (Tolak Permohonan)</span>
                   </button>
                 </div>
               </div>
@@ -919,7 +1277,9 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
                   type="button"
                   onClick={() => {
                     onQuickIssueLetter(report);
-                    setActionFeedback(`Nomor surat resmi untuk ${report.ticketCode} berhasil diterbitkan.`);
+                    setActionFeedback(
+                      `Nomor surat resmi untuk ${report.ticketCode} berhasil diterbitkan.`
+                    );
                   }}
                   className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
                 >
@@ -977,7 +1337,9 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
                   className="px-4 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-900 text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5 text-emerald-700" />
-                  <span>Unduh PDF {isSurat ? 'Surat / Tanda Terima' : 'Tanda Terima Aduan'}</span>
+                  <span>
+                    Unduh PDF {isSurat ? 'Surat / Tanda Terima' : 'Tanda Terima Aduan'}
+                  </span>
                 </button>
               )}
 
@@ -993,10 +1355,16 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
         </div>
       </div>
 
+      {/* ================= POPUP INFORMASI KEPUTUSAN BERKAS (DISETUJUI / DIKEMBALIKAN / DITOLAK) ================= */}
+      <DecisionInfoPopupModal
+        data={decisionPopupData}
+        onClose={() => setDecisionPopupData(null)}
+      />
+
       {/* ================= LIGHTBOX FULL-SCREEN IMAGE ZOOM ================= */}
       {zoomedImage && (
         <div
-          className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-black/90 p-4 animate-fadeIn"
+          className="fixed inset-0 z-[80] flex flex-col items-center justify-center bg-black/90 p-4 animate-fadeIn"
           onClick={() => setZoomedImage(null)}
         >
           <div

@@ -1792,23 +1792,27 @@ export default function App() {
     ): Promise<void> => {
       const nowTime = getRealtimeDateTimeString();
       const currentPra = stateRef.current.praRegistrasiRecords || [];
+      const nextStatus =
+        action === 'SETUJUI'
+          ? 'DISETUJUI'
+          : action === 'TOLAK'
+          ? 'DITUTUP'
+          : 'PERLU_PERBAIKAN';
+      const nextApprovalStatus =
+        action === 'SETUJUI'
+          ? ('DISETUJUI' as const)
+          : action === 'TOLAK'
+          ? ('DITOLAK' as const)
+          : ('KEMBALIKAN_PERBAIKAN' as const);
+
+      let foundInPra = false;
       const updatedPra = currentPra.map((item) => {
         if (item.ticketCode === ticketCode) {
-          const nextStatus =
-            action === 'SETUJUI'
-              ? 'DISETUJUI'
-              : action === 'TOLAK'
-              ? 'DITUTUP'
-              : 'PERLU_PERBAIKAN';
+          foundInPra = true;
           return {
             ...item,
             status: nextStatus as any,
-            lurahApprovalStatus:
-              action === 'SETUJUI'
-                ? ('DISETUJUI' as const)
-                : action === 'TOLAK'
-                ? ('DITOLAK' as const)
-                : ('KEMBALIKAN_PERBAIKAN' as const),
+            lurahApprovalStatus: nextApprovalStatus,
             lurahNotes: lurahNote,
             lurahActionAt: nowTime,
             updatedAt: nowTime,
@@ -1817,9 +1821,50 @@ export default function App() {
         return item;
       });
 
+      const matchedRep = stateRef.current.reports.find((r) => r.ticketCode === ticketCode);
+      if (!foundInPra && matchedRep) {
+        updatedPra.unshift({
+          id: matchedRep.id,
+          ticketCode: matchedRep.ticketCode,
+          serviceId: matchedRep.serviceSubItemId || matchedRep.serviceCategoryId || 'sk-usaha',
+          serviceCode: matchedRep.documentCode || matchedRep.serviceSubItemId || 'PM-01',
+          serviceName:
+            matchedRep.serviceSubItemLabel ||
+            matchedRep.serviceCategoryTitle ||
+            matchedRep.title ||
+            'Surat Keterangan',
+          applicantNik: matchedRep.applicantNik || '7371110000000001',
+          applicantName: matchedRep.reporterName || 'Warga Panaikang',
+          applicantPhone: matchedRep.reporterPhone || '',
+          applicantRw: matchedRep.rw || 'RW 01',
+          applicantRt: matchedRep.rt || 'RT 01',
+          applicantAddress: matchedRep.locationName || 'Kelurahan Panaikang',
+          formData: matchedRep.specificFieldsData || {},
+          uploadedDocs: [],
+          status: nextStatus as any,
+          submittedAt: matchedRep.createdAt || nowTime,
+          updatedAt: nowTime,
+          assignedOfficerName:
+            matchedRep.verifiedBy || matchedRep.assignedTeam || 'Petugas Loket Pelayanan',
+          officerNotes: matchedRep.responseNote || '',
+          physicalDocsChecked: action === 'SETUJUI',
+          lurahApprovalStatus: nextApprovalStatus,
+          lurahNotes: lurahNote,
+          lurahActionAt: nowTime,
+          letterRegisterNumber: matchedRep.letterRegisterNumber,
+        });
+      }
+
       setPraRegistrasiList(updatedPra);
 
       // Also update matching CitizenReport
+      const actionPrefix =
+        action === 'SETUJUI'
+          ? '[BERKAS DISETUJUI]'
+          : action === 'KEMBALIKAN'
+          ? '[BERKAS DIKEMBALIKAN]'
+          : '[BERKAS DITOLAK]';
+
       const updatedReports = stateRef.current.reports.map((r) => {
         if (r.ticketCode === ticketCode) {
           return {
@@ -1830,7 +1875,7 @@ export default function App() {
                 : action === 'TOLAK'
                 ? ('Selesai' as const)
                 : ('Menunggu Verifikasi' as const),
-            responseNote: `[Keputusan Lurah]: ${lurahNote}`,
+            responseNote: `${actionPrefix}: ${lurahNote}`,
             updatedAt: nowTime,
           };
         }
