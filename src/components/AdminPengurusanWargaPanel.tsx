@@ -24,6 +24,7 @@ import {
   ChevronRight,
   ExternalLink,
   Download,
+  Eye,
 } from 'lucide-react';
 import {
   CitizenReport,
@@ -35,6 +36,8 @@ import {
   WhatsAppRecipient,
   AdminActionPermissions,
   AuthenticatedUserProfile,
+  PraRegistrasiRecord,
+  PengaduanOnlineRecord,
 } from '../types';
 import {
   OFFICIAL_13_WARGA_SERVICES,
@@ -52,9 +55,13 @@ import { buildOfficialKopSuratHtml } from '../utils/officialKopSurat';
 import { getRealtimeDateTimeString } from '../utils/realtimeDate';
 import { downloadOfficialLetterOrReceiptPdf } from '../utils/officialLetterPdfGenerator';
 import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
+import { SubmissionDetailModal } from './SubmissionDetailModal';
+import { resolveImageUrl } from '../utils/resolveImageUrl';
 
 interface AdminPengurusanWargaPanelProps {
   reports: CitizenReport[];
+  praRegistrasiList?: PraRegistrasiRecord[];
+  pengaduanList?: PengaduanOnlineRecord[];
   profile: KelurahanProfile;
   rwGroups: RwGroup[];
   whatsappRecipients: WhatsAppRecipient[];
@@ -96,6 +103,8 @@ export function isSuratAdministrasi(r: CitizenReport): boolean {
 
 export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps> = ({
   reports,
+  praRegistrasiList = [],
+  pengaduanList = [],
   profile,
   rwGroups,
   citizenUsers = [],
@@ -161,6 +170,13 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
 
   // Print preview modal
   const [printReport, setPrintReport] = useState<CitizenReport | null>(null);
+
+  // Detail modal (Lihat Detail Permohonan Surat & Pengaduan + Foto)
+  const [detailModalState, setDetailModalState] = useState<{
+    report?: CitizenReport | null;
+    praRecord?: PraRegistrasiRecord | null;
+    pengaduanRecord?: PengaduanOnlineRecord | null;
+  } | null>(null);
 
   const RW_OPTIONS =
     rwGroups && rwGroups.length > 0 ? rwGroups.map((g) => g.rwCode) : DEFAULT_RW_LIST;
@@ -1030,6 +1046,27 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
             const isWaiting = item.status === 'Menunggu Verifikasi';
             const isDone = item.status === 'Selesai';
             const hasLetterNumber = !!item.letterRegisterNumber;
+            const matchedPra = praRegistrasiList.find(
+              (p) => p.ticketCode === item.ticketCode || p.id === item.id
+            );
+            const matchedPgd = pengaduanList.find(
+              (p) => p.ticketCode === item.ticketCode || p.id === item.id
+            );
+
+            // Collect complaint photos attached by citizen
+            const complaintPhotos: string[] = [];
+            if (Array.isArray(matchedPgd?.proofPhotos)) {
+              for (const p of matchedPgd.proofPhotos) {
+                if (p && p.trim() && !complaintPhotos.includes(p.trim())) {
+                  complaintPhotos.push(p.trim());
+                }
+              }
+            }
+            if (item.imageUrl && item.imageUrl.trim() && !complaintPhotos.includes(item.imageUrl.trim())) {
+              complaintPhotos.push(item.imageUrl.trim());
+            }
+
+            const uploadedDocsCount = matchedPra?.uploadedDocs?.length || 0;
 
             return (
               <div
@@ -1059,9 +1096,36 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
                       <Clock className="w-3.5 h-3.5 text-slate-400" />
                       <span>{item.createdAt}</span>
                     </span>
+
+                    {!isSurat && complaintPhotos.length > 0 && (
+                      <span className="px-2 py-0.5 rounded-md bg-sky-50 text-[#0277BD] border border-sky-200 text-[10px] font-bold">
+                        📷 {complaintPhotos.length} Foto Lampiran
+                      </span>
+                    )}
+
+                    {isSurat && uploadedDocsCount > 0 && (
+                      <span className="px-2 py-0.5 rounded-md bg-sky-50 text-[#0D3868] border border-sky-200 text-[10px] font-bold">
+                        📎 {uploadedDocsCount} Berkas Persyaratan
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDetailModalState({
+                          report: item,
+                          praRecord: matchedPra || null,
+                          pengaduanRecord: matchedPgd || null,
+                        })
+                      }
+                      className="px-2.5 py-1 rounded-lg bg-[#0D3868] hover:bg-[#072647] text-white text-[11px] font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                    >
+                      <Eye className="w-3 h-3" />
+                      <span>Lihat Detail</span>
+                    </button>
+
                     <span
                       className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold ${
                         item.status === 'Selesai'
@@ -1079,7 +1143,7 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
                 {/* Main Content: Title, Citizen Info, Description, Notes */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
                   {/* Left 8 Cols: Detail & Catatan */}
-                  <div className="lg:col-span-8 space-y-2">
+                  <div className="lg:col-span-8 space-y-2.5">
                     <h3 className="text-base font-extrabold text-[#0D3868]">
                       {item.title}
                     </h3>
@@ -1087,6 +1151,55 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
                     <p className="text-xs text-slate-700 leading-relaxed bg-slate-50/80 p-3 rounded-xl border border-slate-200/70">
                       {item.description}
                     </p>
+
+                    {/* Pratinjau Foto Bukti Pengaduan jika ada */}
+                    {complaintPhotos.length > 0 && (
+                      <div className="pt-1">
+                        <div className="text-[11px] font-bold text-slate-600 mb-1.5 flex items-center gap-2">
+                          <span>📷 Foto yang Dilampirkan Saat Pengaduan ({complaintPhotos.length} Foto):</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDetailModalState({
+                                report: item,
+                                praRecord: matchedPra || null,
+                                pengaduanRecord: matchedPgd || null,
+                              })
+                            }
+                            className="text-[#0277BD] hover:underline font-extrabold cursor-pointer"
+                          >
+                            Klik untuk perbesar →
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          {complaintPhotos.map((photoUrl, pIdx) => (
+                            <button
+                              key={pIdx}
+                              type="button"
+                              onClick={() =>
+                                setDetailModalState({
+                                  report: item,
+                                  praRecord: matchedPra || null,
+                                  pengaduanRecord: matchedPgd || null,
+                                })
+                              }
+                              className="relative w-28 h-20 rounded-xl overflow-hidden border-2 border-slate-200 hover:border-[#0277BD] bg-slate-100 group cursor-pointer shadow-2xs"
+                              title="Klik untuk melihat detail pengaduan & memperbesar foto"
+                            >
+                              <img
+                                src={resolveImageUrl(photoUrl)}
+                                alt={`Foto Pengaduan ${pIdx + 1}`}
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              />
+                              <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-slate-900/75 text-white text-[9px] font-bold">
+                                Perbesar
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Official Letter Number pill if available */}
                     {hasLetterNumber && (
@@ -1187,11 +1300,30 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
                 <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100">
                   {/* Status Actions */}
                   <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDetailModalState({
+                          report: item,
+                          praRecord: matchedPra || null,
+                          pengaduanRecord: matchedPgd || null,
+                        })
+                      }
+                      className="px-3 py-1.5 rounded-lg bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-amber-300" />
+                      <span>
+                        {isSurat
+                          ? 'Lihat Detail Pengurusan Surat'
+                          : 'Lihat Detail Aduan & Foto'}
+                      </span>
+                    </button>
+
                     {isWaiting && (
                       <button
                         type="button"
                         onClick={() => handleQuickVerify(item)}
-                        className="px-3 py-1.5 rounded-lg bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                        className="px-3 py-1.5 rounded-lg bg-[#0277BD] hover:bg-[#01579B] text-white text-xs font-bold transition flex items-center gap-1 cursor-pointer"
                       >
                         <Check className="w-3.5 h-3.5" />
                         <span>Verifikasi Berkas</span>
@@ -1785,6 +1917,22 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
           </div>
         </div>
       )}
+
+      {/* MODAL: LIHAT DETAIL PERMOHONAN SURAT / PENGADUAN WARGA & FOTO LAMPIRAN */}
+      <SubmissionDetailModal
+        isOpen={Boolean(detailModalState)}
+        onClose={() => setDetailModalState(null)}
+        report={detailModalState?.report}
+        praRecord={detailModalState?.praRecord}
+        pengaduanRecord={detailModalState?.pengaduanRecord}
+        profile={profile}
+        citizenUsers={citizenUsers}
+        onQuickVerify={handleQuickVerify}
+        onQuickIssueLetter={handleQuickIssueLetter}
+        onQuickComplete={handleQuickComplete}
+        onOpenEdit={handleOpenEdit}
+        onOpenPrint={(rep) => setPrintReport(rep)}
+      />
     </div>
   );
 };

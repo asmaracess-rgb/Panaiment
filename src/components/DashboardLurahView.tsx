@@ -70,6 +70,8 @@ import {
 } from '../data/initialData';
 import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
 import { MonthlyArchivePdfPanel } from './MonthlyArchivePdfPanel';
+import { SubmissionDetailModal } from './SubmissionDetailModal';
+import { resolveImageUrl } from '../utils/resolveImageUrl';
 
 const RW_LIST = ['RW 01', 'RW 02', 'RW 03', 'RW 04', 'RW 05', 'RW 06', 'RW 07'];
 import { GeneratedPdfResult } from '../utils/monthlyReportPdfGenerator';
@@ -493,6 +495,11 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
   const [lurahNoteInput, setLurahNoteInput] = useState<string>('');
   const [isProcessingApproval, setIsProcessingApproval] = useState<boolean>(false);
   const [approvalFeedback, setApprovalFeedback] = useState<string>('');
+  const [detailModalState, setDetailModalState] = useState<{
+    report?: CitizenReport | null;
+    praRecord?: PraRegistrasiRecord | null;
+    pengaduanRecord?: PengaduanOnlineRecord | null;
+  } | null>(null);
 
   // Recharts Interactive Controls
   const [chartType, setChartType] = useState<'tren' | 'kategori'>('tren');
@@ -1225,13 +1232,20 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
                               <button
                                 type="button"
                                 onClick={() => {
+                                  const matchedRep = reports.find(
+                                    (r) => r.ticketCode === pra.ticketCode || r.id === pra.id
+                                  );
                                   setSelectedPraRecord(pra);
                                   setLurahNoteInput(pra.lurahNotes || '');
+                                  setDetailModalState({
+                                    praRecord: pra,
+                                    report: matchedRep || null,
+                                  });
                                 }}
-                                className="px-3 py-1.5 rounded-lg bg-[#0D3868] text-white text-xs font-bold hover:bg-[#072647] transition flex items-center gap-1 cursor-pointer"
+                                className="px-3 py-1.5 rounded-lg bg-[#0D3868] text-white text-xs font-bold hover:bg-[#072647] transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
                               >
                                 <Eye className="w-3.5 h-3.5" />
-                                <span>Periksa Dossier & Persetujuan</span>
+                                <span>Lihat Detail Permohonan & Berkas</span>
                               </button>
                               <button
                                 type="button"
@@ -1642,7 +1656,65 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
                             </div>
                           )}
 
-                          <div className="pt-2 border-t border-slate-100 flex justify-end">
+                          {/* Thumbnail Foto Lampiran Pengaduan jika tersedia */}
+                          {pgd.proofPhotos && pgd.proofPhotos.length > 0 && (
+                            <div className="pt-1">
+                              <div className="text-[11px] font-bold text-slate-600 mb-1.5 flex items-center gap-1.5">
+                                <span>📷 Lampiran Foto Pengaduan ({pgd.proofPhotos.length} Foto):</span>
+                                <span className="text-[10px] font-normal text-slate-400">(Klik untuk lihat ukuran penuh)</span>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                {pgd.proofPhotos.map((photoUrl, pIdx) => (
+                                  <button
+                                    key={pIdx}
+                                    type="button"
+                                    onClick={() => {
+                                      const matchedRep = reports.find(
+                                        (r) => r.ticketCode === pgd.ticketCode || r.id === pgd.id
+                                      );
+                                      setDetailModalState({
+                                        pengaduanRecord: pgd,
+                                        report: matchedRep || null,
+                                      });
+                                    }}
+                                    className="relative w-24 h-16 rounded-xl overflow-hidden border-2 border-slate-200 hover:border-[#0D3868] group cursor-pointer shadow-2xs"
+                                    title="Klik untuk melihat detail pengaduan & memperbesar foto"
+                                  >
+                                    <img
+                                      src={resolveImageUrl(photoUrl)}
+                                      alt={`Bukti Aduan ${pIdx + 1}`}
+                                      referrerPolicy="no-referrer"
+                                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                    />
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const matchedRep = reports.find(
+                                  (r) => r.ticketCode === pgd.ticketCode || r.id === pgd.id
+                                );
+                                setDetailModalState({
+                                  pengaduanRecord: pgd,
+                                  report: matchedRep || null,
+                                });
+                              }}
+                              className="px-3.5 py-1.5 rounded-lg bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>
+                                Lihat Detail & Foto Aduan
+                                {pgd.proofPhotos && pgd.proofPhotos.length > 0
+                                  ? ` (${pgd.proofPhotos.length} Foto)`
+                                  : ''}
+                              </span>
+                            </button>
+
                             <button
                               type="button"
                               onClick={() =>
@@ -1806,12 +1878,13 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
                       <th className="py-3 px-4">Permasalahan & Lokasi</th>
                       <th className="py-3 px-4">Wilayah</th>
                       <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4 text-right">Detail</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 text-xs">
                     {filteredReports.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="py-10 text-center text-slate-400 bg-slate-50/40">
+                        <td colSpan={5} className="py-10 text-center text-slate-400 bg-slate-50/40">
                           <AlertCircle className="w-6 h-6 mx-auto mb-1 text-slate-300" />
                           <p className="font-semibold text-slate-600">Belum ada laporan pengaduan warga</p>
                           <p className="text-[11px] text-slate-400 mt-0.5">Laporan dari warga atau input admin akan tampil di sini</p>
@@ -1820,6 +1893,11 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
                     ) : (
                       filteredReports.map((rep) => {
                         const isSelected = selectedReport?.id === rep.id;
+                        const matchedPra = mergedPraList.find((p) => p.ticketCode === rep.ticketCode);
+                        const matchedPgd = mergedPengaduanList.find((p) => p.ticketCode === rep.ticketCode);
+                        const hasPhoto = Boolean(
+                          rep.imageUrl || (matchedPgd?.proofPhotos && matchedPgd.proofPhotos.length > 0)
+                        );
                         return (
                           <tr
                             key={rep.id}
@@ -1843,6 +1921,11 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
                               <div className="text-slate-500 mt-0.5 line-clamp-1">
                                 {rep.locationName}
                               </div>
+                              {hasPhoto && (
+                                <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded bg-sky-50 text-[#0277BD] border border-sky-200 text-[10px] font-bold">
+                                  📷 Ada Foto Lampiran
+                                </span>
+                              )}
                             </td>
                             <td className="py-3.5 px-4 align-top whitespace-nowrap font-semibold text-slate-700">
                               {rep.rw} · {rep.rt}
@@ -1867,6 +1950,27 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
                                 </span>
                               )}
                             </td>
+                            <td
+                              className="py-3.5 px-4 align-top text-right whitespace-nowrap"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleSelectRow(rep);
+                                  setDetailModalState({
+                                    report: rep,
+                                    praRecord: matchedPra || null,
+                                    pengaduanRecord: matchedPgd || null,
+                                  });
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#0D3868] hover:bg-[#072647] text-white text-[11px] font-bold transition cursor-pointer shadow-2xs"
+                                title="Lihat detail lengkap & foto lampiran"
+                              >
+                                <Eye className="w-3 h-3" />
+                                <span>Lihat Detail</span>
+                              </button>
+                            </td>
                           </tr>
                         );
                       })
@@ -1881,7 +1985,7 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
               {selectedReport ? (
                 <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 h-full flex flex-col justify-between">
                   <div>
-                    <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+                    <div className="flex items-center justify-between gap-2 pb-4 border-b border-slate-200">
                       <div>
                         <div className="text-xs text-slate-500 font-mono-num">
                           {selectedReport.ticketCode} · {selectedReport.rw} / {selectedReport.rt}
@@ -1890,24 +1994,102 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
                           Panel Disposisi & Tindak Lanjut Lurah
                         </h3>
                       </div>
-                      <SlidersHorizontal className="w-4 h-4 text-slate-400" />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const matchedPra = mergedPraList.find(
+                            (p) => p.ticketCode === selectedReport.ticketCode
+                          );
+                          const matchedPgd = mergedPengaduanList.find(
+                            (p) => p.ticketCode === selectedReport.ticketCode
+                          );
+                          setDetailModalState({
+                            report: selectedReport,
+                            praRecord: matchedPra || null,
+                            pengaduanRecord: matchedPgd || null,
+                          });
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition cursor-pointer shrink-0 shadow-2xs"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Lihat Detail & Foto</span>
+                      </button>
                     </div>
 
-                    <div className="mt-4 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-                      <div className="text-sm font-bold text-slate-900">{selectedReport.title}</div>
-                      <p className="mt-1 text-xs text-slate-600 leading-relaxed">
-                        {selectedReport.description}
-                      </p>
-                      <div className="mt-2.5 text-xs text-slate-500">
-                        Lokasi:{' '}
-                        <span className="font-medium text-slate-800">
-                          {selectedReport.locationName}
-                        </span>{' '}
-                        · Pelapor:{' '}
-                        <span className="font-medium text-slate-800">
-                          {selectedReport.reporterName}
-                        </span>
+                    <div className="mt-4 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2.5">
+                      <div>
+                        <div className="text-sm font-bold text-slate-900">{selectedReport.title}</div>
+                        <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+                          {selectedReport.description}
+                        </p>
+                        <div className="mt-2 text-xs text-slate-500">
+                          Lokasi:{' '}
+                          <span className="font-medium text-slate-800">
+                            {selectedReport.locationName}
+                          </span>{' '}
+                          · Pelapor:{' '}
+                          <span className="font-medium text-slate-800">
+                            {selectedReport.reporterName}
+                          </span>
+                        </div>
                       </div>
+
+                      {/* Pratinjau Foto Lampiran Pengaduan di Panel Disposisi */}
+                      {(() => {
+                        const matchedPgd = mergedPengaduanList.find(
+                          (p) => p.ticketCode === selectedReport.ticketCode
+                        );
+                        const photos: string[] = [];
+                        if (matchedPgd?.proofPhotos) {
+                          for (const p of matchedPgd.proofPhotos) {
+                            if (p && !photos.includes(p)) photos.push(p);
+                          }
+                        }
+                        if (selectedReport.imageUrl && !photos.includes(selectedReport.imageUrl)) {
+                          photos.push(selectedReport.imageUrl);
+                        }
+                        if (photos.length === 0) return null;
+                        return (
+                          <div className="pt-2 border-t border-slate-200">
+                            <div className="text-[11px] font-bold text-[#0D3868] mb-1.5 flex items-center justify-between">
+                              <span>📷 Foto Lampiran Aduan ({photos.length} Foto):</span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setDetailModalState({
+                                    report: selectedReport,
+                                    pengaduanRecord: matchedPgd || null,
+                                  })
+                                }
+                                className="text-[#0277BD] hover:underline font-bold cursor-pointer"
+                              >
+                                Perbesar Foto →
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              {photos.slice(0, 2).map((pUrl, idx) => (
+                                <div
+                                  key={idx}
+                                  onClick={() =>
+                                    setDetailModalState({
+                                      report: selectedReport,
+                                      pengaduanRecord: matchedPgd || null,
+                                    })
+                                  }
+                                  className="relative h-28 rounded-xl overflow-hidden border border-slate-300 bg-white cursor-pointer group"
+                                >
+                                  <img
+                                    src={resolveImageUrl(pUrl)}
+                                    alt={`Foto Aduan ${idx + 1}`}
+                                    referrerPolicy="no-referrer"
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {savedBanner && (
@@ -2502,6 +2684,18 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
           </div>
         )}
       </div>
+
+      {/* MODAL DETAIL PERMOHONAN SURAT / PENGADUAN WARGA */}
+      <SubmissionDetailModal
+        isOpen={Boolean(detailModalState)}
+        onClose={() => setDetailModalState(null)}
+        report={detailModalState?.report}
+        praRecord={detailModalState?.praRecord}
+        pengaduanRecord={detailModalState?.pengaduanRecord}
+        profile={profile}
+        isLurahMode={true}
+        onLurahApproveService={onLurahApproveService}
+      />
     </div>
   );
 };

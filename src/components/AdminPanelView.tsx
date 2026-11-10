@@ -150,6 +150,7 @@ import { EmblemKotaMakassar, EmblemKelurahanPanaikang, Instagram } from './Emble
 import { DashboardLurahView } from './DashboardLurahView';
 import { MonthlyArchivePdfPanel } from './MonthlyArchivePdfPanel';
 import { AdminPengurusanWargaPanel } from './AdminPengurusanWargaPanel';
+import { SubmissionDetailModal } from './SubmissionDetailModal';
 import { AdminDaftarWargaPanel } from './AdminDaftarWargaPanel';
 import { AdminParameterUserPanel } from './AdminParameterUserPanel';
 import { AdminOtoritasMasterPanel } from './AdminOtoritasMasterPanel';
@@ -2015,6 +2016,11 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   }, [whatsappRecipients, waRecipientRwFilter, waRecipientStatusFilter, waRecipientSearch]);
 
   // ================= 1B. DATA RT & RW CRUD STATE =================
+  const [adminReportDetailModal, setAdminReportDetailModal] = useState<{
+    report?: CitizenReport | null;
+    praRecord?: PraRegistrasiRecord | null;
+    pengaduanRecord?: PengaduanOnlineRecord | null;
+  } | null>(null);
   const [editingRwId, setEditingRwId] = useState<string | null>(null);
   const [showRwForm, setShowRwForm] = useState(false);
   const [confirmDeleteRwId, setConfirmDeleteRwId] = useState<string | null>(null);
@@ -5572,6 +5578,8 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               <div className="p-4 sm:p-5">
                 <AdminPengurusanWargaPanel
                   reports={reports}
+                  praRegistrasiList={praRegistrasiList}
+                  pengaduanList={pengaduanList}
                   profile={profile}
                   rwGroups={rwGroups}
                   whatsappRecipients={whatsappRecipients}
@@ -8605,168 +8613,230 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 text-xs">
-                  {filteredReports.map((rep) => (
-                    <tr key={rep.id} className="hover:bg-slate-50/80">
-                      <td className="py-3.5 px-4 font-mono-num font-bold text-[#0D3868] whitespace-nowrap">
-                        {rep.ticketCode}
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <div className="font-bold text-slate-900">{rep.title}</div>
-                        <div className="text-slate-500 mt-0.5">
-                          {rep.category} · {rep.citizenAddress || rep.locationName}
-                        </div>
-                        {rep.applicantNik && (
-                          <div className="text-[11px] font-mono-num text-slate-600 mt-0.5">
-                            NIK: {rep.applicantNik}
+                  {filteredReports.map((rep) => {
+                    const matchedPra = praRegistrasiList.find(
+                      (p) => p.ticketCode === rep.ticketCode || p.id === rep.id
+                    );
+                    const matchedPgd = pengaduanList.find(
+                      (p) => p.ticketCode === rep.ticketCode || p.id === rep.id
+                    );
+                    const citizenPhotoUrl =
+                      (matchedPgd?.proofPhotos && matchedPgd.proofPhotos[0]) || rep.imageUrl || '';
+
+                    return (
+                      <tr key={rep.id} className="hover:bg-slate-50/80">
+                        <td className="py-3.5 px-4 font-mono-num font-bold text-[#0D3868] whitespace-nowrap">
+                          {rep.ticketCode}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="font-bold text-slate-900">{rep.title}</div>
+                          <div className="text-slate-500 mt-0.5">
+                            {rep.category} · {rep.citizenAddress || rep.locationName}
                           </div>
-                        )}
-                        {/* Distribusi & Koordinasi WA Langsung Antar Semua Nomor Penerima Terdaftar */}
-                        {whatsappRecipients.filter((r) => r.isActive).length > 0 && (
-                          <div className="mt-2 pt-2 border-t border-slate-100 space-y-1.5">
-                            <div className="text-[11px] font-bold text-[#075E54] flex items-center gap-1">
-                              <MessageCircle className="w-3 h-3" />
-                              <span>
-                                Diterima & Koordinasi WA Tim Penerima Terdaftar (
-                                {whatsappRecipients.filter((r) => r.isActive).length} Nomor):
+                          {rep.applicantNik && (
+                            <div className="text-[11px] font-mono-num text-slate-600 mt-0.5">
+                              NIK: {rep.applicantNik}
+                            </div>
+                          )}
+                          {citizenPhotoUrl && (
+                            <div className="mt-2 flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setAdminReportDetailModal({
+                                    report: rep,
+                                    praRecord: matchedPra || null,
+                                    pengaduanRecord: matchedPgd || null,
+                                  })
+                                }
+                                className="relative w-16 h-11 rounded-lg overflow-hidden border border-sky-300 group cursor-pointer shrink-0"
+                                title="Klik untuk melihat foto lampiran pengaduan"
+                              >
+                                <img
+                                  src={resolveImageUrl(citizenPhotoUrl)}
+                                  alt="Foto Lampiran Warga"
+                                  referrerPolicy="no-referrer"
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setAdminReportDetailModal({
+                                    report: rep,
+                                    praRecord: matchedPra || null,
+                                    pengaduanRecord: matchedPgd || null,
+                                  })
+                                }
+                                className="text-[11px] font-bold text-[#0277BD] hover:underline cursor-pointer"
+                              >
+                                📷 Lihat Foto Lampiran Pengaduan →
+                              </button>
+                            </div>
+                          )}
+                          {/* Distribusi & Koordinasi WA Langsung Antar Semua Nomor Penerima Terdaftar */}
+                          {whatsappRecipients.filter((r) => r.isActive).length > 0 && (
+                            <div className="mt-2 pt-2 border-t border-slate-100 space-y-1.5">
+                              <div className="text-[11px] font-bold text-[#075E54] flex items-center gap-1">
+                                <MessageCircle className="w-3 h-3" />
+                                <span>
+                                  Diterima & Koordinasi WA Tim Penerima Terdaftar (
+                                  {whatsappRecipients.filter((r) => r.isActive).length} Nomor):
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {whatsappRecipients
+                                  .filter((r) => r.isActive)
+                                  .map((rec) => {
+                                    const coordHref = buildWhatsAppUrl(
+                                      rec.phoneNumber,
+                                      buildInterRecipientCoordinationMessage(
+                                        rec,
+                                        whatsappRecipients,
+                                        reports,
+                                        rep
+                                      )
+                                    );
+                                    return (
+                                      <a
+                                        key={`${rep.id}-wa-${rec.id}`}
+                                        href={coordHref}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 hover:bg-[#128C7E] text-[#075E54] hover:text-white border border-emerald-200 text-[10px] font-bold transition-colors"
+                                        title={`Koordinasi laporan ${rep.ticketCode} ke ${rec.name} (${rec.role}) - ${formatDisplayPhone(rec.phoneNumber)}`}
+                                      >
+                                        <Phone className="w-2.5 h-2.5" />
+                                        <span>
+                                          {rec.name} ({formatDisplayPhone(rec.phoneNumber)})
+                                        </span>
+                                      </a>
+                                    );
+                                  })}
+                              </div>
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <div className="font-semibold text-slate-800">{rep.reporterName}</div>
+                          <div className="text-slate-500">
+                            {rep.rw} / {rep.rt}
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span
+                            className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                              rep.status === 'Selesai'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : rep.status === 'Sedang Ditangani'
+                                ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                                : 'bg-amber-50 text-amber-700 border border-amber-200'
+                            }`}
+                          >
+                            {rep.status}
+                          </span>
+                          {rep.verifiedBy && (
+                            <div className="text-[11px] text-slate-500 mt-1">
+                              Petugas: <span className="font-semibold text-slate-700">{rep.verifiedBy}</span>
+                            </div>
+                          )}
+                          {(rep.completionPhotoUrl ||
+                            (Array.isArray(rep.followUpPhotos) &&
+                              rep.followUpPhotos.length > 0)) && (
+                            <div className="mt-1.5 flex items-center gap-1.5">
+                              <img
+                                src={resolveImageUrl(
+                                  rep.completionPhotoUrl || rep.followUpPhotos?.[0]
+                                )}
+                                alt="Bukti Pengerjaan"
+                                referrerPolicy="no-referrer"
+                                className="w-10 h-7 rounded object-cover border border-emerald-300"
+                              />
+                              <span className="text-[10px] font-bold text-[#1C8237]">
+                                Foto Pengerjaan Terlampir
                               </span>
                             </div>
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              {whatsappRecipients
-                                .filter((r) => r.isActive)
-                                .map((rec) => {
-                                  const coordHref = buildWhatsAppUrl(
-                                    rec.phoneNumber,
-                                    buildInterRecipientCoordinationMessage(
-                                      rec,
-                                      whatsappRecipients,
-                                      reports,
-                                      rep
-                                    )
-                                  );
-                                  return (
-                                    <a
-                                      key={`${rep.id}-wa-${rec.id}`}
-                                      href={coordHref}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 hover:bg-[#128C7E] text-[#075E54] hover:text-white border border-emerald-200 text-[10px] font-bold transition-colors"
-                                      title={`Koordinasi laporan ${rep.ticketCode} ke ${rec.name} (${rec.role}) - ${formatDisplayPhone(rec.phoneNumber)}`}
-                                    >
-                                      <Phone className="w-2.5 h-2.5" />
-                                      <span>
-                                        {rec.name} ({formatDisplayPhone(rec.phoneNumber)})
-                                      </span>
-                                    </a>
-                                  );
-                                })}
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                          {confirmDeleteReportId === rep.id ? (
+                            <div className="inline-flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleExecuteDeleteReport(rep.id)}
+                                className="px-2.5 py-1 rounded-lg bg-red-600 text-white font-bold cursor-pointer"
+                              >
+                                Ya, Hapus
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteReportId(null)}
+                                className="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-700 font-semibold cursor-pointer"
+                              >
+                                Batal
+                              </button>
                             </div>
-                          </div>
-                        )}
-                      </td>
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <div className="font-semibold text-slate-800">{rep.reporterName}</div>
-                        <div className="text-slate-500">
-                          {rep.rw} / {rep.rt}
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <span
-                          className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                            rep.status === 'Selesai'
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : rep.status === 'Sedang Ditangani'
-                              ? 'bg-sky-50 text-sky-700 border border-sky-200'
-                              : 'bg-amber-50 text-amber-700 border border-amber-200'
-                          }`}
-                        >
-                          {rep.status}
-                        </span>
-                        {rep.verifiedBy && (
-                          <div className="text-[11px] text-slate-500 mt-1">
-                            Petugas: <span className="font-semibold text-slate-700">{rep.verifiedBy}</span>
-                          </div>
-                        )}
-                        {(rep.completionPhotoUrl ||
-                          (Array.isArray(rep.followUpPhotos) &&
-                            rep.followUpPhotos.length > 0)) && (
-                          <div className="mt-1.5 flex items-center gap-1.5">
-                            <img
-                              src={resolveImageUrl(
-                                rep.completionPhotoUrl || rep.followUpPhotos?.[0]
+                          ) : (
+                            <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setAdminReportDetailModal({
+                                    report: rep,
+                                    praRecord: matchedPra || null,
+                                    pengaduanRecord: matchedPgd || null,
+                                  })
+                                }
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#0D3868] hover:bg-[#072647] text-white font-bold cursor-pointer shadow-2xs"
+                                title="Lihat Detail Permohonan / Pengaduan & Foto Lampiran"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-amber-300" />
+                                <span>Lihat Detail</span>
+                              </button>
+                              {rep.status === 'Menunggu Verifikasi' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickReportAction(rep, 'verifikasi')}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 border border-sky-200 text-[#0277BD] font-bold cursor-pointer"
+                                  title="Verifikasi & Teruskan ke Petugas Lapangan"
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>Verifikasi</span>
+                                </button>
                               )}
-                              alt="Bukti Pengerjaan"
-                              referrerPolicy="no-referrer"
-                              className="w-10 h-7 rounded object-cover border border-emerald-300"
-                            />
-                            <span className="text-[10px] font-bold text-[#1C8237]">
-                              Foto Pengerjaan Terlampir
-                            </span>
-                          </div>
-                        )}
-                      </td>
-                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                        {confirmDeleteReportId === rep.id ? (
-                          <div className="inline-flex items-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => handleExecuteDeleteReport(rep.id)}
-                              className="px-2.5 py-1 rounded-lg bg-red-600 text-white font-bold cursor-pointer"
-                            >
-                              Ya, Hapus
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setConfirmDeleteReportId(null)}
-                              className="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-700 font-semibold cursor-pointer"
-                            >
-                              Batal
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
-                            {rep.status === 'Menunggu Verifikasi' && (
+                              {rep.status !== 'Selesai' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickReportAction(rep, 'selesai')}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-[#1C8237] font-bold cursor-pointer"
+                                  title="Selesaikan Laporan & Lampirkan Foto Pengerjaan"
+                                >
+                                  <Camera className="w-3.5 h-3.5" />
+                                  <span>Selesaikan + Foto</span>
+                                </button>
+                              )}
                               <button
                                 type="button"
-                                onClick={() => handleQuickReportAction(rep, 'verifikasi')}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 border border-sky-200 text-[#0277BD] font-bold cursor-pointer"
-                                title="Verifikasi & Teruskan ke Petugas Lapangan"
+                                onClick={() => openEditReportForm(rep)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-semibold cursor-pointer"
                               >
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>Verifikasi</span>
+                                <Edit3 className="w-3.5 h-3.5 text-[#0277BD]" />
+                                <span>Tindak Lanjut</span>
                               </button>
-                            )}
-                            {rep.status !== 'Selesai' && (
                               <button
                                 type="button"
-                                onClick={() => handleQuickReportAction(rep, 'selesai')}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-[#1C8237] font-bold cursor-pointer"
-                                title="Selesaikan Laporan & Lampirkan Foto Pengerjaan"
+                                onClick={() => setConfirmDeleteReportId(rep.id)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 bg-red-50/60 hover:bg-red-100 text-red-700 font-semibold cursor-pointer"
                               >
-                                <Camera className="w-3.5 h-3.5" />
-                                <span>Selesaikan + Foto</span>
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Hapus</span>
                               </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => openEditReportForm(rep)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-semibold cursor-pointer"
-                            >
-                              <Edit3 className="w-3.5 h-3.5 text-[#0277BD]" />
-                              <span>Tindak Lanjut</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setConfirmDeleteReportId(rep.id)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 bg-red-50/60 hover:bg-red-100 text-red-700 font-semibold cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span>Hapus</span>
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -11904,6 +11974,23 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         onClose={() => setShowAdminBaganRtRw(false)}
         rwGroups={rwGroups}
         profile={profileDraft}
+      />
+
+      {/* MODAL: LIHAT DETAIL PERMOHONAN SURAT / PENGADUAN WARGA & FOTO LAMPIRAN */}
+      <SubmissionDetailModal
+        isOpen={Boolean(adminReportDetailModal)}
+        onClose={() => setAdminReportDetailModal(null)}
+        report={adminReportDetailModal?.report}
+        praRecord={adminReportDetailModal?.praRecord}
+        pengaduanRecord={adminReportDetailModal?.pengaduanRecord}
+        profile={profileDraft}
+        citizenUsers={citizenUsers}
+        isLurahMode={isLurahSession}
+        onLurahApproveService={onLurahApproveService}
+        onOpenEdit={(rep) => {
+          setAdminReportDetailModal(null);
+          openEditReportForm(rep);
+        }}
       />
     </div>
   );
