@@ -726,3 +726,34 @@ export async function fetchWaDispatchLogsFromCloud(): Promise<any[]> {
   }
 }
 
+/**
+ * Immediately persists adminUsers (including Google Whitelist accounts) and
+ * googleAdminVerificationRequests to Firestore (`panaikang_app_data/full_snapshot`)
+ * without debounce delay so changes are never lost on fast reload or tab switch.
+ */
+export async function pushAdminUsersAndRequestsToFirestore(
+  adminUsers: any[],
+  googleAdminVerificationRequests?: any[]
+): Promise<boolean> {
+  if (isQuotaPaused()) return false;
+  try {
+    const fullRef = doc(db, APP_STORE_COLLECTION, FULL_DB_DOC_ID);
+    const payload: Record<string, any> = {
+      adminUsers,
+      updatedAt: Date.now(),
+      syncedAt: new Date().toISOString(),
+    };
+    if (Array.isArray(googleAdminVerificationRequests)) {
+      payload.googleAdminVerificationRequests = googleAdminVerificationRequests.slice(0, 100);
+    }
+    await setDoc(fullRef, payload, { merge: true });
+    return true;
+  } catch (err) {
+    if (isQuotaError(err)) {
+      tripQuotaCircuitBreaker();
+    }
+    return false;
+  }
+}
+
+

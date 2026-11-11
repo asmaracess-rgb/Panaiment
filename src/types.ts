@@ -901,9 +901,14 @@ export interface GoogleAdminVerificationRequest {
   photoUrl?: string;
   requestedAt: string;
   requestedAtMs: number;
+  updatedAtMs?: number;
   status: 'Menunggu Persetujuan' | 'Disetujui' | 'Ditolak';
   reviewedBy?: string;
   reviewedAt?: string;
+  processedAt?: string;
+  processedBy?: string;
+  linkedAdminId?: string;
+  linkedAdminName?: string;
   assignedRoleLevel?: AdminRoleLevel;
   assignedJabatan?: string;
   notes?: string;
@@ -926,9 +931,11 @@ export interface AdminUserAccount {
   actionPermissions: AdminActionPermissions;
   createdAt: string;
   updatedAt: string;
+  updatedAtMs?: number;
   lastLoginAt?: string;
   notes?: string;
   googleEmail?: string;
+  additionalGoogleEmails?: string[];
   isGoogleVerified?: boolean;
   googleVerifiedAt?: string;
   googleVerifiedBy?: string;

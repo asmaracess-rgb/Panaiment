@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ShieldCheck,
   UserPlus,
@@ -46,6 +46,7 @@ import {
 import {
   loadGoogleAdminVerificationRequests,
   saveGoogleAdminVerificationRequests,
+  fetchGoogleAdminVerificationRequestsFromCloud,
 } from '../firebase/authService';
 import {
   ServiceCategoryGroup,
@@ -584,7 +585,24 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
     loadGoogleAdminVerificationRequests()
   );
   const [newGoogleEmail, setNewGoogleEmail] = useState('');
-  const [selectedAdminIdForGoogle, setSelectedAdminIdForGoogle] = useState('');
+  const [selectedAdminIdForGoogle, setSelectedAdminIdForGoogle] = useState('__NEW_OPERATOR__');
+
+  useEffect(() => {
+    let active = true;
+    fetchGoogleAdminVerificationRequestsFromCloud().then((cloudReqs) => {
+      if (active && Array.isArray(cloudReqs)) {
+        setGoogleRequests(cloudReqs);
+      }
+    });
+    const handleSync = () => setGoogleRequests(loadGoogleAdminVerificationRequests());
+    window.addEventListener('pnk_google_requests_updated', handleSync);
+    window.addEventListener('pnk_db_updated', handleSync);
+    return () => {
+      active = false;
+      window.removeEventListener('pnk_google_requests_updated', handleSync);
+      window.removeEventListener('pnk_db_updated', handleSync);
+    };
+  }, []);
 
   const [userForm, setUserForm] = useState<{
     username: string;
@@ -1226,49 +1244,190 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
     }));
   };
 
+  const buildWhitelistedUsersList = (
+    emailsToRegister: { email: string; displayName?: string }[],
+    targetSelectionId: string
+  ): { nextUsers: AdminUserAccount[]; linkedSummary: string[] } => {
+    const now = new Date();
+    const nowStr = getRealtimeDateString(now);
+    const nowMs = now.getTime();
+    const nextUsers = [...adminUsers];
+    const linkedSummary: string[] = [];
+
+    const templateOfficial =
+      nextUsers.find((u) => u.id === targetSelectionId) ||
+      nextUsers.find((u) => u.id === 'usr-operator-pelayanan') ||
+      nextUsers.find((u) => !u.isMasterLurah);
+
+    emailsToRegister.forEach((entry, idx) => {
+      const cleanEmail = entry.email.trim().toLowerCase();
+      if (!cleanEmail || !cleanEmail.includes('@')) return;
+
+      const existingIdx = nextUsers.findIndex(
+        (u) => u.googleEmail && u.googleEmail.trim().toLowerCase() === cleanEmail
+      );
+      if (existingIdx >= 0) {
+        nextUsers[existingIdx] = {
+          ...nextUsers[existingIdx],
+          googleEmail: cleanEmail,
+          isGoogleVerified: true,
+          isActive: true,
+          googleVerifiedAt: nowStr,
+          googleVerifiedBy: 'Master Admin (Lurah Panaikang)',
+          updatedAt: `${nowStr} · Whitelist Google Diperbarui`,
+          updatedAtMs: nowMs + idx,
+        };
+        linkedSummary.push(`${cleanEmail} (${nextUsers[existingIdx].fullName})`);
+        return;
+      }
+
+      const directTargetIdx =
+        targetSelectionId && targetSelectionId !== '__NEW_OPERATOR__'
+          ? nextUsers.findIndex((u) => u.id === targetSelectionId)
+          : -1;
+
+      if (directTargetIdx >= 0) {
+        const target = nextUsers[directTargetIdx];
+        const targetHasActiveEmail =
+          Boolean(target.isMasterLurah) ||
+          Boolean(
+            target.googleEmail &&
+              target.googleEmail.trim().length > 0 &&
+              target.isGoogleVerified !== false &&
+              target.googleEmail.trim().toLowerCase() !== cleanEmail
+          );
+
+        if (!targetHasActiveEmail) {
+          nextUsers[directTargetIdx] = {
+            ...target,
+            googleEmail: cleanEmail,
+            isGoogleVerified: true,
+            isActive: true,
+            googleVerifiedAt: nowStr,
+            googleVerifiedBy: 'Master Admin (Lurah Panaikang)',
+            updatedAt: `${nowStr} · Verifikasi Google Master Admin`,
+            updatedAtMs: nowMs + idx,
+          };
+          linkedSummary.push(`${cleanEmail} → ${target.fullName}`);
+          return;
+        }
+      }
+
+      const emailPrefix = cleanEmail.split('@')[0].replace(/[^a-z0-9._-]/gi, '').toLowerCase() || 'staf';
+      let uniqueUsername = emailPrefix;
+      let suffix = 1;
+      while (nextUsers.some((u) => u.username.toLowerCase() === uniqueUsername)) {
+        suffix++;
+        uniqueUsername = `${emailPrefix}${suffix}`;
+      }
+
+      const resolvedFullName =
+        entry.displayName?.trim() ||
+        (directTargetIdx >= 0
+          ? `${nextUsers[directTargetIdx].jabatan} (${cleanEmail.split('@')[0]})`
+          : `Staf Admin (${cleanEmail.split('@')[0]})`);
+
+      const newAccount: AdminUserAccount = {
+        id: `usr-wl-${nowMs}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+        username: uniqueUsername,
+        password: templateOfficial?.password || 'Panaikang2026!',
+        fullName: resolvedFullName,
+        nip: '-',
+        jabatan:
+          directTargetIdx >= 0 && templateOfficial
+            ? templateOfficial.jabatan
+            : 'Staf / Operator Pelayanan Kelurahan',
+        unitBidang:
+          directTargetIdx >= 0 && templateOfficial
+            ? templateOfficial.unitBidang
+            : 'Pelayanan Terpadu Kelurahan Panaikang',
+        phone: '',
+        roleLevel:
+          directTargetIdx >= 0 && templateOfficial && !templateOfficial.isMasterLurah
+            ? templateOfficial.roleLevel
+            : 'operator',
+        isMasterLurah: false,
+        isActive: true,
+        allowedAdminTabs:
+          directTargetIdx >= 0 && templateOfficial?.allowedAdminTabs
+            ? [...templateOfficial.allowedAdminTabs]
+            : ['pengurusan_warga', 'laporan', 'rtrw', 'sampah', 'urban_farming', 'kerjabakti', 'info'],
+        allowedServiceCategories:
+          directTargetIdx >= 0 && templateOfficial?.allowedServiceCategories
+            ? [...templateOfficial.allowedServiceCategories]
+            : [
+                'administrasi_kependudukan',
+                'surat_keterangan',
+                'sosial_kesejahteraan',
+                'pembangunan_lingkungan',
+                'ketertiban_keamanan',
+                'kebersihan_persampahan',
+                'pengaduan_permasalahan_warga',
+              ],
+        actionPermissions:
+          directTargetIdx >= 0 && templateOfficial?.actionPermissions
+            ? { ...templateOfficial.actionPermissions }
+            : {
+                canCreate: true,
+                canEdit: true,
+                canDelete: false,
+                canVerifyAndIssueLetter: true,
+                canConfigureCatalog: false,
+                canManageWhatsApp: false,
+                canExportPrintPdf: true,
+              },
+        createdAt: nowStr,
+        updatedAt: `${nowStr} · Whitelist Google Master Admin`,
+        updatedAtMs: nowMs + idx,
+        googleEmail: cleanEmail,
+        isGoogleVerified: true,
+        googleVerifiedAt: nowStr,
+        googleVerifiedBy: 'Master Admin (Lurah Panaikang)',
+        notes: `Akun Google Whitelist terdaftar oleh Master Admin (${cleanEmail})`,
+      };
+
+      nextUsers.push(newAccount);
+      linkedSummary.push(`${cleanEmail} → ${newAccount.fullName}`);
+    });
+
+    return { nextUsers, linkedSummary };
+  };
+
   const handleApproveGoogleRequest = async (
     req: GoogleAdminVerificationRequest,
     targetAdminId: string
   ) => {
-    const targetAdmin = adminUsers.find((u) => u.id === targetAdminId);
-    if (!targetAdmin) return;
+    const effectiveTarget = targetAdminId || '__NEW_OPERATOR__';
     const nowStr = getRealtimeDateString(new Date());
-    const nextUsers = adminUsers.map((u) =>
-      u.id === targetAdminId
-        ? {
-            ...u,
-            googleEmail: req.email.toLowerCase(),
-            isGoogleVerified: true,
-            googleVerifiedAt: nowStr,
-            googleVerifiedBy: 'Master Admin (Lurah Panaikang)',
-            updatedAt: `${nowStr} · Verifikasi Google Disetujui`,
-          }
-        : u
+    const nowMs = Date.now();
+    const { nextUsers, linkedSummary } = buildWhitelistedUsersList(
+      [{ email: req.email, displayName: req.displayName }],
+      effectiveTarget
     );
     const res = await onSaveAdminUsers(nextUsers);
     if (res.ok) {
       const updatedReqs = googleRequests.map((r) =>
-        r.id === req.id
+        r.id === req.id || r.email.toLowerCase() === req.email.toLowerCase()
           ? {
               ...r,
               status: 'Disetujui' as const,
               processedAt: nowStr,
               processedBy: 'Master Admin (Lurah)',
-              linkedAdminId: targetAdmin.id,
-              linkedAdminName: targetAdmin.fullName,
+              updatedAtMs: nowMs,
             }
           : r
       );
       saveGoogleAdminVerificationRequests(updatedReqs);
       setGoogleRequests(updatedReqs);
       setFeedbackSuccess(
-        `Akun Google "${req.email}" telah disetujui & diverifikasi untuk ${targetAdmin.fullName}. Pejabat ini sekarang dapat masuk via Google.`
+        `Akun Google "${req.email}" telah disetujui & diverifikasi (${linkedSummary.join(', ')}).`
       );
     }
   };
 
   const handleRejectGoogleRequest = (reqId: string) => {
     const nowStr = getRealtimeDateString(new Date());
+    const nowMs = Date.now();
     const updatedReqs = googleRequests.map((r) =>
       r.id === reqId
         ? {
@@ -1276,6 +1435,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
             status: 'Ditolak' as const,
             processedAt: nowStr,
             processedBy: 'Master Admin (Lurah)',
+            updatedAtMs: nowMs,
           }
         : r
     );
@@ -1285,36 +1445,26 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
   };
 
   const handleDirectWhitelistGoogle = async () => {
-    if (!newGoogleEmail.trim() || !newGoogleEmail.includes('@')) {
-      setFeedbackErrors(['Masukkan alamat email Google yang valid.']);
+    const rawEmails = newGoogleEmail
+      .split(/[,;\n\s]+/)
+      .map((e) => e.trim().toLowerCase())
+      .filter((e) => e.length > 3 && e.includes('@'));
+
+    if (rawEmails.length === 0) {
+      setFeedbackErrors(['Masukkan minimal satu alamat email Google yang valid.']);
       return;
     }
-    if (!selectedAdminIdForGoogle) {
-      setFeedbackErrors(['Pilih akun pejabat/staf admin yang akan dihubungkan dengan email Google ini.']);
-      return;
-    }
-    const cleanEmail = newGoogleEmail.trim().toLowerCase();
-    const targetAdmin = adminUsers.find((u) => u.id === selectedAdminIdForGoogle);
-    if (!targetAdmin) return;
-    const nowStr = getRealtimeDateString(new Date());
-    const nextUsers = adminUsers.map((u) =>
-      u.id === selectedAdminIdForGoogle
-        ? {
-            ...u,
-            googleEmail: cleanEmail,
-            isGoogleVerified: true,
-            googleVerifiedAt: nowStr,
-            googleVerifiedBy: 'Master Admin (Lurah Panaikang)',
-            updatedAt: `${nowStr} · Verifikasi Google Master Admin`,
-          }
-        : u
+
+    const effectiveTarget = selectedAdminIdForGoogle || '__NEW_OPERATOR__';
+    const { nextUsers, linkedSummary } = buildWhitelistedUsersList(
+      rawEmails.map((email) => ({ email })),
+      effectiveTarget
     );
     const res = await onSaveAdminUsers(nextUsers);
     if (res.ok) {
       setNewGoogleEmail('');
-      setSelectedAdminIdForGoogle('');
       setFeedbackSuccess(
-        `Email Google "${cleanEmail}" berhasil diverifikasi dan didaftarkan untuk ${targetAdmin.fullName}.`
+        `Berhasil menyimpan & memverifikasi ${rawEmails.length} email Google ke Whitelist: ${linkedSummary.join(', ')}.`
       );
     }
   };
@@ -1323,13 +1473,16 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
     const targetAdmin = adminUsers.find((u) => u.id === userId);
     if (!targetAdmin) return;
     const nowStr = getRealtimeDateString(new Date());
+    const nowMs = Date.now();
     const nextUsers = adminUsers.map((u) =>
       u.id === userId
         ? {
             ...u,
+            googleEmail: undefined,
             isGoogleVerified: false,
             googleVerifiedAt: undefined,
             updatedAt: `${nowStr} · Verifikasi Google Dicabut`,
+            updatedAtMs: nowMs,
           }
         : u
     );
@@ -2323,10 +2476,13 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
               </div>
               <button
                 type="button"
-                onClick={() => setGoogleRequests(loadGoogleAdminVerificationRequests())}
+                onClick={async () => {
+                  const cloudReqs = await fetchGoogleAdminVerificationRequestsFromCloud();
+                  setGoogleRequests(cloudReqs);
+                }}
                 className="text-xs text-[#0277BD] hover:underline font-semibold flex items-center gap-1 cursor-pointer"
               >
-                <RefreshCw className="w-3 h-3" /> Refresh Data
+                <RefreshCw className="w-3 h-3" /> Refresh Cloud
               </button>
             </div>
 
@@ -2361,10 +2517,12 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                       <div className="flex flex-wrap items-center gap-2">
                         <select
                           id={`select-admin-${req.id}`}
-                          defaultValue=""
+                          defaultValue="__NEW_OPERATOR__"
                           className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700"
                         >
-                          <option value="">-- Tautkan ke Akun Pejabat --</option>
+                          <option value="__NEW_OPERATOR__">
+                            + Buat Akun Staf Baru (Otomatis)
+                          </option>
                           {adminUsers.map((u) => (
                             <option key={u.id} value={u.id}>
                               {u.fullName} ({u.jabatan})
@@ -2377,11 +2535,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                             const sel = document.getElementById(
                               `select-admin-${req.id}`
                             ) as HTMLSelectElement | null;
-                            if (!sel || !sel.value) {
-                              setFeedbackErrors(['Pilih akun pejabat yang ingin ditautkan terlebih dahulu.']);
-                              return;
-                            }
-                            handleApproveGoogleRequest(req, sel.value);
+                            handleApproveGoogleRequest(req, sel?.value || '__NEW_OPERATOR__');
                           }}
                           className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1 cursor-pointer shadow-xs"
                         >
@@ -2406,15 +2560,15 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
           <div className="pt-4 border-t border-slate-200">
             <h4 className="text-sm font-extrabold text-slate-900 mb-2 flex items-center gap-2">
               <UserCheck className="w-4 h-4 text-emerald-700" />
-              <span>Daftarkan & Verifikasi Email Google Staf Baru (Pre-Registration)</span>
+              <span>Daftarkan & Verifikasi Email Google Staf Baru (Bisa Lebih dari 1, Pisahkan Koma)</span>
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
               <div className="sm:col-span-5">
                 <input
-                  type="email"
+                  type="text"
                   value={newGoogleEmail}
                   onChange={(e) => setNewGoogleEmail(e.target.value)}
-                  placeholder="Contoh: staf.kelurahan@gmail.com"
+                  placeholder="Contoh: staf1@gmail.com, staf2@gmail.com"
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 focus:border-[#0D3868] focus:outline-none"
                 />
               </div>
@@ -2424,7 +2578,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                   onChange={(e) => setSelectedAdminIdForGoogle(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 bg-white focus:border-[#0D3868] focus:outline-none"
                 >
-                  <option value="">-- Pilih Akun Pejabat/Staf --</option>
+                  <option value="__NEW_OPERATOR__">+ Buat Akun Whitelist Staf Baru (Otomatis)</option>
                   {adminUsers.map((u) => (
                     <option key={u.id} value={u.id}>
                       {u.fullName} ({u.jabatan})
@@ -2439,7 +2593,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                   className="w-full py-2 px-3 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition-colors cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
                 >
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Verifikasi Email</span>
+                  <span>Simpan Whitelist</span>
                 </button>
               </div>
             </div>

@@ -233,6 +233,43 @@ export async function resolveTrustedUserRoleAndProfile(
         roleLevel: 'master_admin',
         isActive: true,
       };
+    } else if (firebaseUser.email) {
+      // Also check whitelisted adminUsers from local journal or persisted database
+      try {
+        const emailLower = firebaseUser.email.trim().toLowerCase();
+        const journalRaw = window.localStorage.getItem('pnk_admin_users_journal_v1');
+        const dbRaw = window.localStorage.getItem('pnk_smart_env_db_v4');
+        const candidateLists: any[] = [];
+        if (journalRaw) {
+          const parsedJ = JSON.parse(journalRaw);
+          if (Array.isArray(parsedJ?.users)) candidateLists.push(...parsedJ.users);
+        }
+        if (dbRaw) {
+          const parsedDb = JSON.parse(dbRaw);
+          if (Array.isArray(parsedDb?.adminUsers)) candidateLists.push(...parsedDb.adminUsers);
+        }
+        const matched = candidateLists.find(
+          (u) =>
+            u &&
+            u.isActive !== false &&
+            u.isGoogleVerified !== false &&
+            ((typeof u.googleEmail === 'string' && u.googleEmail.trim().toLowerCase() === emailLower) ||
+              (Array.isArray(u.additionalGoogleEmails) &&
+                u.additionalGoogleEmails.some((e: string) => (e || '').trim().toLowerCase() === emailLower)))
+        );
+        if (matched) {
+          isTrustedAdmin = true;
+          adminDetails = {
+            nip: matched.nip || '-',
+            jabatan: matched.jabatan || 'Administrator Kelurahan Panaikang',
+            unitBidang: matched.unitBidang || 'Pemerintah Kelurahan Panaikang',
+            roleLevel: matched.roleLevel || 'admin_bidang',
+            isActive: true,
+          };
+        }
+      } catch {
+        // Ignore storage parse error
+      }
     }
   } catch (err) {
     handleFirestoreError(err, OperationType.GET, `admins/${uid}`);
@@ -1228,63 +1265,225 @@ export const GOOGLE_ADMIN_REQUESTS_KEY = 'pnk_google_admin_requests_v1';
 
 export function loadGoogleAdminVerificationRequests(): GoogleAdminVerificationRequest[] {
   try {
+    const reqMap = new Map<string, GoogleAdminVerificationRequest>();
+    const upsert = (r: GoogleAdminVerificationRequest | undefined | null) => {
+      if (!r || !r.email) return;
+      const cleanEmail = r.email.trim().toLowerCase();
+      if (!cleanEmail) return;
+      const prev = reqMap.get(cleanEmail);
+      const rTs = r.updatedAtMs || r.requestedAtMs || 0;
+      const prevTs = prev ? (prev.updatedAtMs || prev.requestedAtMs || 0) : -1;
+      if (!prev || rTs >= prevTs) {
+        reqMap.set(cleanEmail, {
+          ...prev,
+          ...r,
+          email: cleanEmail,
+          updatedAtMs: Math.max(rTs, prevTs, 1),
+        });
+      }
+    };
+
     const raw = localStorage.getItem(GOOGLE_ADMIN_REQUESTS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) parsed.forEach(upsert);
+    }
+
+    const dbRaw = localStorage.getItem('pnk_smart_env_db_v4');
+    if (dbRaw) {
+      const parsedDb = JSON.parse(dbRaw);
+      if (Array.isArray(parsedDb?.googleAdminVerificationRequests)) {
+        parsedDb.googleAdminVerificationRequests.forEach(upsert);
+      }
+    }
+
+    return Array.from(reqMap.values()).sort(
+      (a, b) => (b.requestedAtMs || 0) - (a.requestedAtMs || 0)
+    );
   } catch {
     return [];
   }
 }
 
 export function saveGoogleAdminVerificationRequests(
-  requests: GoogleAdminVerificationRequest[]
+  requests: GoogleAdminVerificationRequest[],
+  syncRemote = true
 ): void {
+  const normalized = (Array.isArray(requests) ? requests : []).map((r) => ({
+    ...r,
+    email: (r.email || '').trim().toLowerCase(),
+    updatedAtMs: r.updatedAtMs || Date.now(),
+  }));
+
   try {
-    localStorage.setItem(GOOGLE_ADMIN_REQUESTS_KEY, JSON.stringify(requests));
+    localStorage.setItem(GOOGLE_ADMIN_REQUESTS_KEY, JSON.stringify(normalized));
   } catch {
     // Ignore quota errors
   }
+
+  try {
+    const dbRaw = localStorage.getItem('pnk_smart_env_db_v4');
+    if (dbRaw) {
+      const parsedDb = JSON.parse(dbRaw);
+      if (parsedDb && typeof parsedDb === 'object') {
+        parsedDb.googleAdminVerificationRequests = normalized;
+        parsedDb.updatedAt = Date.now();
+        localStorage.setItem('pnk_smart_env_db_v4', JSON.stringify(parsedDb));
+      }
+    }
+  } catch {
+    // Ignore storage errors
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('pnk_google_requests_updated', {
+        detail: { requests: normalized },
+      })
+    );
+  }
+
+  if (syncRemote) {
+    // 1. Sync to Express backend API if available
+    fetch('/api/google-admin-requests', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ googleAdminVerificationRequests: normalized }),
+    }).catch(() => {});
+
+    // 2. Sync to Firestore cloud snapshot (`panaikang_app_data/full_snapshot`)
+    const snapRef = doc(db, 'panaikang_app_data', 'full_snapshot');
+    setDoc(
+      snapRef,
+      {
+        googleAdminVerificationRequests: normalized.slice(0, 100),
+        updatedAt: Date.now(),
+        syncedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    ).catch(() => {});
+  }
+}
+
+export async function fetchGoogleAdminVerificationRequestsFromCloud(): Promise<GoogleAdminVerificationRequest[]> {
+  const reqMap = new Map<string, GoogleAdminVerificationRequest>();
+  const upsert = (r: GoogleAdminVerificationRequest | undefined | null) => {
+    if (!r || !r.email) return;
+    const cleanEmail = r.email.trim().toLowerCase();
+    if (!cleanEmail) return;
+    const prev = reqMap.get(cleanEmail);
+    const rTs = r.updatedAtMs || r.requestedAtMs || 0;
+    const prevTs = prev ? (prev.updatedAtMs || prev.requestedAtMs || 0) : -1;
+    if (!prev || rTs >= prevTs) {
+      reqMap.set(cleanEmail, {
+        ...prev,
+        ...r,
+        email: cleanEmail,
+        updatedAtMs: Math.max(rTs, prevTs, 1),
+      });
+    }
+  };
+
+  // 1. Local storage first
+  loadGoogleAdminVerificationRequests().forEach(upsert);
+
+  // 2. Local Express API if available
+  try {
+    const res = await fetch('/api/google-admin-requests', { cache: 'no-store' });
+    if (res.ok) {
+      const json = await res.json();
+      if (Array.isArray(json?.data)) {
+        json.data.forEach(upsert);
+      }
+    }
+  } catch {
+    // Ignore if offline or serverless
+  }
+
+  // 3. Firestore cloud snapshot (`panaikang_app_data/full_snapshot`)
+  try {
+    const snapRef = doc(db, 'panaikang_app_data', 'full_snapshot');
+    const snap = await getDoc(snapRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      if (Array.isArray(data?.googleAdminVerificationRequests)) {
+        data.googleAdminVerificationRequests.forEach(upsert);
+      }
+    }
+  } catch {
+    // Ignore Firestore errors
+  }
+
+  const merged = Array.from(reqMap.values()).sort(
+    (a, b) => (b.requestedAtMs || 0) - (a.requestedAtMs || 0)
+  );
+  saveGoogleAdminVerificationRequests(merged, false);
+  return merged;
 }
 
 export function submitGoogleAdminVerificationRequest(params: {
   email: string;
   displayName?: string;
   photoUrl?: string;
-}): { ok: boolean; message: string } {
-  const cleanEmail = params.email.trim().toLowerCase();
+  notes?: string;
+}): { ok: boolean; message: string; request?: GoogleAdminVerificationRequest } {
+  const cleanEmail = (params.email || '').trim().toLowerCase();
+  if (!cleanEmail || !cleanEmail.includes('@')) {
+    return {
+      ok: false,
+      message: 'Format alamat email Google tidak valid.',
+    };
+  }
   const existing = loadGoogleAdminVerificationRequests();
   const foundIndex = existing.findIndex((r) => r.email.toLowerCase() === cleanEmail);
 
+  const nowMs = Date.now();
   const nowDisplay = getRealtimeDateTimeString(new Date());
+  let submittedItem: GoogleAdminVerificationRequest;
+
   if (foundIndex >= 0) {
-    existing[foundIndex] = {
+    submittedItem = {
       ...existing[foundIndex],
       status: 'Menunggu Persetujuan',
       requestedAt: nowDisplay,
-      requestedAtMs: Date.now(),
+      requestedAtMs: nowMs,
+      updatedAtMs: nowMs,
       displayName: params.displayName || existing[foundIndex].displayName || cleanEmail.split('@')[0],
       photoUrl: params.photoUrl || existing[foundIndex].photoUrl,
+      notes: params.notes || existing[foundIndex].notes,
     };
+    existing[foundIndex] = submittedItem;
   } else {
-    existing.unshift({
-      id: `req-admin-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    submittedItem = {
+      id: `req-admin-${nowMs}-${Math.random().toString(36).slice(2, 6)}`,
       email: cleanEmail,
       displayName: params.displayName || cleanEmail.split('@')[0],
       photoUrl: params.photoUrl,
       requestedAt: nowDisplay,
-      requestedAtMs: Date.now(),
+      requestedAtMs: nowMs,
+      updatedAtMs: nowMs,
       status: 'Menunggu Persetujuan',
-    });
+      notes: params.notes,
+    };
+    existing.unshift(submittedItem);
   }
 
-  saveGoogleAdminVerificationRequests(existing);
+  // Persist to localStorage, Express API, and Firestore Cloud
+  saveGoogleAdminVerificationRequests(existing, true);
+  fetch('/api/google-admin-requests', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(submittedItem),
+  }).catch(() => {});
+
   return {
     ok: true,
+    request: submittedItem,
     message: `Permohonan verifikasi untuk ${cleanEmail} telah terkirim ke Master Admin Lurah. Silakan tunggu persetujuan Master Admin.`,
   };
 }
 
 export { onAuthStateChanged };
 export type { User as FirebaseUser };
+
 

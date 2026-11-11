@@ -89,6 +89,7 @@ import {
   PengaduanKategori,
   PraRegistrasiRecord,
   PengaduanOnlineRecord,
+  GoogleAdminVerificationRequest,
 } from '../types';
 import {
   INITIAL_MASTER_LAYANAN,
@@ -334,6 +335,7 @@ interface AdminPanelViewProps {
   firebaseUserProfile?: AuthenticatedUserProfile | null;
   onFirebaseLogout?: () => Promise<void>;
   citizenUsers?: AuthenticatedUserProfile[];
+  googleAdminRequests?: GoogleAdminVerificationRequest[];
   citizenMenuConfig?: CitizenMenuAccessConfig;
   onSaveCitizenMenuConfig?: (
     updatedConfig: CitizenMenuAccessConfig
@@ -630,6 +632,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   firebaseUserProfile,
   onFirebaseLogout,
   citizenUsers = [],
+  googleAdminRequests = [],
   citizenMenuConfig,
   onSaveCitizenMenuConfig,
   onUpdateCitizenUser,
@@ -702,6 +705,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   const [showFirebaseReset, setShowFirebaseReset] = useState(false);
   const [firebaseResetSuccess, setFirebaseResetSuccess] = useState('');
   const [pendingGoogleAdminRequestEmail, setPendingGoogleAdminRequestEmail] = useState<string | null>(null);
+  const [pendingGoogleAdminRequestName, setPendingGoogleAdminRequestName] = useState<string>('');
   const [googleRequestSentNotice, setGoogleRequestSentNotice] = useState('');
 
   // Auto-establish AdminSession when user is authenticated via Firebase Auth with trusted Master Admin or whitelisted adminUsers
@@ -709,13 +713,14 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     if (firebaseUserProfile && !adminSession) {
       const emailLower = (firebaseUserProfile.email || '').trim().toLowerCase();
       const isSuperAdminEmail = emailLower === 'asmaracess@gmail.com';
-      const matchedAdmin = adminUsers.find(
-        (u) =>
-          u.googleEmail &&
-          u.googleEmail.trim().toLowerCase() === emailLower &&
-          u.isActive !== false &&
-          u.isGoogleVerified !== false
-      );
+      const matchedAdmin = adminUsers.find((u) => {
+        if (u.isActive === false || u.isGoogleVerified === false) return false;
+        const primaryMatch = u.googleEmail && u.googleEmail.trim().toLowerCase() === emailLower;
+        const additionalMatch = (u.additionalGoogleEmails || []).some(
+          (e) => e.trim().toLowerCase() === emailLower
+        );
+        return Boolean(primaryMatch || additionalMatch);
+      });
 
       // Only allow session if explicitly verified by Master Admin or is Lurah Master Admin
       if (isSuperAdminEmail || matchedAdmin) {
@@ -1703,17 +1708,20 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     async (profile: AuthenticatedUserProfile) => {
       const emailLower = (profile.email || '').trim().toLowerCase();
       const isSuperAdmin = emailLower === 'asmaracess@gmail.com';
-      const matchedAdmin = adminUsers.find(
-        (u) =>
-          u.googleEmail &&
-          u.googleEmail.trim().toLowerCase() === emailLower &&
-          u.isActive !== false &&
-          u.isGoogleVerified !== false
-      );
+      const matchedAdmin = adminUsers.find((u) => {
+        if (u.isActive === false || u.isGoogleVerified === false) return false;
+        const primaryMatch = u.googleEmail && u.googleEmail.trim().toLowerCase() === emailLower;
+        const additionalMatch = (u.additionalGoogleEmails || []).some(
+          (e) => e.trim().toLowerCase() === emailLower
+        );
+        return Boolean(primaryMatch || additionalMatch);
+      });
 
       if (!isSuperAdmin && !matchedAdmin) {
         const rejectedEmail = profile.email;
         setPendingGoogleAdminRequestEmail(rejectedEmail);
+        setPendingGoogleAdminRequestName(profile.fullName || '');
+        setGoogleRequestSentNotice('');
         // Sign out the unverified account so the browser doesn't stay locked to it on the next click
         try {
           await logoutFirebaseUser();
@@ -1721,7 +1729,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           // Non-fatal
         }
         setLoginError(
-          `Akun Google "${rejectedEmail}" belum terdaftar atau belum diverifikasi oleh Master Admin (Lurah) sebagai Administrator. Silakan pilih akun Gmail Anda yang telah didaftarkan dari perangkat ini.`
+          `Akun Google "${rejectedEmail}" belum terdaftar atau belum diverifikasi oleh Master Admin (Lurah). Jika Anda staf kelurahan, silakan tekan tombol "Kirim Permohonan Verifikasi ke Master Admin" di bawah.`
         );
         return;
       }
@@ -4517,23 +4525,40 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     <div>
                       Saat ini sesi browser masih terhubung pada akun{' '}
                       <strong>{firebaseUserProfile.email}</strong> (status{' '}
-                      <strong>Warga</strong>).
+                      <strong>Warga / Belum Whitelist Admin</strong>).
                     </div>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        setLoginError('');
-                        setPendingGoogleAdminRequestEmail(null);
-                        if (onFirebaseLogout) {
-                          await onFirebaseLogout();
-                        } else {
-                          await logoutFirebaseUser();
-                        }
-                      }}
-                      className="self-start px-3 py-1.5 rounded-lg bg-amber-200 hover:bg-amber-300 text-amber-950 font-bold text-[11px] transition cursor-pointer"
-                    >
-                      Putuskan Sesi & Pilih Akun Lain dari Perangkat
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const res = submitGoogleAdminVerificationRequest({
+                            email: firebaseUserProfile.email,
+                            displayName: firebaseUserProfile.fullName || undefined,
+                          });
+                          if (res.ok) {
+                            setGoogleRequestSentNotice(res.message);
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition cursor-pointer shadow-xs"
+                      >
+                        Ajukan Verifikasi Email Ini ke Master Admin
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setLoginError('');
+                          setPendingGoogleAdminRequestEmail(null);
+                          if (onFirebaseLogout) {
+                            await onFirebaseLogout();
+                          } else {
+                            await logoutFirebaseUser();
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-amber-200 hover:bg-amber-300 text-amber-950 font-bold text-[11px] transition cursor-pointer"
+                      >
+                        Putuskan Sesi & Pilih Akun Lain
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -4559,7 +4584,10 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                       onClick={() => {
                         const res = submitGoogleAdminVerificationRequest({
                           email: pendingGoogleAdminRequestEmail,
-                          displayName: firebaseUserProfile?.fullName || undefined,
+                          displayName:
+                            pendingGoogleAdminRequestName ||
+                            firebaseUserProfile?.fullName ||
+                            undefined,
                         });
                         if (res.ok) {
                           setGoogleRequestSentNotice(res.message);
@@ -5380,6 +5408,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               <div className="p-4 sm:p-5">
                 <AdminOtoritasMasterPanel
                   adminUsers={adminUsers}
+                  googleAdminRequests={googleAdminRequests}
                   isMasterLurah={isLurahSession}
                   currentUsername={adminSession?.username || ''}
                   onSaveAdminUsers={auditedOnSaveAdminUsers}

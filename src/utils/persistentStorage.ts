@@ -31,6 +31,7 @@ import {
   MasterLayananItem,
   MasterPersyaratanItem,
   PengaduanKategori,
+  GoogleAdminVerificationRequest,
 } from '../types';
 import {
   INITIAL_MASTER_LAYANAN,
@@ -98,6 +99,7 @@ export interface PersistedDatabase {
   masterLayananList?: MasterLayananItem[];
   masterPersyaratanList?: MasterPersyaratanItem[];
   kategoriPengaduanList?: PengaduanKategori[];
+  googleAdminVerificationRequests?: GoogleAdminVerificationRequest[];
   deletedItemIds?: string[];
   updatedAt: number;
 }
@@ -305,6 +307,29 @@ export function loadAdminUsersJournal(): { updatedAtMs: number; users: AdminUser
     return null;
   } catch {
     return null;
+  }
+}
+
+const GOOGLE_ADMIN_REQUESTS_JOURNAL_KEY = 'pnk_google_admin_requests_v1';
+
+export function saveGoogleAdminRequestsJournal(requests: GoogleAdminVerificationRequest[]): void {
+  if (typeof window === 'undefined' || !Array.isArray(requests)) return;
+  try {
+    window.localStorage.setItem(GOOGLE_ADMIN_REQUESTS_JOURNAL_KEY, JSON.stringify(requests));
+  } catch {
+    // Ignore storage write errors
+  }
+}
+
+export function loadGoogleAdminRequestsJournal(): GoogleAdminVerificationRequest[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(GOOGLE_ADMIN_REQUESTS_JOURNAL_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as GoogleAdminVerificationRequest[]) : [];
+  } catch {
+    return [];
   }
 }
 
@@ -950,19 +975,150 @@ export function smartMergeDatabases(
     : (localDb?.serviceCatalog || SERVICE_CATEGORY_GROUPS);
 
   const adminJournal = loadAdminUsersJournal();
-  const adminJournalIsNewer =
-    Boolean(adminJournal) &&
-    adminJournal!.updatedAtMs >= Math.max(localUpdatedAt, incomingUpdatedAt - 5000);
+  const resolvedAdminUsers = (() => {
+    const userMap = new Map<string, AdminUserAccount>();
 
-  const resolvedAdminUsers = adminJournalIsNewer
-    ? adminJournal!.users.filter((u) => u && u.id && !deletedIds.has(u.id))
-    : mergeEntityCollection(
-        localDb?.adminUsers,
-        incoming?.adminUsers,
-        INITIAL_ADMIN_USERS,
-        deletedIds,
-        localIsNewer
+    const mergeAdminCandidate = (candidate: AdminUserAccount | undefined | null, sourceFallbackMs: number) => {
+      if (!candidate || !candidate.id || deletedIds.has(candidate.id)) return;
+      const candMs = typeof candidate.updatedAtMs === 'number' ? candidate.updatedAtMs : sourceFallbackMs;
+      const existing = userMap.get(candidate.id);
+      if (!existing) {
+        userMap.set(candidate.id, {
+          ...candidate,
+          updatedAtMs: candMs,
+        });
+        return;
+      }
+
+      const existMs = typeof existing.updatedAtMs === 'number' ? existing.updatedAtMs : 0;
+      const candIsNewer = candMs >= existMs;
+      const primary = candIsNewer ? candidate : existing;
+      const secondary = candIsNewer ? existing : candidate;
+
+      // Preserve verified googleEmail unless explicitly revoked in primary
+      const primaryExplicitlyRevoked =
+        primary.isGoogleVerified === false &&
+        typeof primary.updatedAt === 'string' &&
+        primary.updatedAt.toLowerCase().includes('dicabut');
+
+      const resolvedGoogleEmail =
+        primary.googleEmail && primary.googleEmail.trim()
+          ? primary.googleEmail.trim().toLowerCase()
+          : !primaryExplicitlyRevoked && secondary.googleEmail && secondary.googleEmail.trim()
+          ? secondary.googleEmail.trim().toLowerCase()
+          : undefined;
+
+      const resolvedIsGoogleVerified = primaryExplicitlyRevoked
+        ? false
+        : Boolean(
+            primary.isGoogleVerified ||
+              (!primaryExplicitlyRevoked && secondary.isGoogleVerified && resolvedGoogleEmail)
+          );
+
+      const mergedExtraEmails = Array.from(
+        new Set(
+          [
+            ...(Array.isArray(secondary.additionalGoogleEmails) ? secondary.additionalGoogleEmails : []),
+            ...(Array.isArray(primary.additionalGoogleEmails) ? primary.additionalGoogleEmails : []),
+          ]
+            .map((e) => (e || '').trim().toLowerCase())
+            .filter(Boolean)
+        )
       );
+
+      userMap.set(candidate.id, {
+        ...secondary,
+        ...primary,
+        googleEmail: resolvedGoogleEmail,
+        isGoogleVerified: resolvedIsGoogleVerified,
+        googleVerifiedAt:
+          primary.googleVerifiedAt ||
+          (!primaryExplicitlyRevoked ? secondary.googleVerifiedAt : undefined),
+        googleVerifiedBy:
+          primary.googleVerifiedBy ||
+          (!primaryExplicitlyRevoked ? secondary.googleVerifiedBy : undefined),
+        additionalGoogleEmails: mergedExtraEmails.length > 0 ? mergedExtraEmails : undefined,
+        updatedAtMs: Math.max(candMs, existMs),
+      });
+    };
+
+    // 1. Base structural defaults
+    for (const initUser of INITIAL_ADMIN_USERS) {
+      mergeAdminCandidate(initUser, 1);
+    }
+    // 2. Older snapshot between local and incoming
+    const olderUsers = localIsNewer ? incoming?.adminUsers : localDb?.adminUsers;
+    const olderMs = localIsNewer ? incomingUpdatedAt : localUpdatedAt;
+    if (Array.isArray(olderUsers)) {
+      for (const u of olderUsers) {
+        mergeAdminCandidate(u, olderMs || 2);
+      }
+    }
+    // 3. Newer snapshot between local and incoming
+    const newerUsers = localIsNewer ? localDb?.adminUsers : incoming?.adminUsers;
+    const newerMs = localIsNewer ? localUpdatedAt : incomingUpdatedAt;
+    if (Array.isArray(newerUsers)) {
+      for (const u of newerUsers) {
+        mergeAdminCandidate(u, newerMs || 3);
+      }
+    }
+    // 4. Dedicated local AdminUsers journal (guarantees local whitelist additions never get wiped by SSE/activityLog races)
+    if (adminJournal && Array.isArray(adminJournal.users)) {
+      for (const u of adminJournal.users) {
+        mergeAdminCandidate(u, u.updatedAtMs || adminJournal.updatedAtMs || 4);
+      }
+    }
+
+    return Array.from(userMap.values()).filter((u) => u && u.id && !deletedIds.has(u.id));
+  })();
+
+  const resolvedGoogleAdminRequests = (() => {
+    const reqMap = new Map<string, GoogleAdminVerificationRequest>();
+    const upsertReq = (req: GoogleAdminVerificationRequest | undefined | null) => {
+      if (!req || !req.email) return;
+      const cleanEmail = req.email.trim().toLowerCase();
+      if (!cleanEmail || (req.id && deletedIds.has(req.id))) return;
+      const existing = reqMap.get(cleanEmail);
+      const reqTs = req.updatedAtMs || req.requestedAtMs || 0;
+      if (!existing) {
+        reqMap.set(cleanEmail, {
+          ...req,
+          email: cleanEmail,
+          updatedAtMs: reqTs,
+        });
+      } else {
+        const existTs = existing.updatedAtMs || existing.requestedAtMs || 0;
+        const primary = reqTs >= existTs ? req : existing;
+        const secondary = reqTs >= existTs ? existing : req;
+        reqMap.set(cleanEmail, {
+          ...secondary,
+          ...primary,
+          email: cleanEmail,
+          displayName:
+            (primary.displayName && primary.displayName !== cleanEmail.split('@')[0]
+              ? primary.displayName
+              : secondary.displayName) || cleanEmail.split('@')[0],
+          updatedAtMs: Math.max(reqTs, existTs),
+        });
+      }
+    };
+
+    if (Array.isArray(incoming?.googleAdminVerificationRequests)) {
+      incoming!.googleAdminVerificationRequests.forEach(upsertReq);
+    }
+    if (Array.isArray(localDb?.googleAdminVerificationRequests)) {
+      localDb!.googleAdminVerificationRequests.forEach(upsertReq);
+    }
+    for (const jReq of loadGoogleAdminRequestsJournal()) {
+      upsertReq(jReq);
+    }
+
+    const list = Array.from(reqMap.values()).sort(
+      (a, b) => (b.requestedAtMs || 0) - (a.requestedAtMs || 0)
+    );
+    saveGoogleAdminRequestsJournal(list);
+    return list;
+  })();
 
   const resolvedActivityLogs = Array.isArray(incoming?.activityLogs) && incoming!.activityLogs.length > 0
     ? incoming!.activityLogs
@@ -1204,6 +1360,7 @@ export function smartMergeDatabases(
       incoming?.kategoriPengaduanList ||
       localDb?.kategoriPengaduanList ||
       DAFTAR_KATEGORI_PENGADUAN,
+    googleAdminVerificationRequests: resolvedGoogleAdminRequests,
     deletedItemIds: Array.from(deletedIds),
     updatedAt: maxUpdatedAt,
   };
@@ -1222,10 +1379,21 @@ export function loadPersistedDatabase(): PersistedDatabase | null {
       raw = window.localStorage.getItem(BACKUP_KEY);
     }
     if (!raw) {
-      // If no full DB is stored, check if there are any journaled user reports
+      // If no full DB is stored, check if there are any journaled user reports, admin users, or google requests
       const journalReports = loadReportsJournal();
-      if (journalReports.length > 0) {
-        return smartMergeDatabases(null, { reports: journalReports });
+      const journalAdmins = loadAdminUsersJournal();
+      const journalGoogleReqs = loadGoogleAdminRequestsJournal();
+      if (
+        journalReports.length > 0 ||
+        (journalAdmins && journalAdmins.users.length > 0) ||
+        journalGoogleReqs.length > 0
+      ) {
+        return smartMergeDatabases(null, {
+          reports: journalReports.length > 0 ? journalReports : undefined,
+          adminUsers: journalAdmins?.users,
+          googleAdminVerificationRequests:
+            journalGoogleReqs.length > 0 ? journalGoogleReqs : undefined,
+        });
       }
       return null;
     }
@@ -1337,6 +1505,14 @@ export function savePersistedDatabase(db: PersistedDatabase): void {
 
     if (db.citizenMenuConfig) {
       window.localStorage.setItem(CITIZEN_MENU_ACCESS_KEY, JSON.stringify(db.citizenMenuConfig));
+    }
+
+    if (Array.isArray(db.adminUsers) && db.adminUsers.length > 0) {
+      saveAdminUsersJournal(db.adminUsers, db.updatedAt || Date.now());
+    }
+
+    if (Array.isArray(db.googleAdminVerificationRequests)) {
+      saveGoogleAdminRequestsJournal(db.googleAdminVerificationRequests);
     }
 
     // 5. Dispatch custom event for real-time reactivity across tabs

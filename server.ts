@@ -43,6 +43,7 @@ import type {
   SiskamlingRwSchedule,
   AuthenticatedUserProfile,
   CitizenMenuAccessConfig,
+  GoogleAdminVerificationRequest,
 } from './src/types.ts';
 import {
   INITIAL_TEBA_SPOTS,
@@ -107,6 +108,7 @@ interface DatabaseSchema {
   waDispatchLogs?: any[];
   citizenUsers?: AuthenticatedUserProfile[];
   citizenMenuConfig?: CitizenMenuAccessConfig;
+  googleAdminVerificationRequests?: GoogleAdminVerificationRequest[];
   deletedItemIds?: string[];
   lastModified: string;
   updatedAt?: number;
@@ -264,6 +266,9 @@ function loadDatabase(): DatabaseSchema {
             ? parsed.citizenUsers.filter((c) => c && c.uid && !deletedSet.has(c.uid))
             : [],
           citizenMenuConfig: parsed.citizenMenuConfig,
+          googleAdminVerificationRequests: Array.isArray(parsed.googleAdminVerificationRequests)
+            ? parsed.googleAdminVerificationRequests.filter((r) => r && r.email && (!r.id || !deletedSet.has(r.id)))
+            : [],
           deletedItemIds: Array.from(deletedSet),
           lastModified: parsed.lastModified || new Date().toISOString(),
           updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : 0,
@@ -1098,8 +1103,67 @@ async function startServer() {
       db.whatsappRecipients = incoming.whatsappRecipients;
     if (Array.isArray(incoming.serviceCatalog))
       db.serviceCatalog = incoming.serviceCatalog;
-    if (Array.isArray(incoming.adminUsers))
-      db.adminUsers = incoming.adminUsers;
+    if (Array.isArray(incoming.adminUsers)) {
+      const userMap = new Map<string, AdminUserAccount>();
+      for (const existingUser of db.adminUsers || []) {
+        if (existingUser && existingUser.id && !deletedSet.has(existingUser.id)) {
+          userMap.set(existingUser.id, existingUser);
+        }
+      }
+      for (const incUser of incoming.adminUsers) {
+        if (!incUser || !incUser.id || deletedSet.has(incUser.id)) continue;
+        const prev = userMap.get(incUser.id);
+        if (!prev) {
+          userMap.set(incUser.id, incUser);
+        } else {
+          const incMs = typeof incUser.updatedAtMs === 'number' ? incUser.updatedAtMs : 0;
+          const prevMs = typeof prev.updatedAtMs === 'number' ? prev.updatedAtMs : 0;
+          const incNewer = incMs >= prevMs;
+          const primary = incNewer ? incUser : prev;
+          const secondary = incNewer ? prev : incUser;
+          const explicitlyRevoked =
+            primary.isGoogleVerified === false &&
+            typeof primary.updatedAt === 'string' &&
+            primary.updatedAt.toLowerCase().includes('dicabut');
+          const resolvedEmail =
+            primary.googleEmail && primary.googleEmail.trim()
+              ? primary.googleEmail.trim().toLowerCase()
+              : !explicitlyRevoked && secondary.googleEmail && secondary.googleEmail.trim()
+              ? secondary.googleEmail.trim().toLowerCase()
+              : undefined;
+          userMap.set(incUser.id, {
+            ...secondary,
+            ...primary,
+            googleEmail: resolvedEmail,
+            isGoogleVerified: explicitlyRevoked
+              ? false
+              : Boolean(primary.isGoogleVerified || (!explicitlyRevoked && secondary.isGoogleVerified && resolvedEmail)),
+            googleVerifiedAt:
+              primary.googleVerifiedAt || (!explicitlyRevoked ? secondary.googleVerifiedAt : undefined),
+            googleVerifiedBy:
+              primary.googleVerifiedBy || (!explicitlyRevoked ? secondary.googleVerifiedBy : undefined),
+            updatedAtMs: Math.max(incMs, prevMs),
+          });
+        }
+      }
+      db.adminUsers = Array.from(userMap.values());
+    }
+    if (Array.isArray(incoming.googleAdminVerificationRequests)) {
+      const reqMap = new Map<string, GoogleAdminVerificationRequest>();
+      for (const r of [...(db.googleAdminVerificationRequests || []), ...incoming.googleAdminVerificationRequests]) {
+        if (!r || !r.email || (r.id && deletedSet.has(r.id))) continue;
+        const cleanEmail = r.email.trim().toLowerCase();
+        const prev = reqMap.get(cleanEmail);
+        const rTs = r.updatedAtMs || r.requestedAtMs || 0;
+        const prevTs = prev ? (prev.updatedAtMs || prev.requestedAtMs || 0) : -1;
+        if (!prev || rTs >= prevTs) {
+          reqMap.set(cleanEmail, { ...prev, ...r, email: cleanEmail, updatedAtMs: Math.max(rTs, prevTs, 1) });
+        }
+      }
+      db.googleAdminVerificationRequests = Array.from(reqMap.values()).sort(
+        (a, b) => (b.requestedAtMs || 0) - (a.requestedAtMs || 0)
+      );
+    }
     if (Array.isArray(incoming.activityLogs))
       db.activityLogs = incoming.activityLogs;
     if (Array.isArray(incoming.urbanFarmingSpots))
@@ -1283,9 +1347,90 @@ async function startServer() {
       res.status(400).json({ ok: false, errors: ['Format daftar akun user admin tidak valid.'] });
       return;
     }
-    db.adminUsers = incoming;
+    const nowMs = Date.now();
+    db.adminUsers = incoming.map((u) => ({
+      ...u,
+      updatedAtMs: u.updatedAtMs || nowMs,
+    }));
     saveDatabase(db);
     res.json({ ok: true, data: db.adminUsers });
+  });
+
+  // 1AA-2. Google Admin Verification Requests CRUD (Synced across devices & Master Admin panel)
+  app.get('/api/google-admin-requests', (_req, res) => {
+    res.json({
+      ok: true,
+      data: db.googleAdminVerificationRequests || [],
+    });
+  });
+
+  app.post('/api/google-admin-requests', (req, res) => {
+    const body = req.body as Partial<GoogleAdminVerificationRequest>;
+    const cleanEmail = (body?.email || '').trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      res.status(400).json({ ok: false, errors: ['Alamat email Google tidak valid.'] });
+      return;
+    }
+    const nowMs = Date.now();
+    const nowDisplay = body.requestedAt || getRealtimeDateTimeString(new Date());
+    const currentList = Array.isArray(db.googleAdminVerificationRequests)
+      ? [...db.googleAdminVerificationRequests]
+      : [];
+    const existingIdx = currentList.findIndex(
+      (r) => (r.email || '').trim().toLowerCase() === cleanEmail
+    );
+    if (existingIdx >= 0) {
+      currentList[existingIdx] = {
+        ...currentList[existingIdx],
+        ...body,
+        email: cleanEmail,
+        displayName:
+          body.displayName ||
+          currentList[existingIdx].displayName ||
+          cleanEmail.split('@')[0],
+        status: body.status || 'Menunggu Persetujuan',
+        requestedAt: nowDisplay,
+        requestedAtMs: body.requestedAtMs || nowMs,
+        updatedAtMs: nowMs,
+      };
+    } else {
+      currentList.unshift({
+        id: body.id || `req-admin-${nowMs}-${Math.random().toString(36).slice(2, 6)}`,
+        email: cleanEmail,
+        displayName: body.displayName || cleanEmail.split('@')[0],
+        photoUrl: body.photoUrl,
+        requestedAt: nowDisplay,
+        requestedAtMs: body.requestedAtMs || nowMs,
+        updatedAtMs: nowMs,
+        status: body.status || 'Menunggu Persetujuan',
+        notes: body.notes,
+      });
+    }
+    db.googleAdminVerificationRequests = currentList;
+    saveDatabase(db);
+    res.status(201).json({ ok: true, data: db.googleAdminVerificationRequests });
+  });
+
+  app.put('/api/google-admin-requests', (req, res) => {
+    const incoming = Array.isArray(req.body)
+      ? (req.body as GoogleAdminVerificationRequest[])
+      : Array.isArray(req.body?.requests)
+      ? (req.body.requests as GoogleAdminVerificationRequest[])
+      : Array.isArray(req.body?.googleAdminVerificationRequests)
+      ? (req.body.googleAdminVerificationRequests as GoogleAdminVerificationRequest[])
+      : null;
+    if (!incoming) {
+      res.status(400).json({ ok: false, errors: ['Format daftar permohonan verifikasi tidak valid.'] });
+      return;
+    }
+    const nowMs = Date.now();
+    db.googleAdminVerificationRequests = incoming.map((r) => ({
+      ...r,
+      email: (r.email || '').trim().toLowerCase(),
+      updatedAtMs: r.updatedAtMs || nowMs,
+    }));
+    saveDatabase(db);
+    res.json({ ok: true, data: db.googleAdminVerificationRequests });
   });
 
   app.post('/api/admin-users', (req, res) => {

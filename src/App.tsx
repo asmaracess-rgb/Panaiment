@@ -54,6 +54,7 @@ import {
   MasterLayananItem,
   MasterPersyaratanItem,
   PengaduanKategori,
+  GoogleAdminVerificationRequest,
 } from './types';
 import {
   INITIAL_REPORTS,
@@ -95,6 +96,7 @@ import {
   seedInitialFirestoreIfEmpty,
   pushProfileToFirestore,
   subscribeToFirestoreProfile,
+  pushAdminUsersAndRequestsToFirestore,
 } from './firebase/firestoreService';
 import {
   loadPersistedDatabase,
@@ -108,7 +110,10 @@ import {
   DEFAULT_CITIZEN_MENU_ACCESS_CONFIG,
   loadCitizenMenuAccessJournal,
   saveCitizenMenuAccessJournal,
+  loadAdminUsersJournal,
   saveAdminUsersJournal,
+  loadGoogleAdminRequestsJournal,
+  saveGoogleAdminRequestsJournal,
   loadKerjaBaktiIgHighlights,
   saveKerjaBaktiIgHighlights,
   setExplicitUrbanFarmingSpotPhoto,
@@ -357,9 +362,13 @@ export default function App() {
 
   const [adminUsers, setAdminUsers] = useState<AdminUserAccount[]>(() => {
     const deleted = getDeletedItemIds();
-    const source = Array.isArray(initialPersisted?.adminUsers) && initialPersisted.adminUsers.length > 0
-      ? initialPersisted.adminUsers
-      : INITIAL_ADMIN_USERS;
+    const journal = loadAdminUsersJournal();
+    const source =
+      journal && Array.isArray(journal.users) && journal.users.length > 0
+        ? journal.users
+        : Array.isArray(initialPersisted?.adminUsers) && initialPersisted.adminUsers.length > 0
+        ? initialPersisted.adminUsers
+        : INITIAL_ADMIN_USERS;
     const normalizeCat = (c: string) => {
       if (c === 'adminduk') return 'administrasi_kependudukan';
       if (c === 'pengaduan_warga') return 'pengaduan_permasalahan_warga';
@@ -388,6 +397,18 @@ export default function App() {
     }
     return filtered;
   });
+
+  const [googleAdminRequests, setGoogleAdminRequests] = useState<GoogleAdminVerificationRequest[]>(
+    () => {
+      if (
+        Array.isArray(initialPersisted?.googleAdminVerificationRequests) &&
+        initialPersisted.googleAdminVerificationRequests.length > 0
+      ) {
+        return initialPersisted.googleAdminVerificationRequests;
+      }
+      return loadGoogleAdminRequestsJournal();
+    }
+  );
 
   const [activityLogs, setActivityLogs] = useState<AdminActivityLog[]>(
     Array.isArray(initialPersisted?.activityLogs)
@@ -611,6 +632,7 @@ export default function App() {
     masterLayananList,
     masterPersyaratanList,
     kategoriPengaduanList,
+    googleAdminVerificationRequests: googleAdminRequests,
   });
 
   useEffect(() => {
@@ -638,6 +660,7 @@ export default function App() {
       masterLayananList,
       masterPersyaratanList,
       kategoriPengaduanList,
+      googleAdminVerificationRequests: googleAdminRequests,
     };
   }, [
     kelurahanProfile,
@@ -663,6 +686,7 @@ export default function App() {
     masterLayananList,
     masterPersyaratanList,
     kategoriPengaduanList,
+    googleAdminRequests,
   ]);
 
   const serverSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -703,6 +727,8 @@ export default function App() {
         masterLayananList: partial.masterLayananList ?? stateRef.current.masterLayananList,
         masterPersyaratanList: partial.masterPersyaratanList ?? stateRef.current.masterPersyaratanList,
         kategoriPengaduanList: partial.kategoriPengaduanList ?? stateRef.current.kategoriPengaduanList,
+        googleAdminVerificationRequests:
+          partial.googleAdminVerificationRequests ?? stateRef.current.googleAdminVerificationRequests,
         deletedItemIds: nextDeletedArray,
         updatedAt: Date.now(),
       };
@@ -731,6 +757,7 @@ export default function App() {
         masterLayananList: nextSnapshot.masterLayananList ?? INITIAL_MASTER_LAYANAN,
         masterPersyaratanList: nextSnapshot.masterPersyaratanList ?? INITIAL_MASTER_PERSYARATAN,
         kategoriPengaduanList: nextSnapshot.kategoriPengaduanList ?? DAFTAR_KATEGORI_PENGADUAN,
+        googleAdminVerificationRequests: nextSnapshot.googleAdminVerificationRequests ?? [],
       };
 
       savePersistedDatabase(nextSnapshot);
@@ -991,6 +1018,9 @@ export default function App() {
     if (merged.masterLayananList) setMasterLayananList(merged.masterLayananList);
     if (merged.masterPersyaratanList) setMasterPersyaratanList(merged.masterPersyaratanList);
     if (merged.kategoriPengaduanList) setKategoriPengaduanList(merged.kategoriPengaduanList);
+    if (merged.googleAdminVerificationRequests) {
+      setGoogleAdminRequests(merged.googleAdminVerificationRequests);
+    }
     setTebaSpots(merged.tebaSpots ?? []);
     setBioporiPoints(merged.bioporiPoints ?? []);
 
@@ -1018,6 +1048,7 @@ export default function App() {
       masterLayananList: merged.masterLayananList ?? INITIAL_MASTER_LAYANAN,
       masterPersyaratanList: merged.masterPersyaratanList ?? INITIAL_MASTER_PERSYARATAN,
       kategoriPengaduanList: merged.kategoriPengaduanList ?? DAFTAR_KATEGORI_PENGADUAN,
+      googleAdminVerificationRequests: merged.googleAdminVerificationRequests ?? [],
     };
 
     savePersistedDatabase(merged);
@@ -1055,6 +1086,9 @@ export default function App() {
       if (initialLocal.masterLayananList) setMasterLayananList(initialLocal.masterLayananList);
       if (initialLocal.masterPersyaratanList) setMasterPersyaratanList(initialLocal.masterPersyaratanList);
       if (initialLocal.kategoriPengaduanList) setKategoriPengaduanList(initialLocal.kategoriPengaduanList);
+      if (initialLocal.googleAdminVerificationRequests) {
+        setGoogleAdminRequests(initialLocal.googleAdminVerificationRequests);
+      }
     }
 
     // 2. Real-time Firestore Subscription (instant push across all devices/smartphones/computers)
@@ -1246,6 +1280,15 @@ export default function App() {
         } catch {}
       }
     };
+    const handleGoogleRequestsUpdated = (e: Event) => {
+      const customEv = e as CustomEvent<{ requests?: GoogleAdminVerificationRequest[] }>;
+      const reqs = customEv?.detail?.requests || loadGoogleAdminRequestsJournal();
+      if (Array.isArray(reqs)) {
+        setGoogleAdminRequests(reqs);
+        stateRef.current.googleAdminVerificationRequests = reqs;
+      }
+    };
+    window.addEventListener('pnk_google_requests_updated', handleGoogleRequestsUpdated);
     window.addEventListener('storage', handleStorageUpdate);
 
     return () => {
@@ -1254,6 +1297,7 @@ export default function App() {
       unsubscribeProfile();
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
       if (es) es.close();
+      window.removeEventListener('pnk_google_requests_updated', handleGoogleRequestsUpdated);
       window.removeEventListener('storage', handleStorageUpdate);
       window.removeEventListener('appinstalled', handlePwaInstalled);
     };
@@ -3053,14 +3097,25 @@ export default function App() {
   const handleSaveAdminUsers = async (
     updatedUsers: AdminUserAccount[]
   ): Promise<{ ok: boolean; errors?: string[] }> => {
-    saveAdminUsersJournal(updatedUsers, Date.now());
-    setAdminUsers(updatedUsers);
-    commitPersistence({ adminUsers: updatedUsers });
+    const nowMs = Date.now();
+    const stampedUsers: AdminUserAccount[] = updatedUsers.map((u) => ({
+      ...u,
+      updatedAtMs: u.updatedAtMs && u.updatedAtMs >= nowMs - 2000 ? u.updatedAtMs : nowMs,
+    }));
+    // Save journal with +10s buffer so subsequent audit logs never make journal appear older than SSE/localDb
+    saveAdminUsersJournal(stampedUsers, nowMs + 10000);
+    setAdminUsers(stampedUsers);
+    commitPersistence({ adminUsers: stampedUsers });
+    // Immediate direct write to Firestore so fast page reloads or tab switches never lose whitelist accounts
+    pushAdminUsersAndRequestsToFirestore(
+      stampedUsers,
+      stateRef.current.googleAdminVerificationRequests
+    ).catch(() => {});
     try {
       await fetchLocalExpressOnly('/api/admin-users', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adminUsers: updatedUsers }),
+        body: JSON.stringify({ adminUsers: stampedUsers }),
       });
     } catch {
       // Fallback already persisted via localStorage & Firestore
@@ -3646,6 +3701,7 @@ export default function App() {
             firebaseUserProfile={authUserProfile}
             onFirebaseLogout={handleFirebaseLogout}
             citizenUsers={citizenUsers}
+            googleAdminRequests={googleAdminRequests}
             onUpdateCitizenUser={handleUpdateCitizenUser}
             onDeleteCitizenUser={handleDeleteCitizenUser}
             citizenMenuConfig={citizenMenuConfig}
