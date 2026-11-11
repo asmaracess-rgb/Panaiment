@@ -59,6 +59,13 @@ import {
 import { buildOfficialKopSuratHtml } from '../utils/officialKopSurat';
 import { getRealtimeDateTimeString } from '../utils/realtimeDate';
 import { downloadOfficialLetterOrReceiptPdf } from '../utils/officialLetterPdfGenerator';
+import {
+  isSuratAdministrasi,
+  getLayananSeksiInfo,
+  OFFICIAL_13_LAYANAN_SEKSI_MAP,
+  SeksiKelurahanType,
+} from '../utils/layananSeksiHelper';
+export { isSuratAdministrasi };
 import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
 import { SubmissionDetailModal } from './SubmissionDetailModal';
 import { resolveImageUrl } from '../utils/resolveImageUrl';
@@ -94,22 +101,7 @@ interface AdminPengurusanWargaPanelProps {
 const DEFAULT_RW_LIST = ['RW 01', 'RW 02', 'RW 03', 'RW 04', 'RW 05', 'RW 06', 'RW 07'];
 const DEFAULT_RT_LIST = ['RT 01', 'RT 02', 'RT 03', 'RT 04', 'RT 05'];
 
-export function isSuratAdministrasi(r: CitizenReport): boolean {
-  if (r.ticketCode?.startsWith('SRT-')) return true;
-  if (r.documentCode && r.documentCode.startsWith('PM-')) return true;
-  if (
-    r.serviceCategoryId === 'surat_keterangan' ||
-    r.serviceCategoryId === 'administrasi_kependudukan'
-  )
-    return true;
-  if (
-    OFFICIAL_13_WARGA_SERVICES.some(
-      (s) => s.code === r.documentCode || s.code === r.serviceSubItemId
-    )
-  )
-    return true;
-  return false;
-}
+
 
 export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps> = ({
   reports,
@@ -140,6 +132,7 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
 
   // Sub-filters & Search
   const [selectedSuratCode, setSelectedSuratCode] = useState<string>('ALL');
+  const [selectedSeksiFilter, setSelectedSeksiFilter] = useState<string>('ALL');
   const [selectedAduanCategory, setSelectedAduanCategory] = useState<string>('ALL');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('ALL');
   const [selectedRwFilter, setSelectedRwFilter] = useState<string>('ALL');
@@ -245,12 +238,24 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
       if (activeMainFilter === 'SURAT' && !isSurat) return false;
       if (activeMainFilter === 'ADUAN' && isSurat) return false;
 
+      // Sub-filter for Seksi Kelurahan
+      if (selectedSeksiFilter !== 'ALL') {
+        if (!isSurat) return false;
+        const seksiInfo = getLayananSeksiInfo(
+          item.documentCode || item.serviceSubItemId,
+          item.serviceSubItemLabel || item.title
+        );
+        if (seksiInfo.seksiName !== selectedSeksiFilter) return false;
+      }
+
       // Sub-filter for surat code
       if (activeMainFilter === 'SURAT' && selectedSuratCode !== 'ALL') {
+        const itemCode = (item.documentCode || item.serviceSubItemId || '').toUpperCase();
+        const targetCode = selectedSuratCode.toUpperCase();
         const matchesCode =
-          item.documentCode === selectedSuratCode ||
-          item.serviceSubItemId === selectedSuratCode ||
-          item.ticketCode.includes(selectedSuratCode);
+          itemCode.includes(targetCode) ||
+          targetCode.includes(itemCode) ||
+          (item.ticketCode || '').toUpperCase().includes(targetCode);
         if (!matchesCode) return false;
       }
 
@@ -324,6 +329,7 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
     pengaduanList,
     activeMainFilter,
     selectedSuratCode,
+    selectedSeksiFilter,
     selectedAduanCategory,
     selectedStatusFilter,
     selectedRwFilter,
@@ -339,6 +345,7 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
   }, [
     activeMainFilter,
     selectedSuratCode,
+    selectedSeksiFilter,
     selectedAduanCategory,
     selectedStatusFilter,
     selectedRwFilter,
@@ -359,6 +366,7 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
   const hasActiveFilter =
     activeMainFilter !== 'ALL' ||
     selectedSuratCode !== 'ALL' ||
+    selectedSeksiFilter !== 'ALL' ||
     selectedAduanCategory !== 'ALL' ||
     selectedStatusFilter !== 'ALL' ||
     selectedRwFilter !== 'ALL' ||
@@ -370,6 +378,7 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
   const handleResetAllFilters = () => {
     setActiveMainFilter('ALL');
     setSelectedSuratCode('ALL');
+    setSelectedSeksiFilter('ALL');
     setSelectedAduanCategory('ALL');
     setSelectedStatusFilter('ALL');
     setSelectedRwFilter('ALL');
@@ -468,18 +477,20 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
       const selectedService =
         OFFICIAL_13_WARGA_SERVICES.find((s) => s.code === formSuratCode) ||
         OFFICIAL_13_WARGA_SERVICES[0];
+      const seksiInfo = getLayananSeksiInfo(selectedService.code, selectedService.name);
       if (!computedTitle) {
         computedTitle = `${selectedService.name} a.n. ${formReporterName.trim()}`;
       }
       serviceMeta = {
-        category: 'Surat Keterangan' as ReportCategory,
-        documentCode: selectedService.code,
+        category: seksiInfo.category,
+        documentCode: seksiInfo.canonicalCode || selectedService.code,
         serviceSubItemId: selectedService.code,
         serviceSubItemLabel: selectedService.name,
-        serviceCategoryTitle: 'Pelayanan Surat Administrasi',
-        serviceCategoryId: 'surat_keterangan',
+        serviceCategoryTitle: seksiInfo.serviceCategoryTitle,
+        serviceCategoryId: seksiInfo.serviceCategoryId,
         officialHeaderTitle: selectedService.name.toUpperCase(),
-        processingUnit: selectedService.processingUnit,
+        processingUnit: seksiInfo.processingUnit,
+        assignedTeam: seksiInfo.assignedTeam,
         letterRegisterNumber: formLetterNumber.trim() || generateAutoLetterNumber(selectedService.code),
         signedByOfficer: formSignedBy.trim(),
         applicantNik: formApplicantNik.trim() || undefined,
@@ -494,6 +505,7 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
         serviceCategoryId: 'pengaduan_permasalahan_warga',
         officialHeaderTitle: 'LAPORAN DAN PENGADUAN PERMASALAHAN WARGA',
         processingUnit: formAssignedTeam.trim() || 'Satgas & Tim Reaksi Cepat Kelurahan Panaikang',
+        assignedTeam: formAssignedTeam.trim() || 'Satgas & Tim Reaksi Cepat Kelurahan Panaikang',
       };
     }
 
@@ -507,7 +519,7 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
       rw: formRw,
       rt: formRt,
       locationName: formLocation.trim(),
-      assignedTeam: formAssignedTeam.trim() || 'Seksi Pelayanan Umum & Loket Kelurahan',
+      assignedTeam: formAssignedTeam.trim() || (serviceMeta.assignedTeam || 'Seksi Pemerintahan Kelurahan Panaikang'),
       responseNote:
         formResponseNote.trim() ||
         (formStatus === 'Selesai'
@@ -1064,7 +1076,7 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
         </div>
 
         {/* Multi-Filter Dropdowns Row */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 pt-2 border-t border-slate-100">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5 pt-2 border-t border-slate-100">
           {/* 1. Jenis Pengajuan */}
           <div>
             <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
@@ -1083,6 +1095,30 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
               <option value="ALL">Semua ({reports.length})</option>
               <option value="SURAT">Surat Administrasi ({totalSuratCount})</option>
               <option value="ADUAN">Pengaduan Warga ({totalAduanCount})</option>
+            </select>
+          </div>
+
+          {/* 2. Seksi Penanggung Jawab */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+              Seksi Penanggung Jawab
+            </label>
+            <select
+              value={selectedSeksiFilter}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedSeksiFilter(val);
+                if (val !== 'ALL' && activeMainFilter === 'ADUAN') {
+                  setActiveMainFilter('SURAT');
+                }
+              }}
+              className="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:border-[#0D3868]"
+            >
+              <option value="ALL">Semua Seksi</option>
+              <option value="Seksi Pemerintahan">🏛️ Seksi Pemerintahan (7 Surat)</option>
+              <option value="Seksi Perekonomian & Pembangunan">💼 Perekonomian & Pembangunan (3 Surat)</option>
+              <option value="Seksi Pemberdayaan Masyarakat">🤝 Pemberdayaan Masyarakat (2 Surat)</option>
+              <option value="Lurah">👑 Lurah / Ahli Waris (1 Surat)</option>
             </select>
           </div>
 
@@ -1375,12 +1411,23 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
                           <div className="font-bold text-[#0D3868] line-clamp-1">
                             {item.title}
                           </div>
-                          <div className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
-                            {isSurat
-                              ? item.letterRegisterNumber
-                                ? `No. Surat: ${item.letterRegisterNumber}`
-                                : item.description
-                              : `${item.category} · ${item.locationName}`}
+                          <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                            {isSurat ? (
+                              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-sky-50 text-sky-800 border border-sky-200">
+                                🏛️ {getLayananSeksiInfo(item.documentCode || item.serviceSubItemId, item.serviceSubItemLabel || item.title).seksiName}
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                📢 Aduan Warga
+                              </span>
+                            )}
+                            <span className="text-[11px] text-slate-500 line-clamp-1">
+                              {isSurat
+                                ? item.letterRegisterNumber
+                                  ? `No. Surat: ${item.letterRegisterNumber}`
+                                  : item.description
+                                : `${item.category} · ${item.locationName}`}
+                            </span>
                           </div>
                         </td>
 
@@ -1505,7 +1552,7 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
                 >
                   <div className="space-y-2">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span
                           className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
                             isSurat
@@ -1515,6 +1562,11 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
                         >
                           {isSurat ? 'SURAT' : 'ADUAN'}
                         </span>
+                        {isSurat && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-50 text-sky-800 border border-sky-200">
+                            🏛️ {getLayananSeksiInfo(item.documentCode || item.serviceSubItemId, item.serviceSubItemLabel || item.title).seksiName}
+                          </span>
+                        )}
                         <span className="font-mono-num font-extrabold text-xs text-[#0D3868]">
                           {item.ticketCode}
                         </span>

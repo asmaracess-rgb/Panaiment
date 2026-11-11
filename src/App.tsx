@@ -113,6 +113,7 @@ import {
   saveKerjaBaktiIgHighlights,
   setExplicitUrbanFarmingSpotPhoto,
 } from './utils/persistentStorage';
+import { getLayananSeksiInfo, isSuratAdministrasi } from './utils/layananSeksiHelper';
 import { compressDataUrlIfNeeded } from './utils/compressImage';
 import {
   getRealtimeDateTimeString,
@@ -457,12 +458,7 @@ export default function App() {
 
     for (const r of existingReports) {
       if (!r || !r.id || deleted.has(r.id)) continue;
-      const isSurat =
-        r.ticketCode?.startsWith('SRT-') ||
-        r.ticketCode?.startsWith('REG-') ||
-        (r.documentCode && r.documentCode.startsWith('PM-')) ||
-        r.serviceCategoryId === 'surat_keterangan' ||
-        r.category === 'Surat Keterangan';
+      const isSurat = isSuratAdministrasi(r);
 
       if (isSurat && !existingTickets.has(r.ticketCode)) {
         let mappedStatus: PraRegistrasiStatus = 'MENUNGGU_KEDATANGAN';
@@ -527,12 +523,7 @@ export default function App() {
 
     for (const r of existingReports) {
       if (!r || !r.id || deleted.has(r.id)) continue;
-      const isSurat =
-        r.ticketCode?.startsWith('SRT-') ||
-        r.ticketCode?.startsWith('REG-') ||
-        (r.documentCode && r.documentCode.startsWith('PM-')) ||
-        r.serviceCategoryId === 'surat_keterangan' ||
-        r.category === 'Surat Keterangan';
+      const isSurat = isSuratAdministrasi(r);
 
       if (!isSurat && !existingTickets.has(r.ticketCode)) {
         let mappedStatus: PengaduanOnlineStatus = 'DIAJUKAN';
@@ -911,12 +902,7 @@ export default function App() {
     if (Array.isArray(merged.reports)) {
       for (const r of merged.reports) {
         if (!r || !r.id || deleted.has(r.id)) continue;
-        const isSurat =
-          r.ticketCode?.startsWith('SRT-') ||
-          r.ticketCode?.startsWith('REG-') ||
-          (r.documentCode && r.documentCode.startsWith('PM-')) ||
-          r.serviceCategoryId === 'surat_keterangan' ||
-          r.category === 'Surat Keterangan';
+        const isSurat = isSuratAdministrasi(r);
 
         if (isSurat && !existingPraTickets.has(r.ticketCode)) {
           let mappedStatus: PraRegistrasiStatus = 'SURAT_SELESAI';
@@ -1660,18 +1646,22 @@ export default function App() {
       const nextPraList = [newPraRecord, ...currentList];
       setPraRegistrasiList(nextPraList);
 
+      // Determine authoritative Seksi & municipal unit for this administrative letter
+      const seksiInfo = getLayananSeksiInfo(record.serviceCode, record.serviceName);
+
       // Create matching CitizenReport for backward compatibility & unified dashboard
       const matchingReport: CitizenReport = {
         id: `rep-pra-${Date.now()}`,
         ticketCode,
-        category: 'Surat Keterangan',
-        serviceCategoryId: 'surat_keterangan',
-        serviceCategoryTitle: 'Pelayanan Surat Administrasi',
+        category: seksiInfo.category,
+        serviceCategoryId: seksiInfo.serviceCategoryId,
+        serviceCategoryTitle: seksiInfo.serviceCategoryTitle,
         serviceSubItemId: record.serviceCode,
         serviceSubItemLabel: record.serviceName,
+        documentCode: seksiInfo.canonicalCode || record.serviceCode,
         officialHeaderTitle: record.serviceName.toUpperCase(),
         title: `${record.serviceName} a.n. ${record.applicantName}`,
-        description: `Pra Registrasi ${record.serviceName}. Pemohon: ${record.applicantName} (NIK: ${record.applicantNik})`,
+        description: `Pra Registrasi ${record.serviceName} (${seksiInfo.seksiName}). Pemohon: ${record.applicantName} (NIK: ${record.applicantNik})`,
         urgency: 'Normal',
         status: 'Menunggu Verifikasi',
         createdAt: nowTime,
@@ -1682,13 +1672,13 @@ export default function App() {
         rw: record.applicantRw,
         rt: record.applicantRt,
         locationName: record.applicantAddress,
-        assignedTeam: 'Seksi Pelayanan Umum & Loket Kelurahan',
-        responseNote:
-          'Pra registrasi online telah terdaftar. Silakan bawa berkas fisik asli ke kantor loket Kelurahan Panaikang untuk verifikasi.',
+        assignedTeam: seksiInfo.assignedTeam,
+        processingUnit: seksiInfo.processingUnit,
+        responseNote: `Pra registrasi online telah terdaftar pada ${seksiInfo.seksiName}. Silakan bawa berkas fisik asli ke ${seksiInfo.processingUnit} untuk verifikasi.`,
         mapX: 50,
         mapY: 48,
         coordinatesLabel: '-5.1379, 119.4470',
-        imageUrl: '',
+        imageUrl: (record.uploadedDocs && record.uploadedDocs[0]?.fileUrl) || '',
         upvotes: 1,
       };
 

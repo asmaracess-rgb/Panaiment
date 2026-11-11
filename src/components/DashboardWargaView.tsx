@@ -64,6 +64,7 @@ import {
 import { PelayananKelurahanModule } from './PelayananKelurahanModule';
 import { QRCodeModal } from './QRCodeModal';
 import { getRealtimeDateTimeString } from '../utils/realtimeDate';
+import { getLayananSeksiInfo, isSuratAdministrasi } from '../utils/layananSeksiHelper';
 import {
   buildWhatsAppUrl,
   formatDisplayPhone,
@@ -284,12 +285,13 @@ export const DashboardWargaView: React.FC<DashboardWargaViewProps> = ({
     if (onAddPraRegistrasi) {
       return await onAddPraRegistrasi(record);
     }
+    const seksiInfo = getLayananSeksiInfo(record.serviceCode, record.serviceName);
     const ticketCode = onAddReport({
       ownerId: userProfile?.uid,
       ownerEmail: userProfile?.email,
-      title: `Pra Registrasi: ${record.serviceName} - ${record.applicantName}`,
-      description: `Registrasi pelayanan online untuk ${record.serviceName}. NIK: ${record.applicantNik}`,
-      category: 'Ketertiban & Fasum',
+      title: `${record.serviceName} a.n. ${record.applicantName}`,
+      description: `Pra Registrasi ${record.serviceName} (${seksiInfo.seksiName}). NIK: ${record.applicantNik}`,
+      category: seksiInfo.category,
       urgency: 'Normal',
       reporterName: record.applicantName,
       reporterPhone: record.applicantPhone,
@@ -300,12 +302,13 @@ export const DashboardWargaView: React.FC<DashboardWargaViewProps> = ({
       mapY: 50,
       coordinatesLabel: 'Loket Pelayanan Kelurahan Panaikang',
       imageUrl: record.uploadedDocs?.[0]?.fileUrl || '',
-      serviceCategoryId: 'surat_keterangan',
-      serviceCategoryTitle: 'Layanan Administrasi & Persuratan',
+      serviceCategoryId: seksiInfo.serviceCategoryId,
+      serviceCategoryTitle: seksiInfo.serviceCategoryTitle,
       serviceSubItemId: record.serviceCode,
       serviceSubItemLabel: record.serviceName,
-      documentCode: record.serviceCode,
+      documentCode: seksiInfo.canonicalCode || record.serviceCode,
       applicantNik: record.applicantNik,
+      processingUnit: seksiInfo.processingUnit,
     });
     return ticketCode;
   };

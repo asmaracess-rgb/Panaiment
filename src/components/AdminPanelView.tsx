@@ -150,6 +150,7 @@ import { EmblemKotaMakassar, EmblemKelurahanPanaikang, Instagram } from './Emble
 import { DashboardLurahView } from './DashboardLurahView';
 import { MonthlyArchivePdfPanel } from './MonthlyArchivePdfPanel';
 import { AdminPengurusanWargaPanel } from './AdminPengurusanWargaPanel';
+import { isSuratAdministrasi } from '../utils/layananSeksiHelper';
 import { SubmissionDetailModal } from './SubmissionDetailModal';
 import { AdminDaftarWargaPanel } from './AdminDaftarWargaPanel';
 import { AdminParameterUserPanel } from './AdminParameterUserPanel';
@@ -4314,10 +4315,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   };
 
   const filteredReports = reports.filter((r) => {
-    const isSurat =
-      Boolean(r.serviceCategoryId || r.serviceSubItemId) ||
-      String(r.ticketCode || '').toUpperCase().startsWith('PLY-') ||
-      String(r.ticketCode || '').toUpperCase().startsWith('SRT-');
+    const isSurat = isSuratAdministrasi(r);
     if (reportTypeFilter === 'SURAT' && !isSurat) return false;
     if (reportTypeFilter === 'PENGADUAN' && isSurat) return false;
     if (reportStatusFilter !== 'SEMUA' && r.status !== reportStatusFilter) return false;
@@ -8759,11 +8757,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                       const matchedPgd = pengaduanList.find(
                         (p) => p.ticketCode === rep.ticketCode || p.id === rep.id
                       );
-                      const isSurat =
-                        Boolean(rep.serviceCategoryId || rep.serviceSubItemId) ||
-                        String(rep.ticketCode || '').toUpperCase().startsWith('PLY-') ||
-                        String(rep.ticketCode || '').toUpperCase().startsWith('SRT-') ||
-                        Boolean(matchedPra);
+                      const isSurat = isSuratAdministrasi(rep) || Boolean(matchedPra);
                       const docCount = matchedPra?.uploadedDocs?.length || 0;
                       const citizenPhotoUrl =
                         (matchedPgd?.proofPhotos && matchedPgd.proofPhotos[0]) ||

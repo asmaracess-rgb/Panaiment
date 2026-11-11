@@ -81,6 +81,7 @@ import { getRealtimeDateTimeString } from '../utils/realtimeDate';
 const RW_LIST = ['RW 01', 'RW 02', 'RW 03', 'RW 04', 'RW 05', 'RW 06', 'RW 07'];
 import { GeneratedPdfResult } from '../utils/monthlyReportPdfGenerator';
 import { downloadOfficialLetterOrReceiptPdf } from '../utils/officialLetterPdfGenerator';
+import { isSuratAdministrasi, getLayananSeksiInfo } from '../utils/layananSeksiHelper';
 import {
   normalizeWhatsAppPhone,
   formatDisplayPhone,
@@ -636,12 +637,7 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
 
     for (const r of reports) {
       if (!r || !r.id) continue;
-      const isSurat =
-        r.ticketCode?.startsWith('SRT-') ||
-        r.ticketCode?.startsWith('REG-') ||
-        (r.documentCode && r.documentCode.startsWith('PM-')) ||
-        r.serviceCategoryId === 'surat_keterangan' ||
-        r.category === 'Surat Keterangan';
+      const isSurat = isSuratAdministrasi(r);
 
       if (isSurat && !ticketSet.has(r.ticketCode)) {
         let mappedStatus: PraRegistrasiStatus = 'SURAT_SELESAI';
@@ -649,12 +645,17 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
         else if (r.status === 'Sedang Ditangani') mappedStatus = 'DIPROSES';
         else if (r.status === 'Selesai') mappedStatus = 'SURAT_SELESAI';
 
+        const seksiInfo = getLayananSeksiInfo(
+          r.documentCode || r.serviceSubItemId,
+          r.serviceSubItemLabel || r.title
+        );
+
         list.push({
           id: r.id,
           ticketCode: r.ticketCode || `SRT-2026-${r.id.slice(-4)}`,
           serviceId: r.serviceSubItemId || r.serviceCategoryId || 'sk-usaha',
-          serviceCode: r.documentCode || r.serviceSubItemId || 'PM-01',
-          serviceName: r.serviceSubItemLabel || r.serviceCategoryTitle || r.title || 'Surat Keterangan',
+          serviceCode: r.documentCode || r.serviceSubItemId || seksiInfo.canonicalCode,
+          serviceName: r.serviceSubItemLabel || r.serviceCategoryTitle || r.title || seksiInfo.officialServiceName,
           applicantNik: r.applicantNik || '7371110000000001',
           applicantName: r.reporterName || 'Warga Panaikang',
           applicantPhone: r.reporterPhone || '',
@@ -666,8 +667,8 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
           status: mappedStatus,
           submittedAt: r.createdAt || '01 November 2026',
           updatedAt: r.updatedAt || r.createdAt || '01 November 2026',
-          assignedOfficerName: r.verifiedBy || r.assignedTeam || 'Petugas Loket Pelayanan',
-          officerNotes: r.responseNote || 'Berkas telah diverifikasi oleh petugas loket.',
+          assignedOfficerName: r.verifiedBy || seksiInfo.approverRole || 'Kasi Pelayanan',
+          officerNotes: r.responseNote || `Berkas telah diverifikasi oleh ${seksiInfo.seksiName}.`,
           physicalDocsChecked: r.status === 'Selesai' || r.status === 'Sedang Ditangani',
           lurahApprovalStatus:
             r.status === 'Selesai' || r.status === 'Sedang Ditangani'
@@ -687,12 +688,7 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
 
     for (const r of reports) {
       if (!r || !r.id) continue;
-      const isSurat =
-        r.ticketCode?.startsWith('SRT-') ||
-        r.ticketCode?.startsWith('REG-') ||
-        (r.documentCode && r.documentCode.startsWith('PM-')) ||
-        r.serviceCategoryId === 'surat_keterangan' ||
-        r.category === 'Surat Keterangan';
+      const isSurat = isSuratAdministrasi(r);
 
       if (!isSurat && !ticketSet.has(r.ticketCode)) {
         let mappedStatus: PengaduanOnlineStatus = 'DIAJUKAN';

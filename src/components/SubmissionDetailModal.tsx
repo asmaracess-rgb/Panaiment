@@ -41,6 +41,7 @@ import {
 } from '../utils/whatsappHelper';
 import { downloadOfficialLetterOrReceiptPdf } from '../utils/officialLetterPdfGenerator';
 import { getRealtimeDateTimeString } from '../utils/realtimeDate';
+import { isSuratAdministrasi, getLayananSeksiInfo } from '../utils/layananSeksiHelper';
 
 export type DecisionPopupActionType = 'SETUJUI' | 'KEMBALIKAN' | 'TOLAK' | 'GUIDE';
 
@@ -373,13 +374,17 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
 
   const isSurat = Boolean(
     praRecord ||
+      isSuratAdministrasi(report) ||
       ticketCode.startsWith('REG-') ||
-      ticketCode.startsWith('SRT-') ||
-      (report?.documentCode && report.documentCode.startsWith('PM-')) ||
-      report?.serviceCategoryId === 'surat_keterangan' ||
-      report?.serviceCategoryId === 'administrasi_kependudukan' ||
-      report?.category === 'Surat Keterangan'
+      ticketCode.startsWith('SRT-')
   );
+
+  const seksiInfo = isSurat
+    ? getLayananSeksiInfo(
+        praRecord?.serviceCode || report?.documentCode || report?.serviceSubItemId,
+        praRecord?.serviceName || report?.serviceSubItemLabel || report?.title
+      )
+    : null;
 
   const title =
     praRecord?.serviceName ||
@@ -468,9 +473,13 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
     praRecord?.assignedOfficerName ||
     pengaduanRecord?.assignedOfficer ||
     pengaduanRecord?.assignedUnit ||
-    report?.verifiedBy ||
+    report?.processingUnit ||
     report?.assignedTeam ||
-    (isSurat ? 'Loket Pelayanan Kelurahan Panaikang' : 'Tim Respon & Satgas Kelurahan Panaikang');
+    (isSurat
+      ? seksiInfo
+        ? `${seksiInfo.seksiName} · ${seksiInfo.processingUnit}`
+        : 'Loket Pelayanan Kelurahan Panaikang'
+      : 'Tim Respon & Satgas Kelurahan Panaikang');
 
   const officerNotes =
     praRecord?.officerNotes ||
@@ -659,6 +668,11 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
                 <span className="font-mono text-xs font-black bg-amber-400 text-slate-950 px-2.5 py-0.5 rounded-md">
                   #{ticketCode}
                 </span>
+                {isSurat && seksiInfo && (
+                  <span className="px-2 py-0.5 rounded-md bg-sky-200/90 text-sky-950 text-[10px] font-black uppercase tracking-wider">
+                    🏛️ {seksiInfo.seksiName}
+                  </span>
+                )}
                 {isPriority && (
                   <span className="px-2 py-0.5 rounded-md bg-rose-600 text-white text-[10px] font-black uppercase">
                     Prioritas / Mendesak
