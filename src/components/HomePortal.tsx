@@ -198,47 +198,47 @@ export const HomePortal: React.FC<HomePortalProps> = ({
       {/* ================= HERO STREETSCAPE & EMBLEMS SECTION ================= */}
       <section className="relative z-10 w-full overflow-hidden">
         {/* Background Streetscape Container Featuring Nipah Mall Makassar, Kampus UMI & Jl. Urip Sumoharjo */}
-        <div className="relative h-[300px] sm:h-[340px] lg:h-[370px] w-full overflow-hidden bg-gradient-to-b from-sky-400 via-sky-200 to-white">
+        <div className="relative h-[235px] sm:h-[340px] lg:h-[370px] w-full overflow-hidden bg-gradient-to-b from-sky-300 via-sky-100 to-white">
           {!heroImgError ? (
             <img
               src={resolveImageUrl(HERO_IMAGE_PATH)}
               alt="Panorama Nipah Mall Makassar, Kampus UMI, dan Jalan Urip Sumoharjo di Kelurahan Panaikang Kota Makassar"
               referrerPolicy="no-referrer"
               onError={() => setHeroImgError(true)}
-              className="h-full w-full object-cover object-center"
+              className="absolute inset-x-0 bottom-0 h-[122%] w-full object-cover object-[16%_bottom] sm:static sm:h-full sm:object-center"
             />
           ) : (
             <div className="h-full w-full bg-gradient-to-b from-sky-400 via-sky-200 to-white" />
           )}
 
-          {/* Top Sky Lightening Scrim for Emblem Contrast */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-sky-200/70 via-sky-100/40 to-transparent" />
+          {/* Top Sky Lightening Scrim for Emblem Contrast (Desktop/Tablet only so mobile top crop stays crisp right above 'N' of Nipah Mall) */}
+          <div className="hidden sm:block pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-sky-200/70 via-sky-100/40 to-transparent" />
 
           {/* Bottom White Cloud/Mist Fade Transition into Title Lockup */}
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-36 sm:h-44 bg-gradient-to-t from-white via-white/95 to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 sm:h-44 bg-gradient-to-t from-white via-white/95 to-transparent" />
 
-          {/* Official Dual Emblems at Top Center: KOTA MAKASSAR | KELURAHAN PANAIKANG */}
-          <div className="relative z-10 pt-2.5 sm:pt-3 flex flex-col items-center">
-            <div className="inline-flex items-center justify-center gap-4 sm:gap-6">
+          {/* Official Dual Emblems at Top-Right Corner: KOTA MAKASSAR | KELURAHAN PANAIKANG */}
+          <div className="absolute top-2 right-2.5 sm:top-3 sm:right-5 z-10">
+            <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl bg-white/75 backdrop-blur-xs border border-white/80 shadow-xs">
               <button
                 type="button"
                 onClick={() => onNavigate('profil')}
                 title="Lihat Profil Resmi Pemerintah Kota Makassar"
-                className="flex flex-col items-center hover:scale-105 transition-transform duration-150 cursor-pointer focus:outline-none"
+                className="flex items-center hover:scale-105 transition-transform duration-150 cursor-pointer focus:outline-none"
               >
-                <EmblemKotaMakassar className="w-14 h-18 sm:w-16 sm:h-20 drop-shadow-[0_4px_12px_rgba(255,255,255,0.95)]" />
+                <EmblemKotaMakassar className="w-6 h-7.5 sm:w-8 sm:h-10 drop-shadow-xs" />
               </button>
 
               {/* Vertical Navy Divider Line */}
-              <div className="h-12 sm:h-14 w-[2px] bg-[#0D3868]/60 rounded-full shadow-xs" />
+              <div className="h-5 sm:h-6 w-[1.5px] bg-[#0D3868]/40 rounded-full" />
 
               <button
                 type="button"
                 onClick={() => onNavigate('profil')}
                 title="Lihat Profil Resmi Kelurahan Panaikang"
-                className="flex flex-col items-center hover:scale-105 transition-transform duration-150 cursor-pointer focus:outline-none"
+                className="flex items-center hover:scale-105 transition-transform duration-150 cursor-pointer focus:outline-none"
               >
-                <EmblemKelurahanPanaikang className="w-14 h-18 sm:w-16 sm:h-20 drop-shadow-[0_4px_12px_rgba(255,255,255,0.95)]" />
+                <EmblemKelurahanPanaikang className="w-6 h-7.5 sm:w-8 sm:h-10 drop-shadow-xs" />
               </button>
             </div>
           </div>
@@ -248,7 +248,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
             <img
               src="/assets/aistudio/logo-panaikang-smart-environment-transparent.png"
               alt="Panaikang Smart Environment Logo"
-              className="h-16 sm:h-20 lg:h-24 w-auto max-w-[92vw] sm:max-w-md lg:max-w-lg object-contain drop-shadow-[0_4px_16px_rgba(255,255,255,0.95)] hover:scale-102 transition-transform duration-200 select-none"
+              className="h-14 sm:h-20 lg:h-24 w-auto max-w-[90vw] sm:max-w-md lg:max-w-lg object-contain drop-shadow-[0_4px_16px_rgba(255,255,255,0.95)] hover:scale-102 transition-transform duration-200 select-none"
               onError={(e) => {
                 const target = e.currentTarget as HTMLImageElement;
                 if (!target.src.includes('WA0000')) {
