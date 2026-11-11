@@ -11,7 +11,6 @@ import {
   X,
   Lock,
   UserCheck,
-  LogOut,
   ShieldCheck,
 } from 'lucide-react';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -114,6 +113,7 @@ import {
   saveKerjaBaktiIgHighlights,
   setExplicitUrbanFarmingSpotPhoto,
 } from './utils/persistentStorage';
+import { compressDataUrlIfNeeded } from './utils/compressImage';
 import {
   getRealtimeDateTimeString,
   getRealtimeDateString,
@@ -133,6 +133,7 @@ import { AdminPanelView, AdminTab } from './components/AdminPanelView';
 import { AuthView } from './components/AuthView';
 import { DashboardWargaView } from './components/DashboardWargaView';
 import { PelayananKelurahanModule } from './components/PelayananKelurahanModule';
+import { BottomNavBar } from './components/BottomNavBar';
 import { EmblemKelurahanPanaikang } from './components/Emblems';
 import { recordTrafficHit, recordRealPwaInstallEvent } from './utils/trafficTracker';
 import {
@@ -3128,17 +3129,31 @@ export default function App() {
   // 11. Urban Farming Spots & Seed Requests Admin CRUD
   const handleAdminAddUrbanFarmingSpot = useCallback(
     async (spot: UrbanFarmingSpot): Promise<{ ok: boolean; errors?: string[] }> => {
-      if (spot.id && spot.photoUrl) {
-        setExplicitUrbanFarmingSpotPhoto(spot.id, spot.photoUrl);
+      const compactPhoto = spot.photoUrl
+        ? await compressDataUrlIfNeeded(spot.photoUrl, 85_000)
+        : spot.photoUrl;
+      const finalSpot: UrbanFarmingSpot = { ...spot, photoUrl: compactPhoto };
+      if (finalSpot.id && finalSpot.photoUrl) {
+        setExplicitUrbanFarmingSpotPhoto(finalSpot.id, finalSpot.photoUrl);
       }
-      const nextSpots = [spot, ...stateRef.current.urbanFarmingSpots];
+      const compactedExisting = await Promise.all(
+        stateRef.current.urbanFarmingSpots.map(async (s) => {
+          if (s.photoUrl && s.photoUrl.startsWith('data:image/') && s.photoUrl.length > 85_000) {
+            const p = await compressDataUrlIfNeeded(s.photoUrl, 85_000);
+            setExplicitUrbanFarmingSpotPhoto(s.id, p);
+            return { ...s, photoUrl: p };
+          }
+          return s;
+        })
+      );
+      const nextSpots = [finalSpot, ...compactedExisting];
       setUrbanFarmingSpots(nextSpots);
       commitPersistence({ urbanFarmingSpots: nextSpots });
       try {
         await fetchLocalExpressOnly('/api/urban-farming', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(spot),
+          body: JSON.stringify(finalSpot),
         });
       } catch {
         // Fallback persisted via localStorage & Firestore
@@ -3157,11 +3172,25 @@ export default function App() {
       if (!existing) {
         return { ok: false, errors: ['Data kebun urban farming tidak ditemukan.'] };
       }
-      const merged: UrbanFarmingSpot = { ...existing, ...updated };
+      const rawMerged: UrbanFarmingSpot = { ...existing, ...updated };
+      const compactMergedPhoto = rawMerged.photoUrl
+        ? await compressDataUrlIfNeeded(rawMerged.photoUrl, 85_000)
+        : rawMerged.photoUrl;
+      const merged: UrbanFarmingSpot = { ...rawMerged, photoUrl: compactMergedPhoto };
       if (merged.photoUrl) {
         setExplicitUrbanFarmingSpotPhoto(id, merged.photoUrl);
       }
-      const nextSpots = stateRef.current.urbanFarmingSpots.map((s) => (s.id === id ? merged : s));
+      const nextSpots = await Promise.all(
+        stateRef.current.urbanFarmingSpots.map(async (s) => {
+          if (s.id === id) return merged;
+          if (s.photoUrl && s.photoUrl.startsWith('data:image/') && s.photoUrl.length > 85_000) {
+            const p = await compressDataUrlIfNeeded(s.photoUrl, 85_000);
+            setExplicitUrbanFarmingSpotPhoto(s.id, p);
+            return { ...s, photoUrl: p };
+          }
+          return s;
+        })
+      );
       setUrbanFarmingSpots(nextSpots);
       commitPersistence({ urbanFarmingSpots: nextSpots });
       try {
@@ -3260,211 +3289,56 @@ export default function App() {
     [commitPersistence]
   );
 
+  const currentHour = new Date().getHours();
+  const timeGreeting =
+    currentHour >= 4 && currentHour < 11
+      ? 'Selamat Pagi'
+      : currentHour >= 11 && currentHour < 15
+      ? 'Selamat Siang'
+      : currentHour >= 15 && currentHour < 18
+      ? 'Selamat Sore'
+      : 'Selamat Malam';
+
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
-      {/* Top Bar Contract: Compact 3-Zone Single-Row Navigation */}
+    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 pb-16 sm:pb-20">
+      {/* Top Bar: Simplified Brand Logo + Time-of-Day Greeting */}
       <header className="sticky top-0 z-40 flex items-center justify-between px-3 sm:px-6 py-2 bg-white/95 backdrop-blur-md border-b border-slate-200/90">
-        {/* Zone 1: Application Brand Logo */}
-        <a
-          href="#beranda"
-          onClick={(e) => {
-            e.preventDefault();
-            handleNavigate('beranda');
-          }}
-          className="inline-flex items-center gap-2 text-xs sm:text-sm font-extrabold tracking-tight text-[#0D3868] whitespace-nowrap shrink-0 hover:opacity-90 transition-opacity"
-        >
-          <img
-            src="/assets/aistudio/logo-panaikang-smart-environment-transparent.png"
-            alt="Panaikang Smart Environment"
-            className="h-7 sm:h-8.5 w-auto object-contain"
-            onError={(e) => {
-              const target = e.currentTarget as HTMLImageElement;
-              if (!target.src.includes('WA0000')) {
-                target.src = '/assets/aistudio/IMG-20261024-WA0000_e50bebb6.jpg';
-              }
+        {/* Left: Brand Logo + Simple Greeting Text beside Logo */}
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <a
+            href="#beranda"
+            onClick={(e) => {
+              e.preventDefault();
+              handleNavigate('beranda');
             }}
-          />
-        </a>
-
-        {/* Zone 2: Compact text navigation links */}
-        <nav className="hidden md:flex items-center gap-4 lg:gap-5 text-xs font-semibold text-slate-600">
-          {isCitizenMenuAllowed('beranda') && (
-            <a
-              href="#beranda"
-              onClick={(e) => {
-                e.preventDefault();
-                handleNavigate('beranda');
-              }}
-              className={`whitespace-nowrap transition-colors hover:text-[#0D3868] hover:underline underline-offset-4 ${
-                activeView === 'beranda' ? 'text-[#0D3868] font-bold underline' : ''
-              }`}
-            >
-              Beranda
-            </a>
-          )}
-          {isCitizenMenuAllowed('profil') && (
-            <a
-              href="#profil"
-              onClick={(e) => {
-                e.preventDefault();
-                handleNavigate('profil');
-              }}
-              className={`whitespace-nowrap transition-colors hover:text-[#0D3868] hover:underline underline-offset-4 ${
-                activeView === 'profil' ? 'text-[#0D3868] font-bold underline' : ''
-              }`}
-            >
-              Profil Kelurahan
-            </a>
-          )}
-          {isCitizenMenuAllowed('rtrw') && (
-            <a
-              href="#rtrw"
-              onClick={(e) => {
-                e.preventDefault();
-                handleNavigate('rtrw');
-              }}
-              className={`whitespace-nowrap transition-colors hover:text-[#0D3868] hover:underline underline-offset-4 ${
-                activeView === 'rtrw' ? 'text-[#0D3868] font-bold underline' : ''
-              }`}
-            >
-              Data RT & RW
-            </a>
-          )}
-          {isCitizenMenuAllowed('warga') && (
-            <a
-              href="#warga"
-              onClick={(e) => {
-                e.preventDefault();
-                handleNavigate('warga');
-              }}
-              className={`whitespace-nowrap transition-colors hover:text-[#0277BD] hover:underline underline-offset-4 ${
-                activeView === 'warga' ? 'text-[#0277BD] font-bold underline' : ''
-              }`}
-            >
-              Pelayanan Kelurahan
-            </a>
-          )}
-          {isCitizenMenuAllowed('peta') && (
-            <a
-              href="#peta"
-              onClick={(e) => {
-                e.preventDefault();
-                handleNavigate('peta');
-              }}
-              className={`whitespace-nowrap transition-colors hover:text-[#00838F] hover:underline underline-offset-4 ${
-                activeView === 'peta' ? 'text-[#00838F] font-bold underline' : ''
-              }`}
-            >
-              Peta Digital
-            </a>
-          )}
-          {isCitizenMenuAllowed('sampah') && (
-            <a
-              href="#sampah"
-              onClick={(e) => {
-                e.preventDefault();
-                handleNavigate('sampah');
-              }}
-              className={`hidden lg:inline-block whitespace-nowrap transition-colors hover:text-[#EF6C00] hover:underline underline-offset-4 ${
-                activeView === 'sampah' ? 'text-[#EF6C00] font-bold underline' : ''
-              }`}
-            >
-              Pengelolaan Sampah
-            </a>
-          )}
-          {isCitizenMenuAllowed('kerjabakti') && (
-            <a
-              href="#kerjabakti"
-              onClick={(e) => {
-                e.preventDefault();
-                handleNavigate('kerjabakti');
-              }}
-              className={`hidden lg:inline-block whitespace-nowrap transition-colors hover:text-[#5E35B1] hover:underline underline-offset-4 ${
-                activeView === 'kerjabakti' ? 'text-[#5E35B1] font-bold underline' : ''
-              }`}
-            >
-              Kerja Bakti
-            </a>
-          )}
-          {isCitizenMenuAllowed('urbanfarming') && (
-            <a
-              href="#urbanfarming"
-              onClick={(e) => {
-                e.preventDefault();
-                handleNavigate('urbanfarming');
-              }}
-              className={`hidden xl:inline-block whitespace-nowrap transition-colors hover:text-[#059669] hover:underline underline-offset-4 ${
-                activeView === 'urbanfarming' ? 'text-[#059669] font-bold underline' : ''
-              }`}
-            >
-              Urban Farming
-            </a>
-          )}
-        </nav>
-
-        {/* Zone 3: Compact Primary Actions */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          {authUserProfile ? (
-            <>
-              {isCitizenMenuAllowed('dashboard_warga') && (
-                <button
-                  type="button"
-                  onClick={() => handleNavigate('dashboard_warga')}
-                  className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-[11px] font-bold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                    activeView === 'dashboard_warga'
-                      ? 'bg-[#0D3868] text-white'
-                      : 'bg-sky-50 text-[#0D3868] border border-sky-200 hover:bg-sky-100'
-                  }`}
-                >
-                  <UserCheck className="w-3.5 h-3.5" />
-                  <span>Dashboard Warga</span>
-                </button>
-              )}
-              {authUserProfile.role === 'admin' && (
-                <button
-                  type="button"
-                  onClick={() => handleNavigate('admin')}
-                  className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold text-amber-900 bg-amber-100 border border-amber-300 rounded-lg hover:bg-amber-200 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Admin</span>
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={handleFirebaseLogout}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg hover:bg-rose-100 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-                title={`Logout (${authUserProfile.email})`}
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Logout</span>
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                setAuthNotice('');
-                handleNavigate('login');
-              }}
-              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-[11px] font-bold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                activeView === 'login'
-                  ? 'bg-[#0D3868] text-white'
-                  : 'bg-slate-100 text-[#0D3868] hover:bg-slate-200 border border-slate-200'
-              }`}
-            >
-              <UserCheck className="w-3.5 h-3.5" />
-              <span>Masuk Warga</span>
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => handleNavigate('warga', 'pengaduan')}
-            className="px-3 py-1.5 text-[11px] font-bold text-white bg-[#1C8237] rounded-lg hover:bg-[#146329] transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-xs"
-            title="Pengaduan Online Warga Kelurahan Panaikang"
+            className="inline-flex items-center gap-2 text-xs sm:text-sm font-extrabold tracking-tight text-[#0D3868] whitespace-nowrap shrink-0 hover:opacity-90 transition-opacity"
           >
-            Pengaduan Online
-          </button>
+            <img
+              src="/assets/aistudio/logo-panaikang-smart-environment-transparent.png"
+              alt="Panaikang Smart Environment"
+              className="h-7 sm:h-8.5 w-auto object-contain"
+              onError={(e) => {
+                const target = e.currentTarget as HTMLImageElement;
+                if (!target.src.includes('WA0000')) {
+                  target.src = '/assets/aistudio/IMG-20261024-WA0000_e50bebb6.jpg';
+                }
+              }}
+            />
+          </a>
+
+          <div className="h-4 w-px bg-slate-200 shrink-0" aria-hidden="true" />
+
+          <span className="text-xs sm:text-sm font-extrabold text-[#0D3868] tracking-tight truncate">
+            {timeGreeting}
+            {authUserProfile?.fullName ? `, ${authUserProfile.fullName}` : ''}
+          </span>
+        </div>
+
+        {/* Right: Subtle Realtime Date Badge on Tablet/Desktop */}
+        <div className="hidden md:flex items-center gap-2 text-[11px] font-semibold text-slate-500 shrink-0">
+          <span className="px-2.5 py-1 rounded-lg bg-slate-100/80 border border-slate-200/80 text-slate-600 font-mono-num">
+            {getRealtimeDateString(new Date())}
+          </span>
         </div>
       </header>
 
@@ -3820,6 +3694,16 @@ export default function App() {
           </div>
         </footer>
       )}
+
+      {/* Global Bottom Navigation Bar (HP, Tablet & Desktop) */}
+      <BottomNavBar
+        activeView={activeView}
+        activeWargaModule={wargaModuleState.module}
+        onNavigate={handleNavigate}
+        isCitizenMenuAllowed={isCitizenMenuAllowed}
+        authUserProfile={authUserProfile}
+        onLogout={handleFirebaseLogout}
+      />
 
       {/* Instant Toast Notification Stack */}
       {toasts.length > 0 && (

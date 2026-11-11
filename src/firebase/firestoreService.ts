@@ -218,7 +218,7 @@ export function createSafeSnapshot(database: PersistedDatabase): PersistedDataba
   const preservedUfPhotos = new Map<string, string>();
   if (Array.isArray(database.urbanFarmingSpots)) {
     for (const s of database.urbanFarmingSpots) {
-      if (s && s.id && typeof s.photoUrl === 'string' && s.photoUrl.length < 150_000) {
+      if (s && s.id && typeof s.photoUrl === 'string' && s.photoUrl.length < 500_000) {
         preservedUfPhotos.set(s.id, s.photoUrl);
       }
     }
@@ -236,13 +236,16 @@ export function createSafeSnapshot(database: PersistedDatabase): PersistedDataba
   }
 
   if (Array.isArray(safeClone.activityLogs)) {
-    safeClone.activityLogs = safeClone.activityLogs.slice(0, 25);
+    safeClone.activityLogs = safeClone.activityLogs.slice(0, 20);
   }
-  if (Array.isArray(safeClone.reports) && safeClone.reports.length > 50) {
-    safeClone.reports = safeClone.reports.slice(0, 50);
+  if (Array.isArray(safeClone.waDispatchLogs)) {
+    safeClone.waDispatchLogs = safeClone.waDispatchLogs.slice(0, 15);
   }
-  if (Array.isArray(safeClone.wasteLogs) && safeClone.wasteLogs.length > 50) {
-    safeClone.wasteLogs = safeClone.wasteLogs.slice(0, 50);
+  if (Array.isArray(safeClone.reports) && safeClone.reports.length > 40) {
+    safeClone.reports = safeClone.reports.slice(0, 40);
+  }
+  if (Array.isArray(safeClone.wasteLogs) && safeClone.wasteLogs.length > 40) {
+    safeClone.wasteLogs = safeClone.wasteLogs.slice(0, 40);
   }
   if (Array.isArray(safeClone.cleanupEvents)) {
     safeClone.cleanupEvents = safeClone.cleanupEvents.map((c) => ({
@@ -253,13 +256,24 @@ export function createSafeSnapshot(database: PersistedDatabase): PersistedDataba
   }
 
   let jsonString = JSON.stringify(safeClone);
-  if (jsonString.length > 750_000) {
+  if (jsonString.length > 760_000) {
+    // Free static catalog & secondary log arrays first so all 7 Urban Farming photos always fit under 1 MiB
+    safeClone.serviceCatalog = [];
+    safeClone.waDispatchLogs = [];
     if (Array.isArray(safeClone.reports)) {
-      safeClone.reports = safeClone.reports.slice(0, 20);
+      safeClone.reports = safeClone.reports.slice(0, 15);
     }
     if (Array.isArray(safeClone.wasteLogs)) {
-      safeClone.wasteLogs = safeClone.wasteLogs.slice(0, 20);
+      safeClone.wasteLogs = safeClone.wasteLogs.slice(0, 15);
     }
+    if (Array.isArray(safeClone.activityLogs)) {
+      safeClone.activityLogs = safeClone.activityLogs.slice(0, 10);
+    }
+    jsonString = JSON.stringify(safeClone);
+  }
+  if (jsonString.length > 900_000 && safeClone.profile) {
+    // Profile photo is already persisted in dedicated kelurahan_profiles/main_profile document
+    safeClone.profile.lurahPhotoUrl = '';
     jsonString = JSON.stringify(safeClone);
   }
 
