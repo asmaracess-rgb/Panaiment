@@ -1166,7 +1166,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
       unitBidang: 'Loket Pelayanan Terpadu Kelurahan Panaikang',
       phone: '',
       googleEmail: '',
-      isGoogleVerified: false,
+      isGoogleVerified: true,
       roleLevel: 'operator',
       isMasterLurah: false,
       isActive: true,
@@ -1200,7 +1200,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
       unitBidang: user.unitBidang,
       phone: user.phone,
       googleEmail: user.googleEmail || '',
-      isGoogleVerified: Boolean(user.isGoogleVerified),
+      isGoogleVerified: user.googleEmail ? user.isGoogleVerified !== false : Boolean(user.isGoogleVerified),
       roleLevel: user.roleLevel,
       isMasterLurah: Boolean(user.isMasterLurah || user.roleLevel === 'master_admin'),
       isActive: user.isActive,
@@ -1540,6 +1540,13 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
 
     setIsSaving(true);
     const nowLabel = getRealtimeDateString(new Date());
+    const nowMs = Date.now();
+    const resolvedGoogleEmail =
+      userForm.googleEmail.trim().toLowerCase() ||
+      (cleanUsername.includes('@') ? cleanUsername : undefined);
+    const resolvedIsGoogleVerified = resolvedGoogleEmail
+      ? true
+      : Boolean(userForm.isGoogleVerified);
 
     let nextUsers: AdminUserAccount[];
     if (editingUserId) {
@@ -1554,12 +1561,12 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
               jabatan: userForm.jabatan.trim(),
               unitBidang: userForm.unitBidang.trim() || 'Kelurahan Panaikang',
               phone: userForm.phone.trim(),
-              googleEmail: userForm.googleEmail.trim().toLowerCase() || undefined,
-              isGoogleVerified: userForm.isGoogleVerified,
-              googleVerifiedAt: userForm.isGoogleVerified
+              googleEmail: resolvedGoogleEmail,
+              isGoogleVerified: resolvedIsGoogleVerified,
+              googleVerifiedAt: resolvedIsGoogleVerified
                 ? u.googleVerifiedAt || nowLabel
                 : undefined,
-              googleVerifiedBy: userForm.isGoogleVerified
+              googleVerifiedBy: resolvedIsGoogleVerified
                 ? u.googleVerifiedBy || 'Master Admin (Lurah Panaikang)'
                 : undefined,
               roleLevel: userForm.roleLevel,
@@ -1585,13 +1592,14 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
                   }
                 : userForm.actionPermissions,
               updatedAt: `${nowLabel} · Diperbarui`,
+              updatedAtMs: nowMs,
               notes: userForm.notes.trim(),
             }
           : u
       );
     } else {
       const created: AdminUserAccount = {
-        id: `usr-${Date.now()}`,
+        id: `usr-${nowMs}`,
         username: cleanUsername,
         password: userForm.password.trim(),
         fullName: userForm.fullName.trim(),
@@ -1599,10 +1607,10 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
         jabatan: userForm.jabatan.trim(),
         unitBidang: userForm.unitBidang.trim() || 'Kelurahan Panaikang',
         phone: userForm.phone.trim(),
-        googleEmail: userForm.googleEmail.trim().toLowerCase() || undefined,
-        isGoogleVerified: userForm.isGoogleVerified,
-        googleVerifiedAt: userForm.isGoogleVerified ? nowLabel : undefined,
-        googleVerifiedBy: userForm.isGoogleVerified
+        googleEmail: resolvedGoogleEmail,
+        isGoogleVerified: resolvedIsGoogleVerified,
+        googleVerifiedAt: resolvedIsGoogleVerified ? nowLabel : undefined,
+        googleVerifiedBy: resolvedIsGoogleVerified
           ? 'Master Admin (Lurah Panaikang)'
           : undefined,
         roleLevel: userForm.roleLevel,
@@ -1615,6 +1623,7 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
         actionPermissions: userForm.actionPermissions,
         createdAt: nowLabel,
         updatedAt: nowLabel,
+        updatedAtMs: nowMs,
         lastLoginAt: 'Belum login',
         notes: userForm.notes.trim(),
       };

@@ -205,11 +205,14 @@ export async function resolveTrustedUserRoleAndProfile(
   let isTrustedAdmin = false;
   let adminDetails: AuthenticatedUserProfile['adminDetails'] = undefined;
 
-  // 1. Check trusted /admins/{uid} collection in Firestore (or bootstrapped verified project owner matching firestore.rules)
+  // 1. Check trusted /admins/{uid} collection in Firestore (with 2s timeout so offline/quota never hangs sign-in)
   try {
     const adminDocRef = doc(db, 'admins', uid);
-    const adminSnap = await getDoc(adminDocRef);
-    if (adminSnap.exists()) {
+    const adminSnap = await Promise.race([
+      getDoc(adminDocRef),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
+    ]);
+    if (adminSnap && adminSnap.exists()) {
       const adminData = adminSnap.data() as AdminRoleRecord;
       if (adminData && adminData.isActive !== false) {
         isTrustedAdmin = true;
@@ -272,14 +275,17 @@ export async function resolveTrustedUserRoleAndProfile(
       }
     }
   } catch (err) {
-    handleFirestoreError(err, OperationType.GET, `admins/${uid}`);
+    console.warn('[Firebase Auth] Non-fatal notice checking admins collection:', err);
   }
 
-  // 2. Read /user_profiles/{uid}
+  // 2. Read /user_profiles/{uid} (with 2s timeout)
   const profileRef = doc(db, 'user_profiles', uid);
   try {
-    const profileSnap = await getDoc(profileRef);
-    if (profileSnap.exists()) {
+    const profileSnap = await Promise.race([
+      getDoc(profileRef),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
+    ]);
+    if (profileSnap && profileSnap.exists()) {
       const data = profileSnap.data() as Record<string, unknown>;
       const trustedRole: UserRole = isTrustedAdmin ? 'admin' : 'warga';
 
@@ -347,21 +353,26 @@ export async function resolveTrustedUserRoleAndProfile(
       };
     }
   } catch (err) {
-    handleFirestoreError(err, OperationType.GET, `user_profiles/${uid}`);
+    console.warn('[Firebase Auth] Non-fatal notice reading user_profiles:', err);
   }
 
-  // 3. If profile does not exist yet in Firestore, initialize a citizen profile document
-  // Store role as 'warga' in /user_profiles so Firestore rules always accept citizen registration
-  // and the account is always listed in User Warga Terdaftar.
+  // 3. If profile does not exist yet in Firestore, initialize a citizen profile document non-blockingly
+  // so Firestore write quota exhaustion or network delay never hangs Google Sign-In!
   const initialRole: UserRole = isTrustedAdmin ? 'admin' : 'warga';
+  const rawCandidateName = sanitizeString(
+    effectiveDefaults?.fullName || firebaseUser.displayName || email.split('@')[0],
+    AUTH_SCHEMA_LIMITS.NAME_MAX,
+    'Warga Kelurahan Panaikang'
+  );
+  const safeFullName =
+    rawCandidateName.length >= AUTH_SCHEMA_LIMITS.NAME_MIN
+      ? rawCandidateName
+      : 'Warga Kelurahan Panaikang';
+
   const defaultProfile: AuthenticatedUserProfile = {
     uid,
     email,
-    fullName: sanitizeString(
-      effectiveDefaults?.fullName || firebaseUser.displayName || email.split('@')[0],
-      AUTH_SCHEMA_LIMITS.NAME_MAX,
-      'Warga Kelurahan Panaikang'
-    ),
+    fullName: safeFullName,
     nik: sanitizeString(effectiveDefaults?.nik, AUTH_SCHEMA_LIMITS.NIK_MAX, ''),
     phone: sanitizeString(effectiveDefaults?.phone, AUTH_SCHEMA_LIMITS.PHONE_MAX, ''),
     rw: sanitizeString(effectiveDefaults?.rw, AUTH_SCHEMA_LIMITS.RW_MAX, 'RW 01'),
@@ -376,7 +387,7 @@ export async function resolveTrustedUserRoleAndProfile(
   };
 
   try {
-    await setDoc(profileRef, {
+    setDoc(profileRef, {
       uid: defaultProfile.uid,
       email: defaultProfile.email,
       fullName: defaultProfile.fullName,
@@ -388,9 +399,9 @@ export async function resolveTrustedUserRoleAndProfile(
       role: 'warga',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    });
-  } catch (err) {
-    handleFirestoreError(err, OperationType.CREATE, `user_profiles/${uid}`);
+    }).catch(() => {});
+  } catch {
+    // Non-fatal if Firestore write quota is paused
   }
 
   return defaultProfile;
@@ -1309,11 +1320,16 @@ export function saveGoogleAdminVerificationRequests(
   requests: GoogleAdminVerificationRequest[],
   syncRemote = true
 ): void {
-  const normalized = (Array.isArray(requests) ? requests : []).map((r) => ({
-    ...r,
-    email: (r.email || '').trim().toLowerCase(),
-    updatedAtMs: r.updatedAtMs || Date.now(),
-  }));
+  // Strip any undefined fields so Firestore setDoc never throws synchronously
+  const normalized: GoogleAdminVerificationRequest[] = JSON.parse(
+    JSON.stringify(
+      (Array.isArray(requests) ? requests : []).map((r) => ({
+        ...r,
+        email: (r.email || '').trim().toLowerCase(),
+        updatedAtMs: r.updatedAtMs || Date.now(),
+      }))
+    )
+  );
 
   try {
     localStorage.setItem(GOOGLE_ADMIN_REQUESTS_KEY, JSON.stringify(normalized));
@@ -1321,6 +1337,7 @@ export function saveGoogleAdminVerificationRequests(
     // Ignore quota errors
   }
 
+  let updatedFullDb: Record<string, any> | null = null;
   try {
     const dbRaw = localStorage.getItem('pnk_smart_env_db_v4');
     if (dbRaw) {
@@ -1329,6 +1346,7 @@ export function saveGoogleAdminVerificationRequests(
         parsedDb.googleAdminVerificationRequests = normalized;
         parsedDb.updatedAt = Date.now();
         localStorage.setItem('pnk_smart_env_db_v4', JSON.stringify(parsedDb));
+        updatedFullDb = parsedDb;
       }
     }
   } catch {
@@ -1351,17 +1369,29 @@ export function saveGoogleAdminVerificationRequests(
       body: JSON.stringify({ googleAdminVerificationRequests: normalized }),
     }).catch(() => {});
 
-    // 2. Sync to Firestore cloud snapshot (`panaikang_app_data/full_snapshot`)
-    const snapRef = doc(db, 'panaikang_app_data', 'full_snapshot');
-    setDoc(
-      snapRef,
-      {
-        googleAdminVerificationRequests: normalized.slice(0, 100),
-        updatedAt: Date.now(),
-        syncedAt: new Date().toISOString(),
-      },
-      { merge: true }
-    ).catch(() => {});
+    // 2. Also sync via /api/data (works on both Express server.ts and Vercel /api/data.js)
+    if (updatedFullDb) {
+      fetch('/api/data', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedFullDb),
+      }).catch(() => {});
+    }
+
+    // 3. Sync to Firestore cloud snapshot (`panaikang_app_data/full_snapshot`) wrapped in try/catch
+    try {
+      const snapRef = doc(db, 'panaikang_app_data', 'full_snapshot');
+      const cleanSnapPayload = JSON.parse(
+        JSON.stringify({
+          googleAdminVerificationRequests: normalized.slice(0, 100),
+          updatedAt: Date.now(),
+          syncedAt: new Date().toISOString(),
+        })
+      );
+      setDoc(snapRef, cleanSnapPayload, { merge: true }).catch(() => {});
+    } catch {
+      // Ignore synchronous or quota errors
+    }
   }
 }
 
@@ -1369,6 +1399,7 @@ export async function fetchGoogleAdminVerificationRequestsFromCloud(): Promise<G
   const reqMap = new Map<string, GoogleAdminVerificationRequest>();
   const upsert = (r: GoogleAdminVerificationRequest | undefined | null) => {
     if (!r || !r.email) return;
+    if (r.id && r.id.startsWith('req-portal-')) return;
     const cleanEmail = r.email.trim().toLowerCase();
     if (!cleanEmail) return;
     const prev = reqMap.get(cleanEmail);
@@ -1400,11 +1431,27 @@ export async function fetchGoogleAdminVerificationRequestsFromCloud(): Promise<G
     // Ignore if offline or serverless
   }
 
-  // 3. Firestore cloud snapshot (`panaikang_app_data/full_snapshot`)
+  // 3. /api/data endpoint (available on both local Express and Vercel serverless)
+  try {
+    const resData = await fetch('/api/data', { cache: 'no-store' });
+    if (resData.ok) {
+      const jsonData = await resData.json();
+      if (Array.isArray(jsonData?.data?.googleAdminVerificationRequests)) {
+        jsonData.data.googleAdminVerificationRequests.forEach(upsert);
+      }
+    }
+  } catch {
+    // Ignore fetch errors
+  }
+
+  // 4. Firestore cloud snapshot (`panaikang_app_data/full_snapshot`) with 2s timeout
   try {
     const snapRef = doc(db, 'panaikang_app_data', 'full_snapshot');
-    const snap = await getDoc(snapRef);
-    if (snap.exists()) {
+    const snap = await Promise.race([
+      getDoc(snapRef),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
+    ]);
+    if (snap && snap.exists()) {
       const data = snap.data();
       if (Array.isArray(data?.googleAdminVerificationRequests)) {
         data.googleAdminVerificationRequests.forEach(upsert);
@@ -1449,8 +1496,8 @@ export function submitGoogleAdminVerificationRequest(params: {
       requestedAtMs: nowMs,
       updatedAtMs: nowMs,
       displayName: params.displayName || existing[foundIndex].displayName || cleanEmail.split('@')[0],
-      photoUrl: params.photoUrl || existing[foundIndex].photoUrl,
-      notes: params.notes || existing[foundIndex].notes,
+      ...(params.photoUrl ? { photoUrl: params.photoUrl } : {}),
+      ...(params.notes ? { notes: params.notes } : {}),
     };
     existing[foundIndex] = submittedItem;
   } else {
@@ -1458,17 +1505,17 @@ export function submitGoogleAdminVerificationRequest(params: {
       id: `req-admin-${nowMs}-${Math.random().toString(36).slice(2, 6)}`,
       email: cleanEmail,
       displayName: params.displayName || cleanEmail.split('@')[0],
-      photoUrl: params.photoUrl,
+      ...(params.photoUrl ? { photoUrl: params.photoUrl } : {}),
       requestedAt: nowDisplay,
       requestedAtMs: nowMs,
       updatedAtMs: nowMs,
       status: 'Menunggu Persetujuan',
-      notes: params.notes,
+      ...(params.notes ? { notes: params.notes } : {}),
     };
     existing.unshift(submittedItem);
   }
 
-  // Persist to localStorage, Express API, and Firestore Cloud
+  // Persist to localStorage, Express API, /api/data, and Firestore Cloud safely
   saveGoogleAdminVerificationRequests(existing, true);
   fetch('/api/google-admin-requests', {
     method: 'POST',
@@ -1479,7 +1526,7 @@ export function submitGoogleAdminVerificationRequest(params: {
   return {
     ok: true,
     request: submittedItem,
-    message: `Permohonan verifikasi untuk ${cleanEmail} telah terkirim ke Master Admin Lurah. Silakan tunggu persetujuan Master Admin.`,
+    message: `Permohonan verifikasi untuk "${cleanEmail}" telah berhasil dikirim ke Master Admin (Lurah). Silakan tunggu persetujuan dari Master Admin.`,
   };
 }
 

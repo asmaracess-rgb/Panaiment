@@ -180,7 +180,13 @@ import {
   SERVICE_CATEGORY_GROUPS,
   ServiceCategoryGroup,
 } from '../data/wargaServiceCatalog';
-import { recordDeletedItemId, PersistedDatabase, savePersistedDatabase } from '../utils/persistentStorage';
+import {
+  recordDeletedItemId,
+  PersistedDatabase,
+  savePersistedDatabase,
+  loadAdminUsersJournal,
+  loadPersistedDatabase,
+} from '../utils/persistentStorage';
 import { pushFullDatabaseToFirestore } from '../firebase/firestoreService';
 import { isLocalExpressAvailable } from '../utils/runtimeEnv';
 import {
@@ -707,20 +713,54 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   const [pendingGoogleAdminRequestEmail, setPendingGoogleAdminRequestEmail] = useState<string | null>(null);
   const [pendingGoogleAdminRequestName, setPendingGoogleAdminRequestName] = useState<string>('');
   const [googleRequestSentNotice, setGoogleRequestSentNotice] = useState('');
+  const [showManualGoogleVerifyForm, setShowManualGoogleVerifyForm] = useState(false);
+  const [manualGoogleVerifyEmail, setManualGoogleVerifyEmail] = useState('');
+  const [manualGoogleVerifyName, setManualGoogleVerifyName] = useState('');
+
+  const findMatchingWhitelistedAdmin = useCallback(
+    (emailLower: string, extraUsers?: AdminUserAccount[]): AdminUserAccount | undefined => {
+      if (!emailLower) return undefined;
+      const mergedMap = new Map<string, AdminUserAccount>();
+      const addList = (list?: AdminUserAccount[]) => {
+        if (!Array.isArray(list)) return;
+        for (const item of list) {
+          if (item && item.id) {
+            mergedMap.set(item.id, item);
+          }
+        }
+      };
+      addList(loadPersistedDatabase()?.adminUsers);
+      addList(loadAdminUsersJournal()?.users);
+      addList(adminUsers);
+      addList(extraUsers);
+
+      const allCandidates = Array.from(mergedMap.values());
+      return allCandidates.find((u) => {
+        if (u.isActive === false) return false;
+        const wasExplicitlyRevoked =
+          u.isGoogleVerified === false &&
+          (u.updatedAt || '').toLowerCase().includes('dicabut');
+        if (wasExplicitlyRevoked) return false;
+
+        const primaryMatch =
+          Boolean(u.googleEmail) && u.googleEmail!.trim().toLowerCase() === emailLower;
+        const usernameAsEmailMatch =
+          Boolean(u.username) && u.username.trim().toLowerCase() === emailLower;
+        const additionalMatch = (u.additionalGoogleEmails || []).some(
+          (e) => (e || '').trim().toLowerCase() === emailLower
+        );
+        return Boolean(primaryMatch || usernameAsEmailMatch || additionalMatch);
+      });
+    },
+    [adminUsers]
+  );
 
   // Auto-establish AdminSession when user is authenticated via Firebase Auth with trusted Master Admin or whitelisted adminUsers
   useEffect(() => {
     if (firebaseUserProfile && !adminSession) {
       const emailLower = (firebaseUserProfile.email || '').trim().toLowerCase();
       const isSuperAdminEmail = emailLower === 'asmaracess@gmail.com';
-      const matchedAdmin = adminUsers.find((u) => {
-        if (u.isActive === false || u.isGoogleVerified === false) return false;
-        const primaryMatch = u.googleEmail && u.googleEmail.trim().toLowerCase() === emailLower;
-        const additionalMatch = (u.additionalGoogleEmails || []).some(
-          (e) => e.trim().toLowerCase() === emailLower
-        );
-        return Boolean(primaryMatch || additionalMatch);
-      });
+      const matchedAdmin = findMatchingWhitelistedAdmin(emailLower);
 
       // Only allow session if explicitly verified by Master Admin or is Lurah Master Admin
       if (isSuperAdminEmail || matchedAdmin) {
@@ -745,7 +785,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         sessionStorage.setItem('pnk_admin_session', JSON.stringify(trustedSession));
       }
     }
-  }, [firebaseUserProfile, adminSession, adminUsers]);
+  }, [firebaseUserProfile, adminSession, findMatchingWhitelistedAdmin]);
 
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     if (initialTab === 'parameter_user' || initialTab === 'user_warga') {
@@ -1652,11 +1692,11 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             return;
           }
 
-          // If credentials invalid (401 or 403)
-          if (res.status === 401 || res.status === 403 || (!json.ok && !json.session)) {
+          // If account explicitly disabled (403)
+          if (res.status === 403) {
             setIsLoggingIn(false);
             setLoginError(
-              json.error || 'Username/NIP atau kata sandi yang dimasukkan tidak valid.'
+              json.error || 'Akun Administrator ini sedang dinonaktifkan oleh Lurah Panaikang.'
             );
             return;
           }
@@ -1667,6 +1707,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             applySuccessfulSession(json.session);
             return;
           }
+          // If 401 on server, fall through to client-side loginWithFirestore (which checks local journal & adminUsers prop)
         }
       } catch {
         // Server unreachable, fallback directly to Firestore cloud auth
@@ -1708,19 +1749,38 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     async (profile: AuthenticatedUserProfile) => {
       const emailLower = (profile.email || '').trim().toLowerCase();
       const isSuperAdmin = emailLower === 'asmaracess@gmail.com';
-      const matchedAdmin = adminUsers.find((u) => {
-        if (u.isActive === false || u.isGoogleVerified === false) return false;
-        const primaryMatch = u.googleEmail && u.googleEmail.trim().toLowerCase() === emailLower;
-        const additionalMatch = (u.additionalGoogleEmails || []).some(
-          (e) => e.trim().toLowerCase() === emailLower
-        );
-        return Boolean(primaryMatch || additionalMatch);
-      });
+      let matchedAdmin = findMatchingWhitelistedAdmin(emailLower);
+
+      if (!isSuperAdmin && !matchedAdmin) {
+        // Also check server /api/admin-users and /api/data in case the account was registered from another browser/tab
+        try {
+          const res = await fetch('/api/admin-users', { cache: 'no-store' });
+          if (res.ok) {
+            const json = await res.json();
+            if (Array.isArray(json?.adminUsers)) {
+              matchedAdmin = findMatchingWhitelistedAdmin(emailLower, json.adminUsers);
+            }
+          }
+        } catch {}
+        if (!matchedAdmin) {
+          try {
+            const resData = await fetch('/api/data', { cache: 'no-store' });
+            if (resData.ok) {
+              const jsonData = await resData.json();
+              if (Array.isArray(jsonData?.adminUsers)) {
+                matchedAdmin = findMatchingWhitelistedAdmin(emailLower, jsonData.adminUsers);
+              }
+            }
+          } catch {}
+        }
+      }
 
       if (!isSuperAdmin && !matchedAdmin) {
         const rejectedEmail = profile.email;
         setPendingGoogleAdminRequestEmail(rejectedEmail);
         setPendingGoogleAdminRequestName(profile.fullName || '');
+        setManualGoogleVerifyEmail(rejectedEmail);
+        setManualGoogleVerifyName(profile.fullName || '');
         setGoogleRequestSentNotice('');
         // Sign out the unverified account so the browser doesn't stay locked to it on the next click
         try {
@@ -1754,7 +1814,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       setAdminSession(trustedSession);
       sessionStorage.setItem('pnk_admin_session', JSON.stringify(trustedSession));
     },
-    [adminUsers]
+    [findMatchingWhitelistedAdmin]
   );
 
   const handleFirebaseAdminLoginSubmit = async (e: React.FormEvent) => {
@@ -4590,7 +4650,10 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                             undefined,
                         });
                         if (res.ok) {
+                          setLoginError('');
                           setGoogleRequestSentNotice(res.message);
+                        } else {
+                          setLoginError(res.message);
                         }
                       }}
                       className="w-full py-2 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition cursor-pointer shadow-xs"
@@ -4612,6 +4675,81 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                       : 'Masuk dengan Google (Pilih Akun)'}
                   </span>
                 </button>
+
+                {/* Direct Request Admin Verification Form so any staff can request verification at any time */}
+                <div className="pt-2 border-t border-slate-200/80">
+                  {!showManualGoogleVerifyForm ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowManualGoogleVerifyForm(true);
+                        setGoogleRequestSentNotice('');
+                      }}
+                      className="w-full py-2 px-3 rounded-xl border border-amber-300 bg-amber-50/70 hover:bg-amber-100/80 text-amber-900 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                    >
+                      <UserPlus className="w-3.5 h-3.5 text-amber-700" />
+                      <span>Belum Terdaftar? Ajukan Permohonan Verifikasi Email Admin</span>
+                    </button>
+                  ) : (
+                    <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                          <UserPlus className="w-3.5 h-3.5 text-amber-700" />
+                          Form Permohonan Verifikasi Email Admin
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setShowManualGoogleVerifyForm(false)}
+                          className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 cursor-pointer"
+                        >
+                          Tutup
+                        </button>
+                      </div>
+                      <div className="space-y-2">
+                        <input
+                          type="email"
+                          value={manualGoogleVerifyEmail}
+                          onChange={(e) => setManualGoogleVerifyEmail(e.target.value)}
+                          placeholder="Alamat Email Google (contoh: nama@gmail.com)"
+                          className="w-full px-3 py-2 rounded-lg border border-amber-300 bg-white text-xs text-slate-900 focus:border-[#0D3868] focus:outline-none"
+                        />
+                        <input
+                          type="text"
+                          value={manualGoogleVerifyName}
+                          onChange={(e) => setManualGoogleVerifyName(e.target.value)}
+                          placeholder="Nama Lengkap & Jabatan Staf"
+                          className="w-full px-3 py-2 rounded-lg border border-amber-300 bg-white text-xs text-slate-900 focus:border-[#0D3868] focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const cleanMail = manualGoogleVerifyEmail.trim().toLowerCase();
+                            if (!cleanMail || !cleanMail.includes('@')) {
+                              setLoginError('Masukkan alamat email Google yang valid untuk mengajukan verifikasi.');
+                              return;
+                            }
+                            const res = submitGoogleAdminVerificationRequest({
+                              email: cleanMail,
+                              displayName: manualGoogleVerifyName.trim() || undefined,
+                            });
+                            if (res.ok) {
+                              setLoginError('');
+                              setGoogleRequestSentNotice(res.message);
+                              setManualGoogleVerifyEmail('');
+                              setManualGoogleVerifyName('');
+                              setShowManualGoogleVerifyForm(false);
+                            } else {
+                              setLoginError(res.message);
+                            }
+                          }}
+                          className="w-full py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition cursor-pointer shadow-xs"
+                        >
+                          Kirim Permohonan Verifikasi ke Master Admin
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </form>
             ) : (
               <form onSubmit={handleLoginSubmit} className="space-y-4">

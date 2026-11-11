@@ -3120,6 +3120,19 @@ export default function App() {
     } catch {
       // Fallback already persisted via localStorage & Firestore
     }
+    try {
+      fetch('/api/data', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...stateRef.current,
+          adminUsers: stampedUsers,
+          updatedAt: nowMs,
+        }),
+      }).catch(() => {});
+    } catch {
+      // Ignore network error
+    }
     return { ok: true };
   };
 

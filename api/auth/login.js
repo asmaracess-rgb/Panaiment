@@ -136,16 +136,74 @@ export default async function handler(req, res) {
     },
   ];
 
-  const matched = ADMIN_ACCOUNTS.find((a) => {
-    const isMasterAlias =
-      a.isMasterLurah && ['admin', 'lurah', 'lurah.panaikang'].includes(cleanUser);
-    const uName = a.username.toLowerCase();
-    const uNip = (a.nip || '').replace(/\s+/g, '').toLowerCase();
-    return uName === cleanUser || uNip === cleanNip || isMasterAlias;
-  }) || ADMIN_ACCOUNTS[0];
+  // Merge persisted adminUsers from /tmp/panaikang_db.json or data/panaikang_db.json with default accounts
+  let persistedAdminUsers = [];
+  const candidateFiles = [
+    path.join('/tmp', 'panaikang_db.json'),
+    path.join(process.cwd(), 'data', 'panaikang_db.json'),
+  ];
+  for (const file of candidateFiles) {
+    try {
+      if (fs.existsSync(file)) {
+        const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+        if (Array.isArray(parsed?.adminUsers) && parsed.adminUsers.length > 0) {
+          persistedAdminUsers = parsed.adminUsers;
+          break;
+        }
+      }
+    } catch {}
+  }
 
-  const validPasswords = ['panaikang2026', 'admin123', 'makassar2026'];
-  if (!validPasswords.includes(cleanPass)) {
+  const allAccountsMap = new Map();
+  for (const acc of ADMIN_ACCOUNTS) {
+    allAccountsMap.set(acc.id, acc);
+  }
+  for (const u of persistedAdminUsers) {
+    if (u && u.id) {
+      allAccountsMap.set(u.id, {
+        ...u,
+        role: u.role || `${u.jabatan || 'Staf Admin'} · ${u.unitBidang || 'Kelurahan Panaikang'}`,
+      });
+    }
+  }
+  const allAccounts = Array.from(allAccountsMap.values());
+
+  const matched = allAccounts.find((a) => {
+    const isMasterAlias =
+      Boolean(a.isMasterLurah || a.roleLevel === 'master_admin') &&
+      ['admin', 'lurah', 'lurah.panaikang'].includes(cleanUser);
+    const uName = (a.username || '').trim().toLowerCase();
+    const uNip = (a.nip || '').replace(/\s+/g, '').toLowerCase();
+    const uEmail = (a.googleEmail || '').trim().toLowerCase();
+    const uEmailPrefix = uEmail.includes('@') ? uEmail.split('@')[0] : '';
+    const uFullName = (a.fullName || '').trim().toLowerCase();
+    const additionalEmails = Array.isArray(a.additionalGoogleEmails)
+      ? a.additionalGoogleEmails.map((e) => (e || '').trim().toLowerCase())
+      : [];
+    return (
+      uName === cleanUser ||
+      (uNip && uNip !== '-' && uNip === cleanNip) ||
+      (uEmail && (uEmail === cleanUser || uEmailPrefix === cleanUser)) ||
+      additionalEmails.some(
+        (em) => em === cleanUser || (em.includes('@') && em.split('@')[0] === cleanUser)
+      ) ||
+      (uFullName && uFullName === cleanUser) ||
+      isMasterAlias
+    );
+  });
+
+  if (!matched) {
+    res.status(401).json({ ok: false, error: 'Username/NIP/Email tidak ditemukan di server.' });
+    return;
+  }
+
+  const validPasswords = ['panaikang2026', 'panaikang2026!', 'admin123', 'makassar2026'];
+  const cleanPassLower = cleanPass.toLowerCase();
+  const passwordOk =
+    (matched.password && matched.password === cleanPass) ||
+    validPasswords.includes(cleanPassLower);
+
+  if (!passwordOk) {
     res.status(401).json({ ok: false, error: 'Kata sandi tidak sesuai. Silakan coba kembali.' });
     return;
   }

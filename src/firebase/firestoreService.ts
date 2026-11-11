@@ -363,21 +363,33 @@ export async function pushFullDatabaseToFirestore(
       const docRef = doc(db, APP_STORE_COLLECTION, FULL_DB_DOC_ID);
       try {
         const safeData = createSafeSnapshot(database);
-        await setDoc(
-          docRef,
-          {
-            ...safeData,
-            updatedAt: Date.now(),
-            syncedAt: new Date().toISOString(),
-          },
-          { merge: true }
-        );
+        await Promise.race([
+          setDoc(
+            docRef,
+            {
+              ...safeData,
+              updatedAt: Date.now(),
+              syncedAt: new Date().toISOString(),
+            },
+            { merge: true }
+          ),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('RESOURCE_EXHAUSTED_WRITE_TIMEOUT')), 3000)
+          ),
+        ]);
       } catch (err) {
-        handleFirestoreError(
-          err,
-          OperationType.WRITE,
-          `${APP_STORE_COLLECTION}/${FULL_DB_DOC_ID}`
-        );
+        if (
+          isQuotaError(err) ||
+          (err instanceof Error && err.message === 'RESOURCE_EXHAUSTED_WRITE_TIMEOUT')
+        ) {
+          tripQuotaCircuitBreaker();
+        } else {
+          handleFirestoreError(
+            err,
+            OperationType.WRITE,
+            `${APP_STORE_COLLECTION}/${FULL_DB_DOC_ID}`
+          );
+        }
       }
       resolve();
     }, 1500);
@@ -738,18 +750,28 @@ export async function pushAdminUsersAndRequestsToFirestore(
   if (isQuotaPaused()) return false;
   try {
     const fullRef = doc(db, APP_STORE_COLLECTION, FULL_DB_DOC_ID);
-    const payload: Record<string, any> = {
+    const rawPayload: Record<string, any> = {
       adminUsers,
       updatedAt: Date.now(),
       syncedAt: new Date().toISOString(),
     };
     if (Array.isArray(googleAdminVerificationRequests)) {
-      payload.googleAdminVerificationRequests = googleAdminVerificationRequests.slice(0, 100);
+      rawPayload.googleAdminVerificationRequests = googleAdminVerificationRequests.slice(0, 100);
     }
-    await setDoc(fullRef, payload, { merge: true });
+    // Strip all undefined values so Firestore SDK never throws synchronous "Unsupported field value: undefined"
+    const cleanPayload = JSON.parse(JSON.stringify(rawPayload));
+    await Promise.race([
+      setDoc(fullRef, cleanPayload, { merge: true }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('RESOURCE_EXHAUSTED_WRITE_TIMEOUT')), 2500)
+      ),
+    ]);
     return true;
   } catch (err) {
-    if (isQuotaError(err)) {
+    if (
+      isQuotaError(err) ||
+      (err instanceof Error && err.message === 'RESOURCE_EXHAUSTED_WRITE_TIMEOUT')
+    ) {
       tripQuotaCircuitBreaker();
     }
     return false;
