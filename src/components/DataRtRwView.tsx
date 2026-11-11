@@ -526,7 +526,7 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
           </div>
 
           {/* RW List Cards */}
-          <div className="mt-6 space-y-4">
+          <div className="mt-4 space-y-2.5">
             {filteredRwGroups.length === 0 ? (
               <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-sm text-slate-500">
                 Data RW atau RT yang dicari tidak ditemukan.
@@ -543,18 +543,17 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
                 return (
                   <section
                     key={`rw-sec-${rw.id || rw.rwCode || rwIdx}`}
-                    className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs hover:border-[#0277BD]/60 transition-all"
+                    className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs hover:border-[#0277BD]/60 transition-all"
                   >
                     {/* Compact RW Bilah / Bar Header */}
-                    <div className="bg-gradient-to-r from-[#0D3868] to-[#0277BD] px-5 sm:px-6 py-4 text-white flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="px-2.5 py-0.5 rounded-md bg-emerald-500/25 border border-emerald-400/40 text-emerald-300 text-xs font-black tracking-wider uppercase font-mono-num">
+                    <div className="bg-gradient-to-r from-[#0D3868] via-[#0E417A] to-[#0277BD] px-3.5 sm:px-4 py-2.5 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex-1 min-w-0 space-y-0.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-500/25 border border-emerald-400/40 text-emerald-300 text-[11px] font-black tracking-wider uppercase font-mono-num">
                             {rw.rwCode}
                           </span>
-                          <span className="text-xs font-semibold text-sky-100 flex items-center gap-1.5">
-                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                            <span>Membawahi {rtCount} Rukun Tetangga (RT)</span>
+                          <span className="text-[11px] font-semibold text-sky-100 flex items-center gap-1">
+                            <span>{rtCount} RT</span>
                             <span aria-hidden="true" className="text-white/40">·</span>
                             <span className="font-mono-num font-bold text-emerald-200">
                               {rwHouseholds.toLocaleString('id-ID')} KK
@@ -564,39 +563,39 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
                           <button
                             type="button"
                             onClick={() => handleOpenSiskamlingForRw(rw.rwCode)}
-                            className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-400/20 hover:bg-amber-400/30 text-amber-200 border border-amber-300/40 transition cursor-pointer"
+                            className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-400/20 hover:bg-amber-400/30 text-amber-200 border border-amber-300/40 transition cursor-pointer"
                             title="Buka Jadwal Siskamling RW ini"
                           >
                             <ShieldCheck className="w-3 h-3 text-amber-300" />
-                            <span>Jadwal Siskamling {rw.rwCode}</span>
+                            <span>Siskamling</span>
                           </button>
                         </div>
 
-                        <h2 className="mt-1 text-base sm:text-lg font-extrabold text-white tracking-tight">
-                          {rw.rwName}
-                        </h2>
-
-                        <p className="mt-1 text-xs text-sky-100/90 flex items-center gap-1.5 line-clamp-1">
-                          <MapPin className="w-3.5 h-3.5 shrink-0 text-emerald-300" />
-                          <span>{rw.areaDescription}</span>
-                        </p>
+                        <div className="flex flex-wrap items-baseline gap-x-2">
+                          <h2 className="text-xs sm:text-sm font-extrabold text-white tracking-tight truncate">
+                            {rw.rwName}
+                          </h2>
+                          {rw.areaDescription && (
+                            <p className="text-[11px] text-sky-100/80 truncate max-w-md hidden md:inline">
+                              · {rw.areaDescription}
+                            </p>
+                          )}
+                        </div>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-3 shrink-0">
-                        {/* Ketua RW Badge */}
-                        <div className="bg-white/10 backdrop-blur-xs rounded-xl px-3.5 py-2 border border-white/20">
-                          <div className="text-[10px] uppercase font-bold tracking-wider text-sky-200 flex items-center gap-1">
-                            <UserCheck className="w-3 h-3 text-emerald-300" />
-                            <span>Ketua {rw.rwCode}</span>
-                          </div>
-                          <div className="text-xs sm:text-sm font-extrabold text-white mt-0.5">
+                      <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-white/10">
+                        {/* Ketua RW Compact Info */}
+                        <div className="text-left sm:text-right text-[11px]">
+                          <span className="text-[10px] uppercase font-bold text-sky-200/90 block leading-tight">
+                            Ketua {rw.rwCode}
+                          </span>
+                          <span className="font-extrabold text-white text-xs block leading-tight truncate max-w-[150px]">
                             {rw.ketuaRwName}
-                          </div>
+                          </span>
                           {rw.phone && (
-                            <div className="text-[11px] font-mono-num text-sky-200 flex items-center gap-1 mt-0.5">
-                              <Phone className="w-3 h-3" />
-                              <span>{rw.phone}</span>
-                            </div>
+                            <span className="text-[10px] font-mono-num text-emerald-300 block leading-tight">
+                              {rw.phone}
+                            </span>
                           )}
                         </div>
 
@@ -604,19 +603,19 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
                         <button
                           type="button"
                           onClick={() => toggleRwDetail(rw.id)}
-                          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all shadow-xs cursor-pointer ${
+                          className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer shrink-0 ${
                             isExpanded
-                              ? 'bg-amber-400 hover:bg-amber-300 text-slate-950 ring-2 ring-white/40'
-                              : 'bg-white hover:bg-sky-50 text-[#0D3868]'
+                              ? 'bg-amber-400 hover:bg-amber-300 text-slate-950 ring-1 ring-white/50'
+                              : 'bg-white/95 hover:bg-white text-[#0D3868]'
                           }`}
                           aria-expanded={isExpanded}
                         >
-                          <Layers className="w-3.5 h-3.5 text-[#0277BD]" />
-                          <span>{isExpanded ? 'Tutup Detail RT' : `Lihat Detail RT (${rtCount} RT)`}</span>
+                          <Layers className="w-3 h-3 text-[#0277BD]" />
+                          <span>{isExpanded ? 'Tutup' : `Detail (${rtCount} RT)`}</span>
                           {isExpanded ? (
-                            <ChevronUp className="w-4 h-4 ml-0.5" />
+                            <ChevronUp className="w-3.5 h-3.5" />
                           ) : (
-                            <ChevronDown className="w-4 h-4 ml-0.5" />
+                            <ChevronDown className="w-3.5 h-3.5" />
                           )}
                         </button>
                       </div>
@@ -624,62 +623,58 @@ export const DataRtRwView: React.FC<DataRtRwViewProps> = ({
 
                     {/* RT Division List under this RW */}
                     {isExpanded && (
-                      <div className="p-5 sm:p-6 bg-slate-50/60 border-t border-slate-200 animate-fadeIn">
-                        <div className="flex items-center justify-between mb-3.5 pb-2.5 border-b border-slate-200">
-                          <div>
-                            <h3 className="text-xs sm:text-sm font-extrabold text-[#0D3868] uppercase tracking-wide flex items-center gap-2">
-                              <span className="w-2 h-2 rounded-full bg-[#1C8237]" />
-                              <span>Daftar Rukun Tetangga (RT) di Wilayah {rw.rwCode} ({rtCount} RT)</span>
-                            </h3>
-                            <p className="text-[11px] text-slate-500 mt-0.5">
-                              Data ketua RT, kontak, cakupan wilayah, dan total kepala keluarga pada wilayah {rw.rwCode}.
-                            </p>
-                          </div>
-                          <span className="text-xs font-mono-num font-bold text-slate-600 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+                      <div className="p-3 sm:p-4 bg-slate-50/70 border-t border-slate-200 animate-fadeIn">
+                        <div className="flex items-center justify-between mb-2.5 pb-1.5 border-b border-slate-200">
+                          <h3 className="text-[11px] sm:text-xs font-extrabold text-[#0D3868] uppercase tracking-wide flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#1C8237]" />
+                            <span>Daftar {rtCount} Rukun Tetangga (RT) di Wilayah {rw.rwCode}</span>
+                          </h3>
+                          <span className="text-[11px] font-mono-num font-bold text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200">
                             Total {rwHouseholds} KK
                           </span>
                         </div>
 
                         {!rw.rtList || rw.rtList.length === 0 ? (
-                          <div className="p-4 rounded-xl bg-white border border-slate-200 text-xs text-slate-500 text-center">
+                          <div className="p-3 rounded-lg bg-white border border-slate-200 text-xs text-slate-500 text-center">
                             Belum ada data RT pada {rw.rwCode}.
                           </div>
                         ) : (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-2.5">
                             {rw.rtList.map((rt, rtIdx) => (
                               <div
                                 key={`rt-card-${rw.id || rw.rwCode}-${rt.id || rt.rtCode || rtIdx}`}
-                                className="rounded-xl border border-slate-200 bg-white hover:border-[#0277BD]/70 hover:shadow-xs transition-all p-4 flex flex-col justify-between"
+                                className="rounded-lg border border-slate-200 bg-white hover:border-[#0277BD]/70 p-2.5 flex flex-col justify-between"
                               >
                                 <div>
-                                  <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100">
-                                    <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-[#1C8237] text-xs font-extrabold font-mono-num border border-emerald-200">
+                                  <div className="flex items-center justify-between gap-1 pb-1.5 border-b border-slate-100">
+                                    <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-[#1C8237] text-[11px] font-extrabold font-mono-num border border-emerald-200">
                                       {rt.rtCode} · {rw.rwCode}
                                     </span>
-                                    <span className="text-xs font-bold text-slate-700 font-mono-num">
+                                    <span className="text-[11px] font-bold text-slate-700 font-mono-num">
                                       {rt.householdsCount} KK
                                     </span>
                                   </div>
 
-                                  <h4 className="mt-2 text-sm font-extrabold text-[#0D3868]">
+                                  <h4 className="mt-1 text-xs font-extrabold text-[#0D3868] truncate">
                                     {rt.rtName}
                                   </h4>
 
-                                  <div className="mt-2.5 space-y-1.5 text-xs text-slate-600">
-                                    <div className="flex items-start gap-1.5">
-                                      <UserCheck className="w-3.5 h-3.5 text-[#0277BD] shrink-0 mt-0.5" />
-                                      <span>
-                                        Ketua RT:{' '}
-                                        <strong className="text-slate-900">{rt.ketuaRtName}</strong>
+                                  <div className="mt-1.5 space-y-1 text-[11px] text-slate-600">
+                                    <div className="flex items-start gap-1">
+                                      <UserCheck className="w-3 h-3 text-[#0277BD] shrink-0 mt-0.5" />
+                                      <span className="truncate">
+                                        Ketua: <strong className="text-slate-900">{rt.ketuaRtName}</strong>
                                       </span>
                                     </div>
-                                    <div className="flex items-start gap-1.5">
-                                      <MapPin className="w-3.5 h-3.5 text-emerald-700 shrink-0 mt-0.5" />
-                                      <span className="line-clamp-2">{rt.areaDescription}</span>
-                                    </div>
+                                    {rt.areaDescription && (
+                                      <div className="flex items-start gap-1">
+                                        <MapPin className="w-3 h-3 text-emerald-700 shrink-0 mt-0.5" />
+                                        <span className="line-clamp-1">{rt.areaDescription}</span>
+                                      </div>
+                                    )}
                                     {rt.phone && (
-                                      <div className="flex items-center gap-1.5 font-mono-num text-slate-700 bg-slate-50 px-2 py-1 rounded-md border border-slate-200/80">
-                                        <Phone className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                      <div className="flex items-center gap-1 font-mono-num text-slate-700 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200/80">
+                                        <Phone className="w-3 h-3 text-amber-600 shrink-0" />
                                         <span>{rt.phone}</span>
                                       </div>
                                     )}
