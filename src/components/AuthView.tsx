@@ -163,110 +163,91 @@ export const AuthView: React.FC<AuthViewProps> = ({
   };
 
   return (
-    <div className="min-h-[calc(100vh-56px)] bg-slate-50 py-6 sm:py-8 px-4 sm:px-6 flex flex-col justify-start">
-      <div className="mx-auto w-full max-w-2xl">
-        {/* Top Back Navigation (Gambar 2) */}
-        <div className="mb-4">
+    <div className="min-h-[calc(100vh-56px)] bg-slate-50 py-3 sm:py-6 px-3.5 sm:px-6 flex flex-col justify-start">
+      <div className="mx-auto w-full max-w-xl">
+        {/* Top Back Navigation */}
+        <div className="mb-2.5">
           <button
             type="button"
             onClick={() => onNavigate('beranda')}
-            className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[#0D3868] hover:text-[#0277BD] transition cursor-pointer"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0D3868] hover:text-[#0277BD] transition cursor-pointer"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-3.5 h-3.5" />
             <span>Kembali ke Halaman Publik</span>
           </button>
         </div>
 
-        {/* Main Blue Institutional Card (Gambar 2) */}
-        <div className="bg-gradient-to-br from-[#072647] via-[#0D3868] to-[#0277BD] text-white rounded-3xl p-6 sm:p-8 shadow-[0_20px_50px_-15px_rgba(13,56,104,0.18)] relative overflow-hidden">
-          <div className="relative z-10">
-            {/* Logos / Emblems */}
-            <div className="inline-flex items-center gap-3.5 mb-5">
-              <EmblemKotaMakassar className="w-12 h-14 drop-shadow-md" />
-              <div className="h-10 w-[1.5px] bg-white/25 rounded-full" />
-              <EmblemKelurahanPanaikang className="w-12 h-14 drop-shadow-md" />
+        {/* Compact Blue Institutional Header Card */}
+        <div className="bg-gradient-to-br from-[#072647] via-[#0D3868] to-[#0277BD] text-white rounded-2xl p-4 sm:p-5 shadow-md relative overflow-hidden">
+          <div className="relative z-10 flex items-start gap-3">
+            {/* Compact Emblems */}
+            <div className="inline-flex items-center gap-2 px-2 py-1.5 rounded-xl bg-white/10 border border-white/15 shrink-0">
+              <EmblemKotaMakassar className="w-7 h-8.5 sm:w-8 sm:h-10 drop-shadow-xs" />
+              <div className="h-6 w-[1px] bg-white/25 rounded-full" />
+              <EmblemKelurahanPanaikang className="w-7 h-8.5 sm:w-8 sm:h-10 drop-shadow-xs" />
             </div>
 
-            {/* Chip Badge */}
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/10 border border-white/20 text-sky-200 text-[10px] font-extrabold uppercase tracking-wider mb-3">
-              <Building2 className="w-3.5 h-3.5" />
-              <span>Portal Pelayanan Warga</span>
-            </div>
-
-            {/* Title */}
-            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white leading-snug">
-              Pelayanan Administrasi & Pengaduan Warga Kelurahan Panaikang
-            </h1>
-
-            {/* Description */}
-            <p className="mt-3 text-xs sm:text-sm text-sky-100/90 leading-relaxed">
-              Akses pengajuan surat keterangan resmi, penyampaian laporan lingkungan, serta
-              pemantauan status berkas secara terpadu melalui Dashboard Warga.
-            </p>
-
-            {/* 3 Key Feature Bullets */}
-            <div className="mt-6 space-y-3 border-t border-white/15 pt-5 text-xs text-sky-100">
-              <div className="flex items-start gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0 mt-0.5" />
-                <span>
-                  <strong className="text-white">13 Layanan Persuratan Resmi:</strong> Ajukan
-                  permohonan surat pengantar dan keterangan sesuai standar pelayanan kelurahan.
-                </span>
+            <div className="min-w-0 flex-1">
+              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/10 border border-white/20 text-sky-200 text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider mb-1">
+                <Building2 className="w-3 h-3" />
+                <span>Portal Pelayanan Warga</span>
               </div>
-              <div className="flex items-start gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0 mt-0.5" />
-                <span>
-                  <strong className="text-white">Riwayat & Status Real-Time:</strong> Pantau
-                  perkembangan verifikasi berkas dan tindak lanjut laporan Anda di satu halaman.
-                </span>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0 mt-0.5" />
-                <span>
-                  <strong className="text-white">Privasi Berkas Warga:</strong> Setiap warga
-                  hanya dapat mengakses riwayat permohonan dan data domisili miliknya sendiri.
-                </span>
-              </div>
+              <h1 className="text-sm sm:text-base font-extrabold tracking-tight text-white leading-snug">
+                Pelayanan Administrasi & Pengaduan Warga Kelurahan Panaikang
+              </h1>
+              <p className="mt-1 text-[11px] sm:text-xs text-sky-100/90 leading-relaxed">
+                Pengajuan surat keterangan resmi, laporan lingkungan, dan pantau status berkas terpadu.
+              </p>
             </div>
           </div>
 
-          {/* Bottom Card Strip */}
-          <div className="relative z-10 mt-8 pt-4 border-t border-white/15 text-[11px] text-sky-200/80 flex items-center justify-between">
-            <span>Kecamatan Panakkukang · Kota Makassar</span>
-            <span className="font-mono-num font-bold">Kode Pos 90231</span>
+          {/* Compact Feature Badges */}
+          <div className="relative z-10 mt-3 pt-2.5 border-t border-white/15 flex flex-wrap items-center gap-1.5 text-[10px] sm:text-[11px] text-sky-100">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/10 font-semibold">
+              <CheckCircle2 className="w-3 h-3 text-emerald-300 shrink-0" />
+              <span>13 Layanan Persuratan</span>
+            </span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/10 font-semibold">
+              <CheckCircle2 className="w-3 h-3 text-emerald-300 shrink-0" />
+              <span>Status Real-Time</span>
+            </span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/10 font-semibold">
+              <CheckCircle2 className="w-3 h-3 text-emerald-300 shrink-0" />
+              <span>Privasi Berkas Warga</span>
+            </span>
           </div>
         </div>
 
-        {/* Action Mode Switch Buttons (Gambar 2: Directly below card) */}
-        <div className="mt-4 p-1.5 rounded-2xl bg-slate-100 border border-slate-200/80 shadow-2xs grid grid-cols-2 gap-2">
+        {/* Action Mode Switch Buttons */}
+        <div className="mt-2.5 p-1 rounded-2xl bg-slate-100 border border-slate-200/80 shadow-2xs grid grid-cols-2 gap-1.5">
           <button
             type="button"
             onClick={() => switchMode('login')}
-            className={`py-3 px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               mode === 'login'
                 ? 'bg-[#0D3868] text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 bg-transparent'
             }`}
           >
-            <LogIn className="w-4 h-4" />
+            <LogIn className="w-3.5 h-3.5" />
             <span>Masuk Warga</span>
           </button>
           <button
             type="button"
             onClick={() => switchMode('register')}
-            className={`py-3 px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               mode === 'register'
                 ? 'bg-[#0D3868] text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 bg-transparent'
             }`}
           >
-            <UserPlus className="w-4 h-4" />
+            <UserPlus className="w-3.5 h-3.5" />
             <span>Pendaftaran Warga Baru</span>
           </button>
         </div>
 
         {/* Form Container Card */}
-        <div className="mt-4 bg-white rounded-3xl border border-slate-200/90 shadow-[0_10px_30px_-10px_rgba(13,56,104,0.08)] p-6 sm:p-8">
+        <div className="mt-2.5 bg-white rounded-2xl border border-slate-200/90 shadow-[0_10px_30px_-10px_rgba(13,56,104,0.08)] p-4 sm:p-6">
 
             {effectiveNotice && (
               <div className="mb-4 p-3.5 rounded-xl bg-sky-50 border border-sky-200 text-xs font-semibold text-[#0D3868]">
