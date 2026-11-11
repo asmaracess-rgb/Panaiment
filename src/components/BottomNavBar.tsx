@@ -375,21 +375,25 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
                 </span>
               </button>
 
-              {/* 3. Pengaduan (Berwarna Hijau) */}
-              <button
-                type="button"
-                onClick={() => handleSelectNav('warga', 'pengaduan')}
-                className={`group flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1.5 py-1.5 sm:py-2 px-1.5 sm:px-3.5 rounded-xl border transition-all cursor-pointer shadow-xs ${
-                  isPengaduanActive
-                    ? 'bg-[#146329] border-[#0f4d1f] text-white font-extrabold ring-2 ring-emerald-500/30'
-                    : 'bg-[#1C8237] hover:bg-[#146329] border-[#15692b] text-white font-extrabold'
-                }`}
-              >
-                <Megaphone className="w-4 h-4 sm:w-4 sm:h-4 transition-transform group-hover:scale-105 shrink-0 text-white" />
-                <span className="text-[10px] sm:text-xs tracking-tight truncate max-w-full text-white">
-                  Pengaduan
-                </span>
-              </button>
+              {/* 3. Pengaduan (Berwarna Hijau & Lebih Menonjol di Tengah) */}
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => handleSelectNav('warga', 'pengaduan')}
+                  className={`group relative -mt-3.5 sm:-mt-2 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1.5 py-2 sm:py-2.5 px-3 sm:px-4 rounded-2xl border transition-all duration-200 cursor-pointer ring-3 ring-white shadow-[0_8px_20px_-4px_rgba(22,128,57,0.55)] hover:shadow-[0_10px_24px_-4px_rgba(22,128,57,0.7)] hover:-translate-y-0.5 active:translate-y-0 ${
+                    isPengaduanActive
+                      ? 'bg-gradient-to-b from-[#166d2e] to-[#0f4d1f] border-emerald-300/60 text-white font-extrabold scale-[1.05]'
+                      : 'bg-gradient-to-b from-[#239B43] via-[#1C8237] to-[#146329] hover:from-[#27ab4b] hover:to-[#166d2e] border-emerald-400/40 text-white font-extrabold scale-[1.03]'
+                  }`}
+                >
+                  <span className="w-6 h-6 sm:w-5 sm:h-5 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                    <Megaphone className="w-3.5 h-3.5 sm:w-3.5 sm:h-3.5 transition-transform group-hover:scale-110 text-white" />
+                  </span>
+                  <span className="text-[10px] sm:text-xs font-extrabold tracking-tight truncate max-w-full text-white drop-shadow-2xs">
+                    Pengaduan
+                  </span>
+                </button>
+              </div>
 
               {/* 4. Peta Digital */}
               <button
