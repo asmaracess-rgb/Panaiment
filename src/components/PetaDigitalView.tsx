@@ -756,6 +756,9 @@ export const PetaDigitalView: React.FC<PetaDigitalViewProps> = ({
                   }
                   alt={profile?.lurahName || 'Lurah Panaikang'}
                   className="w-11 h-14 rounded-lg object-cover object-top border border-[#0D3868]/30 shrink-0 bg-white"
+                  onError={(e) => {
+                    e.currentTarget.src = '/images/lurah_muthmainnah_panaikang_1791548085422.jpg';
+                  }}
                 />
                 <div className="min-w-0 flex-1">
                   <div className="text-[10px] font-bold text-[#0277BD] uppercase tracking-wider flex items-center gap-1">

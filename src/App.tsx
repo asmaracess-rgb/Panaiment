@@ -57,6 +57,7 @@ import {
   GoogleAdminVerificationRequest,
 } from './types';
 import {
+  DEFAULT_LURAH_PHOTO_URL,
   INITIAL_REPORTS,
   INITIAL_WASTE_UNITS,
   INITIAL_WASTE_LOGS,
@@ -727,8 +728,24 @@ export default function App() {
         masterLayananList: partial.masterLayananList ?? stateRef.current.masterLayananList,
         masterPersyaratanList: partial.masterPersyaratanList ?? stateRef.current.masterPersyaratanList,
         kategoriPengaduanList: partial.kategoriPengaduanList ?? stateRef.current.kategoriPengaduanList,
-        googleAdminVerificationRequests:
-          partial.googleAdminVerificationRequests ?? stateRef.current.googleAdminVerificationRequests,
+        googleAdminVerificationRequests: (() => {
+          const incomingList =
+            partial.googleAdminVerificationRequests ?? stateRef.current.googleAdminVerificationRequests ?? [];
+          const journalList = loadGoogleAdminRequestsJournal();
+          const map = new Map<string, GoogleAdminVerificationRequest>();
+          for (const r of [...journalList, ...incomingList]) {
+            if (!r || !r.email) continue;
+            const key = r.email.trim().toLowerCase();
+            if (!key) continue;
+            const prev = map.get(key);
+            const rTs = r.updatedAtMs || r.requestedAtMs || 0;
+            const prevTs = prev ? (prev.updatedAtMs || prev.requestedAtMs || 0) : -1;
+            if (!prev || rTs >= prevTs) {
+              map.set(key, { ...prev, ...r, email: key });
+            }
+          }
+          return Array.from(map.values()).sort((a, b) => (b.requestedAtMs || 0) - (a.requestedAtMs || 0));
+        })(),
         deletedItemIds: nextDeletedArray,
         updatedAt: Date.now(),
       };
@@ -767,8 +784,8 @@ export default function App() {
         console.warn('[Firestore Sync Notice]', err);
       });
 
-      // Secondary Local Sync: Only send to /api/data when local Express server is active (debounced)
-      if (syncServer && isLocalExpressAvailable()) {
+      // Secondary Server Sync: Send to /api/data (works on both Express server.ts and Vercel Serverless /api/data.js)
+      if (syncServer) {
         if (serverSyncTimerRef.current) {
           clearTimeout(serverSyncTimerRef.current);
         }
@@ -778,7 +795,7 @@ export default function App() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(nextSnapshot),
           }).catch(() => {});
-        }, 1200);
+        }, 800);
       }
     },
     []
@@ -1091,6 +1108,43 @@ export default function App() {
       }
     }
 
+    // 1B. Hydrate from /api/data and /api/google-admin-requests (Express or Vercel Serverless)
+    fetch('/api/data', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (mounted && json?.data) {
+          applyRemoteDatabase(json.data);
+        }
+      })
+      .catch(() => {});
+
+    fetch('/api/google-admin-requests', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (mounted && Array.isArray(json?.data) && json.data.length > 0) {
+          setGoogleAdminRequests((prev) => {
+            const map = new Map<string, GoogleAdminVerificationRequest>();
+            for (const r of [...prev, ...json.data]) {
+              if (!r || !r.email) continue;
+              const key = r.email.trim().toLowerCase();
+              if (!key) continue;
+              const ex = map.get(key);
+              const rTs = r.updatedAtMs || r.requestedAtMs || 0;
+              const exTs = ex ? (ex.updatedAtMs || ex.requestedAtMs || 0) : -1;
+              if (!ex || rTs >= exTs) {
+                map.set(key, { ...ex, ...r, email: key });
+              }
+            }
+            const merged = Array.from(map.values()).sort(
+              (a, b) => (b.requestedAtMs || 0) - (a.requestedAtMs || 0)
+            );
+            stateRef.current.googleAdminVerificationRequests = merged;
+            return merged;
+          });
+        }
+      })
+      .catch(() => {});
+
     // 2. Real-time Firestore Subscription (instant push across all devices/smartphones/computers)
     // Also seeds initial Firestore document on first deployment only if snapshot does not exist yet,
     // avoiding a duplicate getDoc() read on every page load.
@@ -1134,7 +1188,7 @@ export default function App() {
         const mergedPhoto =
           (cloudProfile.lurahPhotoUrl && cloudProfile.lurahPhotoUrl.trim()) ||
           (prev.lurahPhotoUrl && prev.lurahPhotoUrl.trim()) ||
-          '';
+          DEFAULT_LURAH_PHOTO_URL;
         return {
           ...prev,
           ...cloudProfile,
@@ -1144,7 +1198,7 @@ export default function App() {
       const currentPhoto =
         (cloudProfile.lurahPhotoUrl && cloudProfile.lurahPhotoUrl.trim()) ||
         (stateRef.current.profile?.lurahPhotoUrl && stateRef.current.profile.lurahPhotoUrl.trim()) ||
-        '';
+        DEFAULT_LURAH_PHOTO_URL;
       stateRef.current.profile = {
         ...stateRef.current.profile,
         ...cloudProfile,
@@ -1255,7 +1309,14 @@ export default function App() {
 
     // Cross-tab synchronization listener
     const handleStorageUpdate = (e: StorageEvent) => {
-      if ((e.key === 'pnk_smart_env_db_v3' || e.key === 'pnk_smart_env_db_backup_v3') && e.newValue) {
+      if (
+        (e.key === 'pnk_smart_env_db_v4' ||
+          e.key === 'pnk_smart_env_db_v3' ||
+          e.key === 'pnk_smart_env_db_backup_v3' ||
+          e.key === 'pnk_google_admin_requests_v1' ||
+          e.key === 'pnk_admin_users_journal_v1') &&
+        e.newValue
+      ) {
         try {
           const updated = loadPersistedDatabase();
           if (updated) {
@@ -1268,12 +1329,19 @@ export default function App() {
             setKelurahanInfos(updated.kelurahanInfos);
             setWhatsappRecipients(updated.whatsappRecipients);
             if (updated.serviceCatalog) setServiceCatalog(updated.serviceCatalog);
-            if (updated.adminUsers) setAdminUsers(updated.adminUsers);
+            if (updated.adminUsers) {
+              setAdminUsers(updated.adminUsers);
+              stateRef.current.adminUsers = updated.adminUsers;
+            }
             if (updated.activityLogs) setActivityLogs(updated.activityLogs);
             if (updated.urbanFarmingSpots) setUrbanFarmingSpots(updated.urbanFarmingSpots);
             if (updated.seedRequests) setSeedRequests(updated.seedRequests);
             if (updated.citizenUsers) setCitizenUsers(updated.citizenUsers);
             if (updated.citizenMenuConfig) setCitizenMenuConfig(updated.citizenMenuConfig);
+            if (updated.googleAdminVerificationRequests) {
+              setGoogleAdminRequests(updated.googleAdminVerificationRequests);
+              stateRef.current.googleAdminVerificationRequests = updated.googleAdminVerificationRequests;
+            }
             setTebaSpots(updated.tebaSpots ?? []);
             setBioporiPoints(updated.bioporiPoints ?? []);
           }
@@ -1471,9 +1539,8 @@ export default function App() {
       lurahPhotoUrl:
         updatedProfile.lurahPhotoUrl && updatedProfile.lurahPhotoUrl.trim()
           ? updatedProfile.lurahPhotoUrl.trim()
-          : updatedProfile.lurahName
-          ? kelurahanProfile.lurahPhotoUrl || ''
-          : '',
+          : (kelurahanProfile.lurahPhotoUrl && kelurahanProfile.lurahPhotoUrl.trim()) ||
+            DEFAULT_LURAH_PHOTO_URL,
       misi: cleanMisi,
     };
     setKelurahanProfile(nextProfile);
@@ -3392,8 +3459,8 @@ export default function App() {
           </span>
         </div>
 
-        {/* Right: Subtle Realtime Date Badge on Tablet/Desktop */}
-        <div className="hidden md:flex items-center gap-2 text-[11px] font-semibold text-slate-500 shrink-0">
+        {/* Right: Realtime Date Badge in Top Bar */}
+        <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-500 shrink-0">
           <span className="px-2.5 py-1 rounded-lg bg-slate-100/80 border border-slate-200/80 text-slate-600 font-mono-num">
             {getRealtimeDateString(new Date())}
           </span>

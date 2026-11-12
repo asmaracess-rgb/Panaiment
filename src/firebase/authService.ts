@@ -1279,6 +1279,9 @@ export function loadGoogleAdminVerificationRequests(): GoogleAdminVerificationRe
     const reqMap = new Map<string, GoogleAdminVerificationRequest>();
     const upsert = (r: GoogleAdminVerificationRequest | undefined | null) => {
       if (!r || !r.email) return;
+      if (r.id?.startsWith('req-portal-') && r.notes?.includes('Akun Google terdaftar di Portal Panaikang')) {
+        return;
+      }
       const cleanEmail = r.email.trim().toLowerCase();
       if (!cleanEmail) return;
       const prev = reqMap.get(cleanEmail);
@@ -1288,7 +1291,9 @@ export function loadGoogleAdminVerificationRequests(): GoogleAdminVerificationRe
         reqMap.set(cleanEmail, {
           ...prev,
           ...r,
+          id: r.id && !r.id.startsWith('req-portal-') ? r.id : `req-admin-${rTs || Date.now()}`,
           email: cleanEmail,
+          status: r.status || 'Menunggu Persetujuan',
           updatedAtMs: Math.max(rTs, prevTs, 1),
         });
       }
@@ -1320,14 +1325,42 @@ export function saveGoogleAdminVerificationRequests(
   requests: GoogleAdminVerificationRequest[],
   syncRemote = true
 ): void {
+  // Always merge with currently stored requests by email (newest updatedAtMs wins) so an empty/stale list never wipes existing requests
+  const existing = loadGoogleAdminVerificationRequests();
+  const mergedMap = new Map<string, GoogleAdminVerificationRequest>();
+  for (const r of existing) {
+    if (!r || !r.email) continue;
+    const key = r.email.trim().toLowerCase();
+    if (key) mergedMap.set(key, { ...r, email: key });
+  }
+  for (const r of Array.isArray(requests) ? requests : []) {
+    if (!r || !r.email) continue;
+    if (r.id?.startsWith('req-portal-') && r.notes?.includes('Akun Google terdaftar di Portal Panaikang')) {
+      continue;
+    }
+    const key = r.email.trim().toLowerCase();
+    if (!key) continue;
+    const prev = mergedMap.get(key);
+    const rTs = r.updatedAtMs || r.requestedAtMs || Date.now();
+    const prevTs = prev ? (prev.updatedAtMs || prev.requestedAtMs || 0) : -1;
+    if (!prev || rTs >= prevTs) {
+      mergedMap.set(key, {
+        ...prev,
+        ...r,
+        id: r.id && !r.id.startsWith('req-portal-') ? r.id : `req-admin-${rTs}`,
+        email: key,
+        status: r.status || 'Menunggu Persetujuan',
+        updatedAtMs: Math.max(rTs, prevTs, 1),
+      });
+    }
+  }
+
   // Strip any undefined fields so Firestore setDoc never throws synchronously
   const normalized: GoogleAdminVerificationRequest[] = JSON.parse(
     JSON.stringify(
-      (Array.isArray(requests) ? requests : []).map((r) => ({
-        ...r,
-        email: (r.email || '').trim().toLowerCase(),
-        updatedAtMs: r.updatedAtMs || Date.now(),
-      }))
+      Array.from(mergedMap.values()).sort(
+        (a, b) => (b.requestedAtMs || 0) - (a.requestedAtMs || 0)
+      )
     )
   );
 
@@ -1362,7 +1395,7 @@ export function saveGoogleAdminVerificationRequests(
   }
 
   if (syncRemote) {
-    // 1. Sync to Express backend API if available
+    // 1. Sync to /api/google-admin-requests (available on both Express and Vercel Serverless)
     fetch('/api/google-admin-requests', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -1399,7 +1432,9 @@ export async function fetchGoogleAdminVerificationRequestsFromCloud(): Promise<G
   const reqMap = new Map<string, GoogleAdminVerificationRequest>();
   const upsert = (r: GoogleAdminVerificationRequest | undefined | null) => {
     if (!r || !r.email) return;
-    if (r.id && r.id.startsWith('req-portal-')) return;
+    if (r.id?.startsWith('req-portal-') && r.notes?.includes('Akun Google terdaftar di Portal Panaikang')) {
+      return;
+    }
     const cleanEmail = r.email.trim().toLowerCase();
     if (!cleanEmail) return;
     const prev = reqMap.get(cleanEmail);
@@ -1409,7 +1444,9 @@ export async function fetchGoogleAdminVerificationRequestsFromCloud(): Promise<G
       reqMap.set(cleanEmail, {
         ...prev,
         ...r,
+        id: r.id && !r.id.startsWith('req-portal-') ? r.id : `req-admin-${rTs || Date.now()}`,
         email: cleanEmail,
+        status: r.status || 'Menunggu Persetujuan',
         updatedAtMs: Math.max(rTs, prevTs, 1),
       });
     }
@@ -1418,7 +1455,7 @@ export async function fetchGoogleAdminVerificationRequestsFromCloud(): Promise<G
   // 1. Local storage first
   loadGoogleAdminVerificationRequests().forEach(upsert);
 
-  // 2. Local Express API if available
+  // 2. /api/google-admin-requests endpoint (Express + Vercel Serverless)
   try {
     const res = await fetch('/api/google-admin-requests', { cache: 'no-store' });
     if (res.ok) {
@@ -1428,7 +1465,7 @@ export async function fetchGoogleAdminVerificationRequestsFromCloud(): Promise<G
       }
     }
   } catch {
-    // Ignore if offline or serverless
+    // Ignore if offline
   }
 
   // 3. /api/data endpoint (available on both local Express and Vercel serverless)
@@ -1486,36 +1523,32 @@ export function submitGoogleAdminVerificationRequest(params: {
 
   const nowMs = Date.now();
   const nowDisplay = getRealtimeDateTimeString(new Date());
-  let submittedItem: GoogleAdminVerificationRequest;
+  const freshId = `req-admin-${nowMs}-${Math.random().toString(36).slice(2, 6)}`;
+  const effectiveNotes = params.notes || 'Mengajukan permohonan verifikasi akses Admin Google';
+
+  const submittedItem: GoogleAdminVerificationRequest = {
+    ...(foundIndex >= 0 ? existing[foundIndex] : {}),
+    id: freshId,
+    email: cleanEmail,
+    displayName:
+      params.displayName ||
+      (foundIndex >= 0 ? existing[foundIndex].displayName : '') ||
+      cleanEmail.split('@')[0],
+    ...(params.photoUrl ? { photoUrl: params.photoUrl } : {}),
+    requestedAt: nowDisplay,
+    requestedAtMs: nowMs,
+    updatedAtMs: nowMs,
+    status: 'Menunggu Persetujuan',
+    notes: effectiveNotes,
+  };
 
   if (foundIndex >= 0) {
-    submittedItem = {
-      ...existing[foundIndex],
-      status: 'Menunggu Persetujuan',
-      requestedAt: nowDisplay,
-      requestedAtMs: nowMs,
-      updatedAtMs: nowMs,
-      displayName: params.displayName || existing[foundIndex].displayName || cleanEmail.split('@')[0],
-      ...(params.photoUrl ? { photoUrl: params.photoUrl } : {}),
-      ...(params.notes ? { notes: params.notes } : {}),
-    };
     existing[foundIndex] = submittedItem;
   } else {
-    submittedItem = {
-      id: `req-admin-${nowMs}-${Math.random().toString(36).slice(2, 6)}`,
-      email: cleanEmail,
-      displayName: params.displayName || cleanEmail.split('@')[0],
-      ...(params.photoUrl ? { photoUrl: params.photoUrl } : {}),
-      requestedAt: nowDisplay,
-      requestedAtMs: nowMs,
-      updatedAtMs: nowMs,
-      status: 'Menunggu Persetujuan',
-      ...(params.notes ? { notes: params.notes } : {}),
-    };
     existing.unshift(submittedItem);
   }
 
-  // Persist to localStorage, Express API, /api/data, and Firestore Cloud safely
+  // Persist to localStorage, /api/google-admin-requests, /api/data, and Firestore Cloud safely
   saveGoogleAdminVerificationRequests(existing, true);
   fetch('/api/google-admin-requests', {
     method: 'POST',

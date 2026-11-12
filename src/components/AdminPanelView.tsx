@@ -115,6 +115,7 @@ import {
   IG_POST_8,
   IG_POST_10,
   IG_POST_12,
+  DEFAULT_LURAH_PHOTO_URL,
   INITIAL_OFFICIALS,
   INITIAL_WHATSAPP_RECIPIENTS,
   INITIAL_ADMIN_USERS,
@@ -1731,7 +1732,17 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             activeAdmin: fsResult.activeAdmin || null,
           });
         }
-        setLoginError(fsResult.error || 'Username/NIP atau kata sandi tidak valid.');
+        if (cleanUser.includes('@')) {
+          const rejectedMail = cleanUser.trim().toLowerCase();
+          setPendingGoogleAdminRequestEmail(rejectedMail);
+          setPendingGoogleAdminRequestName('');
+          setGoogleRequestSentNotice('');
+          setLoginError(
+            `Email "${rejectedMail}" ditolak oleh sistem karena belum terdaftar atau belum diverifikasi pada Whitelist Administrator.`
+          );
+        } else {
+          setLoginError(fsResult.error || 'Username/NIP atau kata sandi tidak valid.');
+        }
         return;
       }
       if (fsResult.session) {
@@ -1745,14 +1756,10 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     }
   };
 
-  const verifyAndEstablishGoogleAdminProfile = useCallback(
-    async (profile: AuthenticatedUserProfile) => {
-      const emailLower = (profile.email || '').trim().toLowerCase();
-      const isSuperAdmin = emailLower === 'asmaracess@gmail.com';
+  const checkEmailInAdminWhitelist = useCallback(
+    async (emailLower: string): Promise<AdminUserAccount | undefined> => {
       let matchedAdmin = findMatchingWhitelistedAdmin(emailLower);
-
-      if (!isSuperAdmin && !matchedAdmin) {
-        // Also check server /api/admin-users and /api/data in case the account was registered from another browser/tab
+      if (!matchedAdmin) {
         try {
           const res = await fetch('/api/admin-users', { cache: 'no-store' });
           if (res.ok) {
@@ -1762,26 +1769,35 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             }
           }
         } catch {}
-        if (!matchedAdmin) {
-          try {
-            const resData = await fetch('/api/data', { cache: 'no-store' });
-            if (resData.ok) {
-              const jsonData = await resData.json();
-              if (Array.isArray(jsonData?.adminUsers)) {
-                matchedAdmin = findMatchingWhitelistedAdmin(emailLower, jsonData.adminUsers);
-              }
-            }
-          } catch {}
-        }
       }
+      if (!matchedAdmin) {
+        try {
+          const resData = await fetch('/api/data', { cache: 'no-store' });
+          if (resData.ok) {
+            const jsonData = await resData.json();
+            if (Array.isArray(jsonData?.adminUsers)) {
+              matchedAdmin = findMatchingWhitelistedAdmin(emailLower, jsonData.adminUsers);
+            }
+          }
+        } catch {}
+      }
+      return matchedAdmin;
+    },
+    [findMatchingWhitelistedAdmin]
+  );
+
+  const verifyAndEstablishGoogleAdminProfile = useCallback(
+    async (profile: AuthenticatedUserProfile) => {
+      const emailLower = (profile.email || '').trim().toLowerCase();
+      const isSuperAdmin = emailLower === 'asmaracess@gmail.com';
+      const matchedAdmin = isSuperAdmin ? findMatchingWhitelistedAdmin(emailLower) : await checkEmailInAdminWhitelist(emailLower);
 
       if (!isSuperAdmin && !matchedAdmin) {
-        const rejectedEmail = profile.email;
+        const rejectedEmail = profile.email.trim().toLowerCase();
         setPendingGoogleAdminRequestEmail(rejectedEmail);
         setPendingGoogleAdminRequestName(profile.fullName || '');
-        setManualGoogleVerifyEmail(rejectedEmail);
-        setManualGoogleVerifyName(profile.fullName || '');
         setGoogleRequestSentNotice('');
+
         // Sign out the unverified account so the browser doesn't stay locked to it on the next click
         try {
           await logoutFirebaseUser();
@@ -1789,7 +1805,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           // Non-fatal
         }
         setLoginError(
-          `Akun Google "${rejectedEmail}" belum terdaftar atau belum diverifikasi oleh Master Admin (Lurah). Jika Anda staf kelurahan, silakan tekan tombol "Kirim Permohonan Verifikasi ke Master Admin" di bawah.`
+          `Email "${rejectedEmail}" ditolak oleh sistem karena belum terdaftar atau belum diverifikasi oleh Master Admin (Lurah).`
         );
         return;
       }
@@ -1814,7 +1830,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       setAdminSession(trustedSession);
       sessionStorage.setItem('pnk_admin_session', JSON.stringify(trustedSession));
     },
-    [findMatchingWhitelistedAdmin]
+    [checkEmailInAdminWhitelist, findMatchingWhitelistedAdmin]
   );
 
   const handleFirebaseAdminLoginSubmit = async (e: React.FormEvent) => {
@@ -1823,6 +1839,27 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     setFirebaseResetSuccess('');
     setGoogleRequestSentNotice('');
     setPendingGoogleAdminRequestEmail(null);
+
+    const typedEmail = firebaseAdminEmail.trim().toLowerCase();
+    if (typedEmail) {
+      if (!typedEmail.includes('@')) {
+        setLoginError('Format alamat email tidak valid.');
+        return;
+      }
+      setIsLoggingIn(true);
+      const isSuperAdmin = typedEmail === 'asmaracess@gmail.com';
+      const matchedAdmin = isSuperAdmin ? findMatchingWhitelistedAdmin(typedEmail) : await checkEmailInAdminWhitelist(typedEmail);
+
+      if (!isSuperAdmin && !matchedAdmin) {
+        setIsLoggingIn(false);
+        setPendingGoogleAdminRequestEmail(typedEmail);
+        setPendingGoogleAdminRequestName('');
+        setLoginError(
+          `Email "${typedEmail}" ditolak oleh sistem karena belum terdaftar atau belum diverifikasi oleh Master Admin (Lurah).`
+        );
+        return;
+      }
+    }
 
     setIsLoggingIn(true);
     const result = await signInWithGoogleAccount();
@@ -2586,9 +2623,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       lurahName: '',
       lurahNip: '',
       lurahRank: '',
-      lurahPeriod: '2024 – Sekarang',
+      lurahPeriod: '2025 – Sekarang',
       lurahMessage: '',
-      lurahPhotoUrl: '',
+      lurahPhotoUrl: DEFAULT_LURAH_PHOTO_URL,
     });
     setIsLurahModalOpen(true);
   };
@@ -2600,7 +2637,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       lurahRank: profileDraft.lurahRank || '',
       lurahPeriod: profileDraft.lurahPeriod || '',
       lurahMessage: profileDraft.lurahMessage || '',
-      lurahPhotoUrl: profileDraft.lurahPhotoUrl || '',
+      lurahPhotoUrl: profileDraft.lurahPhotoUrl?.trim() || DEFAULT_LURAH_PHOTO_URL,
     });
     setIsLurahModalOpen(true);
   };
@@ -2618,7 +2655,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       lurahRank: lurahForm.lurahRank.trim(),
       lurahPeriod: lurahForm.lurahPeriod.trim(),
       lurahMessage: lurahForm.lurahMessage.trim(),
-      lurahPhotoUrl: lurahForm.lurahPhotoUrl,
+      lurahPhotoUrl: lurahForm.lurahPhotoUrl?.trim() || profileDraft.lurahPhotoUrl?.trim() || DEFAULT_LURAH_PHOTO_URL,
     };
     setIsSubmitting(true);
     const res = await onSaveProfile(updatedProfile);
@@ -4577,50 +4614,31 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
                     <span>Proteksi Whitelist Master Admin:</span>
                   </div>
-                  Login Admin dengan akun Google dibatasi ketat. Hanya akun Gmail yang telah didaftarkan & diverifikasi oleh Administrator yang dapat mengakses panel ini. Silakan tekan tombol di bawah untuk memilih akun Google Anda dari perangkat ini.
+                  Login Admin dengan akun Google dibatasi ketat. Hanya akun Gmail yang telah didaftarkan & diverifikasi oleh Administrator yang dapat mengakses panel ini.
                 </div>
 
-                {firebaseUserProfile && firebaseUserProfile.role !== 'admin' && (
-                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 leading-relaxed flex flex-col gap-2">
-                    <div>
-                      Saat ini sesi browser masih terhubung pada akun{' '}
-                      <strong>{firebaseUserProfile.email}</strong> (status{' '}
-                      <strong>Warga / Belum Whitelist Admin</strong>).
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const res = submitGoogleAdminVerificationRequest({
-                            email: firebaseUserProfile.email,
-                            displayName: firebaseUserProfile.fullName || undefined,
-                          });
-                          if (res.ok) {
-                            setGoogleRequestSentNotice(res.message);
-                          }
-                        }}
-                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition cursor-pointer shadow-xs"
-                      >
-                        Ajukan Verifikasi Email Ini ke Master Admin
-                      </button>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          setLoginError('');
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Email Akun Google Administrator
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="email"
+                      value={firebaseAdminEmail}
+                      onChange={(e) => {
+                        setFirebaseAdminEmail(e.target.value);
+                        if (pendingGoogleAdminRequestEmail) {
                           setPendingGoogleAdminRequestEmail(null);
-                          if (onFirebaseLogout) {
-                            await onFirebaseLogout();
-                          } else {
-                            await logoutFirebaseUser();
-                          }
-                        }}
-                        className="px-3 py-1.5 rounded-lg bg-amber-200 hover:bg-amber-300 text-amber-950 font-bold text-[11px] transition cursor-pointer"
-                      >
-                        Putuskan Sesi & Pilih Akun Lain
-                      </button>
-                    </div>
+                          setGoogleRequestSentNotice('');
+                        }
+                      }}
+                      placeholder="Masukkan email Google atau langsung klik tombol di bawah"
+                      autoComplete="email"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-900 focus:border-[#0D3868] focus:outline-none"
+                    />
                   </div>
-                )}
+                </div>
 
                 {googleRequestSentNotice && (
                   <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-950 leading-relaxed flex items-start gap-2">
@@ -4630,22 +4648,28 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 )}
 
                 {pendingGoogleAdminRequestEmail && !googleRequestSentNotice && (
-                  <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-xs space-y-2">
+                  <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-xs space-y-2.5">
                     <div className="font-bold text-amber-950 flex items-center gap-1.5">
                       <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
-                      <span>Ajukan Permohonan Akses Admin ke Lurah</span>
+                      <span>Email Ditolak Sistem — Belum Terverifikasi Admin</span>
                     </div>
-                    <p className="text-[11px] text-amber-900">
-                      Apakah Anda staf kelurahan dan ingin mengajukan verifikasi untuk email{' '}
-                      <strong>{pendingGoogleAdminRequestEmail}</strong>?
+                    <p className="text-[11px] text-amber-900 leading-relaxed">
+                      Akun <strong>{pendingGoogleAdminRequestEmail}</strong> belum terdaftar pada Whitelist Admin. Silakan ajukan permohonan verifikasi di bawah ini agar dapat disetujui oleh Master Admin (Lurah):
                     </p>
+                    <input
+                      type="text"
+                      value={pendingGoogleAdminRequestName}
+                      onChange={(e) => setPendingGoogleAdminRequestName(e.target.value)}
+                      placeholder="Nama Lengkap & Jabatan Staf (opsional)"
+                      className="w-full px-3 py-2 rounded-lg border border-amber-300 bg-white text-xs text-slate-900 focus:border-[#0D3868] focus:outline-none"
+                    />
                     <button
                       type="button"
                       onClick={() => {
                         const res = submitGoogleAdminVerificationRequest({
                           email: pendingGoogleAdminRequestEmail,
                           displayName:
-                            pendingGoogleAdminRequestName ||
+                            pendingGoogleAdminRequestName.trim() ||
                             firebaseUserProfile?.fullName ||
                             undefined,
                         });
@@ -4656,9 +4680,10 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                           setLoginError(res.message);
                         }
                       }}
-                      className="w-full py-2 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition cursor-pointer shadow-xs"
+                      className="w-full py-2.5 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
                     >
-                      Kirim Permohonan Verifikasi ke Master Admin
+                      <UserPlus className="w-3.5 h-3.5" />
+                      <span>Ajukan Permohonan Verifikasi Admin</span>
                     </button>
                   </div>
                 )}
@@ -4671,85 +4696,10 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                   <ShieldCheck className="w-4 h-4" />
                   <span>
                     {isLoggingIn
-                      ? 'Membuka Pilihan Akun Google...'
+                      ? 'Memverifikasi Akun Google...'
                       : 'Masuk dengan Google (Pilih Akun)'}
                   </span>
                 </button>
-
-                {/* Direct Request Admin Verification Form so any staff can request verification at any time */}
-                <div className="pt-2 border-t border-slate-200/80">
-                  {!showManualGoogleVerifyForm ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowManualGoogleVerifyForm(true);
-                        setGoogleRequestSentNotice('');
-                      }}
-                      className="w-full py-2 px-3 rounded-xl border border-amber-300 bg-amber-50/70 hover:bg-amber-100/80 text-amber-900 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
-                    >
-                      <UserPlus className="w-3.5 h-3.5 text-amber-700" />
-                      <span>Belum Terdaftar? Ajukan Permohonan Verifikasi Email Admin</span>
-                    </button>
-                  ) : (
-                    <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200 space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
-                          <UserPlus className="w-3.5 h-3.5 text-amber-700" />
-                          Form Permohonan Verifikasi Email Admin
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setShowManualGoogleVerifyForm(false)}
-                          className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 cursor-pointer"
-                        >
-                          Tutup
-                        </button>
-                      </div>
-                      <div className="space-y-2">
-                        <input
-                          type="email"
-                          value={manualGoogleVerifyEmail}
-                          onChange={(e) => setManualGoogleVerifyEmail(e.target.value)}
-                          placeholder="Alamat Email Google (contoh: nama@gmail.com)"
-                          className="w-full px-3 py-2 rounded-lg border border-amber-300 bg-white text-xs text-slate-900 focus:border-[#0D3868] focus:outline-none"
-                        />
-                        <input
-                          type="text"
-                          value={manualGoogleVerifyName}
-                          onChange={(e) => setManualGoogleVerifyName(e.target.value)}
-                          placeholder="Nama Lengkap & Jabatan Staf"
-                          className="w-full px-3 py-2 rounded-lg border border-amber-300 bg-white text-xs text-slate-900 focus:border-[#0D3868] focus:outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const cleanMail = manualGoogleVerifyEmail.trim().toLowerCase();
-                            if (!cleanMail || !cleanMail.includes('@')) {
-                              setLoginError('Masukkan alamat email Google yang valid untuk mengajukan verifikasi.');
-                              return;
-                            }
-                            const res = submitGoogleAdminVerificationRequest({
-                              email: cleanMail,
-                              displayName: manualGoogleVerifyName.trim() || undefined,
-                            });
-                            if (res.ok) {
-                              setLoginError('');
-                              setGoogleRequestSentNotice(res.message);
-                              setManualGoogleVerifyEmail('');
-                              setManualGoogleVerifyName('');
-                              setShowManualGoogleVerifyForm(false);
-                            } else {
-                              setLoginError(res.message);
-                            }
-                          }}
-                          className="w-full py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition cursor-pointer shadow-xs"
-                        >
-                          Kirim Permohonan Verifikasi ke Master Admin
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
               </form>
             ) : (
               <form onSubmit={handleLoginSubmit} className="space-y-4">
@@ -4798,6 +4748,51 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     </button>
                   </div>
                 </div>
+
+                {googleRequestSentNotice && (
+                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-950 leading-relaxed flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <span>{googleRequestSentNotice}</span>
+                  </div>
+                )}
+
+                {pendingGoogleAdminRequestEmail && !googleRequestSentNotice && (
+                  <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-xs space-y-2.5">
+                    <div className="font-bold text-amber-950 flex items-center gap-1.5">
+                      <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                      <span>Email Ditolak Sistem — Belum Terverifikasi Admin</span>
+                    </div>
+                    <p className="text-[11px] text-amber-900 leading-relaxed">
+                      Akun <strong>{pendingGoogleAdminRequestEmail}</strong> belum terdaftar pada Whitelist Admin. Silakan ajukan permohonan verifikasi di bawah ini agar dapat disetujui oleh Master Admin (Lurah):
+                    </p>
+                    <input
+                      type="text"
+                      value={pendingGoogleAdminRequestName}
+                      onChange={(e) => setPendingGoogleAdminRequestName(e.target.value)}
+                      placeholder="Nama Lengkap & Jabatan Staf (opsional)"
+                      className="w-full px-3 py-2 rounded-lg border border-amber-300 bg-white text-xs text-slate-900 focus:border-[#0D3868] focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const res = submitGoogleAdminVerificationRequest({
+                          email: pendingGoogleAdminRequestEmail,
+                          displayName: pendingGoogleAdminRequestName.trim() || undefined,
+                        });
+                        if (res.ok) {
+                          setLoginError('');
+                          setGoogleRequestSentNotice(res.message);
+                        } else {
+                          setLoginError(res.message);
+                        }
+                      }}
+                      className="w-full py-2.5 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" />
+                      <span>Ajukan Permohonan Verifikasi Admin</span>
+                    </button>
+                  </div>
+                )}
 
                 <button
                   type="submit"
@@ -5533,12 +5528,19 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             <AdminCollapsibleBar
               sectionKey="admin_warga_otoritas"
               title="01. Otoritas Master Admin (Verifikasi Login Google, Whitelist &amp; Force Sesi)"
-              subtitle="Pusat kendali otoritas Lurah, manajemen whitelist Google, dan pengambilalihan sesi login"
+              subtitle="Pusat kendali tunggal otoritas Lurah, persetujuan permohonan verifikasi Google masuk, whitelist, dan sesi login"
               icon={<ShieldCheck className="w-5 h-5 text-indigo-700" />}
               badge={
-                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700">
-                  Otoritas Lurah
-                </span>
+                <div className="flex items-center gap-1.5">
+                  {(googleAdminRequests || []).filter((r) => (r.status || 'Menunggu Persetujuan') === 'Menunggu Persetujuan').length > 0 && (
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-500 text-white shadow-xs animate-pulse">
+                      {(googleAdminRequests || []).filter((r) => (r.status || 'Menunggu Persetujuan') === 'Menunggu Persetujuan').length} Permohonan Masuk
+                    </span>
+                  )}
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700">
+                    Otoritas Lurah
+                  </span>
+                </div>
               }
               isCollapsed={isSectionCollapsed('admin_warga_otoritas')}
               onToggle={() => toggleSectionCollapse('admin_warga_otoritas')}
@@ -5994,19 +5996,18 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                       {/* Lurah Photo */}
                       <div className="relative group shrink-0 mx-auto sm:mx-0">
                         <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden border-2 border-slate-200 bg-slate-100 flex items-center justify-center shadow-xs">
-                          {Boolean(profileDraft.lurahPhotoUrl?.trim()) ? (
-                            <img
-                              src={profileDraft.lurahPhotoUrl!}
-                              alt={profileDraft.lurahName}
-                              className="w-full h-full object-cover object-top"
-                            />
-                          ) : (
-                            <User className="w-12 h-12 text-slate-400" />
-                          )}
+                          <img
+                            src={profileDraft.lurahPhotoUrl?.trim() || DEFAULT_LURAH_PHOTO_URL}
+                            alt={profileDraft.lurahName || 'Lurah Panaikang'}
+                            className="w-full h-full object-cover object-top"
+                            onError={(e) => {
+                              e.currentTarget.src = DEFAULT_LURAH_PHOTO_URL;
+                            }}
+                          />
                         </div>
                         <label className="mt-2 inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold w-full cursor-pointer transition text-center">
                           <Camera className="w-3 h-3" />
-                          <span>{profileDraft.lurahPhotoUrl ? 'Ganti Foto' : 'Unggah Foto'}</span>
+                          <span>Ganti / Unggah Foto</span>
                           <input
                             type="file"
                             accept="image/*"
@@ -11706,19 +11707,18 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 </label>
                 <div className="flex items-center gap-3">
                   <div className="w-14 h-14 rounded-xl border border-slate-200 bg-slate-100 overflow-hidden flex items-center justify-center shrink-0">
-                    {Boolean(lurahForm.lurahPhotoUrl?.trim()) ? (
-                      <img
-                        src={lurahForm.lurahPhotoUrl!}
-                        alt="Preview"
-                        className="w-full h-full object-cover object-top"
-                      />
-                    ) : (
-                      <User className="w-6 h-6 text-slate-400" />
-                    )}
+                    <img
+                      src={lurahForm.lurahPhotoUrl?.trim() || DEFAULT_LURAH_PHOTO_URL}
+                      alt="Preview"
+                      className="w-full h-full object-cover object-top"
+                      onError={(e) => {
+                        e.currentTarget.src = DEFAULT_LURAH_PHOTO_URL;
+                      }}
+                    />
                   </div>
                   <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer transition">
                     <Upload className="w-3.5 h-3.5" />
-                    <span>{lurahForm.lurahPhotoUrl ? 'Ganti File Foto' : 'Pilih Foto Lurah'}</span>
+                    <span>Ganti File Foto</span>
                     <input
                       type="file"
                       accept="image/*"

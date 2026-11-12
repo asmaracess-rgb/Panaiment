@@ -39,6 +39,7 @@ import {
   DAFTAR_KATEGORI_PENGADUAN,
 } from '../data/pelayananMasterData';
 import {
+  DEFAULT_LURAH_PHOTO_URL,
   INITIAL_KELURAHAN_PROFILE,
   INITIAL_OFFICIALS,
   INITIAL_RW_GROUPS,
@@ -315,7 +316,39 @@ const GOOGLE_ADMIN_REQUESTS_JOURNAL_KEY = 'pnk_google_admin_requests_v1';
 export function saveGoogleAdminRequestsJournal(requests: GoogleAdminVerificationRequest[]): void {
   if (typeof window === 'undefined' || !Array.isArray(requests)) return;
   try {
-    window.localStorage.setItem(GOOGLE_ADMIN_REQUESTS_JOURNAL_KEY, JSON.stringify(requests));
+    const existing = loadGoogleAdminRequestsJournal();
+    const map = new Map<string, GoogleAdminVerificationRequest>();
+    for (const r of existing) {
+      if (!r || !r.email) continue;
+      if (r.id?.startsWith('req-portal-') && r.notes?.includes('Akun Google terdaftar di Portal Panaikang')) {
+        continue;
+      }
+      const key = r.email.trim().toLowerCase();
+      if (key) map.set(key, { ...r, email: key });
+    }
+    for (const r of requests) {
+      if (!r || !r.email) continue;
+      if (r.id?.startsWith('req-portal-') && r.notes?.includes('Akun Google terdaftar di Portal Panaikang')) {
+        continue;
+      }
+      const key = r.email.trim().toLowerCase();
+      if (!key) continue;
+      const prev = map.get(key);
+      const rTs = r.updatedAtMs || r.requestedAtMs || 0;
+      const prevTs = prev ? (prev.updatedAtMs || prev.requestedAtMs || 0) : -1;
+      if (!prev || rTs >= prevTs) {
+        map.set(key, {
+          ...prev,
+          ...r,
+          email: key,
+          updatedAtMs: Math.max(rTs, prevTs, 1),
+        });
+      }
+    }
+    const merged = Array.from(map.values()).sort(
+      (a, b) => (b.requestedAtMs || 0) - (a.requestedAtMs || 0)
+    );
+    window.localStorage.setItem(GOOGLE_ADMIN_REQUESTS_JOURNAL_KEY, JSON.stringify(merged));
   } catch {
     // Ignore storage write errors
   }
@@ -327,7 +360,13 @@ export function loadGoogleAdminRequestsJournal(): GoogleAdminVerificationRequest
     const raw = window.localStorage.getItem(GOOGLE_ADMIN_REQUESTS_JOURNAL_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as GoogleAdminVerificationRequest[]) : [];
+    if (!Array.isArray(parsed)) return [];
+    return (parsed as GoogleAdminVerificationRequest[]).filter(
+      (r) =>
+        r &&
+        r.email &&
+        !(r.id?.startsWith('req-portal-') && r.notes?.includes('Akun Google terdaftar di Portal Panaikang'))
+    );
   } catch {
     return [];
   }
@@ -380,7 +419,7 @@ export function saveKerjaBaktiIgHighlights(
 }
 
 function getRecoveredLurahPhotoUrl(): string {
-  if (typeof window === 'undefined') return '';
+  if (typeof window === 'undefined') return DEFAULT_LURAH_PHOTO_URL;
   try {
     const direct = window.localStorage.getItem(LURAH_PHOTO_BACKUP_KEY);
     if (direct && direct.trim()) return direct.trim();
@@ -397,7 +436,10 @@ function getRecoveredLurahPhotoUrl(): string {
   } catch {
     // Ignore storage read errors
   }
-  return '';
+  try {
+    window.localStorage.setItem(LURAH_PHOTO_BACKUP_KEY, DEFAULT_LURAH_PHOTO_URL);
+  } catch {}
+  return DEFAULT_LURAH_PHOTO_URL;
 }
 
 // Initial IDs to distinguish default sample data from actual citizen & admin input
@@ -736,7 +778,7 @@ export function smartMergeDatabases(
     officials: resolvedOfficials,
     lurahName: pickNonEmpty('lurahName'),
     lurahNip: pickNonEmpty('lurahNip'),
-    lurahPhotoUrl: pickNonEmpty('lurahPhotoUrl') || getRecoveredLurahPhotoUrl(),
+    lurahPhotoUrl: pickNonEmpty('lurahPhotoUrl') || getRecoveredLurahPhotoUrl() || DEFAULT_LURAH_PHOTO_URL,
     lurahRank: pickNonEmpty('lurahRank'),
     lurahPeriod: pickNonEmpty('lurahPeriod'),
     lurahMessage: pickNonEmpty('lurahMessage'),

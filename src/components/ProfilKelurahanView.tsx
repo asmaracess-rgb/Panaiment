@@ -169,6 +169,9 @@ export const ProfilKelurahanView: React.FC<ProfilKelurahanViewProps> = ({
                           }
                           alt={`Foto Resmi ${profile.lurahName || 'Lurah Panaikang'}`}
                           className="w-full h-full object-cover object-top"
+                          onError={(e) => {
+                            e.currentTarget.src = '/images/lurah_muthmainnah_panaikang_1791548085422.jpg';
+                          }}
                         />
                       </div>
                       <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-[#0D3868] text-white text-[10px] font-bold tracking-wider uppercase whitespace-nowrap shadow-xs">

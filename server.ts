@@ -139,8 +139,13 @@ function loadDatabase(): DatabaseSchema {
         ).filter((o) => o && o.id && !deletedSet.has(o.id) && !legacyOfficialIds.has(o.id));
 
         const resolvedProfile: KelurahanProfile = {
+          ...INITIAL_KELURAHAN_PROFILE,
           ...parsed.profile,
           officials: resolvedOfficials,
+          lurahPhotoUrl:
+            parsed.profile?.lurahPhotoUrl?.trim() ||
+            INITIAL_KELURAHAN_PROFILE.lurahPhotoUrl ||
+            '/images/lurah_muthmainnah_panaikang_1791548085422.jpg',
           sekretarisName:
             parsed.profile?.sekretarisName === 'Hj. Rahmawati Dg. Ngasseng, S.Sos.'
               ? ''
@@ -1442,11 +1447,34 @@ async function startServer() {
       return;
     }
     const nowMs = Date.now();
-    db.googleAdminVerificationRequests = incoming.map((r) => ({
-      ...r,
-      email: (r.email || '').trim().toLowerCase(),
-      updatedAtMs: r.updatedAtMs || nowMs,
-    }));
+    const existingList = Array.isArray(db.googleAdminVerificationRequests)
+      ? db.googleAdminVerificationRequests
+      : [];
+    const reqMap = new Map<string, GoogleAdminVerificationRequest>();
+    for (const item of existingList) {
+      if (!item || !item.email) continue;
+      const key = item.email.trim().toLowerCase();
+      if (key) reqMap.set(key, { ...item, email: key });
+    }
+    for (const item of incoming) {
+      if (!item || !item.email) continue;
+      const key = item.email.trim().toLowerCase();
+      if (!key) continue;
+      const prev = reqMap.get(key);
+      const itemTs = item.updatedAtMs || item.requestedAtMs || 0;
+      const prevTs = prev ? (prev.updatedAtMs || prev.requestedAtMs || 0) : -1;
+      if (!prev || itemTs >= prevTs) {
+        reqMap.set(key, {
+          ...prev,
+          ...item,
+          email: key,
+          updatedAtMs: item.updatedAtMs || nowMs,
+        });
+      }
+    }
+    db.googleAdminVerificationRequests = Array.from(reqMap.values()).sort(
+      (a, b) => (b.requestedAtMs || 0) - (a.requestedAtMs || 0)
+    );
     saveDatabase(db);
     res.json({ ok: true, data: db.googleAdminVerificationRequests });
   });

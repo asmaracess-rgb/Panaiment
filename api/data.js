@@ -88,6 +88,104 @@ export default async function handler(req, res) {
       const body = req.body;
       const dataToSave = typeof body === 'string' ? JSON.parse(body) : (body || {});
       const nowMs = Date.now();
+
+      // Read existing DB so we never lose newly submitted googleAdminVerificationRequests or whitelisted adminUsers
+      let existingDb = null;
+      try {
+        if (fs.existsSync(tmpPath)) {
+          existingDb = JSON.parse(fs.readFileSync(tmpPath, 'utf8'));
+        } else if (fs.existsSync(repoPath)) {
+          existingDb = JSON.parse(fs.readFileSync(repoPath, 'utf8'));
+        }
+      } catch {}
+
+      if (existingDb && typeof existingDb === 'object') {
+        // 1. Merge googleAdminVerificationRequests by email
+        const reqMap = new Map();
+        const upsertReq = (r) => {
+          if (!r || !r.email) return;
+          const cleanEmail = String(r.email).trim().toLowerCase();
+          if (!cleanEmail || !cleanEmail.includes('@')) return;
+          const prev = reqMap.get(cleanEmail);
+          const rTs = Number(r.updatedAtMs || r.requestedAtMs || 0);
+          const prevTs = prev ? Number(prev.updatedAtMs || prev.requestedAtMs || 0) : -1;
+          if (!prev || rTs >= prevTs) {
+            reqMap.set(cleanEmail, {
+              ...prev,
+              ...r,
+              email: cleanEmail,
+              status: r.status || prev?.status || 'Menunggu Persetujuan',
+              updatedAtMs: Math.max(rTs, prevTs, 1),
+            });
+          }
+        };
+        if (Array.isArray(existingDb.googleAdminVerificationRequests)) {
+          existingDb.googleAdminVerificationRequests.forEach(upsertReq);
+        }
+        if (Array.isArray(dataToSave.googleAdminVerificationRequests)) {
+          dataToSave.googleAdminVerificationRequests.forEach(upsertReq);
+        }
+        dataToSave.googleAdminVerificationRequests = Array.from(reqMap.values()).sort(
+          (a, b) => Number(b.requestedAtMs || 0) - Number(a.requestedAtMs || 0)
+        );
+
+        // 2. Merge adminUsers by id so whitelisted accounts are never lost
+        if (Array.isArray(existingDb.adminUsers) || Array.isArray(dataToSave.adminUsers)) {
+          const userMap = new Map();
+          for (const u of existingDb.adminUsers || []) {
+            if (u && u.id) userMap.set(u.id, u);
+          }
+          for (const inc of dataToSave.adminUsers || []) {
+            if (!inc || !inc.id) continue;
+            const prev = userMap.get(inc.id);
+            if (!prev) {
+              userMap.set(inc.id, inc);
+            } else {
+              const incMs = Number(inc.updatedAtMs || 0);
+              const prevMs = Number(prev.updatedAtMs || 0);
+              const primary = incMs >= prevMs ? inc : prev;
+              const secondary = incMs >= prevMs ? prev : inc;
+              const explicitlyRevoked =
+                primary.isGoogleVerified === false &&
+                typeof primary.updatedAt === 'string' &&
+                primary.updatedAt.toLowerCase().includes('dicabut');
+              const resolvedEmail =
+                primary.googleEmail && String(primary.googleEmail).trim()
+                  ? String(primary.googleEmail).trim().toLowerCase()
+                  : !explicitlyRevoked && secondary.googleEmail && String(secondary.googleEmail).trim()
+                  ? String(secondary.googleEmail).trim().toLowerCase()
+                  : undefined;
+              userMap.set(inc.id, {
+                ...secondary,
+                ...primary,
+                ...(resolvedEmail ? { googleEmail: resolvedEmail } : {}),
+                isGoogleVerified: explicitlyRevoked
+                  ? false
+                  : Boolean(
+                      primary.isGoogleVerified ||
+                        (!explicitlyRevoked && secondary.isGoogleVerified && resolvedEmail)
+                    ),
+                updatedAtMs: Math.max(incMs, prevMs),
+              });
+            }
+          }
+          dataToSave.adminUsers = Array.from(userMap.values());
+        }
+
+        // 3. Preserve profile and lurahPhotoUrl if client sends an empty photo
+        if (existingDb && existingDb.profile) {
+          if (!dataToSave.profile) {
+            dataToSave.profile = existingDb.profile;
+          } else if (!dataToSave.profile.lurahPhotoUrl || !String(dataToSave.profile.lurahPhotoUrl).trim()) {
+            dataToSave.profile.lurahPhotoUrl =
+              existingDb.profile.lurahPhotoUrl || '/images/lurah_muthmainnah_panaikang_1791548085422.jpg';
+          }
+        }
+        if (dataToSave.profile && (!dataToSave.profile.lurahPhotoUrl || !String(dataToSave.profile.lurahPhotoUrl).trim())) {
+          dataToSave.profile.lurahPhotoUrl = '/images/lurah_muthmainnah_panaikang_1791548085422.jpg';
+        }
+      }
+
       dataToSave.updatedAt = nowMs;
       dataToSave.lastModified = new Date(nowMs).toISOString();
 

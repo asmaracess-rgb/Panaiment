@@ -272,8 +272,8 @@ export function createSafeSnapshot(database: PersistedDatabase): PersistedDataba
     jsonString = JSON.stringify(safeClone);
   }
   if (jsonString.length > 900_000 && safeClone.profile) {
-    // Profile photo is already persisted in dedicated kelurahan_profiles/main_profile document
-    safeClone.profile.lurahPhotoUrl = '';
+    // If the snapshot is very large, keep lightweight static URL baseline instead of large base64
+    safeClone.profile.lurahPhotoUrl = '/images/lurah_muthmainnah_panaikang_1791548085422.jpg';
     jsonString = JSON.stringify(safeClone);
   }
 

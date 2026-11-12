@@ -244,15 +244,6 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
                     <span>Masuk / Daftar Akun Warga</span>
                   </button>
                 )}
-
-                <button
-                  type="button"
-                  onClick={() => handleSelectNav('admin')}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
-                >
-                  <ShieldCheck className="w-4 h-4 text-[#0D3868]" />
-                  <span>Portal Admin Kelurahan</span>
-                </button>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">

@@ -234,8 +234,9 @@ export const HomePortal: React.FC<HomePortalProps> = ({
 
               <button
                 type="button"
-                onClick={() => onNavigate('profil')}
-                title="Lihat Profil Resmi Kelurahan Panaikang"
+                onClick={() => onNavigate('admin')}
+                title="Kelurahan Panaikang"
+                aria-label="Kelurahan Panaikang"
                 className="flex items-center hover:scale-105 transition-transform duration-150 cursor-pointer focus:outline-none"
               >
                 <EmblemKelurahanPanaikang className="w-6 h-7.5 sm:w-8 sm:h-10 drop-shadow-xs" />

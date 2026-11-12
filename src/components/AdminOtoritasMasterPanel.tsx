@@ -98,21 +98,38 @@ export const AdminOtoritasMasterPanel: React.FC<AdminOtoritasMasterPanelProps> =
 
   useEffect(() => {
     let active = true;
-    fetchGoogleAdminVerificationRequestsFromCloud().then((cloudReqs) => {
-      if (active && Array.isArray(cloudReqs)) {
-        setGoogleRequests(cloudReqs);
-      }
-    });
+    const syncNow = () => {
+      fetchGoogleAdminVerificationRequestsFromCloud().then((cloudReqs) => {
+        if (active && Array.isArray(cloudReqs)) {
+          setGoogleRequests(cloudReqs);
+        }
+      });
+    };
+    syncNow();
+    const pollInterval = setInterval(syncNow, 4000);
 
     const handleSyncEvent = () => {
       setGoogleRequests(loadGoogleAdminVerificationRequests());
     };
+    const handleStorageEvent = (e: StorageEvent) => {
+      if (
+        !e.key ||
+        e.key === 'pnk_google_admin_requests_v1' ||
+        e.key === 'pnk_smart_env_db_v4' ||
+        e.key === 'pnk_admin_users_journal_v1'
+      ) {
+        setGoogleRequests(loadGoogleAdminVerificationRequests());
+      }
+    };
     window.addEventListener('pnk_google_requests_updated', handleSyncEvent);
     window.addEventListener('pnk_db_updated', handleSyncEvent);
+    window.addEventListener('storage', handleStorageEvent);
     return () => {
       active = false;
+      clearInterval(pollInterval);
       window.removeEventListener('pnk_google_requests_updated', handleSyncEvent);
       window.removeEventListener('pnk_db_updated', handleSyncEvent);
+      window.removeEventListener('storage', handleStorageEvent);
     };
   }, []);
 
@@ -127,19 +144,27 @@ export const AdminOtoritasMasterPanel: React.FC<AdminOtoritasMasterPanelProps> =
     [adminUsers]
   );
 
-  const verifiedEmailSet = useMemo(() => {
-    const set = new Set<string>(['asmaracess@gmail.com']);
+  // Map email -> latest updatedAtMs of a verified adminUser so a newer verification request still shows as Menunggu Persetujuan
+  const verifiedEmailTimestampMap = useMemo(() => {
+    const map = new Map<string, number>();
+    map.set('asmaracess@gmail.com', Number.MAX_SAFE_INTEGER);
     for (const u of adminUsers) {
-      if (u.googleEmail && u.isGoogleVerified !== false) {
-        set.add(u.googleEmail.trim().toLowerCase());
+      if (u.isGoogleVerified === false && !u.isMasterLurah) continue;
+      const uTs = u.updatedAtMs || 0;
+      if (u.googleEmail && u.googleEmail.trim()) {
+        const key = u.googleEmail.trim().toLowerCase();
+        map.set(key, Math.max(map.get(key) || 0, uTs));
       }
-      if (Array.isArray(u.additionalGoogleEmails) && u.isGoogleVerified !== false) {
+      if (Array.isArray(u.additionalGoogleEmails)) {
         u.additionalGoogleEmails.forEach((e) => {
-          if (e) set.add(e.trim().toLowerCase());
+          if (e && e.trim()) {
+            const key = e.trim().toLowerCase();
+            map.set(key, Math.max(map.get(key) || 0, uTs));
+          }
         });
       }
     }
-    return set;
+    return map;
   }, [adminUsers]);
 
   // Only include explicit verification requests submitted by staff
@@ -147,10 +172,21 @@ export const AdminOtoritasMasterPanel: React.FC<AdminOtoritasMasterPanelProps> =
     const map = new Map<string, GoogleAdminVerificationRequest>();
     for (const r of googleRequests) {
       if (!r || !r.email) continue;
-      if (r.id && r.id.startsWith('req-portal-')) continue;
+      if (r.id?.startsWith('req-portal-') && r.notes?.includes('Akun Google terdaftar di Portal Panaikang')) {
+        continue;
+      }
       const cleanEmail = r.email.trim().toLowerCase();
-      // If already verified in adminUsers, mark as Disetujui automatically
-      const effectiveStatus = verifiedEmailSet.has(cleanEmail) ? 'Disetujui' : r.status;
+      if (!cleanEmail) continue;
+      const rawStatus = r.status || 'Menunggu Persetujuan';
+      const verifiedTs = verifiedEmailTimestampMap.get(cleanEmail);
+      const reqTs = r.requestedAtMs || r.updatedAtMs || 0;
+      // Only auto-mark as Disetujui if the admin user was verified AFTER or AT the same time as the request, or if master email
+      const isAlreadyVerifiedAfterRequest =
+        verifiedTs !== undefined && (cleanEmail === 'asmaracess@gmail.com' || (verifiedTs > 0 && verifiedTs >= reqTs));
+      const effectiveStatus =
+        rawStatus === 'Menunggu Persetujuan' && isAlreadyVerifiedAfterRequest
+          ? 'Disetujui'
+          : rawStatus;
       map.set(cleanEmail, {
         ...r,
         email: cleanEmail,
@@ -158,7 +194,7 @@ export const AdminOtoritasMasterPanel: React.FC<AdminOtoritasMasterPanelProps> =
       });
     }
     return Array.from(map.values()).sort((a, b) => (b.requestedAtMs || 0) - (a.requestedAtMs || 0));
-  }, [googleRequests, verifiedEmailSet]);
+  }, [googleRequests, verifiedEmailTimestampMap]);
 
   const pendingRequests = useMemo(
     () => combinedRequests.filter((r) => r.status === 'Menunggu Persetujuan'),
