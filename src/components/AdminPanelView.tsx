@@ -5686,9 +5686,11 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 <span className="text-sky-400/60 hidden sm:inline">•</span>
                 <span className="text-[10.5px] text-sky-200">{adminSession.role}</span>
                 <span className="text-sky-400/60 hidden sm:inline">•</span>
-                <span className="inline-flex items-center gap-1 text-[10.5px] text-amber-200 font-mono-num">
+                <span className="inline-flex flex-wrap items-center gap-1 text-[10.5px] text-amber-200 font-mono-num">
                   <Clock className="w-2.5 h-2.5 text-emerald-300 shrink-0" />
                   <span>{liveWitaClock}</span>
+                  <span className="text-sky-300/80">| </span>
+                  <span className="text-sky-100">Login: {adminSession.loginAt}</span>
                 </span>
               </div>
             </div>
