@@ -625,77 +625,78 @@ export const AdminOtoritasMasterPanel: React.FC<AdminOtoritasMasterPanelProps> =
 
   return (
     <div className="space-y-6">
-      {/* Top Banner Otoritas Master Admin */}
-      <div className="bg-gradient-to-r from-[#0D3868] via-[#0B2F57] to-[#1C8237] rounded-3xl p-6 sm:p-7 text-white shadow-sm border border-slate-200">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 text-emerald-200 text-xs font-extrabold uppercase tracking-wider border border-white/20">
-              <ShieldCheck className="w-4 h-4 text-emerald-300" />
-              <span>Sub-Menu 1: Otoritas Master Admin (Lurah Panaikang)</span>
-            </div>
-            <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
-              Pusat Kendali Keamanan & Verifikasi Login Admin
-            </h2>
-            <p className="text-xs sm:text-sm text-sky-100 max-w-3xl leading-relaxed">
-              Otoritas tertinggi pengelolaan keamanan portal Kelurahan Panaikang. Master Admin (Lurah) memegang hak mutlak atas verifikasi akun login Google pejabat/staf, pemutusan sesi perangkat lain, dan pengawasan hak akses sesuai Perwali No. 65 Tahun 2023.
-            </p>
+      {/* Top Banner Otoritas Master Admin (Compact & Simplified) */}
+      <div className="bg-gradient-to-r from-[#0D3868] via-[#0B2F57] to-[#1C8237] rounded-2xl p-3.5 sm:p-4 text-white shadow-xs border border-slate-200 space-y-2.5">
+        <div className="w-full space-y-1">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 text-emerald-200 text-[10px] font-extrabold uppercase tracking-wider border border-white/20">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-300" />
+            <span>Sub-Menu 1: Otoritas Master Admin (Lurah Panaikang)</span>
           </div>
-
-          <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-xs border border-white/20 shrink-0 space-y-1.5 text-xs">
-            <div className="text-slate-300 text-[11px] font-semibold uppercase">Pejabat Otoritas Tertinggi:</div>
-            <div className="text-sm font-extrabold text-white flex items-center gap-1.5">
-              <Building2 className="w-4 h-4 text-emerald-300" />
-              <span>Muthmainnah, SE, MM</span>
-            </div>
-            <div className="text-sky-200 text-[11px]">Lurah Panaikang (Super Admin)</div>
-            <div className="text-emerald-300 text-[11px] font-mono-num">Google: AsmaraCess@gmail.com</div>
-          </div>
+          <h2 className="text-base sm:text-lg font-extrabold tracking-tight text-white">
+            Pusat Kendali Keamanan &amp; Verifikasi Login Admin
+          </h2>
+          <p className="text-xs text-sky-100 w-full leading-relaxed">
+            Otoritas tertinggi pengelolaan keamanan portal Kelurahan Panaikang. Master Admin (Lurah) memegang hak mutlak atas verifikasi akun login Google pejabat/staf, pemutusan sesi perangkat lain, dan pengawasan hak akses sesuai Perwali No. 65 Tahun 2023.
+          </p>
         </div>
 
-        {/* 4 Cards Metrik Otoritas */}
-        <div className="mt-6 pt-5 border-t border-white/20 grid grid-cols-2 md:grid-cols-4 gap-3 text-slate-800">
-          <div className="p-3.5 rounded-2xl bg-white/95 border border-white/40 shadow-xs">
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-              Status Otoritas
+        {/* Info Strip Below Text */}
+        <div className="flex flex-wrap items-center gap-2 pt-0.5">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-400 text-slate-950 text-xs font-extrabold shadow-2xs">
+            <Building2 className="w-3.5 h-3.5" />
+            <span>Muthmainnah, SE, MM (Lurah / Super Admin)</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-600/80 border border-emerald-400/40 text-white text-xs font-bold font-mono-num">
+            <span>Google: AsmaraCess@gmail.com</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-sky-500/30 border border-sky-300/40 text-white text-xs font-bold">
+            <Lock className="w-3.5 h-3.5 text-sky-200" />
+            <span>Zero-Trust · Perwali Makassar No. 65/2023</span>
+          </span>
+        </div>
+
+        {/* 4 Compact Cards Metrik Otoritas */}
+        <div className="pt-2.5 border-t border-white/20 grid grid-cols-2 lg:grid-cols-4 gap-2 text-slate-800">
+          <div className="px-3 py-2 rounded-xl bg-white/95 border border-white/40 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[11px] font-bold text-slate-600 truncate">Status Otoritas</div>
+              <div className="text-[10px] text-slate-500 truncate">Perwali No. 65/2023</div>
             </div>
-            <div className="mt-1 text-base sm:text-lg font-black text-emerald-700 flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              <span>Aktif Penuh</span>
+            <div className="text-xs sm:text-sm font-black text-emerald-700 flex items-center gap-1 shrink-0">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Aktif</span>
             </div>
-            <div className="text-[10px] text-slate-500 mt-0.5">Perwali Makassar No. 65/2023</div>
           </div>
 
-          <div className="p-3.5 rounded-2xl bg-white/95 border border-white/40 shadow-xs">
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-              Permohonan Verifikasi
+          <div className="px-3 py-2 rounded-xl bg-white/95 border border-white/40 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[11px] font-bold text-slate-600 truncate">Menunggu Verifikasi</div>
+              <div className="text-[10px] text-slate-500 truncate">Akun Google Staf</div>
             </div>
-            <div className="mt-1 text-base sm:text-lg font-black text-amber-700 font-mono-num flex items-center gap-1.5">
-              <Clock className="w-4 h-4 text-amber-600" />
-              <span>{pendingRequests.length} Menunggu</span>
+            <div className="text-sm sm:text-base font-black text-amber-700 font-mono-num shrink-0">
+              {pendingRequests.length}
             </div>
-            <div className="text-[10px] text-slate-500 mt-0.5">Akun Google Staf Kelurahan</div>
           </div>
 
-          <div className="p-3.5 rounded-2xl bg-white/95 border border-white/40 shadow-xs">
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-              Admin Google Terverifikasi
+          <div className="px-3 py-2 rounded-xl bg-white/95 border border-white/40 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[11px] font-bold text-slate-600 truncate">Whitelist Google</div>
+              <div className="text-[10px] text-slate-500 truncate">Admin Terverifikasi</div>
             </div>
-            <div className="mt-1 text-base sm:text-lg font-black text-[#0D3868] font-mono-num flex items-center gap-1.5">
-              <UserCheck className="w-4 h-4 text-[#0277BD]" />
-              <span>{verifiedAdmins.length} Akun Whitelist</span>
+            <div className="text-sm sm:text-base font-black text-[#0D3868] font-mono-num shrink-0">
+              {verifiedAdmins.length}
             </div>
-            <div className="text-[10px] text-slate-500 mt-0.5">Dapat login via Google</div>
           </div>
 
-          <div className="p-3.5 rounded-2xl bg-white/95 border border-white/40 shadow-xs">
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-              Proteksi Akses
+          <div className="px-3 py-2 rounded-xl bg-white/95 border border-white/40 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[11px] font-bold text-slate-600 truncate">Proteksi Akses</div>
+              <div className="text-[10px] text-slate-500 truncate">Blokir Non-Admin</div>
             </div>
-            <div className="mt-1 text-base sm:text-lg font-black text-[#0277BD] flex items-center gap-1.5">
-              <Lock className="w-4 h-4 text-emerald-600" />
+            <div className="text-xs sm:text-sm font-black text-[#0277BD] flex items-center gap-1 shrink-0">
+              <Lock className="w-3.5 h-3.5 text-emerald-600" />
               <span>Zero-Trust</span>
             </div>
-            <div className="text-[10px] text-slate-500 mt-0.5">Warga otomatis diblokir admin</div>
           </div>
         </div>
       </div>

@@ -661,104 +661,111 @@ export const AdminActivityLogPanel: React.FC<AdminActivityLogPanelProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Executive Banner */}
-      <div className="bg-gradient-to-r from-[#0D3868] via-[#134B8A] to-[#0277BD] rounded-3xl p-6 sm:p-7 text-white shadow-sm">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 border border-white/25 text-xs font-extrabold text-amber-300">
-                <History className="w-3.5 h-3.5" />
-                <span>AUDIT TRAIL REAL-TIME WITA · PERWALI KOTA MAKASSAR NO. 65 TAHUN 2023</span>
-              </div>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-300/40 text-[11px] font-mono-num font-bold text-emerald-200">
-                <Clock className="w-3.5 h-3.5 text-emerald-300" />
-                <span>{liveWitaClock}</span>
-              </div>
+      {/* Top Executive Banner (Compact & Simplified) */}
+      <div className="bg-gradient-to-r from-[#0D3868] via-[#134B8A] to-[#0277BD] rounded-2xl p-3.5 sm:p-4 text-white shadow-xs space-y-2.5">
+        <div className="w-full space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 border border-white/25 text-[10px] font-extrabold text-amber-300">
+              <History className="w-3 h-3" />
+              <span>AUDIT TRAIL REAL-TIME WITA · PERWALI KOTA MAKASSAR NO. 65 TAHUN 2023</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              Log Aktivitas & Riwayat Audit Seluruh Modul Admin
-            </h2>
-            <p className="text-xs sm:text-sm text-sky-100 max-w-3xl leading-relaxed">
-              Rekam jejak otomatis (audit trail) waktu nyata Makassar (WITA) untuk seluruh{' '}
-              <strong>12 Menu Admin</strong>: 13 Layanan Administrasi Surat Resmi (
-              <span className="font-mono-num">PM-01 s/d SL-13</span>), 9 Kategori Pengaduan Warga,
-              Profil & Bagan Struktur Kelurahan Dinamis, Bagan RT/RW & Ketua LPM, Jadwal Siskamling,
-              Bank Sampah (BSU, Teba, Biopori), Kerja Bakti, 7 Sub-Modul Urban Farming, hingga
-              Parameter User RBAC.
-            </p>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-300/40 text-[10px] font-mono-num font-bold text-emerald-200">
+              <Clock className="w-3 h-3 text-emerald-300" />
+              <span>{liveWitaClock}</span>
+            </div>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => setShowAddNoteModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-extrabold transition-colors cursor-pointer shadow-xs"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Catat Supervisi Audit</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleExportCsv}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold border border-emerald-400/40 transition-colors cursor-pointer"
-            >
-              <Download className="w-4 h-4" />
-              <span>Unduh CSV Audit</span>
-            </button>
-            <button
-              type="button"
-              onClick={handlePrintAuditReport}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-extrabold border border-white/25 transition-colors cursor-pointer"
-            >
-              <Printer className="w-4 h-4" />
-              <span>Cetak Laporan Resmi</span>
-            </button>
-          </div>
+          <h2 className="text-base sm:text-lg font-extrabold tracking-tight">
+            Log Aktivitas &amp; Riwayat Audit Seluruh Modul Admin
+          </h2>
+          <p className="text-xs text-sky-100 w-full leading-relaxed">
+            Rekam jejak otomatis (audit trail) waktu nyata Makassar (WITA) untuk seluruh{' '}
+            <strong>12 Menu Admin</strong>: 13 Layanan Administrasi Surat Resmi (
+            <span className="font-mono-num">PM-01 s/d SL-13</span>), 9 Kategori Pengaduan Warga,
+            Profil &amp; Bagan Struktur Kelurahan Dinamis, Bagan RT/RW &amp; Ketua LPM, Jadwal Siskamling,
+            Bank Sampah (BSU, Teba, Biopori), Kerja Bakti, 7 Sub-Modul Urban Farming, hingga
+            Parameter User RBAC.
+          </p>
         </div>
 
-        {/* 5 KPI Cards */}
-        <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          <div className="p-4 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-xs">
-            <div className="text-xs text-sky-200 font-semibold">Total Aktivitas Tercatat</div>
-            <div className="mt-1 text-2xl sm:text-3xl font-extrabold font-mono-num text-white">
+        {/* Action Buttons Below Text (Kuning, Hijau, Biru) */}
+        <div className="flex flex-wrap items-center gap-2 pt-0.5">
+          <button
+            type="button"
+            onClick={() => setShowAddNoteModal(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-extrabold transition-colors cursor-pointer shadow-2xs"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Catat Supervisi Audit</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold border border-emerald-400/40 transition-colors cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Unduh CSV Audit</span>
+          </button>
+          <button
+            type="button"
+            onClick={handlePrintAuditReport}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500/30 hover:bg-sky-500/45 text-white text-xs font-extrabold border border-sky-300/40 transition-colors cursor-pointer"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span>Cetak Laporan Resmi</span>
+          </button>
+        </div>
+
+        {/* 5 Compact KPI Number Boxes */}
+        <div className="pt-2.5 border-t border-white/15 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+          <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[11px] text-sky-200 font-bold truncate">Total Aktivitas</div>
+              <div className="text-[10px] text-emerald-300 truncate">Sinkron WITA</div>
+            </div>
+            <div className="text-sm sm:text-base font-extrabold font-mono-num text-white shrink-0">
               {stats.total}
             </div>
-            <div className="mt-1 text-[11px] text-emerald-300 font-semibold">
-              Tersinkronisasi Real-Time WITA
-            </div>
           </div>
-          <div className="p-4 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-xs">
-            <div className="text-xs text-sky-200 font-semibold">Aktivitas Hari Ini (WITA)</div>
-            <div className="mt-1 text-2xl sm:text-3xl font-extrabold font-mono-num text-emerald-300">
+
+          <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[11px] text-sky-200 font-bold truncate">Hari Ini (WITA)</div>
+              <div className="text-[10px] text-sky-100 truncate">{todayDateLabel}</div>
+            </div>
+            <div className="text-sm sm:text-base font-extrabold font-mono-num text-emerald-300 shrink-0">
               {stats.todayLogs}
             </div>
-            <div className="mt-1 text-[11px] text-sky-100">Tanggal: {todayDateLabel}</div>
           </div>
-          <div className="p-4 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-xs">
-            <div className="text-xs text-sky-200 font-semibold">Verifikasi & Update Data</div>
-            <div className="mt-1 text-2xl sm:text-3xl font-extrabold font-mono-num text-amber-300">
+
+          <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[11px] text-sky-200 font-bold truncate">Verifikasi &amp; Update</div>
+              <div className="text-[10px] text-sky-100 truncate">Surat, Aduan &amp; Modul</div>
+            </div>
+            <div className="text-sm sm:text-base font-extrabold font-mono-num text-amber-300 shrink-0">
               {stats.verifications}
             </div>
-            <div className="mt-1 text-[11px] text-sky-100">
-              13 Surat, Pengaduan & pembaruan modul
-            </div>
           </div>
-          <div className="p-4 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-xs">
-            <div className="text-xs text-sky-200 font-semibold">Perubahan Akses & Hapus</div>
-            <div className="mt-1 text-2xl sm:text-3xl font-extrabold font-mono-num text-rose-300">
+
+          <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[11px] text-sky-200 font-bold truncate">Akses &amp; Hapus</div>
+              <div className="text-[10px] text-sky-100 truncate">Pengawasan Lurah</div>
+            </div>
+            <div className="text-sm sm:text-base font-extrabold font-mono-num text-rose-300 shrink-0">
               {stats.criticalOrWarning}
             </div>
-            <div className="mt-1 text-[11px] text-sky-100">
-              Aksi sensitif dalam pengawasan Lurah
-            </div>
           </div>
-          <div className="p-4 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-xs col-span-2 sm:col-span-1">
-            <div className="text-xs text-sky-200 font-semibold">Pejabat & Modul Aktif</div>
-            <div className="mt-1 text-2xl sm:text-3xl font-extrabold font-mono-num text-white">
-              {stats.uniqueActors} Akun
+
+          <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2 col-span-2 sm:col-span-1">
+            <div className="min-w-0">
+              <div className="text-[11px] text-sky-200 font-bold truncate">Pejabat &amp; Modul</div>
+              <div className="text-[10px] text-sky-100 truncate">
+                {stats.activeModulesCount} modul · {adminUsers.length} user
+              </div>
             </div>
-            <div className="mt-1 text-[11px] text-sky-100">
-              {stats.activeModulesCount} Modul aktif dari {adminUsers.length} user terdaftar
+            <div className="text-sm sm:text-base font-extrabold font-mono-num text-white shrink-0">
+              {stats.uniqueActors}
             </div>
           </div>
         </div>

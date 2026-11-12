@@ -573,9 +573,10 @@ const TAB_SECTION_KEYS: Record<string, string[]> = {
     'urban_kwt',
   ],
   rtrw: [
+    'rtrw_daftar_rw',
+    'rtrw_siskamling',
     'rtrw_lpm_bagan',
     'rtrw_cetak_laporan',
-    'rtrw_daftar_rw',
   ],
   traffic: [
     'traffic_ringkasan',
@@ -838,7 +839,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     if (initialTab === 'parameter_user') return 'admin_warga_parameter';
     if (initialTab === 'kelola_admin_warga') return 'admin_warga_otoritas';
     if (initialTab === 'profil') return 'profil_lurah';
-    if (initialTab === 'rtrw') return 'rtrw_lpm_bagan';
+    if (initialTab === 'rtrw') return 'rtrw_daftar_rw';
     if (initialTab === 'sampah') return 'sampah_bsu';
     if (initialTab === 'urban_farming') return 'uf_card_kebun';
     if (initialTab === 'kerjabakti') return 'kerjabakti_jadwal';
@@ -2647,7 +2648,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       case 'laporan':
         return 'dashboard';
       case 'rtrw':
-        return 'rtrw_lpm_bagan';
+        return 'rtrw_daftar_rw';
       case 'sampah':
         return 'sampah_bsu';
       case 'urban_farming':
@@ -5216,12 +5217,28 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         return {
           moduleNumber: 'Modul 04',
           moduleTitle: 'Data RT & RW',
-          moduleSubtitle: 'Bagan LPM, Wilayah & Siskamling',
+          moduleSubtitle: 'Wilayah, Siskamling, Bagan & PDF',
           allowShowAll: true,
           items: [
             {
+              key: 'rtrw_daftar_rw',
+              label: '1. Daftar RT RW dan Wilayah',
+              subtitle: 'Kelola Ketua RW & Data RT',
+              icon: <Users className="w-4 h-4 shrink-0" />,
+              badge: `${rwGroups.length} RW / ${totalRtInKelurahan} RT`,
+              badgeClass: 'bg-sky-300 text-slate-950',
+            },
+            {
+              key: 'rtrw_siskamling',
+              label: '2. Jadwal Siskamling',
+              subtitle: 'Roster Ronda & Posko RW',
+              icon: <ShieldCheck className="w-4 h-4 shrink-0" />,
+              badge: siskamlingSchedules.length,
+              badgeClass: 'bg-amber-300 text-slate-950',
+            },
+            {
               key: 'rtrw_lpm_bagan',
-              label: '01. Ketua LPM & Bagan',
+              label: '3. Bagan RT RW dan Ketua LPM',
               subtitle: 'Struktur Organisasi RT/RW',
               icon: <Layers className="w-4 h-4 shrink-0" />,
               badge: `${rwGroups.length} RW`,
@@ -5229,25 +5246,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             },
             {
               key: 'rtrw_cetak_laporan',
-              label: '02. Cetak Laporan PDF',
+              label: '4. Cetak Laporan PDF',
               subtitle: 'Ekspor Rekapitulasi RT/RW',
               icon: <Printer className="w-4 h-4 shrink-0" />,
-            },
-            {
-              key: 'rtrw_daftar_rw',
-              label: '03. Daftar Wilayah RW & RT',
-              subtitle: 'Kelola Ketua RW & Data RT',
-              icon: <Users className="w-4 h-4 shrink-0" />,
-              badge: totalRtInKelurahan,
-              badgeClass: 'bg-sky-300 text-slate-950',
-            },
-            {
-              key: 'rtrw_siskamling',
-              label: '04. Jadwal Siskamling',
-              subtitle: 'Roster Ronda & Posko RW',
-              icon: <ShieldCheck className="w-4 h-4 shrink-0" />,
-              badge: siskamlingSchedules.length,
-              badgeClass: 'bg-amber-300 text-slate-950',
             },
           ],
         };
@@ -5654,134 +5655,121 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   );
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6">
+    <div className="mx-auto max-w-7xl px-3 sm:px-5 py-3 sm:py-4">
       {/* Unified Admin Header & Structured Module Navigation Menu Card */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
         {/* Top Officer Session & Portal Return Strip */}
-        <div className="px-4 sm:px-6 py-3 bg-[#0D3868] text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
-              <ShieldCheck className="w-5 h-5 text-emerald-300" />
+        <div className="px-3.5 sm:px-4 py-2 bg-[#0D3868] text-white flex flex-col lg:flex-row lg:items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-4 h-4 text-emerald-300" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs sm:text-sm font-bold text-white">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs font-bold text-white">
                   {adminSession.fullName}
                 </span>
                 <span
                   title="Sesi Administrator aktif tunggal (1 Admin Live di seluruh perangkat)"
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-[10px] font-semibold text-emerald-300"
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-[10px] font-semibold text-emerald-300"
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  1 Admin Live (Tunggal)
+                  1 Admin Live
                 </span>
                 <span
                   title="Seluruh data tersimpan terpusat dan tersinkronisasi live di Google Cloud Firestore"
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-500/20 border border-sky-400/40 text-[10px] font-semibold text-sky-200"
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-sky-500/20 border border-sky-400/40 text-[10px] font-semibold text-sky-200"
                 >
-                  <Cloud className="w-3 h-3 text-sky-300" />
-                  Cloud Firestore Aktif
+                  <Cloud className="w-2.5 h-2.5 text-sky-300" />
+                  Cloud Firestore
                 </span>
-              </div>
-              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-sky-200 mt-0.5">
-                <span>{adminSession.role}</span>
-                <span className="text-sky-400/60">•</span>
-                <span className="inline-flex items-center gap-1 text-emerald-200 font-medium">
-                  <Clock className="w-3 h-3 text-emerald-300 shrink-0" />
-                  <span>Waktu Login:</span>
-                  <span className="font-mono-num font-bold text-white">{adminSession.loginAt}</span>
-                </span>
-                <span className="text-sky-400/60">•</span>
-                <span className="inline-flex items-center gap-1 text-sky-100">
-                  <span>Waktu Real-Time:</span>
-                  <span className="font-mono-num font-semibold text-amber-200">{liveWitaClock}</span>
+                <span className="text-sky-400/60 hidden sm:inline">•</span>
+                <span className="text-[10.5px] text-sky-200">{adminSession.role}</span>
+                <span className="text-sky-400/60 hidden sm:inline">•</span>
+                <span className="inline-flex items-center gap-1 text-[10.5px] text-amber-200 font-mono-num">
+                  <Clock className="w-2.5 h-2.5 text-emerald-300 shrink-0" />
+                  <span>{liveWitaClock}</span>
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
+          <div className="flex flex-wrap items-center gap-1.5 self-start lg:self-center">
             <button
               type="button"
               onClick={() => setIsWorkflowGuideOpen(true)}
               title="Buka Buku Panduan Interaktif & Diagram Alur Kerja (SOP) Seluruh Menu Admin"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold border border-emerald-400/50 shadow-xs transition-colors cursor-pointer whitespace-nowrap"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-extrabold border border-emerald-400/50 shadow-2xs transition-colors cursor-pointer whitespace-nowrap"
             >
-              <Layers className="w-3.5 h-3.5 text-emerald-200" />
-              <span>Diagram Workflow SOP</span>
+              <Layers className="w-3 h-3 text-emerald-200" />
+              <span>Workflow SOP</span>
             </button>
 
             <button
               type="button"
               onClick={() => generateApplicationWorkflowPdf(profile)}
               title="Unduh Dokumen PDF Panduan & Alur Kerja (SOP) Seluruh Menu Aplikasi"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-extrabold border border-amber-300 shadow-xs transition-colors cursor-pointer whitespace-nowrap"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 text-[11px] font-extrabold border border-amber-300 shadow-2xs transition-colors cursor-pointer whitespace-nowrap"
             >
-              <FileText className="w-3.5 h-3.5 text-slate-950" />
-              <span>Unduh PDF Alur Kerja</span>
+              <FileText className="w-3 h-3 text-slate-950" />
+              <span>PDF Alur Kerja</span>
             </button>
 
             <button
               type="button"
               disabled={isCloudSyncing}
               onClick={handleForceCloudSync}
-              title="Sinkronkan seluruh modul (Warga, Sampah, RT/RW, Urban Farming, Peta, Profil, Kerja Bakti) ke Google Cloud Firestore"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold border border-sky-400/40 shadow-xs transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
+              title="Sinkronkan seluruh modul ke Google Cloud Firestore"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-bold border border-sky-400/40 shadow-2xs transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
             >
-              <Cloud className={`w-3.5 h-3.5 ${isCloudSyncing ? 'animate-bounce' : ''}`} />
-              <span>{isCloudSyncing ? 'Menyinkronkan...' : 'Sinkronkan ke Cloud'}</span>
+              <Cloud className={`w-3 h-3 ${isCloudSyncing ? 'animate-bounce' : ''}`} />
+              <span>{isCloudSyncing ? 'Sinkron...' : 'Sinkron Cloud'}</span>
             </button>
-            
+
             <button
               type="button"
               onClick={() => onNavigate('beranda')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold border border-white/20 transition-colors cursor-pointer whitespace-nowrap"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] font-semibold border border-white/20 transition-colors cursor-pointer whitespace-nowrap"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Kembali ke Portal Utama</span>
+              <ArrowLeft className="w-3 h-3" />
+              <span>Portal Utama</span>
             </button>
             <button
               type="button"
               onClick={handleLogout}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-red-600 text-white text-xs font-bold border border-white/20 transition-colors cursor-pointer whitespace-nowrap"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-red-600 text-white text-[11px] font-bold border border-white/20 transition-colors cursor-pointer whitespace-nowrap"
             >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Keluar (Logout)</span>
+              <LogOut className="w-3 h-3" />
+              <span>Keluar</span>
             </button>
           </div>
         </div>
 
-        {/* Title & Organized 7-Item Module Navigation Menu */}
-        <div className="p-5 sm:p-6">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <ShieldCheck className="w-6 h-6 text-[#1C8237] shrink-0" />
-              <h1 className="text-xl sm:text-2xl font-extrabold text-[#0D3868] tracking-tight">
-                Panel Administrator & Back-End Satu Data Panaikang
-              </h1>
+        {/* Compact Title & 12-Item Module Navigation Menu */}
+        <div className="p-3 sm:p-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-100">
+            <div className="flex flex-wrap items-center gap-2 min-w-0">
+              <div className="inline-flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-[#1C8237] shrink-0" />
+                <h1 className="text-xs sm:text-sm font-extrabold text-[#0D3868] tracking-tight">
+                  Panel Administrator &amp; Back-End Satu Data Panaikang
+                </h1>
+              </div>
+              <span className="text-slate-300 hidden md:inline">|</span>
+              <p className="text-[11px] text-slate-500 hidden lg:inline truncate">
+                Kelola Profil, Layanan Surat &amp; Aduan, Sampah, Kerja Bakti, Urban Farming, RT/RW, serta Parameter User.
+              </p>
             </div>
-            <p className="mt-1 text-xs sm:text-sm text-slate-600">
-              Kelola penambahan, pengeditan, validasi, penyimpanan, dan penghapusan data Profil
-              Kelurahan, Laporan Warga, Bank Sampah, Kerja Bakti, serta RT & RW secara terpusat.
-            </p>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#0D3868] text-white">
+                Menu Aktif: {getAdminTabLabel(activeTab)}
+              </span>
+            </div>
           </div>
 
           {/* Structured Full-Width Navigation Menu Grid (12 Urutan Resmi Menu Admin) */}
-          <div className="mt-5 pt-4 border-t border-slate-200">
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                  Daftar Menu Administrator Kelurahan Panaikang (12 Modul)
-                </span>
-                <span className="text-[10.5px] font-bold px-2.5 py-0.5 rounded-full bg-[#0D3868] text-white">
-                  Menu Aktif: {getAdminTabLabel(activeTab)}
-                </span>
-              </div>
-              <span className="text-[11px] text-slate-500 hidden sm:inline">
-                Pilih Kartu Menu di atas → Sidebar Kiri menampilkan Submenu → Content Workspace Kanan menampilkan halaman terpilih
-              </span>
-            </div>
-
+          <div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-2">
               {/* 1. Dashboard Lurah */}
               <button
@@ -11728,178 +11716,55 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
       {/* ================= TAB: DATA RT RW (BILAH PERKARTU) ================= */}
       {activeTab === 'rtrw' && isTabAllowed('rtrw') && (
-        <div className="mt-6 space-y-6">
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-base font-bold text-[#0D3868]">
-                Manajemen Data Rukun Warga (RW) & Rukun Tetangga (RT) Kelurahan Panaikang
+        <div className="space-y-4">
+          {/* Top Banner Data RT RW (Compact & Simplified) */}
+          <div className="bg-gradient-to-r from-[#0D3868] via-[#134B8A] to-[#0277BD] rounded-2xl p-3.5 sm:p-4 text-white shadow-xs space-y-2.5">
+            <div className="w-full space-y-0.5">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 border border-white/20 text-[10px] font-extrabold text-amber-300 uppercase tracking-wider">
+                <Users className="w-3 h-3" />
+                <span>MODUL 04 · DATA WILAYAH RT/RW, SISKAMLING &amp; BAGAN LPM</span>
+              </div>
+              <h2 className="text-base sm:text-lg font-extrabold text-white">
+                Manajemen Data Rukun Warga (RW) &amp; Rukun Tetangga (RT) Kelurahan Panaikang
               </h2>
-              <p className="text-xs text-slate-500">
-                Setiap sub-menu ditampilkan dalam bilah kartu terpisah. Klik tombol Tampilkan Detail / Tutup pada masing-masing kartu.
+              <p className="text-xs text-sky-100 w-full leading-relaxed">
+                Kelola daftar wilayah RW 01–07 beserta RT, jadwal ronda Siskamling, pengaturan Ketua LPM &amp; Bagan Struktur RT/RW, serta cetak laporan resmi PDF.
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2.5">
+
+            <div className="flex flex-wrap items-center gap-2 pt-0.5">
+              <button
+                type="button"
+                onClick={openAddRwForm}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-extrabold cursor-pointer whitespace-nowrap shadow-2xs"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Tambah Wilayah RW Baru</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setShowAdminBaganRtRw(true)}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold cursor-pointer whitespace-nowrap shadow-xs"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold cursor-pointer whitespace-nowrap shadow-2xs"
               >
-                <Users className="w-4 h-4" />
-                <span>Pratinjau & Cetak Bagan Struktur RT/RW</span>
+                <Users className="w-3.5 h-3.5" />
+                <span>Pratinjau &amp; Cetak Bagan Struktur RT/RW</span>
               </button>
               <button
                 type="button"
                 onClick={() => onNavigate('rtrw')}
-                className="px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500/30 hover:bg-sky-500/45 border border-sky-300/40 text-white text-xs font-bold cursor-pointer whitespace-nowrap"
               >
-                Lihat Halaman Publik RT/RW
-              </button>
-              <button
-                type="button"
-                onClick={openAddRwForm}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs sm:text-sm font-bold cursor-pointer whitespace-nowrap"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Tambah Wilayah RW Baru</span>
+                <Eye className="w-3.5 h-3.5" />
+                <span>Lihat Halaman Publik RT/RW</span>
               </button>
             </div>
           </div>
-
-          {/* 01. KARTU PENGATURAN KETUA LPM & BAGAN STRUKTUR ORGANISASI RT/RW */}
-          <AdminCollapsibleBar
-            sectionKey="rtrw_lpm_bagan"
-            title="01. Pengaturan Ketua LPM & Bagan Struktur Organisasi RT/RW"
-            subtitle={`Bagan organisasi dinamis: Lurah, Ketua LPM (${profileDraft.ketuaLpmName || 'Belum diisi'}), RW 01-07, dan ${rwGroups.reduce((a, r) => a + (r.rtList?.length || 0), 0)} RT`}
-            icon={<Layers className="w-5 h-5 text-[#0D3868]" />}
-            badge={
-              <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-100/80 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                {rwGroups.length} RW · {rwGroups.reduce((a, r) => a + (r.rtList?.length || 0), 0)} RT
-              </span>
-            }
-            isCollapsed={isSectionCollapsed('rtrw_lpm_bagan')}
-            onToggle={() => toggleSectionCollapse('rtrw_lpm_bagan')}
-          >
-            <div className="bg-gradient-to-r from-sky-50/90 via-white to-emerald-50/60 p-5 space-y-4">
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-[#0D3868] text-white">
-                      <Layers className="w-3 h-3" />
-                      <span>Bagan Struktur RT/RW Dinamis</span>
-                    </span>
-                  </div>
-                  <h3 className="text-sm sm:text-base font-extrabold text-[#0D3868]">
-                    Pengaturan Ketua LPM &amp; Bagan Struktur Organisasi RT/RW Kelurahan Panaikang
-                  </h3>
-                  <p className="text-xs text-slate-600">
-                    Masukkan nama <strong>Ketua LPM (Lembaga Pemberdayaan Masyarakat)</strong> di bawah ini untuk ditampilkan berdampingan dengan Lurah Panaikang pada Bagan Struktur Organisasi RT/RW.
-                  </p>
-                </div>
-
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2.5 shrink-0">
-                  <div className="sm:w-72">
-                    <label className="block text-[11px] font-bold text-[#0D3868] mb-1">
-                      Nama Ketua LPM Kelurahan Panaikang
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Contoh: EDY MEDY, SM, M.Th"
-                      value={profileDraft.ketuaLpmName || ''}
-                      onChange={(e) =>
-                        setProfileDraft((prev) => ({
-                          ...prev,
-                          ketuaLpmName: e.target.value,
-                        }))
-                      }
-                      className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs sm:text-sm font-bold text-slate-900 focus:border-[#0D3868] focus:ring-1 focus:ring-[#0D3868] outline-hidden"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleSaveKetuaLpm}
-                    disabled={isSubmitting}
-                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#0D3868] hover:bg-[#072647] disabled:opacity-50 text-white text-xs font-bold transition shadow-xs cursor-pointer whitespace-nowrap"
-                  >
-                    <Check className="w-4 h-4" />
-                    <span>Simpan Ketua LPM</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowInlineRtRwChartPreview((prev) => !prev)}
-                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-sky-300 bg-white hover:bg-sky-50 text-[#0D3868] text-xs font-bold transition cursor-pointer whitespace-nowrap"
-                  >
-                    <Eye className="w-4 h-4" />
-                    <span>{showInlineRtRwChartPreview ? 'Sembunyikan Bagan' : 'Tampilkan Bagan'}</span>
-                  </button>
-                </div>
-              </div>
-
-              {showInlineRtRwChartPreview && (
-                <div className="pt-4 border-t border-sky-200/70 space-y-2.5">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-xs font-bold text-slate-700">
-                      Pratinjau Bagan Struktur Organisasi RT/RW (Lurah: {profileDraft.lurahName || '-'} · Ketua LPM: {profileDraft.ketuaLpmName || '-'})
-                    </span>
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-[#146329]">
-                      Responsif HP · Tablet · PC (Perkecil / Perbesar)
-                    </span>
-                  </div>
-                  <BaganStrukturRtRwInteractiveViewer
-                    rwGroups={rwGroups}
-                    profile={profileDraft}
-                    onExpandFullScreen={() => setShowAdminBaganRtRw(true)}
-                  />
-                </div>
-              )}
-            </div>
-          </AdminCollapsibleBar>
-
-          {/* 02. KARTU CETAK LAPORAN DATA RT/RW */}
-          <AdminCollapsibleBar
-            sectionKey="rtrw_cetak_laporan"
-            title="02. Cetak & Unduh Laporan Data RT/RW Kelurahan Panaikang"
-            subtitle="Ekspor PDF & Cetak lembar resmi rekapitulasi data RT/RW per wilayah maupun seluruh kelurahan"
-            icon={<Printer className="w-5 h-5 text-[#1C8237]" />}
-            badge={
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300">
-                Ekspor Resmi PDF
-              </span>
-            }
-            isCollapsed={isSectionCollapsed('rtrw_cetak_laporan')}
-            onToggle={() => toggleSectionCollapse('rtrw_cetak_laporan')}
-          >
-            <div className="p-4 sm:p-5">
-              <AdminRtRwReportPanel
-                profile={profile}
-                rwGroups={rwGroups}
-                reports={reports}
-                externalSelection={rtrwPrintSelection}
-                onReportPrintedOrExported={(result, actionMode) => {
-                  recordAudit({
-                    actionType: 'EXPORT',
-                    module: 'STRUKTUR_RTRW',
-                    targetLabel: result.titleLabel,
-                    summary: `${
-                      actionMode === 'PRINT' ? 'Mencetak laporan' : 'Mengunduh dokumen PDF'
-                    } ${result.titleLabel}`,
-                    afterValue: `${result.scopeLabel} · ${result.totalRtCount} RT · ${result.totalKkCount} KK`,
-                    severity: 'info',
-                  });
-                  setSuccessMessage(
-                    `${
-                      actionMode === 'PRINT' ? 'Lembar cetak' : 'Dokumen PDF'
-                    } "${result.titleLabel}" berhasil diproses.`
-                  );
-                }}
-              />
-            </div>
-          </AdminCollapsibleBar>
 
           {/* Form Tambah / Edit RW */}
           {showRwForm && (
             <form
               onSubmit={handleRwFormSubmit}
-              className="bg-white rounded-2xl border-2 border-sky-200 p-6 space-y-4"
+              className="bg-white rounded-2xl border-2 border-sky-200 p-5 space-y-4"
             >
               <div className="flex items-center justify-between pb-3 border-b border-slate-200">
                 <h3 className="text-base font-bold text-[#0D3868]">
@@ -11999,10 +11864,10 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             </form>
           )}
 
-          {/* 03. KARTU DAFTAR WILAYAH RW & RT SE-KELURAHAN PANAIKANG */}
+          {/* 01. KARTU DAFTAR RT RW DAN WILAYAH */}
           <AdminCollapsibleBar
             sectionKey="rtrw_daftar_rw"
-            title={`03. Daftar Wilayah Rukun Warga (RW) & Rukun Tetangga (RT) (${rwGroups.length} RW)`}
+            title={`01. Daftar RT RW dan Wilayah (${rwGroups.length} RW · ${totalRtInKelurahan} RT)`}
             subtitle="Kelola data ketua RW, nomor kontak, cakupan wilayah, serta daftar RT masing-masing RW"
             icon={<Users className="w-5 h-5 text-[#0D3868]" />}
             badge={
@@ -12031,400 +11896,440 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               </div>
             }
           >
-            <div className="p-4 sm:p-5 space-y-4">
-            {rwGroups.map((rw) => {
-              const isRwExpanded = !!adminExpandedRwIds[rw.id] || activeRwForRt === rw.id;
-              return (
-              <div
-                key={rw.id}
-                className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs hover:border-[#0277BD]/50 transition-all"
-              >
-                {/* Header RW */}
-                <div className="bg-[#0D3868] text-white px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="px-2.5 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-xs font-extrabold font-mono-num">
-                        {rw.rwCode}
-                      </span>
-                      <h3 className="text-sm sm:text-base font-bold text-white">
-                        {rw.rwName}
-                      </h3>
-                    </div>
-                    <div className="text-xs text-sky-100 mt-1">
-                      Ketua {rw.rwCode}: <strong>{rw.ketuaRwName}</strong> · Kontak:{' '}
-                      <span className="font-mono-num">{rw.phone}</span> · Cakupan:{' '}
-                      {rw.areaDescription} ({rw.rtList?.length || 0} RT)
-                    </div>
-                  </div>
+            <div className="p-3.5 sm:p-4 space-y-3">
+              {rwGroups.map((rw) => {
+                const isRwExpanded = !!adminExpandedRwIds[rw.id] || activeRwForRt === rw.id;
+                const totalKkInRw = (rw.rtList || []).reduce(
+                  (acc, rt) => acc + (Number(rt.householdsCount) || 0),
+                  0
+                );
+                return (
+                  <div
+                    key={rw.id}
+                    className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs hover:border-[#0277BD]/50 transition-all"
+                  >
+                    {/* Header RW (Kotak Biru Disederhanakan + Tombol Tampilkan Detail di Bagian Akhir/Bawah) */}
+                    <div className="bg-gradient-to-r from-[#0D3868] via-[#134B8A] to-[#0277BD] text-white px-4 py-3 space-y-2.5">
+                      {/* Baris 1: Informasi Wilayah RW Memanjang Penuh ke Kanan */}
+                      <div className="w-full space-y-1">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="px-2 py-0.5 rounded-md bg-amber-400 text-slate-950 text-xs font-extrabold font-mono-num">
+                              {rw.rwCode}
+                            </span>
+                            <h3 className="text-sm sm:text-base font-extrabold text-white">
+                              {rw.rwName}
+                            </h3>
+                          </div>
 
-                  <div className="flex flex-wrap items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => toggleAdminRwDetail(rw.id)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all shadow-xs cursor-pointer ${
-                        isRwExpanded
-                          ? 'bg-amber-400 hover:bg-amber-300 text-slate-950 ring-2 ring-white/30'
-                          : 'bg-white hover:bg-sky-50 text-[#0D3868]'
-                      }`}
-                    >
-                      <Eye className="w-3.5 h-3.5 text-[#0277BD]" />
-                      <span>{isRwExpanded ? 'Tutup' : `Tampilkan Detail (${rw.rtList?.length || 0} RT)`}</span>
-                      {isRwExpanded ? (
-                        <ChevronUp className="w-3.5 h-3.5 ml-0.5" />
-                      ) : (
-                        <ChevronDown className="w-3.5 h-3.5 ml-0.5" />
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRtrwPrintSelection({
-                          scope: 'per_rw',
-                          rwCode: rw.rwCode,
-                          autoAction: 'print',
-                          timestamp: Date.now(),
-                        });
-                      }}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-extrabold cursor-pointer"
-                      title={`Cetak Laporan Resmi ${rw.rwCode}`}
-                    >
-                      <Printer className="w-3.5 h-3.5" />
-                      <span>Cetak {rw.rwCode}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRtrwPrintSelection({
-                          scope: 'per_rw',
-                          rwCode: rw.rwCode,
-                          autoAction: 'pdf',
-                          timestamp: Date.now(),
-                        });
-                      }}
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-500/30 hover:bg-sky-500/45 border border-sky-300/40 text-white text-xs font-bold cursor-pointer"
-                      title={`Unduh PDF Laporan ${rw.rwCode}`}
-                    >
-                      <FileDown className="w-3.5 h-3.5" />
-                      <span>PDF {rw.rwCode}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openAddRtForm(rw)}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold cursor-pointer"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Tambah RT di {rw.rwCode}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openEditRwForm(rw)}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-white text-xs font-semibold cursor-pointer"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                      <span>Edit RW</span>
-                    </button>
-                    {confirmDeleteRwId === rw.id ? (
-                      <div className="inline-flex items-center gap-1">
+                          {/* Kotak Angka Ringkas RT & KK */}
+                          <div className="flex items-center gap-1.5">
+                            <span className="px-2 py-0.5 rounded-lg bg-white/15 border border-white/20 text-[11px] font-extrabold font-mono-num text-emerald-200">
+                              {rw.rtList?.length || 0} RT
+                            </span>
+                            <span className="px-2 py-0.5 rounded-lg bg-white/10 border border-white/15 text-[11px] font-bold font-mono-num text-sky-100">
+                              {totalKkInRw.toLocaleString('id-ID')} KK
+                            </span>
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-sky-100 w-full leading-relaxed">
+                          Ketua {rw.rwCode}: <strong className="text-white">{rw.ketuaRwName}</strong>
+                          <span className="mx-1.5 text-sky-300/60">·</span>
+                          Kontak: <span className="font-mono-num font-semibold text-amber-200">{rw.phone || '-'}</span>
+                          <span className="mx-1.5 text-sky-300/60">·</span>
+                          Cakupan Wilayah: <span className="text-white/95">{rw.areaDescription}</span>
+                        </p>
+                      </div>
+
+                      {/* Baris 2 (Bagian Akhir / Bawah): Tombol Aksi RW & Tombol Tampilkan Detail di Paling Akhir/Bawah */}
+                      <div className="pt-2 border-t border-white/15 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => openAddRtForm(rw)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-extrabold cursor-pointer shadow-2xs"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>+ Tambah RT di {rw.rwCode}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRtrwPrintSelection({
+                                scope: 'per_rw',
+                                rwCode: rw.rwCode,
+                                autoAction: 'print',
+                                timestamp: Date.now(),
+                              });
+                              if (contextualSubmenu !== 'ALL') {
+                                setContextualSubmenu('rtrw_cetak_laporan');
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 text-[11px] font-extrabold cursor-pointer shadow-2xs"
+                            title={`Cetak Laporan Resmi ${rw.rwCode}`}
+                          >
+                            <Printer className="w-3 h-3" />
+                            <span>Cetak {rw.rwCode}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRtrwPrintSelection({
+                                scope: 'per_rw',
+                                rwCode: rw.rwCode,
+                                autoAction: 'pdf',
+                                timestamp: Date.now(),
+                              });
+                              if (contextualSubmenu !== 'ALL') {
+                                setContextualSubmenu('rtrw_cetak_laporan');
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-500/30 hover:bg-sky-500/45 border border-sky-300/40 text-white text-[11px] font-bold cursor-pointer"
+                            title={`Unduh PDF Laporan ${rw.rwCode}`}
+                          >
+                            <FileDown className="w-3 h-3" />
+                            <span>PDF {rw.rwCode}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openEditRwForm(rw)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 text-white text-[11px] font-semibold cursor-pointer"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                            <span>Edit RW</span>
+                          </button>
+                          {confirmDeleteRwId === rw.id ? (
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleExecuteDeleteRw(rw.id)}
+                                className="px-2 py-1 rounded-lg bg-red-600 text-white text-[11px] font-bold cursor-pointer"
+                              >
+                                Ya, Hapus
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteRwId(null)}
+                                className="px-2 py-1 rounded-lg bg-white/20 text-white text-[11px] cursor-pointer"
+                              >
+                                Batal
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteRwId(rw.id)}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-100 text-[11px] font-semibold cursor-pointer"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Hapus</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Tombol Tampilkan Detail Ditempatkan di Bagian Akhir (Bawah) Responsif HP/Tablet/Desktop */}
                         <button
                           type="button"
-                          onClick={() => handleExecuteDeleteRw(rw.id)}
-                          className="px-2.5 py-1 rounded-lg bg-red-600 text-white text-xs font-bold cursor-pointer"
+                          onClick={() => toggleAdminRwDetail(rw.id)}
+                          className={`w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all shadow-2xs cursor-pointer shrink-0 ${
+                            isRwExpanded
+                              ? 'bg-amber-400 hover:bg-amber-300 text-slate-950 ring-2 ring-white/30'
+                              : 'bg-white hover:bg-sky-50 text-[#0D3868]'
+                          }`}
                         >
-                          Ya, Hapus RW
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmDeleteRwId(null)}
-                          className="px-2 py-1 rounded-lg bg-white/20 text-white text-xs cursor-pointer"
-                        >
-                          Batal
+                          <Eye className="w-3.5 h-3.5 text-[#0277BD]" />
+                          <span>
+                            {isRwExpanded
+                              ? `Tutup Detail ${rw.rwCode}`
+                              : `Tampilkan Detail (${rw.rtList?.length || 0} RT)`}
+                          </span>
+                          {isRwExpanded ? (
+                            <ChevronUp className="w-3.5 h-3.5 ml-0.5" />
+                          ) : (
+                            <ChevronDown className="w-3.5 h-3.5 ml-0.5" />
+                          )}
                         </button>
                       </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDeleteRwId(rw.id)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-100 text-xs font-semibold cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Hapus RW</span>
-                      </button>
+                    </div>
+
+                    {isRwExpanded && (
+                      <div className="border-t border-slate-200">
+                        {/* Form Tambah / Edit RT khusus di dalam RW ini */}
+                        {activeRwForRt === rw.id && (
+                          <form
+                            onSubmit={(e) => handleRtFormSubmit(e, rw.id)}
+                            className="p-4 sm:p-5 bg-emerald-50/70 border-b border-emerald-200 space-y-4"
+                          >
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-xs sm:text-sm font-bold text-[#146329]">
+                                {editingRtId
+                                  ? `Edit Data RT pada ${rw.rwCode}`
+                                  : `Tambah Rukun Tetangga (RT) Baru pada ${rw.rwCode}`}
+                              </h4>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveRwForRt(null);
+                                  setEditingRtId(null);
+                                }}
+                                className="text-xs font-semibold text-slate-500 hover:text-slate-800 cursor-pointer"
+                              >
+                                Tutup Form RT
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                              <div>
+                                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                                  Kode RT *
+                                </label>
+                                <input
+                                  type="text"
+                                  value={rtForm.rtCode || ''}
+                                  onChange={(e) =>
+                                    setRtForm({ ...rtForm, rtCode: e.target.value })
+                                  }
+                                  placeholder="RT 01"
+                                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold"
+                                />
+                              </div>
+                              <div className="sm:col-span-2">
+                                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                                  Nama RT *
+                                </label>
+                                <input
+                                  type="text"
+                                  value={rtForm.rtName || ''}
+                                  onChange={(e) =>
+                                    setRtForm({ ...rtForm, rtName: e.target.value })
+                                  }
+                                  placeholder={`RT 01 / ${rw.rwCode} — Kawasan ...`}
+                                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                                  Nama Ketua RT *
+                                </label>
+                                <input
+                                  type="text"
+                                  value={rtForm.ketuaRtName || ''}
+                                  onChange={(e) =>
+                                    setRtForm({ ...rtForm, ketuaRtName: e.target.value })
+                                  }
+                                  placeholder="Nama Ketua RT"
+                                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                                  Jumlah KK
+                                </label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={rtForm.householdsCount ?? 100}
+                                  onChange={(e) =>
+                                    setRtForm({
+                                      ...rtForm,
+                                      householdsCount: Number(e.target.value),
+                                    })
+                                  }
+                                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-mono-num"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                                  Nomor Kontak Ketua RT
+                                </label>
+                                <input
+                                  type="text"
+                                  value={rtForm.phone || ''}
+                                  onChange={(e) =>
+                                    setRtForm({ ...rtForm, phone: e.target.value })
+                                  }
+                                  placeholder="0813-4200-xxxx"
+                                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-mono-num"
+                                />
+                              </div>
+                              <div className="sm:col-span-4">
+                                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                                  Cakupan Jalan / Lorong Wilayah RT
+                                </label>
+                                <input
+                                  type="text"
+                                  value={rtForm.areaDescription || ''}
+                                  onChange={(e) =>
+                                    setRtForm({ ...rtForm, areaDescription: e.target.value })
+                                  }
+                                  placeholder="Contoh: Lorong 1 - 3 Jl. Urip Sumoharjo"
+                                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveRwForRt(null);
+                                  setEditingRtId(null);
+                                }}
+                                className="px-3.5 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-700 cursor-pointer"
+                              >
+                                Batal
+                              </button>
+                              <button
+                                type="submit"
+                                disabled={isSubmitting}
+                                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold cursor-pointer"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                <span>{editingRtId ? 'Simpan Perubahan RT' : 'Simpan RT Baru'}</span>
+                              </button>
+                            </div>
+                          </form>
+                        )}
+
+                        {/* Tabel Daftar RT dalam RW ini */}
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
+                                <th className="py-3 px-4">Kode &amp; Nama RT</th>
+                                <th className="py-3 px-4">Ketua RT</th>
+                                <th className="py-3 px-4">Kontak</th>
+                                <th className="py-3 px-4">Cakupan Lorong / Wilayah</th>
+                                <th className="py-3 px-4 text-right">Jumlah KK</th>
+                                <th className="py-3 px-4 text-right">Aksi Admin (Cetak / Edit / Hapus)</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200 text-xs">
+                              {(rw.rtList || []).map((rt) => {
+                                const deleteKey = `${rw.id}:${rt.id}`;
+                                return (
+                                  <tr key={rt.id} className="hover:bg-slate-50/80">
+                                    <td className="py-3 px-4">
+                                      <span className="inline-block px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-[#1C8237] font-bold mr-2">
+                                        {rt.rtCode}
+                                      </span>
+                                      <span className="font-bold text-slate-900">{rt.rtName}</span>
+                                    </td>
+                                    <td className="py-3 px-4 font-semibold text-slate-800">
+                                      {rt.ketuaRtName}
+                                    </td>
+                                    <td className="py-3 px-4 font-mono-num text-slate-600">
+                                      {rt.phone}
+                                    </td>
+                                    <td className="py-3 px-4 text-slate-600">
+                                      {rt.areaDescription}
+                                    </td>
+                                    <td className="py-3 px-4 text-right font-mono-num font-semibold text-slate-800">
+                                      {rt.householdsCount} KK
+                                    </td>
+                                    <td className="py-3 px-4 text-right whitespace-nowrap">
+                                      {confirmDeleteRtKey === deleteKey ? (
+                                        <div className="inline-flex items-center gap-1.5">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleExecuteDeleteRt(rw.id, rt.id)}
+                                            className="px-2.5 py-1 rounded-lg bg-red-600 text-white font-bold cursor-pointer"
+                                          >
+                                            Ya, Hapus
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => setConfirmDeleteRtKey(null)}
+                                            className="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-700 font-semibold cursor-pointer"
+                                          >
+                                            Batal
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <div className="inline-flex items-center gap-1.5">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setRtrwPrintSelection({
+                                                scope: 'per_rt',
+                                                rwCode: rw.rwCode,
+                                                rtCode: rt.rtCode,
+                                                autoAction: 'print',
+                                                timestamp: Date.now(),
+                                              });
+                                              if (contextualSubmenu !== 'ALL') {
+                                                setContextualSubmenu('rtrw_cetak_laporan');
+                                              }
+                                            }}
+                                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-sky-200 bg-sky-50 hover:bg-sky-100 text-[#0D3868] font-bold cursor-pointer"
+                                            title={`Cetak Laporan ${rt.rtCode} / ${rw.rwCode}`}
+                                          >
+                                            <Printer className="w-3.5 h-3.5 text-[#0277BD]" />
+                                            <span>Cetak RT</span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setRtrwPrintSelection({
+                                                scope: 'per_rt',
+                                                rwCode: rw.rwCode,
+                                                rtCode: rt.rtCode,
+                                                autoAction: 'pdf',
+                                                timestamp: Date.now(),
+                                              });
+                                              if (contextualSubmenu !== 'ALL') {
+                                                setContextualSubmenu('rtrw_cetak_laporan');
+                                              }
+                                            }}
+                                            className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-[#1C8237] font-bold cursor-pointer"
+                                            title={`Unduh PDF Laporan ${rt.rtCode} / ${rw.rwCode}`}
+                                          >
+                                            <FileDown className="w-3.5 h-3.5" />
+                                            <span>PDF</span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => openEditRtForm(rw, rt)}
+                                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-semibold cursor-pointer"
+                                          >
+                                            <Edit3 className="w-3.5 h-3.5 text-[#1C8237]" />
+                                            <span>Edit RT</span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => setConfirmDeleteRtKey(deleteKey)}
+                                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 bg-red-50/60 hover:bg-red-100 text-red-700 font-semibold cursor-pointer"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                            <span>Hapus</span>
+                                          </button>
+                                        </div>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                              {(!rw.rtList || rw.rtList.length === 0) && (
+                                <tr>
+                                  <td colSpan={6} className="py-5 text-center text-slate-400">
+                                    Belum ada data RT pada {rw.rwCode}. Klik tombol &quot;+ Tambah RT di {rw.rwCode}&quot; di atas.
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
                     )}
                   </div>
-                </div>
+                );
+              })}
+            </div>
+          </AdminCollapsibleBar>
 
-                {isRwExpanded && (
-                  <div className="border-t border-slate-200">
-
-                {/* Form Tambah / Edit RT khusus di dalam RW ini */}
-                {activeRwForRt === rw.id && (
-                  <form
-                    onSubmit={(e) => handleRtFormSubmit(e, rw.id)}
-                    className="p-5 bg-emerald-50/70 border-b border-emerald-200 space-y-4"
-                  >
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs sm:text-sm font-bold text-[#146329]">
-                        {editingRtId
-                          ? `Edit Data RT pada ${rw.rwCode}`
-                          : `Tambah Rukun Tetangga (RT) Baru pada ${rw.rwCode}`}
-                      </h4>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveRwForRt(null);
-                          setEditingRtId(null);
-                        }}
-                        className="text-xs font-semibold text-slate-500 hover:text-slate-800 cursor-pointer"
-                      >
-                        Tutup Form RT
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">
-                          Kode RT *
-                        </label>
-                        <input
-                          type="text"
-                          value={rtForm.rtCode || ''}
-                          onChange={(e) =>
-                            setRtForm({ ...rtForm, rtCode: e.target.value })
-                          }
-                          placeholder="RT 01"
-                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">
-                          Nama RT *
-                        </label>
-                        <input
-                          type="text"
-                          value={rtForm.rtName || ''}
-                          onChange={(e) =>
-                            setRtForm({ ...rtForm, rtName: e.target.value })
-                          }
-                          placeholder={`RT 01 / ${rw.rwCode} — Kawasan ...`}
-                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">
-                          Nama Ketua RT *
-                        </label>
-                        <input
-                          type="text"
-                          value={rtForm.ketuaRtName || ''}
-                          onChange={(e) =>
-                            setRtForm({ ...rtForm, ketuaRtName: e.target.value })
-                          }
-                          placeholder="Nama Ketua RT"
-                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">
-                          Jumlah KK
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={rtForm.householdsCount ?? 100}
-                          onChange={(e) =>
-                            setRtForm({
-                              ...rtForm,
-                              householdsCount: Number(e.target.value),
-                            })
-                          }
-                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-mono-num"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">
-                          Nomor Kontak Ketua RT
-                        </label>
-                        <input
-                          type="text"
-                          value={rtForm.phone || ''}
-                          onChange={(e) =>
-                            setRtForm({ ...rtForm, phone: e.target.value })
-                          }
-                          placeholder="0813-4200-xxxx"
-                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-mono-num"
-                        />
-                      </div>
-                      <div className="sm:col-span-4">
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">
-                          Cakupan Jalan / Lorong Wilayah RT
-                        </label>
-                        <input
-                          type="text"
-                          value={rtForm.areaDescription || ''}
-                          onChange={(e) =>
-                            setRtForm({ ...rtForm, areaDescription: e.target.value })
-                          }
-                          placeholder="Contoh: Lorong 1 - 3 Jl. Urip Sumoharjo"
-                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveRwForRt(null);
-                          setEditingRtId(null);
-                        }}
-                        className="px-3.5 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-700 cursor-pointer"
-                      >
-                        Batal
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={isSubmitting}
-                        className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold cursor-pointer"
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                        <span>{editingRtId ? 'Simpan Perubahan RT' : 'Simpan RT Baru'}</span>
-                      </button>
-                    </div>
-                  </form>
-                )}
-
-                {/* Tabel Daftar RT dalam RW ini */}
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
-                        <th className="py-3 px-4">Kode & Nama RT</th>
-                        <th className="py-3 px-4">Ketua RT</th>
-                        <th className="py-3 px-4">Kontak</th>
-                        <th className="py-3 px-4">Cakupan Lorong / Wilayah</th>
-                        <th className="py-3 px-4 text-right">Jumlah KK</th>
-                        <th className="py-3 px-4 text-right">Aksi Admin (Cetak / Edit / Hapus)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200 text-xs">
-                      {(rw.rtList || []).map((rt) => {
-                        const deleteKey = `${rw.id}:${rt.id}`;
-                        return (
-                          <tr key={rt.id} className="hover:bg-slate-50/80">
-                            <td className="py-3 px-4">
-                              <span className="inline-block px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-[#1C8237] font-bold mr-2">
-                                {rt.rtCode}
-                              </span>
-                              <span className="font-bold text-slate-900">{rt.rtName}</span>
-                            </td>
-                            <td className="py-3 px-4 font-semibold text-slate-800">
-                              {rt.ketuaRtName}
-                            </td>
-                            <td className="py-3 px-4 font-mono-num text-slate-600">
-                              {rt.phone}
-                            </td>
-                            <td className="py-3 px-4 text-slate-600">
-                              {rt.areaDescription}
-                            </td>
-                            <td className="py-3 px-4 text-right font-mono-num font-semibold text-slate-800">
-                              {rt.householdsCount} KK
-                            </td>
-                            <td className="py-3 px-4 text-right whitespace-nowrap">
-                              {confirmDeleteRtKey === deleteKey ? (
-                                <div className="inline-flex items-center gap-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleExecuteDeleteRt(rw.id, rt.id)}
-                                    className="px-2.5 py-1 rounded-lg bg-red-600 text-white font-bold cursor-pointer"
-                                  >
-                                    Ya, Hapus
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setConfirmDeleteRtKey(null)}
-                                    className="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-700 font-semibold cursor-pointer"
-                                  >
-                                    Batal
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="inline-flex items-center gap-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setRtrwPrintSelection({
-                                        scope: 'per_rt',
-                                        rwCode: rw.rwCode,
-                                        rtCode: rt.rtCode,
-                                        autoAction: 'print',
-                                        timestamp: Date.now(),
-                                      });
-                                    }}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-sky-200 bg-sky-50 hover:bg-sky-100 text-[#0D3868] font-bold cursor-pointer"
-                                    title={`Cetak Laporan ${rt.rtCode} / ${rw.rwCode}`}
-                                  >
-                                    <Printer className="w-3.5 h-3.5 text-[#0277BD]" />
-                                    <span>Cetak RT</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setRtrwPrintSelection({
-                                        scope: 'per_rt',
-                                        rwCode: rw.rwCode,
-                                        rtCode: rt.rtCode,
-                                        autoAction: 'pdf',
-                                        timestamp: Date.now(),
-                                      });
-                                    }}
-                                    className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-[#1C8237] font-bold cursor-pointer"
-                                    title={`Unduh PDF Laporan ${rt.rtCode} / ${rw.rwCode}`}
-                                  >
-                                    <FileDown className="w-3.5 h-3.5" />
-                                    <span>PDF</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => openEditRtForm(rw, rt)}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-semibold cursor-pointer"
-                                  >
-                                    <Edit3 className="w-3.5 h-3.5 text-[#1C8237]" />
-                                    <span>Edit RT</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setConfirmDeleteRtKey(deleteKey)}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 bg-red-50/60 hover:bg-red-100 text-red-700 font-semibold cursor-pointer"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                    <span>Hapus</span>
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      {(!rw.rtList || rw.rtList.length === 0) && (
-                        <tr>
-                          <td colSpan={6} className="py-5 text-center text-slate-400">
-                            Belum ada data RT pada {rw.rwCode}. Klik tombol "Tambah RT di {rw.rwCode}" di atas.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  </AdminCollapsibleBar>
-
-          {/* 04. KARTU DAFTAR & JADWAL SISKAMLING RT/RW */}
+          {/* 02. KARTU JADWAL SISKAMLING */}
           <AdminCollapsibleBar
             sectionKey="rtrw_siskamling"
-            title="04. Daftar & Jadwal Ronda Siskamling RT/RW (RW 01 s/d RW 07)"
+            title="02. Jadwal Siskamling RT/RW (RW 01 s/d RW 07)"
             subtitle="Kelola matriks roster penugasan Siskamling RT/RW, lokasi posko keamanan, dan cetak jadwal ronda"
             icon={<ShieldCheck className="w-5 h-5 text-[#0277BD]" />}
             badge={
@@ -12456,6 +12361,136 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     return res;
                   }
                   return { ok: true };
+                }}
+              />
+            </div>
+          </AdminCollapsibleBar>
+
+          {/* 03. KARTU BAGAN RT RW DAN KETUA LPM */}
+          <AdminCollapsibleBar
+            sectionKey="rtrw_lpm_bagan"
+            title="03. Bagan RT RW dan Ketua LPM"
+            subtitle={`Bagan organisasi dinamis: Lurah, Ketua LPM (${profileDraft.ketuaLpmName || 'Belum diisi'}), RW 01-07, dan ${rwGroups.reduce((a, r) => a + (r.rtList?.length || 0), 0)} RT`}
+            icon={<Layers className="w-5 h-5 text-[#0D3868]" />}
+            badge={
+              <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-100/80 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                {rwGroups.length} RW · {rwGroups.reduce((a, r) => a + (r.rtList?.length || 0), 0)} RT
+              </span>
+            }
+            isCollapsed={isSectionCollapsed('rtrw_lpm_bagan')}
+            onToggle={() => toggleSectionCollapse('rtrw_lpm_bagan')}
+          >
+            <div className="bg-gradient-to-r from-sky-50/90 via-white to-emerald-50/60 p-4 sm:p-5 space-y-4">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-[#0D3868] text-white">
+                      <Layers className="w-3 h-3" />
+                      <span>Bagan Struktur RT/RW Dinamis</span>
+                    </span>
+                  </div>
+                  <h3 className="text-sm sm:text-base font-extrabold text-[#0D3868]">
+                    Pengaturan Ketua LPM &amp; Bagan Struktur Organisasi RT/RW Kelurahan Panaikang
+                  </h3>
+                  <p className="text-xs text-slate-600">
+                    Masukkan nama <strong>Ketua LPM (Lembaga Pemberdayaan Masyarakat)</strong> di bawah ini untuk ditampilkan berdampingan dengan Lurah Panaikang pada Bagan Struktur Organisasi RT/RW.
+                  </p>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2.5 shrink-0">
+                  <div className="sm:w-72">
+                    <label className="block text-[11px] font-bold text-[#0D3868] mb-1">
+                      Nama Ketua LPM Kelurahan Panaikang
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: EDY MEDY, SM, M.Th"
+                      value={profileDraft.ketuaLpmName || ''}
+                      onChange={(e) =>
+                        setProfileDraft((prev) => ({
+                          ...prev,
+                          ketuaLpmName: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs sm:text-sm font-bold text-slate-900 focus:border-[#0D3868] focus:ring-1 focus:ring-[#0D3868] outline-hidden"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSaveKetuaLpm}
+                    disabled={isSubmitting}
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#0D3868] hover:bg-[#072647] disabled:opacity-50 text-white text-xs font-bold transition shadow-xs cursor-pointer whitespace-nowrap"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>Simpan Ketua LPM</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowInlineRtRwChartPreview((prev) => !prev)}
+                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-sky-300 bg-white hover:bg-sky-50 text-[#0D3868] text-xs font-bold transition cursor-pointer whitespace-nowrap"
+                  >
+                    <Eye className="w-4 h-4" />
+                    <span>{showInlineRtRwChartPreview ? 'Sembunyikan Bagan' : 'Tampilkan Bagan'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {showInlineRtRwChartPreview && (
+                <div className="pt-4 border-t border-sky-200/70 space-y-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-slate-700">
+                      Pratinjau Bagan Struktur Organisasi RT/RW (Lurah: {profileDraft.lurahName || '-'} · Ketua LPM: {profileDraft.ketuaLpmName || '-'})
+                    </span>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-[#146329]">
+                      Responsif HP · Tablet · PC (Perkecil / Perbesar)
+                    </span>
+                  </div>
+                  <BaganStrukturRtRwInteractiveViewer
+                    rwGroups={rwGroups}
+                    profile={profileDraft}
+                    onExpandFullScreen={() => setShowAdminBaganRtRw(true)}
+                  />
+                </div>
+              )}
+            </div>
+          </AdminCollapsibleBar>
+
+          {/* 04. KARTU CETAK LAPORAN PDF */}
+          <AdminCollapsibleBar
+            sectionKey="rtrw_cetak_laporan"
+            title="04. Cetak Laporan PDF Data RT/RW Kelurahan Panaikang"
+            subtitle="Ekspor PDF & Cetak lembar resmi rekapitulasi data RT/RW per wilayah maupun seluruh kelurahan"
+            icon={<Printer className="w-5 h-5 text-[#1C8237]" />}
+            badge={
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300">
+                Ekspor Resmi PDF
+              </span>
+            }
+            isCollapsed={isSectionCollapsed('rtrw_cetak_laporan')}
+            onToggle={() => toggleSectionCollapse('rtrw_cetak_laporan')}
+          >
+            <div className="p-4 sm:p-5">
+              <AdminRtRwReportPanel
+                profile={profile}
+                rwGroups={rwGroups}
+                reports={reports}
+                externalSelection={rtrwPrintSelection}
+                onReportPrintedOrExported={(result, actionMode) => {
+                  recordAudit({
+                    actionType: 'EXPORT',
+                    module: 'STRUKTUR_RTRW',
+                    targetLabel: result.titleLabel,
+                    summary: `${
+                      actionMode === 'PRINT' ? 'Mencetak laporan' : 'Mengunduh dokumen PDF'
+                    } ${result.titleLabel}`,
+                    afterValue: `${result.scopeLabel} · ${result.totalRtCount} RT · ${result.totalKkCount} KK`,
+                    severity: 'info',
+                  });
+                  setSuccessMessage(
+                    `${
+                      actionMode === 'PRINT' ? 'Lembar cetak' : 'Dokumen PDF'
+                    } "${result.titleLabel}" berhasil diproses.`
+                  );
                 }}
               />
             </div>

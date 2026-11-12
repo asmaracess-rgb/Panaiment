@@ -215,72 +215,20 @@ export const AdminTrafficView: React.FC<AdminTrafficViewProps> = ({ onNavigateTo
         </div>
       )}
 
-      {/* Top Banner & Action Controls */}
-      <div className="bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-900 rounded-2xl p-6 text-white shadow-xl border border-emerald-800/40 relative overflow-hidden">
-        <div className="absolute -right-12 -top-12 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-bold uppercase tracking-wider mb-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-              Real-Time Web Telemetry • 100% Data Kunjungan Riil (Tanpa Simulasi)
+      {/* Top Banner & Action Controls (Compact & Simplified) */}
+      <div className="bg-gradient-to-r from-[#0D3868] via-[#0B2F57] to-[#1C8237] rounded-2xl p-3.5 sm:p-4 text-white shadow-xs border border-slate-200 space-y-2.5">
+        <div className="w-full space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-[10px] font-bold uppercase tracking-wider">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+              <span>Real-Time Web Telemetry • 100% Data Kunjungan Riil</span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black tracking-tight">
-              Analitik Trafik & Kunjungan Portal Kelurahan Panaikang
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl">
-              Merekam setiap akses halaman nyata dari browser warga & perangkat yang terhubung ke server, lengkap dengan
-              deteksi IP nyata (masked), User-Agent perangkat, durasi sesi riil, serta interaksi layanan RW 01 – RW 07.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2.5">
-            <button
-              onClick={handleRefresh}
-              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/15 font-bold text-xs transition cursor-pointer"
-              title="Sinkronkan ulang dari server"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-emerald-300' : ''}`} />
-              Sinkronkan Server
-            </button>
-
-            <button
-              onClick={() => exportTrafficCsv(trafficData)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/20 transition cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Unduh CSV Trafik Riil
-            </button>
-
-            <button
-              onClick={() => setShowResetModal(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-400/30 font-bold text-xs transition cursor-pointer"
-              title="Reset seluruh log & hitungan trafik ke nol"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              Reset Data
-            </button>
-          </div>
-        </div>
-
-        {/* Live Active Visitors Strip */}
-        <div className="mt-5 pt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-4 text-xs">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-300 font-black">
-                <Signal className="w-3.5 h-3.5" />
-              </span>
-              <span className="text-slate-300">Koneksi Aktif Saat Ini:</span>
-              <span className="text-emerald-300 font-black text-sm">
-                {trafficData.activeVisitorsNow} Sesi Terhubung
-              </span>
-            </div>
-
-            <div className="hidden sm:block h-4 w-px bg-white/15" />
-
-            <div className="flex items-center gap-2 text-slate-300">
-              <Clock className="w-3.5 h-3.5 text-amber-400" />
-              <span>Hit Terakhir:</span>
-              <span className="text-white font-semibold">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 border border-white/20 text-sky-200 text-[10px] font-semibold">
+              <Signal className="w-3 h-3 text-emerald-300" />
+              <span>{trafficData.activeVisitorsNow} Sesi Terhubung</span>
+              <span>•</span>
+              <span>
+                Hit:{' '}
                 {new Date(trafficData.lastUpdated).toLocaleTimeString('id-ID', {
                   hour: '2-digit',
                   minute: '2-digit',
@@ -290,14 +238,114 @@ export const AdminTrafficView: React.FC<AdminTrafficViewProps> = ({ onNavigateTo
               </span>
             </div>
           </div>
+          <h2 className="text-base sm:text-lg font-extrabold tracking-tight">
+            Analitik Trafik &amp; Kunjungan Portal Kelurahan Panaikang
+          </h2>
+          <p className="text-xs text-sky-100 w-full leading-relaxed">
+            Merekam setiap akses halaman nyata dari browser warga &amp; perangkat yang terhubung ke server, lengkap dengan deteksi IP nyata (masked), User-Agent perangkat, durasi sesi riil, serta interaksi layanan RW 01 – RW 07.
+          </p>
+        </div>
 
-          <div className="flex items-center gap-2 text-emerald-300/90 font-semibold">
-            <ShieldCheck className="w-4 h-4" />
+        {/* Action Buttons Below Text */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => exportTrafficCsv(trafficData)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs shadow-2xs transition cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Unduh CSV Trafik Riil</span>
+            </button>
+
+            <button
+              onClick={handleRefresh}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500/30 hover:bg-sky-500/45 text-white border border-sky-300/40 font-bold text-xs transition cursor-pointer"
+              title="Sinkronkan ulang dari server"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-emerald-300' : ''}`} />
+              <span>Sinkronkan Server</span>
+            </button>
+
+            <button
+              onClick={() => setShowResetModal(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-xs transition cursor-pointer"
+              title="Reset seluruh log & hitungan trafik ke nol"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset Data</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1.5 text-[11px] text-emerald-200 font-semibold">
+            <ShieldCheck className="w-3.5 h-3.5" />
             <span>
               {isServerConnected
                 ? `Server Telemetry Aktif (${serverLatencyMs} ms • ${formatServerUptime(trafficData.serverUptimeSec)})`
                 : 'Mode Cache Lokal Browser'}
             </span>
+          </div>
+        </div>
+
+        {/* 6 Compact Primary KPI Number Boxes Inside Banner */}
+        <div className="pt-2.5 border-t border-white/15 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2">
+          <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[11px] font-bold text-sky-200 truncate">Total Pageviews</div>
+              <div className="text-[10px] text-emerald-300 truncate">Real Hits</div>
+            </div>
+            <div className="text-sm sm:text-base font-extrabold text-white font-mono-num shrink-0">
+              {trafficData.totalPageviews.toLocaleString('id-ID')}
+            </div>
+          </div>
+
+          <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[11px] font-bold text-sky-200 truncate">Pengunjung Unik</div>
+              <div className="text-[10px] text-sky-100 truncate">Browser ID</div>
+            </div>
+            <div className="text-sm sm:text-base font-extrabold text-sky-200 font-mono-num shrink-0">
+              {trafficData.uniqueVisitors.toLocaleString('id-ID')}
+            </div>
+          </div>
+
+          <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[11px] font-bold text-sky-200 truncate">Hari Ini (WITA)</div>
+              <div className="text-[10px] text-amber-300 truncate">Sejak 00:00</div>
+            </div>
+            <div className="text-sm sm:text-base font-extrabold text-amber-300 font-mono-num shrink-0">
+              {trafficData.todayPageviews.toLocaleString('id-ID')}
+            </div>
+          </div>
+
+          <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[11px] font-bold text-sky-200 truncate">Rata Durasi</div>
+              <div className="text-[10px] text-sky-100 truncate">Sesi Riil</div>
+            </div>
+            <div className="text-sm sm:text-base font-extrabold text-white font-mono-num shrink-0">
+              {trafficData.avgSessionDuration}
+            </div>
+          </div>
+
+          <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[11px] font-bold text-sky-200 truncate">Bounce Rate</div>
+              <div className="text-[10px] text-sky-100 truncate">1-Page Sesi</div>
+            </div>
+            <div className="text-sm sm:text-base font-extrabold text-emerald-300 font-mono-num shrink-0">
+              {trafficData.bounceRate}%
+            </div>
+          </div>
+
+          <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[11px] font-bold text-sky-200 truncate">Instalasi PWA</div>
+              <div className="text-[10px] text-sky-100 truncate">Standalone</div>
+            </div>
+            <div className="text-sm sm:text-base font-extrabold text-white font-mono-num shrink-0">
+              {trafficData.pwaInstalls.toLocaleString('id-ID')}
+            </div>
           </div>
         </div>
       </div>
@@ -337,108 +385,6 @@ export const AdminTrafficView: React.FC<AdminTrafficViewProps> = ({ onNavigateTo
           </div>
         </div>
       )}
-
-      {/* Primary KPI Cards (6 Cards - 100% Real Counters) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        {/* Card 1: Total Pageviews */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs hover:shadow-md transition">
-          <div className="flex items-center justify-between mb-3">
-            <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600">
-              <Eye className="w-5 h-5" />
-            </div>
-            <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-              <ArrowUpRight className="w-3 h-3" />
-              Real Hits
-            </span>
-          </div>
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Pageviews</p>
-          <p className="text-2xl font-black text-slate-900 mt-0.5">
-            {trafficData.totalPageviews.toLocaleString('id-ID')}
-          </p>
-          <p className="text-[11px] text-slate-500 mt-1">Akumulasi tayangan halaman riil</p>
-        </div>
-
-        {/* Card 2: Unique Visitors */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs hover:shadow-md transition">
-          <div className="flex items-center justify-between mb-3">
-            <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600">
-              <Users className="w-5 h-5" />
-            </div>
-            <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-              Browser ID
-            </span>
-          </div>
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Pengunjung Unik</p>
-          <p className="text-2xl font-black text-slate-900 mt-0.5">
-            {trafficData.uniqueVisitors.toLocaleString('id-ID')}
-          </p>
-          <p className="text-[11px] text-slate-500 mt-1">Perangkat/browser unik tercatat</p>
-        </div>
-
-        {/* Card 3: Today Pageviews */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs hover:shadow-md transition">
-          <div className="flex items-center justify-between mb-3">
-            <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600">
-              <TrendingUp className="w-5 h-5" />
-            </div>
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
-              Hari Ini
-            </span>
-          </div>
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Kunjungan Hari Ini</p>
-          <p className="text-2xl font-black text-slate-900 mt-0.5">
-            {trafficData.todayPageviews.toLocaleString('id-ID')}
-          </p>
-          <p className="text-[11px] text-slate-500 mt-1">Trafik masuk sejak pukul 00:00 WITA</p>
-        </div>
-
-        {/* Card 4: Avg Session Duration */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs hover:shadow-md transition">
-          <div className="flex items-center justify-between mb-3">
-            <div className="p-2.5 rounded-xl bg-purple-50 text-purple-600">
-              <Clock className="w-5 h-5" />
-            </div>
-            <span className="text-[11px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">
-              Sesi Riil
-            </span>
-          </div>
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Rata-rata Durasi</p>
-          <p className="text-2xl font-black text-slate-900 mt-0.5">{trafficData.avgSessionDuration}</p>
-          <p className="text-[11px] text-slate-500 mt-1">Waktu interaksi per sesi kunjungan</p>
-        </div>
-
-        {/* Card 5: Bounce Rate */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs hover:shadow-md transition">
-          <div className="flex items-center justify-between mb-3">
-            <div className="p-2.5 rounded-xl bg-teal-50 text-teal-600">
-              <Activity className="w-5 h-5" />
-            </div>
-            <span className="text-[11px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full">
-              1-Page Sesi
-            </span>
-          </div>
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Bounce Rate</p>
-          <p className="text-2xl font-black text-slate-900 mt-0.5">{trafficData.bounceRate}%</p>
-          <p className="text-[11px] text-slate-500 mt-1">Persentase sesi 1 halaman saja</p>
-        </div>
-
-        {/* Card 6: PWA Installs */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs hover:shadow-md transition">
-          <div className="flex items-center justify-between mb-3">
-            <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600">
-              <Smartphone className="w-5 h-5" />
-            </div>
-            <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full">
-              Standalone
-            </span>
-          </div>
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Instalasi Aplikasi</p>
-          <p className="text-2xl font-black text-slate-900 mt-0.5">
-            {trafficData.pwaInstalls.toLocaleString('id-ID')}
-          </p>
-          <p className="text-[11px] text-slate-500 mt-1">Perangkat menginstal PWA ke layar</p>
-        </div>
-      </div>
 
       {/* Main Chart + Device Breakdown Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

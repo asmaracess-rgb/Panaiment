@@ -619,102 +619,91 @@ export const AdminUrbanFarmingPanel: React.FC<AdminUrbanFarmingPanelProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* ================= PANEL HEADER & KPI STATS ================= */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-extrabold text-[#059669]">
-              <Sprout className="w-3.5 h-3.5" />
-              <span>ADMINISTRASI URBAN FARMING · KELURAHAN PANAIKANG</span>
-            </div>
-            <h2 className="mt-2 text-xl sm:text-2xl font-extrabold text-[#0D3868] tracking-tight">
-              Manajemen Terpadu Urban Farming
-            </h2>
-            <p className="mt-0.5 text-xs sm:text-sm text-slate-600 max-w-2xl">
-              Pusat kelola data kebun binaan warga RW 01 – RW 07, kelompok tani, upload foto dokumentasi, distribusi benih gratis, dan rekapitulasi hasil panen.
-            </p>
+      {/* ================= PANEL HEADER & KPI STATS (COMPACT & SIMPLIFIED) ================= */}
+      <div className="bg-gradient-to-r from-[#0D3868] via-[#0B3B5B] to-[#059669] rounded-2xl p-3.5 sm:p-4 text-white shadow-xs space-y-2.5">
+        <div className="w-full space-y-1">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 border border-white/20 text-[10px] font-extrabold text-emerald-200">
+            <Sprout className="w-3 h-3" />
+            <span>ADMINISTRASI URBAN FARMING · KELURAHAN PANAIKANG</span>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={handlePrintReport}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-bold transition-colors cursor-pointer shadow-xs"
-            >
-              <Printer className="w-3.5 h-3.5 text-emerald-700" />
-              <span>Cetak Laporan Lengkap</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={openAddSpotModal}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#059669] hover:bg-[#047857] text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
-            >
-              <Plus className="w-4 h-4" />
-              <span>+ Tambah Kebun Baru</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowSeedModal(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
-            >
-              <Plus className="w-4 h-4" />
-              <span>+ Input Permohonan Bibit</span>
-            </button>
-          </div>
+          <h2 className="text-base sm:text-lg font-extrabold text-white tracking-tight">
+            Manajemen Terpadu Urban Farming
+          </h2>
+          <p className="text-xs text-sky-100 w-full leading-relaxed">
+            Pusat kelola data kebun binaan warga RW 01 – RW 07, kelompok tani, upload foto dokumentasi, distribusi benih gratis, dan rekapitulasi hasil panen.
+          </p>
         </div>
 
-        {/* 4 Metric Counters */}
-        <div className="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-3.5 pt-5 border-t border-slate-100">
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-            <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
-              <span>Total Kebun Terdata</span>
-              <MapPin className="w-4 h-4 text-emerald-600" />
+        {/* Action Buttons Below Text (Kuning, Hijau, Biru) */}
+        <div className="flex flex-wrap items-center gap-2 pt-0.5">
+          <button
+            type="button"
+            onClick={handlePrintReport}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-extrabold transition-colors cursor-pointer shadow-2xs"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span>Cetak Laporan Lengkap</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={openAddSpotModal}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-extrabold transition-colors cursor-pointer shadow-2xs"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>+ Tambah Kebun Baru</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowSeedModal(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500/30 hover:bg-sky-500/45 border border-sky-300/40 text-white text-xs font-bold transition-colors cursor-pointer shadow-2xs"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>+ Input Permohonan Bibit</span>
+          </button>
+        </div>
+
+        {/* 4 Compact Metric Counters */}
+        <div className="pt-2.5 border-t border-white/15 grid grid-cols-2 lg:grid-cols-4 gap-2">
+          <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[11px] text-sky-200 font-bold truncate">Total Kebun</div>
+              <div className="text-[10px] text-sky-100/80 truncate">Binaan RW 01–07</div>
             </div>
-            <div className="mt-1 text-2xl font-extrabold text-[#0D3868] font-mono-num">
-              {spots.length} <span className="text-xs font-bold text-slate-500">Kebun</span>
-            </div>
-            <div className="mt-0.5 text-[11px] text-slate-500">
-              Binaan RW 01 – RW 07
+            <div className="text-sm sm:text-base font-extrabold text-white font-mono-num shrink-0">
+              {spots.length}
             </div>
           </div>
 
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-            <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
-              <span>Hasil Panen Bulanan</span>
-              <TrendingUp className="w-4 h-4 text-[#059669]" />
+          <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[11px] text-emerald-200 font-bold truncate">Panen Bulanan</div>
+              <div className="text-[10px] text-sky-100/80 truncate">Sayuran &amp; pangan</div>
             </div>
-            <div className="mt-1 text-2xl font-extrabold text-[#059669] font-mono-num">
-              {totalProductionKg} <span className="text-xs font-bold text-slate-500">kg/bln</span>
-            </div>
-            <div className="mt-0.5 text-[11px] text-slate-500">
-              Akumulasi sayuran & pangan
+            <div className="text-sm sm:text-base font-extrabold text-emerald-300 font-mono-num shrink-0">
+              {totalProductionKg} <span className="text-[10px] font-bold">kg</span>
             </div>
           </div>
 
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-            <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
-              <span>Anggota / KK Terlibat</span>
-              <Users className="w-4 h-4 text-[#0277BD]" />
+          <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[11px] text-sky-200 font-bold truncate">Anggota Terlibat</div>
+              <div className="text-[10px] text-sky-100/80 truncate">Kelompok Tani &amp; KWT</div>
             </div>
-            <div className="mt-1 text-2xl font-extrabold text-[#0277BD] font-mono-num">
-              {totalMembers} <span className="text-xs font-bold text-slate-500">KK Aktif</span>
-            </div>
-            <div className="mt-0.5 text-[11px] text-slate-500">
-              Kelompok Tani & KWT
+            <div className="text-sm sm:text-base font-extrabold text-white font-mono-num shrink-0">
+              {totalMembers} <span className="text-[10px] font-bold">KK</span>
             </div>
           </div>
 
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-            <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
-              <span>Permohonan Bibit</span>
-              <Package className="w-4 h-4 text-amber-600" />
+          <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[11px] text-amber-200 font-bold truncate">Permohonan Bibit</div>
+              <div className="text-[10px] text-sky-100/80 truncate">
+                {seedRequests.filter((r) => r.status === 'Menunggu Pengambilan').length} menunggu
+              </div>
             </div>
-            <div className="mt-1 text-2xl font-extrabold text-amber-600 font-mono-num">
-              {seedRequests.length} <span className="text-xs font-bold text-slate-500">Pengajuan</span>
-            </div>
-            <div className="mt-0.5 text-[11px] text-slate-500">
-              {seedRequests.filter((r) => r.status === 'Menunggu Pengambilan').length} Menunggu verifikasi
+            <div className="text-sm sm:text-base font-extrabold text-amber-300 font-mono-num shrink-0">
+              {seedRequests.length}
             </div>
           </div>
         </div>

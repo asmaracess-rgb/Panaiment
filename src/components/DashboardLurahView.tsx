@@ -1436,32 +1436,34 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
               </p>
             </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200">
-              <div className="text-xs font-bold text-emerald-800">Tuntas Sesuai SLA</div>
-              <div className="mt-1 text-2xl font-extrabold text-emerald-900 font-mono-num">
-                {completedCount} Berkas/Aduan
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div className="px-3.5 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-emerald-800 truncate">Tuntas Sesuai SLA</div>
+                <div className="text-[10px] text-emerald-700 truncate">
+                  Kepatuhan {Math.round((completedCount / Math.max(totalReports, 1)) * 100)}%
+                </div>
               </div>
-              <div className="mt-0.5 text-[11px] text-emerald-700">
-                Kepatuhan penyelesaian {Math.round((completedCount / Math.max(totalReports, 1)) * 100)}%
-              </div>
-            </div>
-            <div className="p-4 rounded-xl bg-sky-50 border border-sky-200">
-              <div className="text-xs font-bold text-sky-800">Dalam Proses Penanganan</div>
-              <div className="mt-1 text-2xl font-extrabold text-sky-900 font-mono-num">
-                {inProgressCount} Tiket Aktif
-              </div>
-              <div className="mt-0.5 text-[11px] text-sky-700">
-                Sedang dikerjakan Seksi / Satgas RW
+              <div className="text-base sm:text-lg font-extrabold text-emerald-900 font-mono-num shrink-0">
+                {completedCount}
               </div>
             </div>
-            <div className="p-4 rounded-xl bg-amber-50 border border-amber-200">
-              <div className="text-xs font-bold text-amber-900">Menunggu Keputusan / Verifikasi</div>
-              <div className="mt-1 text-2xl font-extrabold text-amber-900 font-mono-num">
-                {waitingCount + pendingLurahApprovalsCount} Antrean
+            <div className="px-3.5 py-2.5 rounded-xl bg-sky-50 border border-sky-200 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-sky-800 truncate">Dalam Proses</div>
+                <div className="text-[10px] text-sky-700 truncate">Dikerjakan Seksi / RW</div>
               </div>
-              <div className="mt-0.5 text-[11px] text-amber-800">
-                Segera berikan persetujuan atau disposisi
+              <div className="text-base sm:text-lg font-extrabold text-sky-900 font-mono-num shrink-0">
+                {inProgressCount}
+              </div>
+            </div>
+            <div className="px-3.5 py-2.5 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-amber-900 truncate">Menunggu Keputusan</div>
+                <div className="text-[10px] text-amber-800 truncate">Butuh ACC / Disposisi</div>
+              </div>
+              <div className="text-base sm:text-lg font-extrabold text-amber-900 font-mono-num shrink-0">
+                {waitingCount + pendingLurahApprovalsCount}
               </div>
             </div>
           </div>

@@ -692,32 +692,28 @@ export const AdminSiskamlingPanel: React.FC<AdminSiskamlingPanelProps> = ({
     <div className="space-y-6">
       {/* SECTION 1: FORM INPUT MANUAL JADWAL SISKAMLING BERDASARKAN DATA RT/RW (SESUAI STRUKTUR SK) */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-        <div className="bg-gradient-to-r from-[#0D3868] via-[#134B8A] to-[#0277BD] px-5 sm:px-7 py-4 text-white flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-amber-400/20 border border-amber-300/40 flex items-center justify-center shrink-0">
-              <UserCheck className="w-6 h-6 text-amber-300" />
+        <div className="bg-gradient-to-r from-[#0D3868] via-[#134B8A] to-[#0277BD] px-4 py-3 text-white space-y-2">
+          <div className="w-full space-y-0.5">
+            <div className="inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-amber-300">
+              <UserCheck className="w-3.5 h-3.5 text-amber-300" />
+              <span>INPUT MANUAL TERINTEGRASI DATA RT/RW · FORMAT SK KELURAHAN</span>
             </div>
-            <div>
-              <div className="text-[11px] font-extrabold uppercase tracking-wider text-amber-300">
-                INPUT MANUAL TERINTEGRASI DATA RT/RW · FORMAT SK KELURAHAN
-              </div>
-              <h3 className="text-base sm:text-lg font-extrabold text-white mt-0.5">
-                Kelola & Input Jadwal Siskamling Berdasarkan Data RT/RW
-              </h3>
-              <p className="text-xs text-sky-100 mt-0.5">
-                Pilih <strong>RW</strong>, pilih <strong>Hari</strong>, lalu pilih <strong>Nama RT / Ketua RT & RW</strong> untuk menyusun daftar petugas ronda sesuai struktur SK.
-              </p>
-            </div>
+            <h3 className="text-sm sm:text-base font-extrabold text-white">
+              Kelola &amp; Input Jadwal Siskamling Berdasarkan Data RT/RW
+            </h3>
+            <p className="text-xs text-sky-100 w-full leading-relaxed">
+              Pilih <strong>RW</strong>, pilih <strong>Hari</strong>, lalu pilih <strong>Nama RT / Ketua RT &amp; RW</strong> untuk menyusun daftar petugas ronda sesuai struktur SK.
+            </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 pt-0.5">
             <button
               type="button"
               onClick={() => setShowResetModal(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-bold transition-all cursor-pointer whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-extrabold transition-all cursor-pointer whitespace-nowrap"
               title="Kembalikan seluruh jadwal ke standar SK Kelurahan"
             >
-              <RotateCcw className="w-3.5 h-3.5 text-amber-300" />
+              <RotateCcw className="w-3.5 h-3.5" />
               <span>Reset Standar SK</span>
             </button>
           </div>
@@ -1107,47 +1103,44 @@ export const AdminSiskamlingPanel: React.FC<AdminSiskamlingPanelProps> = ({
 
       {/* SECTION 2: TABEL MATRIKS RESMI SK KELURAHAN (DENGAN FITUR GULIR / SCROLLABLE) */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-        <div className="bg-gradient-to-r from-[#0D3868] via-[#134B8A] to-[#0277BD] px-5 sm:px-7 py-5 text-white flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-start gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
-              <ShieldCheck className="w-7 h-7 text-amber-300" />
+        <div className="bg-gradient-to-r from-[#0D3868] via-[#134B8A] to-[#0277BD] px-4 py-3.5 text-white space-y-2.5">
+          <div className="w-full space-y-0.5">
+            <div className="text-[10px] font-extrabold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-300" />
+              <span>SISTEM KEAMANAN LINGKUNGAN (SISKAMLING) TERPADU</span>
             </div>
-            <div>
-              <div className="text-[11px] font-extrabold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                <span>🛡️ SISTEM KEAMANAN LINGKUNGAN (SISKAMLING) TERPADU</span>
-              </div>
-              <h2 className="mt-1 text-lg sm:text-xl font-extrabold text-white">
-                Daftar Siskamling RW 01 s/d RW 07 Kelurahan Panaikang
-              </h2>
-              <p className="mt-0.5 text-xs text-sky-100 max-w-2xl leading-relaxed">
-                Matriks penugasan ronda malam dan pengamanan wilayah Senin s/d Minggu untuk seluruh
-                7 RW sesuai struktur SK Kelurahan Panaikang. Gulir tabel untuk melihat seluruh petugas.
-              </p>
-            </div>
+            <h2 className="text-base sm:text-lg font-extrabold text-white">
+              Daftar Siskamling RW 01 s/d RW 07 Kelurahan Panaikang
+            </h2>
+            <p className="text-xs text-sky-100 w-full leading-relaxed">
+              Matriks penugasan ronda malam dan pengamanan wilayah Senin s/d Minggu untuk seluruh
+              7 RW sesuai struktur SK Kelurahan Panaikang. Gulir tabel untuk melihat seluruh petugas.
+            </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={handleOpenPoskoBatchModal}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-xs cursor-pointer whitespace-nowrap"
-              title="Kelola, tambah, edit, simpan, dan hapus nama posko di 7 RW"
-            >
-              <MapPin className="w-4 h-4 text-emerald-200" />
-              <span>Kelola Nama Posko 7 RW</span>
-            </button>
+          {/* Tombol Aksi di Bawah Teks (Kuning, Hijau, Biru) */}
+          <div className="flex flex-wrap items-center gap-2 pt-0.5">
             <button
               type="button"
               onClick={handlePrintOfficialRoster}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold transition-all shadow-xs cursor-pointer whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-extrabold transition-all shadow-2xs cursor-pointer whitespace-nowrap"
             >
-              <Printer className="w-4 h-4" />
+              <Printer className="w-3.5 h-3.5" />
               <span>Cetak Matriks Roster (A4 Landscape)</span>
             </button>
             <button
               type="button"
+              onClick={handleOpenPoskoBatchModal}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold transition-all shadow-2xs cursor-pointer whitespace-nowrap"
+              title="Kelola, tambah, edit, simpan, dan hapus nama posko di 7 RW"
+            >
+              <MapPin className="w-3.5 h-3.5 text-emerald-200" />
+              <span>Kelola Nama Posko 7 RW</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setShowResetModal(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-semibold transition-all cursor-pointer whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500/30 hover:bg-sky-500/45 text-white border border-sky-300/40 text-xs font-bold transition-all cursor-pointer whitespace-nowrap"
               title="Kembalikan nama ke format default dari SK Kelurahan"
             >
               <RotateCcw className="w-3.5 h-3.5" />

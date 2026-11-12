@@ -275,69 +275,58 @@ export const AdminTebaPanel: React.FC<AdminTebaPanelProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Banner & Action */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="p-2 rounded-xl bg-emerald-100 text-[#1C8237]">
-                <Sprout className="w-5 h-5" />
-              </span>
-              <div>
-                <h2 className="text-base sm:text-lg font-bold text-[#0D3868]">
-                  Manajemen Data Titik Teba Komunal Kelurahan Panaikang
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Kelola sebaran lokasi titik teba organik komunal, tag patokan, foto dokumentasi, dan status operasional.
-                </p>
-              </div>
-            </div>
+      {/* Top Banner & Action (Compact & Simplified) */}
+      <div className="bg-gradient-to-r from-[#0D3868] via-[#0B3B5B] to-[#1C8237] rounded-2xl p-3.5 sm:p-4 text-white shadow-xs space-y-2.5">
+        <div className="w-full space-y-1">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 border border-white/20 text-[10px] font-extrabold text-emerald-200">
+            <Sprout className="w-3 h-3" />
+            <span>MANAJEMEN TITIK TEBA KOMUNAL · KELURAHAN PANAIKANG</span>
           </div>
+          <h2 className="text-base sm:text-lg font-extrabold text-white">
+            Manajemen Data Titik Teba Komunal Kelurahan Panaikang
+          </h2>
+          <p className="text-xs text-sky-100 w-full leading-relaxed">
+            Kelola sebaran lokasi titik teba organik komunal, tag patokan, foto dokumentasi, dan status operasional.
+          </p>
+        </div>
 
+        <div className="flex flex-wrap items-center gap-2 pt-0.5">
           <button
             type="button"
             onClick={handleOpenCreate}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs sm:text-sm font-bold shadow-xs transition-colors cursor-pointer shrink-0"
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-extrabold shadow-2xs transition-colors cursor-pointer"
           >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>Tambah Titik Teba Baru</span>
+            <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>+ Tambah Titik Teba Baru</span>
           </button>
         </div>
 
-        {/* Stats Pill Row */}
-        <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="bg-slate-50 rounded-xl p-3 border border-slate-200/80">
-            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
-              Total Titik Teba
-            </span>
-            <span className="text-xl font-extrabold text-slate-900 font-mono-num">
-              {tebaSpots.length} Titik
+        {/* 4 Compact Stats Boxes */}
+        <div className="pt-2.5 border-t border-white/15 grid grid-cols-2 lg:grid-cols-4 gap-2">
+          <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold text-sky-200 truncate">Total Titik Teba</span>
+            <span className="text-sm sm:text-base font-extrabold text-white font-mono-num shrink-0">
+              {tebaSpots.length}
             </span>
           </div>
 
-          <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-200/80">
-            <span className="text-[11px] font-semibold text-emerald-800 uppercase tracking-wider block">
-              Aktif Beroperasi
-            </span>
-            <span className="text-xl font-extrabold text-[#1C8237] font-mono-num">
-              {tebaSpots.filter((s) => s.status === 'Aktif Beroperasi').length} Titik
+          <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold text-emerald-200 truncate">Aktif Beroperasi</span>
+            <span className="text-sm sm:text-base font-extrabold text-emerald-300 font-mono-num shrink-0">
+              {tebaSpots.filter((s) => s.status === 'Aktif Beroperasi').length}
             </span>
           </div>
 
-          <div className="bg-amber-50 rounded-xl p-3 border border-amber-200/80">
-            <span className="text-[11px] font-semibold text-amber-800 uppercase tracking-wider block">
-              Penuh / Kompos
-            </span>
-            <span className="text-xl font-extrabold text-amber-700 font-mono-num">
-              {tebaSpots.filter((s) => s.status === 'Penuh / Masa Pengomposan').length} Titik
+          <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold text-amber-200 truncate">Penuh / Kompos</span>
+            <span className="text-sm sm:text-base font-extrabold text-amber-300 font-mono-num shrink-0">
+              {tebaSpots.filter((s) => s.status === 'Penuh / Masa Pengomposan').length}
             </span>
           </div>
 
-          <div className="bg-sky-50 rounded-xl p-3 border border-sky-200/80">
-            <span className="text-[11px] font-semibold text-sky-800 uppercase tracking-wider block">
-              Total Kapasitas
-            </span>
-            <span className="text-xl font-extrabold text-sky-900 font-mono-num">
+          <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold text-sky-200 truncate">Total Kapasitas</span>
+            <span className="text-sm sm:text-base font-extrabold text-white font-mono-num shrink-0">
               {tebaSpots.reduce((acc, s) => acc + s.capacityKg, 0).toLocaleString('id-ID')} kg
             </span>
           </div>

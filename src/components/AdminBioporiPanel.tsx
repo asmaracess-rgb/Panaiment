@@ -313,38 +313,73 @@ export const AdminBioporiPanel: React.FC<AdminBioporiPanelProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Banner and Actions */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-[#146329]">
-              Manajemen Data Biopori (LRB)
-            </span>
-            <span className="text-xs text-slate-500 font-medium">
-              Kelurahan Panaikang · Kota Makassar
-            </span>
+      {/* Top Banner and Compact Metric Cards */}
+      <div className="bg-gradient-to-r from-[#0D3868] via-[#0B3B5B] to-[#0277BD] rounded-2xl p-3.5 sm:p-4 text-white shadow-xs space-y-2.5">
+        <div className="w-full space-y-1">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 border border-white/20 text-[10px] font-bold text-sky-200">
+            <span>MANAJEMEN DATA BIOPORI (LRB) · KELURAHAN PANAIKANG</span>
           </div>
-          <h2 className="text-lg font-bold text-[#0D3868] mt-1">
+          <h2 className="text-base sm:text-lg font-extrabold text-white">
             Data Sebaran Lubang Resapan Biopori (LRB)
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-sky-100 w-full leading-relaxed">
             Kelola titik sebaran biopori RW/RT, jumlah lubang, dimensi, status kesiapan panen kompos, dan dokumentasi foto lapangan.
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleOpenCreate}
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs sm:text-sm font-bold shadow-xs transition-colors cursor-pointer shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Tambah Titik Biopori Baru</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2 pt-0.5">
+          <button
+            type="button"
+            onClick={handleOpenCreate}
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-extrabold shadow-2xs transition-colors cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>+ Tambah Titik Biopori Baru</span>
+          </button>
+        </div>
+
+        {/* 5 Compact Aggregated Metric Cards */}
+        <div className="pt-2.5 border-t border-white/15 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+          <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold text-sky-200 truncate">Total Titik</span>
+            <span className="text-sm sm:text-base font-black text-white font-mono-num shrink-0">
+              {stats.totalTitik}
+            </span>
+          </div>
+
+          <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold text-emerald-200 truncate">Total Lubang</span>
+            <span className="text-sm sm:text-base font-black text-emerald-300 font-mono-num shrink-0">
+              {stats.totalLubang}
+            </span>
+          </div>
+
+          <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold text-sky-200 truncate">Aktif Resapan</span>
+            <span className="text-sm sm:text-base font-black text-white font-mono-num shrink-0">
+              {stats.aktifCount}
+            </span>
+          </div>
+
+          <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold text-amber-200 truncate">Siap Panen</span>
+            <span className="text-sm sm:text-base font-black text-amber-300 font-mono-num shrink-0">
+              {stats.panenCount}
+            </span>
+          </div>
+
+          <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2 col-span-2 sm:col-span-1">
+            <span className="text-[11px] font-bold text-rose-200 truncate">Perlu Rawat</span>
+            <span className="text-sm sm:text-base font-black text-rose-300 font-mono-num shrink-0">
+              {stats.rawatCount}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Success Notification */}
       {formSuccessMessage && (
-        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center justify-between">
+        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>{formSuccessMessage}</span>
@@ -358,49 +393,6 @@ export const AdminBioporiPanel: React.FC<AdminBioporiPanelProps> = ({
           </button>
         </div>
       )}
-
-      {/* Aggregated Metric Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <div className="p-4 rounded-2xl bg-white border border-slate-200">
-          <div className="text-[11px] font-semibold text-slate-500">Total Titik Biopori</div>
-          <div className="text-2xl font-black text-[#0D3868] font-mono-num mt-1">
-            {stats.totalTitik}
-          </div>
-          <div className="text-[10px] text-slate-400 mt-0.5">Klaster RW Terdaftar</div>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white border border-slate-200">
-          <div className="text-[11px] font-semibold text-slate-500">Total Lubang (LRB)</div>
-          <div className="text-2xl font-black text-emerald-700 font-mono-num mt-1">
-            {stats.totalLubang}
-          </div>
-          <div className="text-[10px] text-emerald-600 mt-0.5 font-medium">Lubang Silinder Resapan</div>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white border border-slate-200">
-          <div className="text-[11px] font-semibold text-slate-500">Aktif Digunakan</div>
-          <div className="text-2xl font-black text-sky-700 font-mono-num mt-1">
-            {stats.aktifCount}
-          </div>
-          <div className="text-[10px] text-sky-600 mt-0.5 font-medium">Meresapkan Sampah Organik</div>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white border border-slate-200">
-          <div className="text-[11px] font-semibold text-slate-500">Siap Panen Kompos</div>
-          <div className="text-2xl font-black text-amber-600 font-mono-num mt-1">
-            {stats.panenCount}
-          </div>
-          <div className="text-[10px] text-amber-600 mt-0.5 font-medium">Penuh Matang / Kompos Jadi</div>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 col-span-2 lg:col-span-1">
-          <div className="text-[11px] font-semibold text-slate-500">Perlu Perawatan</div>
-          <div className="text-2xl font-black text-rose-600 font-mono-num mt-1">
-            {stats.rawatCount}
-          </div>
-          <div className="text-[10px] text-rose-600 mt-0.5 font-medium">Pembersihan / Penggantian Tutup</div>
-        </div>
-      </div>
 
       {/* Filters and Search Bar */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">

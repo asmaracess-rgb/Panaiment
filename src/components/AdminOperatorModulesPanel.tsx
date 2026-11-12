@@ -313,118 +313,116 @@ export const AdminOperatorModulesPanel: React.FC<AdminOperatorModulesPanelProps>
   if (activeSection === 'dashboard') {
     return (
       <div className="space-y-6">
-        {/* Top Operator Welcome & SLA Banner */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
-                <span className="font-bold text-[#0277BD] uppercase tracking-wider">
-                  PUSAT KENDALI OPERASIONAL FRONT-OFFICE
-                </span>
-                <span aria-hidden="true">·</span>
-                <span>Petugas Aktif: {adminOfficerName}</span>
-              </div>
-              <h2 className="text-xl sm:text-2xl font-extrabold text-[#0D3868] tracking-tight">
-                Dashboard Admin Operator Pelayanan Kelurahan
-              </h2>
-              <p className="mt-1 text-xs sm:text-sm text-slate-600">
-                Pantau antrean Pra Registrasi Online, Pengaduan Warga, delegasi penugasan seksi, dan
-                kepatuhan SLA secara real-time.
-              </p>
+        {/* Top Operator Welcome & SLA Banner (Compact & Simplified) */}
+        <div className="bg-gradient-to-r from-[#0D3868] via-[#134B8A] to-[#0277BD] rounded-2xl p-3.5 sm:p-4 text-white shadow-xs space-y-2.5">
+          <div className="w-full space-y-1">
+            <div className="flex flex-wrap items-center gap-2 text-[10px] text-sky-200 font-bold uppercase tracking-wider">
+              <span>PUSAT KENDALI OPERASIONAL FRONT-OFFICE</span>
+              <span aria-hidden="true">·</span>
+              <span className="text-emerald-300">Petugas Aktif: {adminOfficerName}</span>
             </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => onSelectSidebarItem('pra_registrasi')}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold transition cursor-pointer"
-              >
-                <FileText className="w-3.5 h-3.5 text-sky-300" />
-                <span>Buka Pra Registrasi ({suratReports.length})</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => onSelectSidebarItem('pengaduan')}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0277BD] hover:bg-[#01579B] text-white text-xs font-bold transition cursor-pointer"
-              >
-                <AlertCircle className="w-3.5 h-3.5 text-amber-300" />
-                <span>Buka Pengaduan ({aduanReports.length})</span>
-              </button>
-            </div>
+            <h2 className="text-base sm:text-lg font-extrabold text-white tracking-tight">
+              Dashboard Admin Operator Pelayanan Kelurahan
+            </h2>
+            <p className="text-xs text-sky-100 w-full leading-relaxed">
+              Pantau antrean Pra Registrasi Online, Pengaduan Warga, delegasi penugasan seksi, dan
+              kepatuhan SLA secara real-time.
+            </p>
           </div>
 
-          {/* 6 Operational KPI Cards */}
-          <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+          <div className="flex flex-wrap items-center gap-2 pt-0.5">
             <button
               type="button"
               onClick={() => onSelectSidebarItem('pra_registrasi')}
-              className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-sky-50/60 hover:border-sky-300 text-left transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-extrabold transition cursor-pointer shadow-2xs"
             >
-              <div className="text-[11px] font-semibold text-slate-500">Pra Registrasi Masuk</div>
-              <div className="mt-1.5 text-2xl font-extrabold text-[#0D3868] tabular-nums">
+              <FileText className="w-3.5 h-3.5" />
+              <span>Buka Pra Registrasi ({suratReports.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onSelectSidebarItem('pengaduan')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold transition cursor-pointer shadow-2xs"
+            >
+              <AlertCircle className="w-3.5 h-3.5" />
+              <span>Buka Pengaduan ({aduanReports.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onSelectSidebarItem('sla')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500/30 hover:bg-sky-500/45 border border-sky-300/40 text-white text-xs font-bold transition cursor-pointer"
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span>Monitoring SLA ({slaCompliancePercent}%)</span>
+            </button>
+          </div>
+
+          {/* 6 Compact Operational KPI Cards */}
+          <div className="pt-2.5 border-t border-white/15 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2">
+            <button
+              type="button"
+              onClick={() => onSelectSidebarItem('pra_registrasi')}
+              className="px-3 py-2 rounded-xl border border-white/15 bg-white/10 hover:bg-white/20 flex items-center justify-between gap-2 text-left transition cursor-pointer"
+            >
+              <span className="text-[11px] font-bold text-sky-100 truncate">Pra Registrasi</span>
+              <span className="text-sm sm:text-base font-extrabold text-white tabular-nums shrink-0">
                 {suratReports.length + praRegistrasiList.length}
-              </div>
-              <div className="mt-1 text-[11px] text-slate-500">13 Layanan Surat</div>
+              </span>
             </button>
 
             <button
               type="button"
               onClick={() => onSelectSidebarItem('pra_registrasi')}
-              className="p-4 rounded-xl border border-amber-200 bg-amber-50/50 hover:bg-amber-50 text-left transition cursor-pointer"
+              className="px-3 py-2 rounded-xl border border-amber-300/30 bg-amber-400/15 hover:bg-amber-400/25 flex items-center justify-between gap-2 text-left transition cursor-pointer"
             >
-              <div className="text-[11px] font-semibold text-amber-900">Menunggu Verifikasi</div>
-              <div className="mt-1.5 text-2xl font-extrabold text-amber-700 tabular-nums">
+              <span className="text-[11px] font-bold text-amber-200 truncate">Menunggu Cek</span>
+              <span className="text-sm sm:text-base font-extrabold text-amber-300 tabular-nums shrink-0">
                 {waitingVerificationCount}
-              </div>
-              <div className="mt-1 text-[11px] text-amber-800">Butuh cek berkas</div>
+              </span>
             </button>
 
             <button
               type="button"
               onClick={() => onSelectSidebarItem('pengaduan')}
-              className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-sky-50/60 hover:border-sky-300 text-left transition cursor-pointer"
+              className="px-3 py-2 rounded-xl border border-white/15 bg-white/10 hover:bg-white/20 flex items-center justify-between gap-2 text-left transition cursor-pointer"
             >
-              <div className="text-[11px] font-semibold text-slate-500">Pengaduan Online</div>
-              <div className="mt-1.5 text-2xl font-extrabold text-[#0277BD] tabular-nums">
+              <span className="text-[11px] font-bold text-sky-100 truncate">Pengaduan</span>
+              <span className="text-sm sm:text-base font-extrabold text-sky-200 tabular-nums shrink-0">
                 {aduanReports.length + pengaduanList.length}
-              </div>
-              <div className="mt-1 text-[11px] text-slate-500">{inProgressCount} ditangani</div>
+              </span>
             </button>
 
             <button
               type="button"
               onClick={() => onSelectSidebarItem('sla')}
-              className="p-4 rounded-xl border border-orange-200 bg-orange-50/50 hover:bg-orange-50 text-left transition cursor-pointer"
+              className="px-3 py-2 rounded-xl border border-orange-300/30 bg-orange-400/15 hover:bg-orange-400/25 flex items-center justify-between gap-2 text-left transition cursor-pointer"
             >
-              <div className="text-[11px] font-semibold text-orange-900">Mendekati SLA</div>
-              <div className="mt-1.5 text-2xl font-extrabold text-orange-700 tabular-nums">
+              <span className="text-[11px] font-bold text-orange-200 truncate">Dekat SLA</span>
+              <span className="text-sm sm:text-base font-extrabold text-orange-300 tabular-nums shrink-0">
                 {nearDueCount}
-              </div>
-              <div className="mt-1 text-[11px] text-orange-800">Sisa waktu &lt; 25%</div>
+              </span>
             </button>
 
             <button
               type="button"
               onClick={() => onSelectSidebarItem('sla')}
-              className="p-4 rounded-xl border border-red-200 bg-red-50/50 hover:bg-red-50 text-left transition cursor-pointer"
+              className="px-3 py-2 rounded-xl border border-rose-300/30 bg-rose-400/15 hover:bg-rose-400/25 flex items-center justify-between gap-2 text-left transition cursor-pointer"
             >
-              <div className="text-[11px] font-semibold text-red-900">Melewati SLA</div>
-              <div className="mt-1.5 text-2xl font-extrabold text-red-700 tabular-nums">
+              <span className="text-[11px] font-bold text-rose-200 truncate">Lewat SLA</span>
+              <span className="text-sm sm:text-base font-extrabold text-rose-300 tabular-nums shrink-0">
                 {overdueCount}
-              </div>
-              <div className="mt-1 text-[11px] text-red-800">Kepatuhan {slaCompliancePercent}%</div>
+              </span>
             </button>
 
             <button
               type="button"
               onClick={() => onSelectSidebarItem('penugasan')}
-              className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50 text-left transition cursor-pointer"
+              className="px-3 py-2 rounded-xl border border-emerald-300/30 bg-emerald-400/15 hover:bg-emerald-400/25 flex items-center justify-between gap-2 text-left transition cursor-pointer"
             >
-              <div className="text-[11px] font-semibold text-emerald-900">Tuntas Selesai</div>
-              <div className="mt-1.5 text-2xl font-extrabold text-emerald-700 tabular-nums">
+              <span className="text-[11px] font-bold text-emerald-200 truncate">Selesai</span>
+              <span className="text-sm sm:text-base font-extrabold text-emerald-300 tabular-nums shrink-0">
                 {completedCount}
-              </div>
-              <div className="mt-1 text-[11px] text-emerald-800">Terverifikasi resmi</div>
+              </span>
             </button>
           </div>
         </div>
@@ -788,28 +786,23 @@ export const AdminOperatorModulesPanel: React.FC<AdminOperatorModulesPanelProps>
 
     return (
       <div className="space-y-5">
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div>
-              <div className="text-xs font-bold text-[#0277BD] uppercase tracking-wider">
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-2.5">
+          <div className="w-full space-y-1">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-[11px] font-bold text-[#0277BD] uppercase tracking-wider">
                 SERVICE LEVEL AGREEMENT (SLA) &amp; KEPATUHAN WAKTU LAYANAN
               </div>
-              <h2 className="mt-0.5 text-xl font-extrabold text-[#0D3868]">
-                Monitoring SLA Pelayanan Surat &amp; Penanganan Pengaduan
-              </h2>
-              <p className="mt-1 text-xs text-slate-600">
-                Target standar: Pra Registrasi Surat maksimal 4 Jam Kerja · Pengaduan Darurat &lt; 2
-                Jam · Pengaduan Normal &lt; 24 Jam.
-              </p>
-            </div>
-
-            <div className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-right">
-              <div className="text-[11px] font-semibold text-slate-500">Indeks Kepatuhan SLA</div>
-              <div className="text-2xl font-extrabold text-[#1C8237] tabular-nums">
-                {slaCompliancePercent}%
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-xs font-extrabold text-[#1C8237] tabular-nums">
+                <span>Indeks Kepatuhan SLA: {slaCompliancePercent}%</span>
               </div>
-              <div className="text-[11px] text-slate-500">Target Kelurahan &ge; 90%</div>
             </div>
+            <h2 className="text-base sm:text-lg font-extrabold text-[#0D3868]">
+              Monitoring SLA Pelayanan Surat &amp; Penanganan Pengaduan
+            </h2>
+            <p className="text-xs text-slate-600 w-full">
+              Target standar: Pra Registrasi Surat maksimal 4 Jam Kerja · Pengaduan Darurat &lt; 2
+              Jam · Pengaduan Normal &lt; 24 Jam.
+            </p>
           </div>
 
           {/* SLA Filter Buttons */}

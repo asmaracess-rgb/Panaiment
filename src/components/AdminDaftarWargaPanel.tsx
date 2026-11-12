@@ -889,79 +889,82 @@ export const AdminDaftarWargaPanel: React.FC<AdminDaftarWargaPanelProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Header Banner */}
-      <div className="rounded-3xl bg-gradient-to-r from-[#0D3868] via-[#072647] to-[#0277BD] text-white p-6 sm:p-8 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/20 text-sky-200 text-xs font-bold uppercase tracking-wider mb-2">
-              <Users className="w-3.5 h-3.5" />
-              <span>Modul Direktori Warga & Parameter Akses Menu</span>
-            </div>
-            <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
-              User Warga Terdaftar & Parameter Batasan Akses Menu
-            </h2>
-            <p className="mt-1 text-xs sm:text-sm text-sky-100/90 max-w-2xl leading-relaxed">
-              Kelola seluruh akun warga yang terdaftar sekaligus atur parameter menu apa saja (di luar menu Administrator) yang diaktifkan untuk <strong>Warga Belum Terdaftar (Pengunjung)</strong> maupun <strong>Warga Terdaftar (Login)</strong>.
-            </p>
+      {/* Header Banner (Compact & Simplified) */}
+      <div className="rounded-2xl bg-gradient-to-r from-[#0D3868] via-[#072647] to-[#0277BD] text-white p-3.5 sm:p-4 shadow-xs space-y-2.5">
+        <div className="w-full space-y-1">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 border border-white/20 text-sky-200 text-[10px] font-bold uppercase tracking-wider">
+            <Users className="w-3 h-3" />
+            <span>Modul Direktori Warga &amp; Parameter Akses Menu</span>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={handleExportCsv}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/25 text-white text-xs font-bold transition cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Ekspor CSV</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold shadow-xs transition cursor-pointer"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Cetak Daftar</span>
-            </button>
-          </div>
+          <h2 className="text-base sm:text-lg font-extrabold text-white tracking-tight">
+            User Warga Terdaftar &amp; Parameter Batasan Akses Menu
+          </h2>
+          <p className="text-xs text-sky-100/90 w-full leading-relaxed">
+            Kelola seluruh akun warga yang terdaftar sekaligus atur parameter menu apa saja (di luar menu Administrator) yang diaktifkan untuk <strong>Warga Belum Terdaftar (Pengunjung)</strong> maupun <strong>Warga Terdaftar (Login)</strong>.
+          </p>
         </div>
 
-        {/* Statistics Metric Cards */}
-        <div className="mt-6 pt-6 border-t border-white/15 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div className="p-4 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-xs">
-            <div className="text-xs text-sky-200 font-medium">Total Warga Terdaftar</div>
-            <div className="text-2xl sm:text-3xl font-black font-mono-num mt-1">
+        {/* Action Buttons Below Text */}
+        <div className="flex flex-wrap items-center gap-2 pt-0.5">
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 border border-emerald-400/40 text-white text-xs font-bold transition cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Ekspor CSV</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500/30 hover:bg-sky-500/45 border border-sky-300/40 text-white text-xs font-bold shadow-2xs transition cursor-pointer"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span>Cetak Daftar</span>
+          </button>
+        </div>
+
+        {/* 4 Compact Statistics Metric Cards */}
+        <div className="pt-2.5 border-t border-white/15 grid grid-cols-2 lg:grid-cols-4 gap-2">
+          <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[11px] text-sky-200 font-bold truncate">Total Warga</div>
+              <div className="text-[10px] text-sky-200/80 truncate">Akun Warga Aktif</div>
+            </div>
+            <div className="text-sm sm:text-base font-black font-mono-num shrink-0">
               {stats.total}
             </div>
-            <div className="text-[10px] text-sky-200/80 mt-0.5">Akun Warga Aktif</div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-indigo-400/15 border border-indigo-300/30 backdrop-blur-xs">
-            <div className="text-xs text-indigo-200 font-medium">Alamat Email Terdaftar</div>
-            <div className="text-2xl sm:text-3xl font-black font-mono-num text-indigo-200 mt-1">
+          <div className="px-3 py-2 rounded-xl bg-indigo-400/15 border border-indigo-300/30 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[11px] text-indigo-200 font-bold truncate">Email Terdaftar</div>
+              <div className="text-[10px] text-indigo-200/80 truncate">
+                {stats.total > 0 ? Math.round((stats.withEmail / stats.total) * 100) : 0}% Terautentikasi
+              </div>
+            </div>
+            <div className="text-sm sm:text-base font-black font-mono-num text-indigo-200 shrink-0">
               {stats.withEmail}
             </div>
-            <div className="text-[10px] text-indigo-200/80 mt-0.5">
-              {stats.total > 0 ? Math.round((stats.withEmail / stats.total) * 100) : 0}% Akun Terautentikasi
-            </div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-emerald-400/15 border border-emerald-300/30 backdrop-blur-xs">
-            <div className="text-xs text-emerald-200 font-medium">Menu Aktif Pengunjung</div>
-            <div className="text-2xl sm:text-3xl font-black font-mono-num text-emerald-200 mt-1">
+          <div className="px-3 py-2 rounded-xl bg-emerald-400/15 border border-emerald-300/30 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[11px] text-emerald-200 font-bold truncate">Menu Pengunjung</div>
+              <div className="text-[10px] text-emerald-200/80 truncate">Tanpa Login</div>
+            </div>
+            <div className="text-sm sm:text-base font-black font-mono-num text-emerald-200 shrink-0">
               {draftGuestMenus.length}/{ALL_CITIZEN_MENU_KEYS.length}
             </div>
-            <div className="text-[10px] text-emerald-200/80 mt-0.5">
-              Warga Belum Terdaftar (Tanpa Login)
-            </div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-amber-400/15 border border-amber-300/30 backdrop-blur-xs">
-            <div className="text-xs text-amber-200 font-medium">Menu Aktif Warga Login</div>
-            <div className="text-2xl sm:text-3xl font-black font-mono-num text-amber-300 mt-1">
-              {draftRegisteredMenus.length}/{ALL_CITIZEN_MENU_KEYS.length}
+          <div className="px-3 py-2 rounded-xl bg-amber-400/15 border border-amber-300/30 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[11px] text-amber-200 font-bold truncate">Menu Warga Login</div>
+              <div className="text-[10px] text-amber-200/80 truncate">Sudah Login</div>
             </div>
-            <div className="text-[10px] text-amber-200/80 mt-0.5">
-              Warga Terdaftar (Sudah Login)
+            <div className="text-sm sm:text-base font-black font-mono-num text-amber-300 shrink-0">
+              {draftRegisteredMenus.length}/{ALL_CITIZEN_MENU_KEYS.length}
             </div>
           </div>
         </div>

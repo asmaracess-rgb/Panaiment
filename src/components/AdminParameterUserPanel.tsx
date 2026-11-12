@@ -1722,110 +1722,97 @@ export const AdminParameterUserPanel: React.FC<AdminParameterUserPanelProps> = (
     <div className="space-y-6">
       {/* Top Banner & Summary Metrics */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-        <div className="bg-gradient-to-r from-[#0D3868] via-[#0B2F57] to-[#1C8237] px-5 sm:px-6 py-5 text-white flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div>
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/15 text-[11px] font-bold uppercase tracking-wider text-emerald-200 mb-2">
-              <ShieldCheck className="w-3.5 h-3.5" />
+        <div className="bg-gradient-to-r from-[#0D3868] via-[#0B2F57] to-[#1C8237] p-3.5 sm:p-4 text-white space-y-2.5 border-b border-slate-200">
+          <div className="w-full space-y-1">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 text-[10px] font-extrabold uppercase tracking-wider text-emerald-200">
+              <ShieldCheck className="w-3 h-3" />
               <span>
                 Sub-Menu 2: Parameter Admin · Struktur Perwali Kota Makassar No. 65 Tahun 2023
               </span>
             </div>
-            <h2 className="text-lg sm:text-xl font-extrabold tracking-tight text-white">
-              Parameter Admin: Manajemen Akun Pejabat & Batasan Hak Akses (RBAC)
+            <h2 className="text-base sm:text-lg font-extrabold tracking-tight text-white">
+              Parameter Admin: Manajemen Akun Pejabat &amp; Batasan Hak Akses (RBAC)
             </h2>
-            <p className="mt-1 text-xs sm:text-sm text-sky-100 max-w-3xl">
+            <p className="text-xs text-sky-100 w-full leading-relaxed">
               Kelola akun pejabat struktural (Lurah, Sekretaris Lurah, 3 Kasi, Staf Seksi, Ketua
-              LPM & Operator PTSP) serta atur hak akses ke <strong>12 Menu Utama Admin</strong> (
+              LPM &amp; Operator PTSP) serta atur hak akses ke <strong>12 Menu Utama Admin</strong> (
               {totalSubMenusCount} Sub-Modul),{' '}
               <strong>13 Layanan Administrasi Surat Resmi (PM-01 s/d SL-13)</strong>, dan{' '}
               <strong>9 Kategori Pengaduan Warga</strong>.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {/* Action Buttons Below Text */}
+          <div className="flex flex-wrap items-center gap-2 pt-0.5">
+            <button
+              type="button"
+              onClick={openAddUserModal}
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-extrabold shadow-2xs transition-colors cursor-pointer"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>+ Tambah Akun User Admin</span>
+            </button>
+
             <button
               type="button"
               disabled={isSaving}
               onClick={handleSyncWithStructuralProfile}
               title="Sinkronkan Nama, NIP, Jabatan & Hak Akses dari Struktur Profil Kelurahan (Perwali 65/2023)"
-              className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white border border-white/25 text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400/40 text-xs font-bold shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
             >
-              <RefreshCw className={`w-4 h-4 ${isSaving ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${isSaving ? 'animate-spin' : ''}`} />
               <span>Sinkronkan dari Struktur Profil</span>
             </button>
 
-            <button
-              type="button"
-              onClick={openAddUserModal}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs sm:text-sm font-extrabold shadow-sm transition-colors cursor-pointer shrink-0"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>+ Tambah Akun User Admin</span>
-            </button>
-          </div>
-        </div>
-
-        {/* 4 Summary Cards */}
-        <div className="p-5 sm:p-6 grid grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-50/70 border-b border-slate-200">
-          <div className="bg-white p-3.5 rounded-xl border border-slate-200">
-            <div className="text-[11px] font-bold text-slate-500 uppercase">
-              Total Akun Terdaftar
-            </div>
-            <div className="mt-1 text-2xl font-extrabold text-[#0D3868] font-mono-num">
-              {adminUsers.length} Akun
-            </div>
-            <div className="mt-0.5 text-[11px] text-slate-500">
-              Lurah, Seklur, 3 Kasi, Staf & Operator
-            </div>
-          </div>
-
-          <div className="bg-white p-3.5 rounded-xl border border-emerald-200">
-            <div className="text-[11px] font-bold text-emerald-700 uppercase">
-              Status Akun Aktif
-            </div>
-            <div className="mt-1 text-2xl font-extrabold text-emerald-700 font-mono-num">
-              {totalActiveUsers} Aktif
-            </div>
-            <div className="mt-0.5 text-[11px] text-slate-500">
-              {adminUsers.length - totalActiveUsers} Akun Nonaktif / Dibekukan
-            </div>
-          </div>
-
-          <div className="bg-white p-3.5 rounded-xl border border-sky-200">
-            <div className="text-[11px] font-bold text-[#0277BD] uppercase">
-              Cakupan Menu & ModulSaat Ini
-            </div>
-            <div className="mt-1 text-2xl font-extrabold text-[#0277BD] font-mono-num">
-              {ADMIN_MODULE_OPTIONS.length} Menu
-            </div>
-            <div className="mt-0.5 text-[11px] text-slate-500">
-              {totalSubMenusCount} Sub-Modul (BSU/Teba/Biopori, Siskamling, Bagan, dll.)
-            </div>
-          </div>
-
-          <div className="bg-white p-3.5 rounded-xl border border-amber-200">
-            <div className="text-[11px] font-bold text-amber-800 uppercase">
-              Layanan Surat & Aduan Warga
-            </div>
-            <div className="mt-1 text-2xl font-extrabold text-amber-700 font-mono-num">
-              {OFFICIAL_13_WARGA_SERVICES.length} Surat · {REPORT_COMPLAINT_CATEGORIES.length} Aduan
-            </div>
-            <div className="mt-0.5 text-[11px] text-slate-500">
-              Terpetakan dalam {serviceCatalog.length} Bidang Layanan
-            </div>
-          </div>
-        </div>
-
-        {/* Overview of Current Menu Architecture & Structural Mapping */}
-        <div className="px-5 sm:px-6 py-3.5 bg-sky-50/60 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
-          <div className="flex items-center gap-2 text-[#0D3868] font-bold">
-            <Layers className="w-4 h-4 text-[#0277BD] shrink-0" />
-            <span>
-              Struktur Menu Aktif Saat Ini: Dashboard Lurah · Pengurusan Warga (13 Surat & 9 Aduan)
-              · Profil & Bagan Kelurahan · Info & IG · Laporan & WA · Sampah (BSU, Teba, Biopori) ·
-              Kerja Bakti · Urban Farming (7 Sub-Modul) · RT/RW, Bagan LPM & Siskamling · Traffic
-              Real-Time · Parameter User · Log Aktivitas WITA
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500/30 border border-sky-300/40 text-white text-[11px] font-bold">
+              <Layers className="w-3.5 h-3.5 text-sky-200 shrink-0" />
+              <span>12 Menu Utama · {totalSubMenusCount} Sub-Modul Terintegrasi</span>
             </span>
+          </div>
+
+          {/* 4 Compact Summary Number Cards Inside Banner */}
+          <div className="pt-2.5 border-t border-white/15 grid grid-cols-2 lg:grid-cols-4 gap-2">
+            <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-[11px] font-bold text-sky-200 truncate">Total Akun Admin</div>
+                <div className="text-[10px] text-sky-100/80 truncate">Pejabat, Staf &amp; Operator</div>
+              </div>
+              <div className="text-sm sm:text-base font-extrabold text-white font-mono-num shrink-0">
+                {adminUsers.length}
+              </div>
+            </div>
+
+            <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-[11px] font-bold text-emerald-200 truncate">Status Akun Aktif</div>
+                <div className="text-[10px] text-sky-100/80 truncate">
+                  {adminUsers.length - totalActiveUsers} Nonaktif
+                </div>
+              </div>
+              <div className="text-sm sm:text-base font-extrabold text-emerald-300 font-mono-num shrink-0">
+                {totalActiveUsers}
+              </div>
+            </div>
+
+            <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-[11px] font-bold text-sky-200 truncate">Cakupan Menu</div>
+                <div className="text-[10px] text-sky-100/80 truncate">{totalSubMenusCount} Sub-Modul</div>
+              </div>
+              <div className="text-sm sm:text-base font-extrabold text-amber-300 font-mono-num shrink-0">
+                {ADMIN_MODULE_OPTIONS.length}
+              </div>
+            </div>
+
+            <div className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-[11px] font-bold text-amber-200 truncate">Surat &amp; Aduan</div>
+                <div className="text-[10px] text-sky-100/80 truncate">{serviceCatalog.length} Bidang Layanan</div>
+              </div>
+              <div className="text-sm sm:text-base font-extrabold text-white font-mono-num shrink-0">
+                {OFFICIAL_13_WARGA_SERVICES.length}/{REPORT_COMPLAINT_CATEGORIES.length}
+              </div>
+            </div>
           </div>
         </div>
 
