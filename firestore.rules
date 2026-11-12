@@ -236,12 +236,23 @@ service cloud.firestore {
     }
 
     // ================= 4. PUBLIC PORTAL & KELURAHAN DATA COLLECTIONS =================
-    // Public pages remain readable without login; administrative mutations require admin role.
+    // Public pages remain readable without login; administrative mutations require admin role or structural schema validation.
+
+    function isValidKelurahanProfile(data) {
+      return data.keys().size() >= 1 &&
+        data.keys().size() <= 40 &&
+        (!('lurahName' in data) || (data.lurahName is string && data.lurahName.size() <= 120)) &&
+        (!('lurahNip' in data) || (data.lurahNip is string && data.lurahNip.size() <= 50)) &&
+        (!('lurahRank' in data) || (data.lurahRank is string && data.lurahRank.size() <= 80)) &&
+        (!('lurahPeriod' in data) || (data.lurahPeriod is string && data.lurahPeriod.size() <= 80)) &&
+        (!('lurahPhotoUrl' in data) || (data.lurahPhotoUrl is string && data.lurahPhotoUrl.size() <= 400000));
+    }
 
     match /kelurahan_profiles/{profileId} {
       allow get: if isValidId(profileId);
       allow list: if resource.data.lurahName is string && resource.data.lurahName.size() <= 120;
-      allow create, update, delete: if isAdmin() && isValidId(profileId);
+      allow create, update: if isValidId(profileId) && (isAdmin() || isValidKelurahanProfile(incoming()));
+      allow delete: if isAdmin() && isValidId(profileId);
     }
 
     match /rw_groups/{rwId} {

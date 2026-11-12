@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   FileText,
   AlertCircle,
@@ -96,6 +96,7 @@ interface AdminPengurusanWargaPanelProps {
     action: 'SETUJUI' | 'TOLAK' | 'KEMBALIKAN',
     lurahNote: string
   ) => Promise<void>;
+  initialMainFilter?: 'ALL' | 'SURAT' | 'ADUAN';
 }
 
 const DEFAULT_RW_LIST = ['RW 01', 'RW 02', 'RW 03', 'RW 04', 'RW 05', 'RW 06', 'RW 07'];
@@ -116,6 +117,7 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
   onUpdateReport,
   onDeleteReport,
   onLurahApproveService,
+  initialMainFilter = 'ALL',
 }) => {
   const effectivePerms: AdminActionPermissions = actionPermissions || {
     canCreate: true,
@@ -128,7 +130,13 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
   };
 
   // Main Category Filter: 'ALL' | 'SURAT' | 'ADUAN'
-  const [activeMainFilter, setActiveMainFilter] = useState<'ALL' | 'SURAT' | 'ADUAN'>('ALL');
+  const [activeMainFilter, setActiveMainFilter] = useState<'ALL' | 'SURAT' | 'ADUAN'>(initialMainFilter);
+
+  useEffect(() => {
+    if (initialMainFilter) {
+      setActiveMainFilter(initialMainFilter);
+    }
+  }, [initialMainFilter]);
 
   // Sub-filters & Search
   const [selectedSuratCode, setSelectedSuratCode] = useState<string>('ALL');
@@ -787,66 +795,55 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
   };
 
   return (
-    <div className="space-y-6">
-      {/* Top Banner & Title */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+    <div className="space-y-4">
+      {/* Compact Header & Quick Actions */}
+      <div className="bg-white rounded-xl border border-slate-200 px-4 py-3 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <div>
-            <div className="flex flex-wrap items-center gap-2 mb-1.5">
-              <span className="px-2.5 py-0.5 rounded-md bg-[#0D3868] text-white text-[10px] font-black uppercase tracking-wider">
-                ADMIN PELAYANAN KELURAHAN
-              </span>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
-                <Database className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Google Cloud Firestore: Aktif & Terhubung</span>
-              </span>
-            </div>
-            <h2 className="text-xl sm:text-2xl font-black text-[#0D3868] tracking-tight">
-              Admin Pelayanan Kelurahan: Pra Registrasi & Pengaduan Online
-            </h2>
-            <p className="mt-1 text-xs sm:text-sm text-slate-600 max-w-3xl">
-              Pusat operasional loket kelurahan: pemeriksaan kelengkapan berkas fisik, verifikasi pemohon pra registrasi online, dan tindak lanjut laporan pengaduan warga Kelurahan Panaikang.
+            <h3 className="text-sm sm:text-base font-extrabold text-[#0D3868]">
+              Daftar Berkas Pra Registrasi Surat &amp; Laporan Pengaduan Warga
+            </h3>
+            <p className="text-[11px] text-slate-500">
+              Pemeriksaan berkas pemohon surat, penerbitan nomor surat resmi, dan tindak lanjut aduan warga.
             </p>
           </div>
 
-          {/* Top Actions: Input Baru & Cloud Sync */}
-          <div className="flex flex-wrap items-center gap-2 self-start lg:self-center shrink-0">
+          <div className="flex flex-wrap items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={handleTriggerCloudSync}
               disabled={isSyncingCloud}
-              className="px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-              title="Periksa dan sinkronkan data ke Cloud Firestore"
+              className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
+              title="Sinkronkan data ke Cloud Firestore"
             >
-              <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isSyncingCloud ? 'animate-spin' : ''}`} />
-              <span>{isSyncingCloud ? 'Menyinkronkan...' : 'Sinkronkan Cloud'}</span>
+              <RefreshCw className={`w-3 h-3 text-emerald-600 ${isSyncingCloud ? 'animate-spin' : ''}`} />
+              <span>{isSyncingCloud ? 'Sinkron...' : 'Sinkron Cloud'}</span>
             </button>
 
             <button
               type="button"
               onClick={() => handleOpenAdd('SURAT')}
-              className="px-4 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-black transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+              className="px-3 py-1.5 rounded-lg bg-[#0D3868] hover:bg-[#072647] text-white text-[11px] font-extrabold transition flex items-center gap-1 cursor-pointer"
             >
-              <Plus className="w-4 h-4 text-amber-300" />
-              <span>+ Input Surat / Pengajuan</span>
+              <Plus className="w-3.5 h-3.5 text-amber-300" />
+              <span>+ Input Surat</span>
             </button>
 
             <button
               type="button"
               onClick={() => handleOpenAdd('ADUAN')}
-              className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+              className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 text-[11px] font-extrabold transition flex items-center gap-1 cursor-pointer"
             >
-              <AlertCircle className="w-4 h-4 text-slate-950" />
-              <span>+ Input Aduan Warga</span>
+              <AlertCircle className="w-3.5 h-3.5 text-slate-950" />
+              <span>+ Input Aduan</span>
             </button>
           </div>
         </div>
 
-        {/* Feedback Message */}
         {feedbackMsg && (
-          <div className="mt-4 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 flex items-center justify-between gap-3 text-xs font-bold animate-fadeIn">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <div className="mt-2.5 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-950 flex items-center justify-between gap-2 text-xs font-bold">
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
               <span>{feedbackMsg}</span>
             </div>
             <button
@@ -854,15 +851,14 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
               onClick={() => setFeedbackMsg('')}
               className="text-emerald-700 hover:text-emerald-950 cursor-pointer"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
 
-        {/* Error List */}
         {errorList.length > 0 && (
-          <div className="mt-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-900 text-xs animate-fadeIn">
-            <div className="font-bold mb-1">Periksa kembali data Anda:</div>
+          <div className="mt-2.5 p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-900 text-xs">
+            <div className="font-bold mb-0.5">Periksa kembali data Anda:</div>
             <ul className="list-disc list-inside space-y-0.5">
               {errorList.map((err, i) => (
                 <li key={i}>{err}</li>
@@ -872,9 +868,8 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
         )}
       </div>
 
-      {/* 3 Sederhana & Jelas Category Summary Cards (Menggantikan 7 Bidang yang Rumit) */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {/* Card 1: Semua Pengajuan & Laporan */}
+      {/* Kartu Ringkas Angka Pengajuan Surat & Pengaduan (Ukuran Diperkecil & Sederhana) */}
+      <div className="grid grid-cols-3 gap-2.5">
         <button
           type="button"
           onClick={() => {
@@ -882,127 +877,79 @@ export const AdminPengurusanWargaPanel: React.FC<AdminPengurusanWargaPanelProps>
             setSelectedSuratCode('ALL');
             setSelectedAduanCategory('ALL');
           }}
-          className={`p-5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between shadow-2xs ${
+          className={`px-3 py-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2 ${
             activeMainFilter === 'ALL'
-              ? 'bg-[#0D3868] text-white border-[#0D3868] ring-2 ring-sky-300'
+              ? 'bg-[#0D3868] text-white border-[#0D3868] shadow-2xs'
               : 'bg-white hover:border-[#0277BD] text-slate-800 border-slate-200'
           }`}
         >
-          <div className="flex items-center justify-between">
-            <span
-              className={`text-[11px] font-extrabold uppercase tracking-wider ${
+          <div className="min-w-0">
+            <div
+              className={`text-[10px] font-bold uppercase tracking-wider truncate ${
                 activeMainFilter === 'ALL' ? 'text-sky-200' : 'text-slate-500'
               }`}
             >
-              Semua Pengajuan Warga
-            </span>
-            <span className="font-mono-num text-2xl font-black">{reports.length}</span>
+              Semua Data
+            </div>
+            <div className="text-xs font-extrabold truncate">Surat &amp; Pengaduan</div>
           </div>
-          <div className="mt-2 text-base font-black">Seluruh Berkas & Laporan</div>
-          <div
-            className={`mt-3 pt-2.5 border-t text-[11px] font-semibold flex items-center justify-between ${
-              activeMainFilter === 'ALL'
-                ? 'border-white/15 text-sky-100'
-                : 'border-slate-100 text-slate-500'
-            }`}
-          >
-            <span>Surat: {totalSuratCount} · Aduan: {totalAduanCount}</span>
-            <span>Semua Data →</span>
-          </div>
+          <span className="font-mono-num text-base sm:text-lg font-black shrink-0 px-2 py-0.5 rounded-lg bg-black/10">
+            {reports.length}
+          </span>
         </button>
 
-        {/* Card 2: Pra Registrasi Online */}
         <button
           type="button"
           onClick={() => {
             setActiveMainFilter('SURAT');
             setSelectedAduanCategory('ALL');
           }}
-          className={`p-5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between shadow-2xs ${
+          className={`px-3 py-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2 ${
             activeMainFilter === 'SURAT'
-              ? 'bg-[#0277BD] text-white border-[#0277BD] ring-2 ring-sky-300'
+              ? 'bg-[#0277BD] text-white border-[#0277BD] shadow-2xs'
               : 'bg-white hover:border-[#0277BD] text-slate-800 border-slate-200'
           }`}
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span
-                className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                  activeMainFilter === 'SURAT'
-                    ? 'bg-white/20 text-white'
-                    : 'bg-sky-100 text-[#0277BD]'
-                }`}
-              >
-                <FileText className="w-4 h-4" />
-              </span>
-              <span
-                className={`text-[11px] font-extrabold uppercase tracking-wider ${
-                  activeMainFilter === 'SURAT' ? 'text-sky-200' : 'text-[#0277BD]'
-                }`}
-              >
-                Pra Registrasi Online
-              </span>
+          <div className="min-w-0">
+            <div
+              className={`text-[10px] font-bold uppercase tracking-wider truncate ${
+                activeMainFilter === 'SURAT' ? 'text-sky-100' : 'text-[#0277BD]'
+              }`}
+            >
+              Pra Registrasi
             </div>
-            <span className="font-mono-num text-2xl font-black">{totalSuratCount}</span>
+            <div className="text-xs font-extrabold truncate">Pengajuan Surat</div>
           </div>
-          <div className="mt-2 text-base font-black">13 Layanan Surat Administrasi</div>
-          <div
-            className={`mt-3 pt-2.5 border-t text-[11px] font-semibold flex items-center justify-between ${
-              activeMainFilter === 'SURAT'
-                ? 'border-white/15 text-sky-100'
-                : 'border-slate-100 text-slate-500'
-            }`}
-          >
-            <span>SKCK, SKU, Domisili, Ahli Waris, dll.</span>
-            <span>Verifikasi Loket →</span>
-          </div>
+          <span className="font-mono-num text-base sm:text-lg font-black shrink-0 px-2 py-0.5 rounded-lg bg-black/10">
+            {totalSuratCount}
+          </span>
         </button>
 
-        {/* Card 3: Pengaduan Online */}
         <button
           type="button"
           onClick={() => {
             setActiveMainFilter('ADUAN');
             setSelectedSuratCode('ALL');
           }}
-          className={`p-5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between shadow-2xs ${
+          className={`px-3 py-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2 ${
             activeMainFilter === 'ADUAN'
-              ? 'bg-emerald-700 text-white border-emerald-700 ring-2 ring-emerald-300'
+              ? 'bg-emerald-700 text-white border-emerald-700 shadow-2xs'
               : 'bg-white hover:border-emerald-600 text-slate-800 border-slate-200'
           }`}
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span
-                className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                  activeMainFilter === 'ADUAN'
-                    ? 'bg-white/20 text-white'
-                    : 'bg-emerald-100 text-emerald-900'
-                }`}
-              >
-                <AlertCircle className="w-4 h-4" />
-              </span>
-              <span
-                className={`text-[11px] font-extrabold uppercase tracking-wider ${
-                  activeMainFilter === 'ADUAN' ? 'text-emerald-200' : 'text-emerald-700'
-                }`}
-              >
-                Pengaduan Online
-              </span>
+          <div className="min-w-0">
+            <div
+              className={`text-[10px] font-bold uppercase tracking-wider truncate ${
+                activeMainFilter === 'ADUAN' ? 'text-emerald-100' : 'text-emerald-700'
+              }`}
+            >
+              Pengaduan
             </div>
-            <span className="font-mono-num text-2xl font-black">{totalAduanCount}</span>
+            <div className="text-xs font-extrabold truncate">Aduan Warga</div>
           </div>
-          <div className="mt-2 text-base font-black">10 Kategori Aduan & Aspirasi</div>
-          <div
-            className={`mt-3 pt-2.5 border-t text-[11px] font-semibold flex items-center justify-between ${
-              activeMainFilter === 'ADUAN'
-                ? 'border-white/15 text-emerald-100'
-                : 'border-slate-100 text-slate-500'
-            }`}
-          >
-            <span>Infrastruktur, Kebersihan, Fasum, dll.</span>
-            <span>Tindak Lanjut →</span>
-          </div>
+          <span className="font-mono-num text-base sm:text-lg font-black shrink-0 px-2 py-0.5 rounded-lg bg-black/10">
+            {totalAduanCount}
+          </span>
         </button>
       </div>
 

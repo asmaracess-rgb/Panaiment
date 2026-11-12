@@ -67,6 +67,7 @@ interface AdminUrbanFarmingPanelProps {
     req: Partial<SeedRequestItem>
   ) => Promise<{ ok: boolean; errors?: string[] }>;
   onDeleteSeedRequest?: (id: string) => Promise<{ ok: boolean; errors?: string[] }>;
+  activeSubView?: string;
 }
 
 const FARM_TYPES: FarmType[] = [
@@ -98,6 +99,7 @@ export const AdminUrbanFarmingPanel: React.FC<AdminUrbanFarmingPanelProps> = ({
   onAddSeedRequest,
   onUpdateSeedRequest,
   onDeleteSeedRequest,
+  activeSubView = 'ALL',
 }) => {
   const [collapsedCards, setCollapsedCards] = useState<Record<string, boolean>>({});
   const toggleCard = (key: string) =>
@@ -746,6 +748,7 @@ export const AdminUrbanFarmingPanel: React.FC<AdminUrbanFarmingPanelProps> = ({
       )}
 
       {/* ================= KARTU SUB-MENU 01: KELOLA DATA KEBUN URBAN FARMING ================= */}
+      {(activeSubView === 'ALL' || !activeSubView || activeSubView === 'uf_card_kebun' || activeSubView === 'urban_kebun') && (
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
         <div
           onClick={() => toggleCard('uf_card_kebun')}
@@ -1091,8 +1094,10 @@ export const AdminUrbanFarmingPanel: React.FC<AdminUrbanFarmingPanelProps> = ({
           </div>
         )}
       </div>
+      )}
 
       {/* ================= KARTU SUB-MENU 02: KELOLA PERMOHONAN BIBIT GRATIS ================= */}
+      {(activeSubView === 'ALL' || !activeSubView || activeSubView === 'uf_card_bibit') && (
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
         <div
           onClick={() => toggleCard('uf_card_bibit')}
@@ -1391,6 +1396,7 @@ export const AdminUrbanFarmingPanel: React.FC<AdminUrbanFarmingPanelProps> = ({
           </div>
         )}
       </div>
+      )}
 
       {/* ================= MODAL: TAMBAH / EDIT KEBUN URBAN FARMING ================= */}
       {showSpotModal && (

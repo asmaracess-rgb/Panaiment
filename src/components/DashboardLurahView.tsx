@@ -35,6 +35,13 @@ import {
   Filter,
   ChevronDown,
   ChevronUp,
+  Menu,
+  Bell,
+  History,
+  LogOut,
+  Briefcase,
+  Layers,
+  Sliders,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -61,13 +68,21 @@ import {
   PengaduanOnlineRecord,
   PraRegistrasiStatus,
   PengaduanOnlineStatus,
+  MasterLayananItem,
+  MasterPersyaratanItem,
+  AdminActivityLog,
 } from '../types';
 import {
   INITIAL_MONTHLY_TRENDS,
   INITIAL_KELURAHAN_PROFILE,
   INITIAL_RW_GROUPS,
   INITIAL_WHATSAPP_RECIPIENTS,
+  INITIAL_ACTIVITY_LOGS,
 } from '../data/initialData';
+import {
+  INITIAL_MASTER_LAYANAN,
+  INITIAL_MASTER_PERSYARATAN,
+} from '../data/pelayananMasterData';
 import { EmblemKotaMakassar, EmblemKelurahanPanaikang } from './Emblems';
 import { MonthlyArchivePdfPanel } from './MonthlyArchivePdfPanel';
 import {
@@ -96,12 +111,27 @@ import {
 } from '../utils/whatsappHelper';
 import { Download } from 'lucide-react';
 
+export type LurahWorkflowNavKey =
+  | 'dashboard'
+  | 'pra_registrasi'
+  | 'pengaduan'
+  | 'daftar_layanan'
+  | 'persyaratan_layanan'
+  | 'penugasan'
+  | 'sla'
+  | 'notifikasi'
+  | 'riwayat_aktivitas'
+  | 'pengaturan';
+
 interface DashboardLurahViewProps {
   reports: CitizenReport[];
   wasteUnits: WasteBankUnit[];
   cleanupEvents: CleanupEvent[];
   praRegistrasiList?: PraRegistrasiRecord[];
   pengaduanList?: PengaduanOnlineRecord[];
+  masterLayananList?: MasterLayananItem[];
+  masterPersyaratanList?: MasterPersyaratanItem[];
+  activityLogs?: AdminActivityLog[];
   profile?: KelurahanProfile;
   rwGroups?: RwGroup[];
   whatsappRecipients?: WhatsAppRecipient[];
@@ -125,6 +155,9 @@ interface DashboardLurahViewProps {
   onRedirectToAdminLogin?: () => void;
   onOpenWhatsAppManager?: () => void;
   onPdfDownloaded?: (result: GeneratedPdfResult) => void;
+  onLogout?: () => void;
+  onSwitchToOperatorMode?: () => void;
+  onOpenAdminTab?: (tab: string) => void;
 }
 
 const TEAM_OPTIONS = [
@@ -158,6 +191,9 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
   cleanupEvents,
   praRegistrasiList = [],
   pengaduanList = [],
+  masterLayananList = INITIAL_MASTER_LAYANAN,
+  masterPersyaratanList = INITIAL_MASTER_PERSYARATAN,
+  activityLogs = INITIAL_ACTIVITY_LOGS,
   profile = INITIAL_KELURAHAN_PROFILE,
   rwGroups = INITIAL_RW_GROUPS,
   whatsappRecipients = INITIAL_WHATSAPP_RECIPIENTS,
@@ -170,10 +206,15 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
   onRedirectToAdminLogin,
   onOpenWhatsAppManager,
   onPdfDownloaded,
+  onLogout,
+  onSwitchToOperatorMode,
+  onOpenAdminTab,
 }) => {
   const [collapsedCards, setCollapsedCards] = useState<Record<string, boolean>>({});
   const toggleCard = (key: string) =>
     setCollapsedCards((prev) => ({ ...prev, [key]: !prev[key] }));
+  const [isLurahDrawerOpen, setIsLurahDrawerOpen] = useState(false);
+  const [activeLurahNav, setActiveLurahNav] = useState<LurahWorkflowNavKey>('dashboard');
   const [statusFilter, setStatusFilter] = useState<'Semua' | ReportStatus>('Semua');
   const [rwFilter, setRwFilter] = useState<string>('Semua');
   const [selectedReportId, setSelectedReportId] = useState<string>(reports[0]?.id || '');
@@ -800,130 +841,823 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
     );
   }
 
+  const pendingLurahApprovalsCount = useMemo(
+    () =>
+      mergedPraList.filter(
+        (p) =>
+          p.status === 'MENUNGGU_PERSETUJUAN' ||
+          p.status === 'DIAJUKAN' ||
+          p.status === 'VERIFIKASI_PETUGAS' ||
+          p.lurahApprovalStatus === 'MENUNGGU'
+      ).length,
+    [mergedPraList]
+  );
+
+  const activePengaduanCount = useMemo(
+    () => mergedPengaduanList.filter((p) => p.status !== 'SELESAI').length,
+    [mergedPengaduanList]
+  );
+
+  const urgentPengaduanCount = useMemo(
+    () => mergedPengaduanList.filter((p) => p.isPriority && p.status !== 'SELESAI').length,
+    [mergedPengaduanList]
+  );
+
+  const handleSelectLurahWorkflowNav = (navKey: LurahWorkflowNavKey) => {
+    setActiveLurahNav(navKey);
+    setIsLurahDrawerOpen(false);
+
+    if (navKey === 'dashboard') {
+      setCollapsedCards({});
+    } else if (navKey === 'pra_registrasi') {
+      setPersetujuanTab('pra_registrasi');
+      setCollapsedCards({
+        lurah_card_persetujuan: false,
+        lurah_card_disposisi: true,
+        lurah_card_tren: true,
+        lurah_card_arsip_pdf: true,
+      });
+    } else if (navKey === 'pengaduan') {
+      setPersetujuanTab('pengaduan');
+      setCollapsedCards({
+        lurah_card_persetujuan: false,
+        lurah_card_disposisi: true,
+        lurah_card_tren: true,
+        lurah_card_arsip_pdf: true,
+      });
+    } else if (navKey === 'penugasan') {
+      setCollapsedCards({
+        lurah_card_persetujuan: true,
+        lurah_card_disposisi: false,
+        lurah_card_tren: true,
+        lurah_card_arsip_pdf: true,
+      });
+    } else if (navKey === 'sla') {
+      setCollapsedCards({
+        lurah_card_persetujuan: true,
+        lurah_card_disposisi: true,
+        lurah_card_tren: false,
+        lurah_card_arsip_pdf: true,
+      });
+    } else if (navKey === 'riwayat_aktivitas') {
+      setCollapsedCards({
+        lurah_card_persetujuan: true,
+        lurah_card_disposisi: true,
+        lurah_card_tren: true,
+        lurah_card_arsip_pdf: false,
+      });
+    }
+  };
+
+  const lurahSidebarItems: Array<{
+    key: LurahWorkflowNavKey;
+    label: string;
+    subtitle: string;
+    icon: React.ReactNode;
+    badge?: number | string;
+    badgeColor?: string;
+  }> = [
+    {
+      key: 'dashboard',
+      label: 'Dashboard',
+      subtitle: 'Ikhtisar Eksekutif & KPI 360°',
+      icon: <BarChart3 className="w-4 h-4 shrink-0" />,
+    },
+    {
+      key: 'pra_registrasi',
+      label: 'Pra Registrasi Online',
+      subtitle: 'Persetujuan Final Surat Lurah',
+      icon: <FileCheck className="w-4 h-4 shrink-0" />,
+      badge: pendingLurahApprovalsCount > 0 ? pendingLurahApprovalsCount : mergedPraList.length,
+      badgeColor:
+        pendingLurahApprovalsCount > 0
+          ? 'bg-amber-400 text-slate-950'
+          : 'bg-white/15 text-emerald-100',
+    },
+    {
+      key: 'pengaduan',
+      label: 'Pengaduan Online',
+      subtitle: 'Monitoring Aduan & Bukti Lapangan',
+      icon: <AlertCircle className="w-4 h-4 shrink-0" />,
+      badge: activePengaduanCount > 0 ? activePengaduanCount : mergedPengaduanList.length,
+      badgeColor:
+        urgentPengaduanCount > 0
+          ? 'bg-rose-500 text-white'
+          : 'bg-white/15 text-emerald-100',
+    },
+    {
+      key: 'daftar_layanan',
+      label: 'Daftar Layanan',
+      subtitle: 'Otoritas Penandatangan & Standar',
+      icon: <Layers className="w-4 h-4 shrink-0" />,
+      badge: masterLayananList.length,
+      badgeColor: 'bg-white/15 text-emerald-100',
+    },
+    {
+      key: 'persyaratan_layanan',
+      label: 'Persyaratan Layanan',
+      subtitle: 'Checklist Berkas Verifikasi Lurah',
+      icon: <ClipboardCheck className="w-4 h-4 shrink-0" />,
+      badge: masterPersyaratanList.length,
+      badgeColor: 'bg-white/15 text-emerald-100',
+    },
+    {
+      key: 'penugasan',
+      label: 'Penugasan',
+      subtitle: 'Disposisi Lurah & Koordinasi WA',
+      icon: <Briefcase className="w-4 h-4 shrink-0" />,
+      badge: inProgressCount + waitingCount,
+      badgeColor: 'bg-emerald-400 text-slate-950',
+    },
+    {
+      key: 'sla',
+      label: 'SLA',
+      subtitle: 'Kepatuhan SLA & Kinerja RW',
+      icon: <Clock className="w-4 h-4 shrink-0" />,
+    },
+    {
+      key: 'notifikasi',
+      label: 'Notifikasi',
+      subtitle: 'Alert Persetujuan & Aduan Darurat',
+      icon: <Bell className="w-4 h-4 shrink-0" />,
+      badge: pendingLurahApprovalsCount + urgentPengaduanCount,
+      badgeColor:
+        pendingLurahApprovalsCount + urgentPengaduanCount > 0
+          ? 'bg-amber-400 text-slate-950'
+          : 'bg-white/15 text-emerald-100',
+    },
+    {
+      key: 'riwayat_aktivitas',
+      label: 'Riwayat Aktivitas',
+      subtitle: 'Audit Keputusan & Arsip PDF',
+      icon: <History className="w-4 h-4 shrink-0" />,
+      badge: activityLogs.length,
+      badgeColor: 'bg-white/15 text-emerald-100',
+    },
+    {
+      key: 'pengaturan',
+      label: 'Pengaturan',
+      subtitle: 'WA Gateway & Otoritas Pimpinan',
+      icon: <Sliders className="w-4 h-4 shrink-0" />,
+    },
+  ];
+
+  const renderLurahSidebarContent = () => (
+    <div className="flex flex-col h-full bg-gradient-to-b from-[#0A2E56] via-[#0D3868] to-[#114B3E] text-white select-none">
+      {/* Lurah Identity Header */}
+      <div className="p-4 border-b border-white/15">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-5 h-5 text-emerald-300" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-300">
+                Workflow Eksekutif Lurah
+              </div>
+              <div className="text-xs font-extrabold text-white truncate">
+                {profile.lurahName || 'Muthmainnah, SE, MM'}
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsLurahDrawerOpen(false)}
+            className="md:hidden p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white cursor-pointer"
+            aria-label="Tutup menu"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Role Switcher to Operator Mode */}
+        {onSwitchToOperatorMode && (
+          <button
+            type="button"
+            onClick={() => {
+              setIsLurahDrawerOpen(false);
+              onSwitchToOperatorMode();
+            }}
+            className="mt-3 w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-[11px] font-bold text-sky-100 transition-colors cursor-pointer"
+          >
+            <span>Beralih ke Sidebar Operator</span>
+            <SlidersHorizontal className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+          </button>
+        )}
+      </div>
+
+      {/* Navigation Links */}
+      <nav className="flex-1 overflow-y-auto p-2.5 lg:p-3 space-y-1">
+        <div className="px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-emerald-300/80">
+          Sidebar Menu Dashboard Lurah
+        </div>
+        {lurahSidebarItems.map((item) => {
+          const isActive = activeLurahNav === item.key;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => handleSelectLurahWorkflowNav(item.key)}
+              className={`w-full flex items-center justify-between gap-2 px-2.5 lg:px-3 py-2 rounded-xl text-left transition-all cursor-pointer ${
+                isActive
+                  ? 'bg-emerald-600 text-white font-extrabold shadow-xs border border-emerald-400/50'
+                  : 'text-slate-100/90 hover:bg-white/10 hover:text-white font-semibold'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className={isActive ? 'text-amber-300' : 'text-emerald-300'}>
+                  {item.icon}
+                </span>
+                <div className="min-w-0">
+                  <div className="text-xs truncate">{item.label}</div>
+                  <div
+                    className={`text-[10px] truncate ${
+                      isActive ? 'text-emerald-100' : 'text-slate-300/75'
+                    }`}
+                  >
+                    {item.subtitle}
+                  </div>
+                </div>
+              </div>
+              {item.badge !== undefined && Number(item.badge) > 0 && (
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold font-mono-num shrink-0 ${
+                    item.badgeColor || 'bg-white/15 text-white'
+                  }`}
+                >
+                  {item.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* Footer Logout ('Keluar') */}
+      <div className="p-2.5 lg:p-3 border-t border-white/15 space-y-1.5">
+        <button
+          type="button"
+          onClick={() => {
+            setIsLurahDrawerOpen(false);
+            if (onLogout) {
+              onLogout();
+            } else {
+              onNavigate('beranda');
+            }
+          }}
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl bg-red-600/20 hover:bg-red-600 text-red-100 hover:text-white border border-red-400/30 text-xs font-extrabold transition-colors cursor-pointer"
+        >
+          <LogOut className="w-4 h-4 shrink-0" />
+          <span>Keluar</span>
+        </button>
+      </div>
+    </div>
+  );
+
   return (
-    <div className={isEmbeddedInAdmin ? 'space-y-6' : 'mx-auto max-w-6xl px-4 sm:px-6 py-8 space-y-6'}>
-      {/* ================= HEADER & SUB-MENU NAVIGASI DASHBOARD LURAH ================= */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div>
-            {!isEmbeddedInAdmin && (
+    <div
+      className={
+        isEmbeddedInAdmin
+          ? 'flex flex-col md:flex-row gap-4 items-start'
+          : 'mx-auto max-w-7xl px-4 sm:px-6 py-6 flex flex-col md:flex-row gap-4 items-start'
+      }
+    >
+      {/* ================= RESPONSIVE SIDEBAR MENU DASHBOARD LURAH (HP DRAWER + TABLET/DESKTOP SIDEBAR) ================= */}
+      {/* 1. Mobile (HP) Top Trigger Bar & Quick Scrollable Menu */}
+      <div className="w-full md:hidden bg-gradient-to-r from-[#0A2E56] via-[#0D3868] to-[#114B3E] text-white rounded-2xl p-3 space-y-2.5 shadow-xs">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <button
+              type="button"
+              onClick={() => setIsLurahDrawerOpen(true)}
+              className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-white/15 hover:bg-white/25 text-white cursor-pointer shrink-0"
+              aria-label="Buka Sidebar Dashboard Lurah"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div className="min-w-0">
+              <div className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-300">
+                Sidebar Dashboard Lurah
+              </div>
+              <div className="text-xs font-bold text-white truncate">
+                {lurahSidebarItems.find((i) => i.key === activeLurahNav)?.label || 'Dashboard'}
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsLurahDrawerOpen(true)}
+            className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-[11px] font-extrabold text-white shrink-0 cursor-pointer"
+          >
+            Menu Sidebar
+          </button>
+        </div>
+
+        {/* Quick Horizontal Menu on HP */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+          {lurahSidebarItems.map((item) => {
+            const isActive = activeLurahNav === item.key;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => handleSelectLurahWorkflowNav(item.key)}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap shrink-0 transition cursor-pointer ${
+                  isActive
+                    ? 'bg-emerald-500 text-white shadow-2xs'
+                    : 'bg-white/10 text-slate-100 hover:bg-white/20'
+                }`}
+              >
+                {item.icon}
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 2. Mobile (HP) Slide-Over Drawer */}
+      {isLurahDrawerOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex">
+          <div
+            className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs"
+            onClick={() => setIsLurahDrawerOpen(false)}
+          />
+          <div className="relative w-72 max-w-[85vw] h-full shadow-2xl z-10">
+            {renderLurahSidebarContent()}
+          </div>
+        </div>
+      )}
+
+      {/* 3. Tablet & Desktop Fixed/Sticky Side-Nav */}
+      <aside className="hidden md:block w-56 lg:w-64 shrink-0 sticky top-4 rounded-2xl overflow-hidden shadow-xs border border-slate-200/80">
+        {renderLurahSidebarContent()}
+      </aside>
+
+      {/* ================= MAIN CONTENT AREA DASHBOARD LURAH ================= */}
+      <div className="flex-1 min-w-0 w-full space-y-4">
+        {/* Header Ringkas & Kartu Ringkas Angka Pengajuan Surat & Pengaduan (Diperkecil) */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-4 shadow-xs space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                <span className="inline-flex items-center gap-1 font-extrabold text-[#1C8237] uppercase tracking-wider">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Dashboard Eksekutif Lurah</span>
+                </span>
+                <span>·</span>
+                <span>Pimpinan: {profile.lurahName}</span>
+              </div>
+              <h2 className="text-sm sm:text-base font-extrabold text-[#0D3868] tracking-tight truncate">
+                {lurahSidebarItems.find((i) => i.key === activeLurahNav)?.label || 'Dashboard'} — {lurahSidebarItems.find((i) => i.key === activeLurahNav)?.subtitle}
+              </h2>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+              {onSwitchToOperatorMode && (
+                <button
+                  type="button"
+                  onClick={onSwitchToOperatorMode}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-[11px] font-bold transition-colors cursor-pointer"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Dashboard Operator Layanan</span>
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => onNavigate('beranda')}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-900 mb-2 cursor-pointer"
+                onClick={scrollToWhatsAppManager}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#128C7E] hover:bg-[#075E54] text-white text-[11px] font-bold transition-colors cursor-pointer"
               >
-                <ArrowLeft className="w-4 h-4" />
-                <span>Kembali ke Portal Utama</span>
+                <Phone className="w-3 h-3" />
+                <span>WA Gateway ({activeWaCount})</span>
               </button>
-            )}
-            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mb-1">
-              <span className="inline-flex items-center gap-1 font-bold text-[#1C8237]">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>AKSES EKSKLUSIF LURAH PANAIKANG</span>
-              </span>
-              <span aria-hidden="true">·</span>
-              <span>Pimpinan: {profile.lurahName}</span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-extrabold text-[#0D3868] tracking-tight">
-              Dashboard Eksekutif Lurah Panaikang
-            </h2>
-            <p className="mt-1 text-xs sm:text-sm text-slate-600">
-              Kendali mutu penanganan laporan warga, disposisi Satgas Kebersihan, pengunduhan arsip
-              fisik PDF bulanan, serta evaluasi kinerja lingkungan RW 01 – RW 06.
-            </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 self-start lg:self-center shrink-0">
+          {/* Kartu Ringkas Angka Pengajuan Surat & Pengaduan (Diperkecil) */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2 pt-1 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => handleSelectLurahWorkflowNav('dashboard')}
+              className="px-3 py-2 rounded-xl border border-slate-200 bg-slate-50/80 hover:border-slate-300 flex items-center justify-between gap-2 text-left cursor-pointer"
+            >
+              <span className="text-[11px] font-bold text-slate-600 truncate">Total Data</span>
+              <span className="text-sm sm:text-base font-extrabold text-slate-900 font-mono-num">
+                {totalReports}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSelectLurahWorkflowNav('pra_registrasi')}
+              className="px-3 py-2 rounded-xl border border-sky-200 bg-sky-50/70 hover:border-sky-300 flex items-center justify-between gap-2 text-left cursor-pointer"
+            >
+              <span className="text-[11px] font-bold text-[#0D3868] truncate">Pengajuan Surat</span>
+              <span className="text-sm sm:text-base font-extrabold text-[#0D3868] font-mono-num">
+                {mergedPraList.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSelectLurahWorkflowNav('pra_registrasi')}
+              className="px-3 py-2 rounded-xl border border-amber-200 bg-amber-50/70 hover:border-amber-300 flex items-center justify-between gap-2 text-left cursor-pointer"
+            >
+              <span className="text-[11px] font-bold text-amber-900 truncate">Menunggu ACC</span>
+              <span className="text-sm sm:text-base font-extrabold text-amber-800 font-mono-num">
+                {pendingLurahApprovalsCount}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSelectLurahWorkflowNav('pengaduan')}
+              className="px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50/70 hover:border-emerald-300 flex items-center justify-between gap-2 text-left cursor-pointer"
+            >
+              <span className="text-[11px] font-bold text-emerald-900 truncate">Pengaduan</span>
+              <span className="text-sm sm:text-base font-extrabold text-emerald-800 font-mono-num">
+                {mergedPengaduanList.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSelectLurahWorkflowNav('penugasan')}
+              className="px-3 py-2 rounded-xl border border-indigo-200 bg-indigo-50/70 hover:border-indigo-300 flex items-center justify-between gap-2 text-left cursor-pointer"
+            >
+              <span className="text-[11px] font-bold text-indigo-900 truncate">Ditangani</span>
+              <span className="text-sm sm:text-base font-extrabold text-indigo-800 font-mono-num">
+                {inProgressCount}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSelectLurahWorkflowNav('sla')}
+              className="px-3 py-2 rounded-xl border border-teal-200 bg-teal-50/70 hover:border-teal-300 flex items-center justify-between gap-2 text-left cursor-pointer"
+            >
+              <span className="text-[11px] font-bold text-teal-900 truncate">Selesai</span>
+              <span className="text-sm sm:text-base font-extrabold text-teal-800 font-mono-num">
+                {completedCount}
+              </span>
+            </button>
+          </div>
+        </div>
+
+      {/* ================= PANEL KHUSUS WORKFLOW LURAH (DAFTAR LAYANAN, PERSYARATAN, SLA, NOTIFIKASI, RIWAYAT, PENGATURAN) ================= */}
+      {activeLurahNav === 'daftar_layanan' && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-4 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-4">
+            <div>
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-700">
+                Workflow Lurah · Standar Otoritas Layanan
+              </span>
+              <h3 className="text-lg font-extrabold text-[#0D3868]">
+                Daftar Layanan Administrasi &amp; Pejabat Penandatangan ({masterLayananList.length} Layanan)
+              </h3>
+              <p className="text-xs text-slate-500">
+                Daftar layanan surat warga yang memerlukan pengesahan akhir Lurah Panaikang atau delegasi Kepala Seksi.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleSelectLurahWorkflowNav('pra_registrasi')}
+              className="px-3.5 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold cursor-pointer self-start"
+            >
+              Buka Antrean Persetujuan Surat
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {masterLayananList.map((lay) => {
+              const seksiInfo = getLayananSeksiInfo(lay.code, lay.name);
+              return (
+                <div
+                  key={lay.id}
+                  className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 flex flex-col justify-between gap-2"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="px-2 py-0.5 rounded-md bg-[#0D3868] text-white text-[10px] font-mono font-bold">
+                        {lay.code}
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          lay.isActive
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-slate-200 text-slate-600'
+                        }`}
+                      >
+                        {lay.isActive ? 'Layanan Aktif' : 'Nonaktif'}
+                      </span>
+                    </div>
+                    <h4 className="mt-2 text-sm font-extrabold text-slate-900">{lay.name}</h4>
+                    <p className="mt-0.5 text-xs text-slate-600">{lay.description}</p>
+                  </div>
+                  <div className="pt-2 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                    <span className="font-semibold text-[#0D3868]">
+                      Seksi: {seksiInfo.seksiName}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-900 font-bold">
+                      SLA: {lay.estimatedProcessingTime || '1 Hari Kerja'}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {activeLurahNav === 'persyaratan_layanan' && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-4 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-4">
+            <div>
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-700">
+                Workflow Lurah · Standar Verifikasi Dokumen
+              </span>
+              <h3 className="text-lg font-extrabold text-[#0D3868]">
+                Checklist Standar Persyaratan Layanan ({masterPersyaratanList.length} Dokumen)
+              </h3>
+              <p className="text-xs text-slate-500">
+                Acuan kelengkapan berkas warga yang wajib diperiksa oleh Operator Loket sebelum diajukan ke meja Lurah.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleSelectLurahWorkflowNav('pra_registrasi')}
+              className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold cursor-pointer self-start"
+            >
+              Verifikasi Berkas Masuk
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {masterPersyaratanList.map((req, idx) => (
+              <div
+                key={req.id}
+                className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 flex items-start gap-3"
+              >
+                <div className="w-7 h-7 rounded-lg bg-[#0D3868] text-white text-xs font-extrabold flex items-center justify-center shrink-0">
+                  {idx + 1}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="text-xs sm:text-sm font-bold text-slate-900">{req.name}</h4>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                        req.requirementType === 'Wajib'
+                          ? 'bg-amber-100 text-amber-900'
+                          : 'bg-slate-200 text-slate-700'
+                      }`}
+                    >
+                      {req.requirementType || 'Wajib'}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-600">{req.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {activeLurahNav === 'sla' && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-4 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-4">
+            <div>
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-700">
+                Workflow Lurah · Pengawasan Mutu Pelayanan (SLA)
+              </span>
+              <h3 className="text-lg font-extrabold text-[#0D3868]">
+                Monitoring Kepatuhan SLA Surat &amp; Respon Pengaduan Wilayah
+              </h3>
+              <p className="text-xs text-slate-500">
+                Pemantauan pimpinan terhadap ketepatan waktu penyelesaian berkas surat (Target &le; 24 Jam) dan pengaduan lapangan (Target &le; 6 Jam).
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200">
+              <div className="text-xs font-bold text-emerald-800">Tuntas Sesuai SLA</div>
+              <div className="mt-1 text-2xl font-extrabold text-emerald-900 font-mono-num">
+                {completedCount} Berkas/Aduan
+              </div>
+              <div className="mt-0.5 text-[11px] text-emerald-700">
+                Kepatuhan penyelesaian {Math.round((completedCount / Math.max(totalReports, 1)) * 100)}%
+              </div>
+            </div>
+            <div className="p-4 rounded-xl bg-sky-50 border border-sky-200">
+              <div className="text-xs font-bold text-sky-800">Dalam Proses Penanganan</div>
+              <div className="mt-1 text-2xl font-extrabold text-sky-900 font-mono-num">
+                {inProgressCount} Tiket Aktif
+              </div>
+              <div className="mt-0.5 text-[11px] text-sky-700">
+                Sedang dikerjakan Seksi / Satgas RW
+              </div>
+            </div>
+            <div className="p-4 rounded-xl bg-amber-50 border border-amber-200">
+              <div className="text-xs font-bold text-amber-900">Menunggu Keputusan / Verifikasi</div>
+              <div className="mt-1 text-2xl font-extrabold text-amber-900 font-mono-num">
+                {waitingCount + pendingLurahApprovalsCount} Antrean
+              </div>
+              <div className="mt-0.5 text-[11px] text-amber-800">
+                Segera berikan persetujuan atau disposisi
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeLurahNav === 'notifikasi' && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-4 shadow-xs">
+          <div className="border-b border-slate-200 pb-3">
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-amber-700">
+              Workflow Lurah · Alert Eksekutif Pimpinan
+            </span>
+            <h3 className="text-lg font-extrabold text-[#0D3868]">
+              Notifikasi Persetujuan Surat &amp; Aduan Prioritas Warga
+            </h3>
+          </div>
+          <div className="space-y-2.5">
+            {mergedPraList
+              .filter(
+                (p) =>
+                  p.status === 'MENUNGGU_PERSETUJUAN' ||
+                  p.status === 'DIAJUKAN' ||
+                  p.lurahApprovalStatus === 'MENUNGGU'
+              )
+              .slice(0, 5)
+              .map((pra) => (
+                <div
+                  key={pra.id}
+                  className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-md bg-amber-500 text-white text-[10px] font-extrabold">
+                        MENUNGGU ACC LURAH
+                      </span>
+                      <span className="text-xs font-mono font-bold text-[#0D3868]">
+                        #{pra.ticketCode}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-sm font-bold text-slate-900">
+                      {pra.serviceName} — {pra.applicantName} ({pra.applicantRw}/{pra.applicantRt})
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectLurahWorkflowNav('pra_registrasi')}
+                    className="px-3 py-1.5 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold cursor-pointer shrink-0"
+                  >
+                    Periksa &amp; Setujui
+                  </button>
+                </div>
+              ))}
+            {mergedPengaduanList
+              .filter((a) => a.status !== 'SELESAI')
+              .slice(0, 5)
+              .map((adu) => (
+                <div
+                  key={adu.id}
+                  className="p-3.5 rounded-xl border border-sky-200 bg-sky-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-md bg-sky-600 text-white text-[10px] font-extrabold">
+                        ADUAN WARGA ({adu.status})
+                      </span>
+                      <span className="text-xs font-mono font-bold text-[#0D3868]">
+                        #{adu.ticketCode}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-sm font-bold text-slate-900">
+                      {adu.title} — {adu.reporterRw}/{adu.reporterRt}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectLurahWorkflowNav('pengaduan')}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold cursor-pointer shrink-0"
+                  >
+                    Pantau Tindak Lanjut
+                  </button>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {activeLurahNav === 'riwayat_aktivitas' && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-4 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
+            <div>
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-700">
+                Workflow Lurah · Audit Trail Keputusan Pimpinan
+              </span>
+              <h3 className="text-lg font-extrabold text-[#0D3868]">
+                Riwayat Aktivitas &amp; Keputusan Lurah ({activityLogs.length} Log Tercatat)
+              </h3>
+            </div>
+            {onOpenAdminTab && (
+              <button
+                type="button"
+                onClick={() => onOpenAdminTab('log_aktivitas')}
+                className="px-3 py-1.5 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold cursor-pointer self-start"
+              >
+                Buka Audit Trail Lengkap
+              </button>
+            )}
+          </div>
+          <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+            {activityLogs.slice(0, 10).map((log) => (
+              <div
+                key={log.id}
+                className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+              >
+                <div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="font-extrabold text-[#0D3868]">{log.actorName}</span>
+                    <span className="text-slate-400">·</span>
+                    <span className="px-2 py-0.5 rounded-md bg-slate-200 text-slate-800 text-[10px] font-bold">
+                      {log.module}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 text-xs font-semibold text-slate-800">{log.summary}</div>
+                </div>
+                <span className="text-[11px] font-mono text-slate-500 shrink-0">
+                  {log.timestamp}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {activeLurahNav === 'pengaturan' && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-4 shadow-xs">
+          <div className="border-b border-slate-200 pb-3">
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-700">
+              Workflow Lurah · Konfigurasi Eksekutif
+            </span>
+            <h3 className="text-lg font-extrabold text-[#0D3868]">
+              Pengaturan Otoritas Lurah, WhatsApp Gateway &amp; Akses Modul
+            </h3>
+            <p className="text-xs text-slate-500">
+              Akses cepat bagi Lurah Panaikang untuk mengelola pejabat struktural, otoritas login Google Admin, serta nomor WhatsApp Gateway.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <button
               type="button"
               onClick={scrollToWhatsAppManager}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#128C7E] hover:bg-[#075E54] text-white text-xs font-bold transition-colors cursor-pointer whitespace-nowrap shadow-2xs"
-              title="Buka menu Kelola WhatsApp Gateaway"
+              className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100/70 text-left transition-colors cursor-pointer"
             >
-              <Phone className="w-3.5 h-3.5" />
-              <span>Kelola WhatsApp Gateaway ({activeWaCount} Aktif)</span>
+              <div className="text-xs font-extrabold text-emerald-900">
+                Kelola WhatsApp Gateway ({activeWaCount} Aktif)
+              </div>
+              <p className="mt-1 text-[11px] text-emerald-800">
+                Atur nomor penerima otomatis laporan warga &amp; koordinasi RT/RW.
+              </p>
             </button>
-            <button
-              type="button"
-              onClick={() => onNavigate('peta')}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-800 transition-colors cursor-pointer whitespace-nowrap"
-            >
-              <MapPin className="w-3.5 h-3.5 text-[#00838F]" />
-              <span>Peta Sebaran Titik</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => onNavigate('sampah')}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#2E7D32] hover:bg-[#1B5E20] text-white text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>Rekap Data Sampah</span>
-            </button>
+            {onOpenAdminTab && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onOpenAdminTab('kelola_admin_warga')}
+                  className="p-4 rounded-xl border border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100/70 text-left transition-colors cursor-pointer"
+                >
+                  <div className="text-xs font-extrabold text-indigo-950">
+                    Otoritas Master Admin &amp; Verifikasi Google
+                  </div>
+                  <p className="mt-1 text-[11px] text-indigo-800">
+                    Setujui permohonan email Google admin &amp; atur hak akses staf.
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenAdminTab('profil')}
+                  className="p-4 rounded-xl border border-sky-200 bg-sky-50/60 hover:bg-sky-100/70 text-left transition-colors cursor-pointer"
+                >
+                  <div className="text-xs font-extrabold text-[#0D3868]">
+                    Profil Kelurahan &amp; Pejabat SOTK
+                  </div>
+                  <p className="mt-1 text-[11px] text-sky-900">
+                    Perbarui profil Lurah, NIP, foto pimpinan, dan struktur perangkat.
+                  </p>
+                </button>
+              </>
+            )}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* ================= KPI METRIC STRIP (4 UNIFORM CARDS) ================= */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
-            <span>Total Laporan Warga</span>
-            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-          </div>
-          <div className="mt-2 text-3xl font-extrabold text-slate-900 font-mono-num">
-            {totalReports}
-          </div>
-          <div className="mt-1 text-xs text-slate-500">
-            <span className="font-semibold text-amber-700 tabular-nums">{waitingCount}</span>{' '}
-            menunggu verifikasi
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
-            <span>Sedang Ditangani Satgas</span>
-            <Clock className="w-4 h-4 text-sky-600 shrink-0" />
-          </div>
-          <div className="mt-2 text-3xl font-extrabold text-sky-700 font-mono-num">
-            {inProgressCount}
-          </div>
-          <div className="mt-1 text-xs text-slate-500">Target respon lapangan &lt; 6 jam</div>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
-            <span>Laporan Tuntas Selesai</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-          </div>
-          <div className="mt-2 text-3xl font-extrabold text-emerald-700 font-mono-num">
-            {completedCount}
-          </div>
-          <div className="mt-1 text-xs text-slate-500">
-            Rasio tuntas{' '}
-            <span className="font-semibold text-emerald-700 tabular-nums">
-              {Math.round((completedCount / Math.max(totalReports, 1)) * 100)}%
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
-            <span>Reduksi Sampah ke TPA</span>
-            <FileSpreadsheet className="w-4 h-4 text-[#0D3868] shrink-0" />
-          </div>
-          <div className="mt-2 text-3xl font-extrabold text-[#0D3868] font-mono-num">
-            {reductionRate}%
-          </div>
-          <div className="mt-1 text-xs text-slate-500">
-            Daur ulang & kompos{' '}
-            <span className="font-mono-num font-semibold text-slate-800">
-              {totalOrganik + totalAnorganik} kg
-            </span>
-          </div>
-        </div>
-      </div>
+      {/* KPI cards already integrated into compact header strip above */}
 
       {/* ================= KARTU SUB-MENU 01: PERSETUJUAN PELAYANAN KELURAHAN & MONITORING PENGADUAN ================= */}
+      {(activeLurahNav === 'dashboard' ||
+        activeLurahNav === 'pra_registrasi' ||
+        activeLurahNav === 'pengaduan') && (
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
         <div
           onClick={() => toggleCard('lurah_card_persetujuan')}
@@ -1041,33 +1775,29 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
             {/* TAB CONTENT: PRA REGISTRASI ONLINE */}
             {persetujuanTab === 'pra_registrasi' && (
               <div className="mt-5 space-y-4">
-                {/* 4 Summary Cards for Pra Registrasi */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                    <div className="text-[10px] font-bold uppercase text-slate-500">Total Pra Registrasi</div>
-                    <div className="text-xl font-mono font-black text-slate-900 mt-0.5">{mergedPraList.length}</div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">Semua berkas layanan</div>
+                {/* 4 Compact Summary Cards for Pra Registrasi */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-slate-600 truncate">Total Surat</span>
+                    <span className="text-sm sm:text-base font-mono font-black text-slate-900">{mergedPraList.length}</span>
                   </div>
-                  <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200">
-                    <div className="text-[10px] font-bold uppercase text-amber-700">Menunggu Persetujuan</div>
-                    <div className="text-xl font-mono font-black text-amber-900 mt-0.5">
+                  <div className="px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-amber-800 truncate">Menunggu ACC</span>
+                    <span className="text-sm sm:text-base font-mono font-black text-amber-900">
                       {mergedPraList.filter((p) => p.status === 'MENUNGGU_PERSETUJUAN' || p.status === 'BERKAS_LENGKAP' || p.lurahApprovalStatus === 'MENUNGGU').length}
-                    </div>
-                    <div className="text-[10px] text-amber-700 mt-0.5">Perlu tanda tangan/persetujuan</div>
+                    </span>
                   </div>
-                  <div className="p-3.5 rounded-xl bg-sky-50 border border-sky-200">
-                    <div className="text-[10px] font-bold uppercase text-sky-700">Sedang Diproses</div>
-                    <div className="text-xl font-mono font-black text-sky-900 mt-0.5">
+                  <div className="px-3 py-2 rounded-xl bg-sky-50 border border-sky-200 flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-sky-800 truncate">Diproses Loket</span>
+                    <span className="text-sm sm:text-base font-mono font-black text-sky-900">
                       {mergedPraList.filter((p) => p.status === 'DIPROSES' || p.status === 'VERIFIKASI_PETUGAS' || p.status === 'MENUNGGU_KEDATANGAN').length}
-                    </div>
-                    <div className="text-[10px] text-sky-700 mt-0.5">Verifikasi di loket</div>
+                    </span>
                   </div>
-                  <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
-                    <div className="text-[10px] font-bold uppercase text-emerald-700">Disetujui & Selesai</div>
-                    <div className="text-xl font-mono font-black text-emerald-900 mt-0.5">
+                  <div className="px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-emerald-800 truncate">Disetujui</span>
+                    <span className="text-sm sm:text-base font-mono font-black text-emerald-900">
                       {mergedPraList.filter((p) => p.status === 'DISETUJUI' || p.status === 'SURAT_SELESAI').length}
-                    </div>
-                    <div className="text-[10px] text-emerald-700 mt-0.5">Nomor surat terbit</div>
+                    </span>
                   </div>
                 </div>
 
@@ -1681,33 +2411,29 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
             {/* TAB CONTENT: MONITORING PENGADUAN ONLINE */}
             {persetujuanTab === 'pengaduan' && (
               <div className="mt-5 space-y-4">
-                {/* 4 Summary Cards for Complaints */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                    <div className="text-[10px] font-bold uppercase text-slate-500">Total Pengaduan</div>
-                    <div className="text-xl font-mono font-black text-slate-900 mt-0.5">{mergedPengaduanList.length}</div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">Semua laporan warga</div>
+                {/* 4 Compact Summary Cards for Complaints */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-slate-600 truncate">Total Pengaduan</span>
+                    <span className="text-sm sm:text-base font-mono font-black text-slate-900">{mergedPengaduanList.length}</span>
                   </div>
-                  <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200">
-                    <div className="text-[10px] font-bold uppercase text-amber-700">Aduan Aktif</div>
-                    <div className="text-xl font-mono font-black text-amber-900 mt-0.5">
+                  <div className="px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-amber-800 truncate">Aduan Aktif</span>
+                    <span className="text-sm sm:text-base font-mono font-black text-amber-900">
                       {mergedPengaduanList.filter((p) => p.status !== 'SELESAI').length}
-                    </div>
-                    <div className="text-[10px] text-amber-700 mt-0.5">Belum selesai</div>
+                    </span>
                   </div>
-                  <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200">
-                    <div className="text-[10px] font-bold uppercase text-rose-700">Aduan Prioritas</div>
-                    <div className="text-xl font-mono font-black text-rose-900 mt-0.5">
+                  <div className="px-3 py-2 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-rose-800 truncate">Aduan Prioritas</span>
+                    <span className="text-sm sm:text-base font-mono font-black text-rose-900">
                       {mergedPengaduanList.filter((p) => p.isPriority).length}
-                    </div>
-                    <div className="text-[10px] text-rose-700 mt-0.5">Mendesak / Darurat</div>
+                    </span>
                   </div>
-                  <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
-                    <div className="text-[10px] font-bold uppercase text-emerald-700">Aduan Selesai</div>
-                    <div className="text-xl font-mono font-black text-emerald-900 mt-0.5">
+                  <div className="px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-emerald-800 truncate">Aduan Selesai</span>
+                    <span className="text-sm sm:text-base font-mono font-black text-emerald-900">
                       {mergedPengaduanList.filter((p) => p.status === 'SELESAI').length}
-                    </div>
-                    <div className="text-[10px] text-emerald-700 mt-0.5">Tuntas ditangani</div>
+                    </span>
                   </div>
                 </div>
 
@@ -1967,8 +2693,10 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
           </div>
         )}
       </div>
+      )}
 
       {/* ================= KARTU SUB-MENU 02: DISPOSISI LAPORAN WARGA ================= */}
+      {(activeLurahNav === 'dashboard' || activeLurahNav === 'penugasan') && (
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
         <div
           onClick={() => toggleCard('lurah_card_disposisi')}
@@ -2424,8 +3152,10 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
           </div>
         )}
       </div>
+      )}
 
       {/* ================= KARTU SUB-MENU 03: GRAFIK TREN & EVALUASI KINERJA RW ================= */}
+      {(activeLurahNav === 'dashboard' || activeLurahNav === 'sla') && (
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
         <div
           onClick={() => toggleCard('lurah_card_tren')}
@@ -2822,8 +3552,10 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
           </div>
         )}
       </div>
+      )}
 
       {/* ================= KARTU SUB-MENU 04: UNDUH LAPORAN BULANAN (FILE PDF ARSIP FISIK) ================= */}
+      {(activeLurahNav === 'dashboard' || activeLurahNav === 'riwayat_aktivitas') && (
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
         <div
           onClick={() => toggleCard('lurah_card_arsip_pdf')}
@@ -2892,6 +3624,7 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
           </div>
         )}
       </div>
+      )}
 
       {/* MODAL DETAIL PERMOHONAN SURAT / PENGADUAN WARGA */}
       <SubmissionDetailModal
@@ -2910,6 +3643,7 @@ export const DashboardLurahView: React.FC<DashboardLurahViewProps> = ({
         data={lurahDecisionPopup}
         onClose={() => setLurahDecisionPopup(null)}
       />
+      </div>
     </div>
   );
 };

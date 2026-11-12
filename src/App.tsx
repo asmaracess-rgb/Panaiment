@@ -1119,6 +1119,31 @@ export default function App() {
       })
       .catch(() => {});
 
+    fetch('/api/profile', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (mounted && json?.ok && json.data) {
+          const fresh = json.data as KelurahanProfile;
+          if (
+            fresh.lurahPhotoUrl &&
+            fresh.lurahPhotoUrl.trim() &&
+            fresh.lurahPhotoUrl.trim() !== DEFAULT_LURAH_PHOTO_URL
+          ) {
+            setKelurahanProfile((prev) => ({
+              ...prev,
+              ...fresh,
+              lurahPhotoUrl: fresh.lurahPhotoUrl!.trim(),
+            }));
+            stateRef.current.profile = {
+              ...stateRef.current.profile,
+              ...fresh,
+              lurahPhotoUrl: fresh.lurahPhotoUrl!.trim(),
+            };
+          }
+        }
+      })
+      .catch(() => {});
+
     fetch('/api/google-admin-requests', { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : null))
       .then((json) => {
@@ -1185,26 +1210,24 @@ export default function App() {
     // 2B. Dedicated Real-time Firestore Profile Subscription (guarantees profile identical everywhere)
     const unsubscribeProfile = subscribeToFirestoreProfile((cloudProfile) => {
       if (!mounted || !cloudProfile) return;
-      setKelurahanProfile((prev) => {
-        const mergedPhoto =
-          (cloudProfile.lurahPhotoUrl && cloudProfile.lurahPhotoUrl.trim()) ||
-          (prev.lurahPhotoUrl && prev.lurahPhotoUrl.trim()) ||
-          DEFAULT_LURAH_PHOTO_URL;
-        return {
-          ...prev,
-          ...cloudProfile,
-          lurahPhotoUrl: mergedPhoto,
-        };
-      });
-      const currentPhoto =
-        (cloudProfile.lurahPhotoUrl && cloudProfile.lurahPhotoUrl.trim()) ||
-        (stateRef.current.profile?.lurahPhotoUrl && stateRef.current.profile.lurahPhotoUrl.trim()) ||
-        DEFAULT_LURAH_PHOTO_URL;
+      const incomingPhoto = (cloudProfile.lurahPhotoUrl && cloudProfile.lurahPhotoUrl.trim()) || '';
+      const localPhoto = (stateRef.current.profile?.lurahPhotoUrl && stateRef.current.profile.lurahPhotoUrl.trim()) || '';
+      const nextPhoto = (incomingPhoto && incomingPhoto !== DEFAULT_LURAH_PHOTO_URL)
+        ? incomingPhoto
+        : incomingPhoto || localPhoto || DEFAULT_LURAH_PHOTO_URL;
+
+      setKelurahanProfile((prev) => ({
+        ...prev,
+        ...cloudProfile,
+        lurahPhotoUrl: nextPhoto,
+      }));
+
       stateRef.current.profile = {
         ...stateRef.current.profile,
         ...cloudProfile,
-        lurahPhotoUrl: currentPhoto,
+        lurahPhotoUrl: nextPhoto,
       };
+
       const local = loadPersistedDatabase();
       if (local) {
         savePersistedDatabase({
@@ -1212,10 +1235,7 @@ export default function App() {
           profile: {
             ...local.profile,
             ...cloudProfile,
-            lurahPhotoUrl:
-              (cloudProfile.lurahPhotoUrl && cloudProfile.lurahPhotoUrl.trim()) ||
-              (local.profile?.lurahPhotoUrl && local.profile.lurahPhotoUrl.trim()) ||
-              currentPhoto,
+            lurahPhotoUrl: nextPhoto,
           },
           updatedAt: Date.now(),
         });
@@ -1551,7 +1571,7 @@ export default function App() {
     });
 
     try {
-      const response = await fetchLocalExpressOnly('/api/profile', {
+      const response = await fetch('/api/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(nextProfile),

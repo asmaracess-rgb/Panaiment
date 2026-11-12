@@ -54,6 +54,9 @@ import {
   Cloud,
   Send,
   Filter,
+  Menu,
+  Bell,
+  ClipboardCheck,
 } from 'lucide-react';
 import {
   SiskamlingRwSchedule,
@@ -97,6 +100,10 @@ import {
   DAFTAR_KATEGORI_PENGADUAN,
 } from '../data/pelayananMasterData';
 import { AdminMasterDataLayananPanel } from './AdminMasterDataLayananPanel';
+import {
+  AdminOperatorModulesPanel,
+  OperatorSidebarItemKey,
+} from './AdminOperatorModulesPanel';
 import {
   signInWithGoogleAccount,
   signInWithGoogleIdToken,
@@ -420,6 +427,17 @@ interface AdminCollapsibleBarProps {
   children: React.ReactNode;
 }
 
+const ContextualSubmenuContext = React.createContext<{
+  activeSubmenuKey: string;
+}>({ activeSubmenuKey: 'ALL' });
+
+const SINGLE_PANEL_SECTION_KEYS = new Set([
+  'urban_kebun',
+  'info_berita',
+  'traffic_analitik',
+  'log_audit_trail',
+]);
+
 const AdminCollapsibleBar: React.FC<AdminCollapsibleBarProps> = ({
   sectionKey,
   title,
@@ -433,6 +451,20 @@ const AdminCollapsibleBar: React.FC<AdminCollapsibleBarProps> = ({
   className = '',
   children,
 }) => {
+  const { activeSubmenuKey } = React.useContext(ContextualSubmenuContext);
+
+  if (
+    activeSubmenuKey &&
+    activeSubmenuKey !== 'ALL' &&
+    !SINGLE_PANEL_SECTION_KEYS.has(sectionKey) &&
+    sectionKey !== activeSubmenuKey
+  ) {
+    return null;
+  }
+
+  const effectiveCollapsed =
+    activeSubmenuKey && activeSubmenuKey !== 'ALL' ? false : isCollapsed;
+
   return (
     <div
       id={`section-${sectionKey}`}
@@ -441,7 +473,7 @@ const AdminCollapsibleBar: React.FC<AdminCollapsibleBarProps> = ({
       <div
         onClick={onToggle}
         className={`px-4 sm:px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer select-none transition-colors hover:bg-slate-50/90 ${headerBg} ${
-          !isCollapsed ? 'border-b border-slate-200' : ''
+          !effectiveCollapsed ? 'border-b border-slate-200' : ''
         }`}
       >
         <div className="flex items-start sm:items-center gap-3 min-w-0">
@@ -470,37 +502,39 @@ const AdminCollapsibleBar: React.FC<AdminCollapsibleBarProps> = ({
           onClick={(e) => e.stopPropagation()}
         >
           {headerActions}
-          <button
-            type="button"
-            onClick={onToggle}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              isCollapsed
-                ? 'bg-[#0D3868] hover:bg-[#072647] text-white shadow-xs'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
-            }`}
-            title={
-              isCollapsed
-                ? 'Tampilkan detail kartu sub-menu ini'
-                : 'Tutup detail kartu sub-menu ini (hanya tampilkan judul)'
-            }
-          >
-            {isCollapsed ? (
-              <>
-                <Eye className="w-3.5 h-3.5" />
-                <span>Tampilkan Detail</span>
-                <ChevronDown className="w-4 h-4" />
-              </>
-            ) : (
-              <>
-                <span>Tutup</span>
-                <ChevronUp className="w-4 h-4" />
-              </>
-            )}
-          </button>
+          {activeSubmenuKey === 'ALL' && (
+            <button
+              type="button"
+              onClick={onToggle}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                effectiveCollapsed
+                  ? 'bg-[#0D3868] hover:bg-[#072647] text-white shadow-xs'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+              }`}
+              title={
+                effectiveCollapsed
+                  ? 'Tampilkan detail kartu sub-menu ini'
+                  : 'Tutup detail kartu sub-menu ini (hanya tampilkan judul)'
+              }
+            >
+              {effectiveCollapsed ? (
+                <>
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Tampilkan Detail</span>
+                  <ChevronDown className="w-4 h-4" />
+                </>
+              ) : (
+                <>
+                  <span>Tutup</span>
+                  <ChevronUp className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
-      {!isCollapsed && <div>{children}</div>}
+      {!effectiveCollapsed && <div>{children}</div>}
     </div>
   );
 };
@@ -557,7 +591,7 @@ const getAdminTabLabel = (tab: AdminTab): string => {
   switch (tab) {
     case 'dashboard_lurah': return 'Dashboard Lurah';
     case 'profil': return 'Profil Kelurahan';
-    case 'pengurusan_warga': return 'Admin Layanan Kelurahan';
+    case 'pengurusan_warga': return 'Dashboard Admin Operator Layanan';
     case 'rtrw': return 'Data RT RW';
     case 'sampah': return 'Pengelolaan Sampah';
     case 'urban_farming': return 'Urban Farming';
@@ -570,7 +604,7 @@ const getAdminTabLabel = (tab: AdminTab): string => {
       return 'Kelola Admin dan User';
     case 'traffic': return 'Traffic Web dan App';
     case 'log_aktivitas': return 'Log Aktifitas Aplikasi';
-    case 'laporan': return 'Admin Layanan Kelurahan';
+    case 'laporan': return 'Dashboard Admin Operator Layanan';
     default: return 'Modul Administrator';
   }
 };
@@ -793,8 +827,29 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     if (initialTab === 'parameter_user' || initialTab === 'user_warga') {
       return 'kelola_admin_warga';
     }
-    return initialTab || 'dashboard_lurah';
+    return initialTab || 'pengurusan_warga';
   });
+  const [isOperatorDrawerOpen, setIsOperatorDrawerOpen] = useState(false);
+  const [operatorNav, setOperatorNav] = useState<OperatorSidebarItemKey | null>(() =>
+    initialTab === 'dashboard_lurah' ? null : 'dashboard'
+  );
+  const [contextualSubmenu, setContextualSubmenu] = useState<string>(() => {
+    if (initialTab === 'user_warga') return 'admin_warga_user';
+    if (initialTab === 'parameter_user') return 'admin_warga_parameter';
+    if (initialTab === 'kelola_admin_warga') return 'admin_warga_otoritas';
+    if (initialTab === 'profil') return 'profil_lurah';
+    if (initialTab === 'rtrw') return 'rtrw_lpm_bagan';
+    if (initialTab === 'sampah') return 'sampah_bsu';
+    if (initialTab === 'urban_farming') return 'uf_card_kebun';
+    if (initialTab === 'kerjabakti') return 'kerjabakti_jadwal';
+    if (initialTab === 'info') return 'info_berita';
+    if (initialTab === 'whatsapp_gateway') return 'wa_gateway_status_card';
+    if (initialTab === 'traffic') return 'traffic_analitik';
+    if (initialTab === 'log_aktivitas') return 'log_audit_trail';
+    return 'dashboard';
+  });
+  const [pengurusanMainFilter, setPengurusanMainFilter] = useState<'ALL' | 'SURAT' | 'ADUAN'>('ALL');
+  const [masterLayananSubTab, setMasterLayananSubTab] = useState<'layanan' | 'persyaratan'>('layanan');
   const [rtrwSubTab, setRtrwSubTab] = useState<'wilayah' | 'siskamling'>('wilayah');
   const [kelolaAdminWargaSubTab, setKelolaAdminWargaSubTab] = useState<KelolaAdminWargaSubTab>(() => {
     if (initialTab === 'user_warga') return 'user_warga';
@@ -807,9 +862,14 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       if (initialTab === 'user_warga') {
         setActiveTab('kelola_admin_warga');
         setKelolaAdminWargaSubTab('user_warga');
+        setOperatorNav(null);
       } else if (initialTab === 'parameter_user') {
         setActiveTab('kelola_admin_warga');
         setKelolaAdminWargaSubTab('parameter_admin');
+        setOperatorNav(null);
+      } else if (initialTab === 'dashboard_lurah') {
+        setActiveTab('dashboard_lurah');
+        setOperatorNav(null);
       } else {
         setActiveTab(initialTab);
       }
@@ -2579,19 +2639,106 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     setSuccessMessage('');
   };
 
+  const getDefaultSubmenuForTab = (tab: AdminTab): string => {
+    switch (tab) {
+      case 'profil':
+        return 'profil_lurah';
+      case 'pengurusan_warga':
+      case 'laporan':
+        return 'dashboard';
+      case 'rtrw':
+        return 'rtrw_lpm_bagan';
+      case 'sampah':
+        return 'sampah_bsu';
+      case 'urban_farming':
+        return 'uf_card_kebun';
+      case 'kerjabakti':
+        return 'kerjabakti_jadwal';
+      case 'info':
+        return 'info_berita';
+      case 'whatsapp_gateway':
+        return 'wa_gateway_status_card';
+      case 'kelola_admin_warga':
+        return 'admin_warga_otoritas';
+      case 'parameter_user':
+        return 'admin_warga_parameter';
+      case 'user_warga':
+        return 'admin_warga_user';
+      case 'traffic':
+        return 'traffic_analitik';
+      case 'log_aktivitas':
+        return 'log_audit_trail';
+      default:
+        return 'dashboard';
+    }
+  };
+
   const handleTabSwitch = (tab: AdminTab) => {
+    setIsOperatorDrawerOpen(false);
     if (tab === 'user_warga') {
       setActiveTab('kelola_admin_warga');
       setKelolaAdminWargaSubTab('user_warga');
+      setContextualSubmenu('admin_warga_user');
+      setOperatorNav(null);
     } else if (tab === 'parameter_user') {
       setActiveTab('kelola_admin_warga');
       setKelolaAdminWargaSubTab('parameter_admin');
-    } else if (tab === 'laporan') {
+      setContextualSubmenu('admin_warga_parameter');
+      setOperatorNav(null);
+    } else if (tab === 'laporan' || tab === 'pengurusan_warga') {
       setActiveTab('pengurusan_warga');
+      setPengurusanMainFilter('ALL');
+      setOperatorNav('dashboard');
+      setContextualSubmenu('dashboard');
     } else {
       setActiveTab(tab);
+      setOperatorNav(null);
+      setContextualSubmenu(getDefaultSubmenuForTab(tab));
     }
     clearFeedback();
+  };
+
+  const handleSelectOperatorNav = (item: OperatorSidebarItemKey) => {
+    setIsOperatorDrawerOpen(false);
+    setOperatorNav(item);
+    setContextualSubmenu(item);
+    setActiveTab('pengurusan_warga');
+    clearFeedback();
+
+    if (item === 'dashboard') {
+      setPengurusanMainFilter('ALL');
+    } else if (item === 'pra_registrasi') {
+      setPengurusanMainFilter('SURAT');
+      setCollapsedSections((prev) => ({ ...prev, layanan_pengurusan_utama: false }));
+    } else if (item === 'pengaduan') {
+      setPengurusanMainFilter('ADUAN');
+      setCollapsedSections((prev) => ({
+        ...prev,
+        layanan_pengurusan_utama: false,
+        laporan_table: false,
+      }));
+    } else if (item === 'daftar_layanan') {
+      setMasterLayananSubTab('layanan');
+    } else if (item === 'persyaratan_layanan') {
+      setMasterLayananSubTab('persyaratan');
+    }
+  };
+
+  const handleSelectContextualSubmenu = (subKey: string) => {
+    setIsOperatorDrawerOpen(false);
+    clearFeedback();
+    if (activeTab === 'pengurusan_warga' || activeTab === 'laporan') {
+      handleSelectOperatorNav(subKey as OperatorSidebarItemKey);
+      return;
+    }
+    setContextualSubmenu(subKey);
+    if (activeTab === 'info') {
+      if (subKey === 'info_tambah') {
+        openAddInfoForm();
+      } else if (subKey === 'info_berita') {
+        setShowInfoForm(false);
+      }
+    }
   };
 
   // ---------- PROFIL KELURAHAN HANDLERS ----------
@@ -4886,8 +5033,628 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
   const totalRtInKelurahan = rwGroups.reduce((acc, r) => acc + (r.rtList?.length || 0), 0);
 
+  const totalSuratReportsCount = reports.filter((r) => isSuratAdministrasi(r)).length;
+  const totalAduanReportsCount = reports.filter((r) => !isSuratAdministrasi(r)).length;
+  const pendingSuratCount = reports.filter(
+    (r) => isSuratAdministrasi(r) && r.status !== 'Selesai'
+  ).length;
+  const pendingAduanCount = reports.filter(
+    (r) => !isSuratAdministrasi(r) && r.status !== 'Selesai'
+  ).length;
+  const waitingReportsCount = reports.filter((r) => r.status === 'Menunggu Verifikasi').length;
+  const inProgressReportsCount = reports.filter((r) => r.status === 'Sedang Ditangani').length;
+  const completedReportsCount = reports.filter((r) => r.status === 'Selesai').length;
+
+  const operatorSidebarLinks: Array<{
+    key: OperatorSidebarItemKey;
+    label: string;
+    subtitle: string;
+    icon: React.ReactNode;
+    badge?: number | string;
+    badgeClass?: string;
+  }> = [
+    {
+      key: 'dashboard',
+      label: 'Dashboard Layanan',
+      subtitle: 'Semua Pengajuan & Aduan',
+      icon: <BarChart3 className="w-4 h-4 shrink-0" />,
+      badge: reports.length,
+      badgeClass: 'bg-sky-100 text-[#0D3868]',
+    },
+    {
+      key: 'pra_registrasi',
+      label: 'Pra Registrasi Online',
+      subtitle: 'Pengajuan Surat Warga',
+      icon: <FileText className="w-4 h-4 shrink-0" />,
+      badge: totalSuratReportsCount,
+      badgeClass: 'bg-amber-400 text-slate-950',
+    },
+    {
+      key: 'pengaduan',
+      label: 'Pengaduan Online',
+      subtitle: 'Laporan Aduan Warga',
+      icon: <AlertCircle className="w-4 h-4 shrink-0" />,
+      badge: totalAduanReportsCount,
+      badgeClass: 'bg-sky-400 text-slate-950',
+    },
+    {
+      key: 'daftar_layanan',
+      label: 'Daftar Layanan',
+      subtitle: 'Katalog Layanan Kelurahan',
+      icon: <Layers className="w-4 h-4 shrink-0" />,
+      badge: masterLayananList.length,
+      badgeClass: 'bg-slate-200 text-slate-800',
+    },
+    {
+      key: 'persyaratan_layanan',
+      label: 'Persyaratan Layanan',
+      subtitle: 'Master Syarat Dokumen',
+      icon: <ClipboardCheck className="w-4 h-4 shrink-0" />,
+      badge: masterPersyaratanList.length,
+      badgeClass: 'bg-slate-200 text-slate-800',
+    },
+    {
+      key: 'penugasan',
+      label: 'Penugasan',
+      subtitle: 'Disposisi Seksi & WA',
+      icon: <Briefcase className="w-4 h-4 shrink-0" />,
+      badge: waitingReportsCount > 0 ? waitingReportsCount : undefined,
+      badgeClass: 'bg-emerald-400 text-slate-950',
+    },
+    {
+      key: 'sla',
+      label: 'SLA Layanan',
+      subtitle: 'Batas Waktu Layanan',
+      icon: <Clock className="w-4 h-4 shrink-0" />,
+    },
+    {
+      key: 'notifikasi',
+      label: 'Notifikasi',
+      subtitle: 'Alert Berkas & Aduan Baru',
+      icon: <Bell className="w-4 h-4 shrink-0" />,
+      badge: waitingReportsCount > 0 ? waitingReportsCount : undefined,
+      badgeClass: 'bg-rose-500 text-white',
+    },
+    {
+      key: 'laporan_table',
+      label: 'Tabel Verifikasi Laporan',
+      subtitle: 'Tindak Lanjut &Bukti Foto',
+      icon: <CheckCircle2 className="w-4 h-4 shrink-0" />,
+      badge: reports.length,
+      badgeClass: 'bg-sky-100 text-[#0D3868]',
+    },
+    {
+      key: 'laporan_arsip',
+      label: 'Arsip Laporan PDF',
+      subtitle: 'Cetak Rekap Bulanan PDF',
+      icon: <Printer className="w-4 h-4 shrink-0" />,
+    },
+    {
+      key: 'riwayat_aktivitas',
+      label: 'Riwayat Aktivitas',
+      subtitle: 'Log Audit Trail Aplikasi',
+      icon: <History className="w-4 h-4 shrink-0" />,
+      badge: activityLogs.length,
+      badgeClass: 'bg-slate-200 text-slate-800',
+    },
+    {
+      key: 'pengaturan',
+      label: 'Pengaturan',
+      subtitle: 'Konfigurasi Layanan',
+      icon: <Sliders className="w-4 h-4 shrink-0" />,
+    },
+  ];
+
+  interface ContextualSubmenuItem {
+    key: string;
+    label: string;
+    subtitle: string;
+    icon: React.ReactNode;
+    badge?: number | string;
+    badgeClass?: string;
+  }
+
+  const getContextualSidebarConfig = (): {
+    moduleNumber: string;
+    moduleTitle: string;
+    moduleSubtitle: string;
+    allowShowAll: boolean;
+    items: ContextualSubmenuItem[];
+  } => {
+    switch (activeTab) {
+      case 'profil':
+        return {
+          moduleNumber: 'Modul 02',
+          moduleTitle: 'Profil Kelurahan',
+          moduleSubtitle: 'Data Lurah, SOTK & Visi Misi',
+          allowShowAll: true,
+          items: [
+            {
+              key: 'profil_lurah',
+              label: '01. Data Pimpinan Lurah',
+              subtitle: 'Foto, NIP & Sambutan Lurah',
+              icon: <UserCheck className="w-4 h-4 shrink-0" />,
+              badge: profileDraft.lurahName ? 'Aktif' : 'Kosong',
+              badgeClass: 'bg-emerald-400 text-slate-950',
+            },
+            {
+              key: 'profil_pejabat',
+              label: '02. Struktur & Perangkat',
+              subtitle: 'Pejabat, Staf & Bagan SOTK',
+              icon: <Briefcase className="w-4 h-4 shrink-0" />,
+              badge: profileDraft.officials?.length || 0,
+              badgeClass: 'bg-sky-200 text-slate-900',
+            },
+            {
+              key: 'profil_data_umum',
+              label: '03. Alamat & Batas Wilayah',
+              subtitle: 'Kantor, Kontak & Geografis',
+              icon: <Building2 className="w-4 h-4 shrink-0" />,
+            },
+            {
+              key: 'profil_visi_misi',
+              label: '04. Visi & Misi Kelurahan',
+              subtitle: 'Pernyataan Visi & Butir Misi',
+              icon: <Quote className="w-4 h-4 shrink-0" />,
+              badge: profileDraft.misi?.length || 0,
+              badgeClass: 'bg-amber-300 text-slate-950',
+            },
+          ],
+        };
+
+      case 'pengurusan_warga':
+      case 'laporan':
+        return {
+          moduleNumber: 'Modul 03',
+          moduleTitle: 'Admin Operator & Layanan',
+          moduleSubtitle: 'Pra-Registrasi Surat & Aduan',
+          allowShowAll: false,
+          items: operatorSidebarLinks,
+        };
+
+      case 'rtrw':
+        return {
+          moduleNumber: 'Modul 04',
+          moduleTitle: 'Data RT & RW',
+          moduleSubtitle: 'Bagan LPM, Wilayah & Siskamling',
+          allowShowAll: true,
+          items: [
+            {
+              key: 'rtrw_lpm_bagan',
+              label: '01. Ketua LPM & Bagan',
+              subtitle: 'Struktur Organisasi RT/RW',
+              icon: <Layers className="w-4 h-4 shrink-0" />,
+              badge: `${rwGroups.length} RW`,
+              badgeClass: 'bg-emerald-400 text-slate-950',
+            },
+            {
+              key: 'rtrw_cetak_laporan',
+              label: '02. Cetak Laporan PDF',
+              subtitle: 'Ekspor Rekapitulasi RT/RW',
+              icon: <Printer className="w-4 h-4 shrink-0" />,
+            },
+            {
+              key: 'rtrw_daftar_rw',
+              label: '03. Daftar Wilayah RW & RT',
+              subtitle: 'Kelola Ketua RW & Data RT',
+              icon: <Users className="w-4 h-4 shrink-0" />,
+              badge: totalRtInKelurahan,
+              badgeClass: 'bg-sky-300 text-slate-950',
+            },
+            {
+              key: 'rtrw_siskamling',
+              label: '04. Jadwal Siskamling',
+              subtitle: 'Roster Ronda & Posko RW',
+              icon: <ShieldCheck className="w-4 h-4 shrink-0" />,
+              badge: siskamlingSchedules.length,
+              badgeClass: 'bg-amber-300 text-slate-950',
+            },
+          ],
+        };
+
+      case 'sampah':
+        return {
+          moduleNumber: 'Modul 05',
+          moduleTitle: 'Pengelolaan Sampah',
+          moduleSubtitle: 'BSU, Teba Komunal & Biopori',
+          allowShowAll: true,
+          items: [
+            {
+              key: 'sampah_bsu',
+              label: '01. Bank Sampah Unit (BSU)',
+              subtitle: 'Unit BSU RW & Volume Sampah',
+              icon: <Recycle className="w-4 h-4 shrink-0" />,
+              badge: wasteUnits.length,
+              badgeClass: 'bg-amber-400 text-slate-950',
+            },
+            {
+              key: 'sampah_logs',
+              label: '02. Log Penimbangan BSU',
+              subtitle: 'Catatan Timbangan Harian',
+              icon: <ClipboardCheck className="w-4 h-4 shrink-0" />,
+              badge: wasteLogs.length,
+              badgeClass: 'bg-emerald-300 text-slate-950',
+            },
+            {
+              key: 'sampah_teba',
+              label: '03. Titik Teba Komunal',
+              subtitle: 'Pengolahan Sampah Organik',
+              icon: <Sprout className="w-4 h-4 shrink-0" />,
+              badge: tebaSpots.length,
+              badgeClass: 'bg-sky-200 text-slate-950',
+            },
+            {
+              key: 'sampah_biopori',
+              label: '04. Lubang Resapan Biopori',
+              subtitle: 'Sumur Resapan & Kompos',
+              icon: <Layers className="w-4 h-4 shrink-0" />,
+              badge: bioporiPoints.length,
+              badgeClass: 'bg-slate-200 text-slate-900',
+            },
+          ],
+        };
+
+      case 'urban_farming':
+        return {
+          moduleNumber: 'Modul 06',
+          moduleTitle: 'Urban Farming',
+          moduleSubtitle: 'Kebun Binaan & Distribusi Bibit',
+          allowShowAll: true,
+          items: [
+            {
+              key: 'uf_card_kebun',
+              label: '01. Data Kebun Binaan',
+              subtitle: 'Kelompok Tani & Dokumentasi',
+              icon: <Sprout className="w-4 h-4 shrink-0" />,
+              badge: urbanFarmingSpots.length,
+              badgeClass: 'bg-emerald-400 text-slate-950',
+            },
+            {
+              key: 'uf_card_bibit',
+              label: '02. Permohonan Bibit Warga',
+              subtitle: 'Verifikasi & Penyaluran Benih',
+              icon: <FileText className="w-4 h-4 shrink-0" />,
+              badge: seedRequests.length,
+              badgeClass: 'bg-amber-400 text-slate-950',
+            },
+          ],
+        };
+
+      case 'kerjabakti':
+        return {
+          moduleNumber: 'Modul 07',
+          moduleTitle: 'Kerja Bakti',
+          moduleSubtitle: 'Jadwal & Dokumentasi Aksi Bersih',
+          allowShowAll: true,
+          items: [
+            {
+              key: 'kerjabakti_jadwal',
+              label: '01. Kerja Bakti Terjadwal',
+              subtitle: 'Agenda Akan Datang (Tanpa Foto)',
+              icon: <Clock className="w-4 h-4 shrink-0" />,
+              badge: cleanupEvents.filter((e) => e.status !== 'Tuntas').length,
+              badgeClass: 'bg-amber-400 text-slate-950',
+            },
+            {
+              key: 'kerjabakti_dokumentasi',
+              label: '02. Kerja Bakti Terlaksana',
+              subtitle: 'Tuntas & Upload Foto Kegiatan',
+              icon: <Camera className="w-4 h-4 shrink-0" />,
+              badge: cleanupEvents.filter((e) => e.status === 'Tuntas').length,
+              badgeClass: 'bg-emerald-400 text-slate-950',
+            },
+            {
+              key: 'kerjabakti_sorotan_ig',
+              label: '03. Sorotan IG Kerja Bakti',
+              subtitle: 'Sinkronisasi 3 Story Terbaru',
+              icon: <Instagram className="w-4 h-4 shrink-0" />,
+              badge: 3,
+              badgeClass: 'bg-pink-400 text-white',
+            },
+          ],
+        };
+
+      case 'info':
+        return {
+          moduleNumber: 'Modul 08',
+          moduleTitle: 'Informasi dan IG',
+          moduleSubtitle: 'Berita Kelurahan & Feed Instagram',
+          allowShowAll: false,
+          items: [
+            {
+              key: 'info_berita',
+              label: '01. Daftar Berita & IG',
+              subtitle: 'Artikel Publikasi Beranda',
+              icon: <Newspaper className="w-4 h-4 shrink-0" />,
+              badge: kelurahanInfos.length,
+              badgeClass: 'bg-pink-400 text-white',
+            },
+            {
+              key: 'info_tambah',
+              label: '02. + Tambah Berita Baru',
+              subtitle: 'Formulir Publikasi Informasi',
+              icon: <Plus className="w-4 h-4 shrink-0" />,
+            },
+          ],
+        };
+
+      case 'whatsapp_gateway':
+        return {
+          moduleNumber: 'Modul 09',
+          moduleTitle: 'WhatsApp Gateaway',
+          moduleSubtitle: 'Fonnte API & Penerima Auto-WA',
+          allowShowAll: true,
+          items: [
+            {
+              key: 'wa_gateway_status_card',
+              label: '01. Status & Token Fonnte',
+              subtitle: 'Koneksi Perangkat & Kuota WA',
+              icon: <MessageCircle className="w-4 h-4 shrink-0" />,
+              badge: waGatewayStatus?.ok ? 'Online' : 'Cek',
+              badgeClass: waGatewayStatus?.ok
+                ? 'bg-emerald-400 text-slate-950'
+                : 'bg-amber-400 text-slate-950',
+            },
+            {
+              key: 'laporan_whatsapp_mgmt',
+              label: '02. Daftar Penerima WA',
+              subtitle: 'Pejabat, Satgas & Ketua RW/RT',
+              icon: <Phone className="w-4 h-4 shrink-0" />,
+              badge: whatsappRecipients.length,
+              badgeClass: 'bg-sky-300 text-slate-950',
+            },
+            {
+              key: 'laporan_whatsapp_logs',
+              label: '03. Log Pengiriman WA',
+              subtitle: 'Riwayat Auto-Dispatch Aduan',
+              icon: <CheckCircle2 className="w-4 h-4 shrink-0" />,
+              badge: waDispatchLogs.length,
+              badgeClass: 'bg-slate-200 text-slate-900',
+            },
+          ],
+        };
+
+      case 'kelola_admin_warga':
+      case 'parameter_user':
+      case 'user_warga': {
+        const pendingGoogleCount = (googleAdminRequests || []).filter(
+          (r) => (r.status || 'Menunggu Persetujuan') === 'Menunggu Persetujuan'
+        ).length;
+        return {
+          moduleNumber: 'Modul 10',
+          moduleTitle: 'Kelola Admin & User',
+          moduleSubtitle: 'Otoritas Lurah, RBAC & Akun Warga',
+          allowShowAll: true,
+          items: [
+            {
+              key: 'admin_warga_otoritas',
+              label: '01. Otoritas Master Admin',
+              subtitle: 'Whitelist Google & Force Sesi',
+              icon: <ShieldCheck className="w-4 h-4 shrink-0" />,
+              badge: pendingGoogleCount > 0 ? pendingGoogleCount : 'Lurah',
+              badgeClass:
+                pendingGoogleCount > 0
+                  ? 'bg-amber-400 text-slate-950 animate-pulse'
+                  : 'bg-indigo-300 text-slate-950',
+            },
+            {
+              key: 'admin_warga_parameter',
+              label: '02. Parameter Akun Admin',
+              subtitle: 'Hak Akses Modul & Pejabat',
+              icon: <Sliders className="w-4 h-4 shrink-0" />,
+              badge: adminUsers.length,
+              badgeClass: 'bg-amber-300 text-slate-950',
+            },
+            {
+              key: 'admin_warga_user',
+              label: '03. User Warga Terdaftar',
+              subtitle: 'Database Warga & Akses Menu',
+              icon: <Users className="w-4 h-4 shrink-0" />,
+              badge: citizenUsers.length,
+              badgeClass: 'bg-emerald-400 text-slate-950',
+            },
+            {
+              key: 'admin_warga_master_data',
+              label: '04. Master Data Layanan',
+              subtitle: 'Katalog Surat & Syarat Berkas',
+              icon: <Layers className="w-4 h-4 shrink-0" />,
+              badge: masterLayananList.length,
+              badgeClass: 'bg-sky-300 text-slate-950',
+            },
+          ],
+        };
+      }
+
+      case 'traffic':
+        return {
+          moduleNumber: 'Modul 11',
+          moduleTitle: 'Traffic Web dan App',
+          moduleSubtitle: 'Analitik Kunjungan & Telemetri',
+          allowShowAll: false,
+          items: [
+            {
+              key: 'traffic_analitik',
+              label: '01. Statistik & Analitik Live',
+              subtitle: 'Trafik Harian, Perangkat & Log',
+              icon: <Activity className="w-4 h-4 shrink-0" />,
+              badge: 'Live',
+              badgeClass: 'bg-cyan-300 text-slate-950',
+            },
+          ],
+        };
+
+      case 'log_aktivitas':
+        return {
+          moduleNumber: 'Modul 12',
+          moduleTitle: 'Log Aktifitas Aplikasi',
+          moduleSubtitle: 'Audit Trail & Riwayat Perubahan',
+          allowShowAll: false,
+          items: [
+            {
+              key: 'log_audit_trail',
+              label: '01. Riwayat Audit Trail',
+              subtitle: 'Log Aktivitas Admin & Ekspor',
+              icon: <History className="w-4 h-4 shrink-0" />,
+              badge: activityLogs.length,
+              badgeClass: 'bg-amber-300 text-slate-950',
+            },
+          ],
+        };
+
+      default:
+        return {
+          moduleNumber: 'Modul',
+          moduleTitle: getAdminTabLabel(activeTab),
+          moduleSubtitle: 'Sub-Menu Kontekstual',
+          allowShowAll: false,
+          items: [],
+        };
+    }
+  };
+
+  const currentSidebarConfig = getContextualSidebarConfig();
+  const activeContextualSubmenuKey =
+    activeTab === 'pengurusan_warga' || activeTab === 'laporan'
+      ? operatorNav || 'dashboard'
+      : contextualSubmenu;
+  const activeContextualItem =
+    currentSidebarConfig.items.find((i) => i.key === activeContextualSubmenuKey) ||
+    currentSidebarConfig.items[0];
+
+  const renderDynamicContextualSidebar = () => (
+    <div className="flex flex-col h-full bg-[#0D3868] text-white select-none">
+      <div className="p-4 border-b border-white/15 bg-[#09294D]">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-5 h-5 text-emerald-300" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] font-extrabold uppercase tracking-wider text-sky-300">
+                {currentSidebarConfig.moduleNumber} · Contextual Sidebar
+              </div>
+              <div className="text-xs font-extrabold text-white truncate">
+                {currentSidebarConfig.moduleTitle}
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsOperatorDrawerOpen(false)}
+            className="md:hidden p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white cursor-pointer"
+            aria-label="Tutup menu"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <p className="mt-1.5 text-[11px] text-sky-100/80 leading-snug">
+          {currentSidebarConfig.moduleSubtitle}
+        </p>
+
+        {isLurahSession && (
+          <button
+            type="button"
+            onClick={() => {
+              setIsOperatorDrawerOpen(false);
+              handleTabSwitch('dashboard_lurah');
+            }}
+            className="mt-3 w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-emerald-600/30 hover:bg-emerald-600/50 border border-emerald-400/40 text-[11px] font-bold text-emerald-100 transition-colors cursor-pointer"
+          >
+            <span>Buka Dashboard Lurah</span>
+            <ArrowRight className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+          </button>
+        )}
+      </div>
+
+      <nav className="flex-1 overflow-y-auto p-2.5 lg:p-3 space-y-1">
+        <div className="px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-sky-300/80">
+          Daftar Sub-Menu ({currentSidebarConfig.items.length})
+        </div>
+        {currentSidebarConfig.items.map((item) => {
+          const isActive = activeContextualSubmenuKey === item.key;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => handleSelectContextualSubmenu(item.key)}
+              className={`w-full flex items-center justify-between gap-2 px-2.5 lg:px-3 py-2.5 rounded-xl text-left transition-all cursor-pointer ${
+                isActive
+                  ? 'bg-[#0277BD] text-white font-extrabold shadow-xs border border-sky-300/50'
+                  : 'text-slate-100/90 hover:bg-white/10 hover:text-white font-semibold'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className={isActive ? 'text-amber-300' : 'text-sky-300'}>
+                  {item.icon}
+                </span>
+                <div className="min-w-0">
+                  <div className="text-xs truncate">{item.label}</div>
+                  <div
+                    className={`text-[10px] truncate ${
+                      isActive ? 'text-sky-100' : 'text-slate-300/75'
+                    }`}
+                  >
+                    {item.subtitle}
+                  </div>
+                </div>
+              </div>
+              {item.badge !== undefined && item.badge !== 0 && (
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold font-mono-num shrink-0 ${
+                    item.badgeClass || 'bg-white/15 text-white'
+                  }`}
+                >
+                  {item.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+
+        {currentSidebarConfig.allowShowAll && currentSidebarConfig.items.length > 1 && (
+          <div className="pt-2 mt-2 border-t border-white/10">
+            <button
+              type="button"
+              onClick={() => handleSelectContextualSubmenu('ALL')}
+              className={`w-full flex items-center justify-between gap-2 px-2.5 lg:px-3 py-2 rounded-xl text-left transition-all cursor-pointer ${
+                activeContextualSubmenuKey === 'ALL'
+                  ? 'bg-emerald-600 text-white font-extrabold shadow-xs border border-emerald-300/50'
+                  : 'bg-white/5 text-sky-200 hover:bg-white/10 hover:text-white font-semibold'
+              }`}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <Eye className="w-4 h-4 shrink-0 text-emerald-300" />
+                <div className="min-w-0">
+                  <div className="text-xs truncate">Tampilkan Semua Submenu</div>
+                  <div className="text-[10px] text-sky-200/80 truncate">
+                    Gabungkan seluruh kartu modul ini
+                  </div>
+                </div>
+              </div>
+            </button>
+          </div>
+        )}
+      </nav>
+
+      <div className="p-2.5 lg:p-3 border-t border-white/15 bg-[#09294D]">
+        <button
+          type="button"
+          onClick={() => {
+            setIsOperatorDrawerOpen(false);
+            handleLogout();
+          }}
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl bg-red-600/20 hover:bg-red-600 text-red-100 hover:text-white border border-red-400/30 text-xs font-extrabold transition-colors cursor-pointer"
+        >
+          <LogOut className="w-4 h-4 shrink-0" />
+          <span>Keluar</span>
+        </button>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8">
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6">
       {/* Unified Admin Header & Structured Module Navigation Menu Card */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
         {/* Top Officer Session & Portal Return Strip */}
@@ -5011,7 +5778,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 </span>
               </div>
               <span className="text-[11px] text-slate-500 hidden sm:inline">
-                Pilih menu untuk menampilkan kartu sub-menu (gunakan tombol Tampilkan Detail / Tutup pada tiap kartu)
+                Pilih Kartu Menu di atas → Sidebar Kiri menampilkan Submenu → Content Workspace Kanan menampilkan halaman terpilih
               </span>
             </div>
 
@@ -5084,7 +5851,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 </span>
               </button>
 
-              {/* 3. Admin Layanan Kelurahan */}
+              {/* 3. Admin Operator Layanan (Satukan Admin Operator dengan Admin Layanan) */}
               <button
                 type="button"
                 onClick={() => handleTabSwitch('pengurusan_warga')}
@@ -5105,7 +5872,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                           : 'text-[#0277BD]'
                       }`}
                     />
-                    <span className="text-xs font-bold truncate">Admin Layanan Kelurahan</span>
+                    <span className="text-xs font-bold truncate">Admin Operator Layanan</span>
                   </div>
                   {!isTabAllowed('pengurusan_warga') && (
                     <Lock className="w-3 h-3 text-slate-400 shrink-0" />
@@ -5118,7 +5885,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                       : 'text-[#0277BD]'
                   }`}
                 >
-                  Pra Registrasi &amp; Pengaduan Online
+                  Dashboard &amp; Layanan Warga
                 </span>
               </button>
 
@@ -5509,314 +6276,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         </div>
       )}
 
-      {/* ================= TAB TRAFFIC WEB & APLIKASI ================= */}
-      {activeTab === 'traffic' && isTabAllowed('traffic') && (
-        <div className="mt-6 space-y-5">
-          <AdminCollapsibleBar
-            sectionKey="traffic_analitik"
-            title="01. Statistik Kunjungan &amp; Analitik Traffic Web dan App"
-            subtitle="Pemantauan trafik pengunjung harian, perangkat warga, dan interaksi halaman aplikasi secara real-time"
-            icon={<Activity className="w-5 h-5 text-[#00838F]" />}
-            badge={
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-cyan-50 text-[#006064] border border-cyan-300">
-                Real-Time Analytics
-              </span>
-            }
-            isCollapsed={isSectionCollapsed('traffic_analitik')}
-            onToggle={() => toggleSectionCollapse('traffic_analitik')}
-          >
-            <div className="p-4 sm:p-5">
-              <AdminTrafficView onNavigateToView={onNavigate} />
-            </div>
-          </AdminCollapsibleBar>
-        </div>
-      )}
-
-      {/* ================= TAB KELOLA ADMIN DAN USER (4 KARTU SUB-MENU PERKARTU) ================= */}
-      {(activeTab === 'kelola_admin_warga' || activeTab === 'parameter_user' || activeTab === 'user_warga') &&
-        isTabAllowed('kelola_admin_warga') && (
-          <div className="mt-6 space-y-5">
-            {/* KARTU SUB-MENU 01: Otoritas Master Admin */}
-            <AdminCollapsibleBar
-              sectionKey="admin_warga_otoritas"
-              title="01. Otoritas Master Admin (Verifikasi Login Google, Whitelist &amp; Force Sesi)"
-              subtitle="Pusat kendali tunggal otoritas Lurah, persetujuan permohonan verifikasi Google masuk, whitelist, dan sesi login"
-              icon={<ShieldCheck className="w-5 h-5 text-indigo-700" />}
-              badge={
-                <div className="flex items-center gap-1.5">
-                  {(googleAdminRequests || []).filter((r) => (r.status || 'Menunggu Persetujuan') === 'Menunggu Persetujuan').length > 0 && (
-                    <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-500 text-white shadow-xs animate-pulse">
-                      {(googleAdminRequests || []).filter((r) => (r.status || 'Menunggu Persetujuan') === 'Menunggu Persetujuan').length} Permohonan Masuk
-                    </span>
-                  )}
-                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700">
-                    Otoritas Lurah
-                  </span>
-                </div>
-              }
-              isCollapsed={isSectionCollapsed('admin_warga_otoritas')}
-              onToggle={() => toggleSectionCollapse('admin_warga_otoritas')}
-            >
-              <div className="p-4 sm:p-5">
-                <AdminOtoritasMasterPanel
-                  adminUsers={adminUsers}
-                  googleAdminRequests={googleAdminRequests}
-                  isMasterLurah={isLurahSession}
-                  currentUsername={adminSession?.username || ''}
-                  onSaveAdminUsers={auditedOnSaveAdminUsers}
-                  onForceTakeover={async (pwd) => {
-                    return await forceLogoutFirestore(pwd);
-                  }}
-                  onRecordAudit={(audit) => {
-                    recordAudit({
-                      actionType: audit.actionType,
-                      module: 'PARAMETER_USER',
-                      targetLabel: audit.targetLabel,
-                      summary: audit.summary,
-                      details: audit.details,
-                      severity: 'warning',
-                    });
-                  }}
-                  onSwitchSubTab={(sub) => setKelolaAdminWargaSubTab(sub)}
-                />
-              </div>
-            </AdminCollapsibleBar>
-
-            {/* KARTU SUB-MENU 02: Parameter Admin */}
-            <AdminCollapsibleBar
-              sectionKey="admin_warga_parameter"
-              title={`02. Parameter Admin & Manajemen Akun Pejabat Struktural (${adminUsers.length} Akun)`}
-              subtitle="Pengaturan hak akses modul (RBAC), izin aksi petugas, dan kredensial login pejabat kelurahan"
-              icon={<Sliders className="w-5 h-5 text-amber-600" />}
-              badge={
-                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800">
-                  {adminUsers.length} Akun Admin
-                </span>
-              }
-              isCollapsed={isSectionCollapsed('admin_warga_parameter')}
-              onToggle={() => toggleSectionCollapse('admin_warga_parameter')}
-            >
-              <div className="p-4 sm:p-5">
-                <AdminParameterUserPanel
-                  adminUsers={adminUsers}
-                  serviceCatalog={serviceCatalog}
-                  profile={profile}
-                  rwGroups={rwGroups}
-                  currentUsername={adminSession?.username || ''}
-                  isMasterLurah={isLurahSession}
-                  onSaveAdminUsers={auditedOnSaveAdminUsers}
-                />
-              </div>
-            </AdminCollapsibleBar>
-
-            {/* KARTU SUB-MENU 03: User Warga Terdaftar */}
-            <AdminCollapsibleBar
-              sectionKey="admin_warga_user"
-              title={`03. User Warga Terdaftar & Parameter Batasan Akses Menu (${citizenUsers.length} Warga)`}
-              subtitle="Database akun warga terdaftar, riwayat pengajuan per warga, serta pengaturan visibilitas menu warga"
-              icon={<Users className="w-5 h-5 text-emerald-600" />}
-              badge={
-                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800">
-                  {citizenUsers.length} Akun Warga
-                </span>
-              }
-              isCollapsed={isSectionCollapsed('admin_warga_user')}
-              onToggle={() => toggleSectionCollapse('admin_warga_user')}
-            >
-              <div className="p-4 sm:p-5">
-                <AdminDaftarWargaPanel
-                  reports={reports}
-                  rwGroups={rwGroups}
-                  citizenUsers={citizenUsers}
-                  citizenMenuConfig={citizenMenuConfig}
-                  onSaveCitizenMenuConfig={onSaveCitizenMenuConfig}
-                  onUpdateCitizenUser={onUpdateCitizenUser}
-                  onDeleteCitizenUser={onDeleteCitizenUser}
-                  onRecordAudit={(audit) => {
-                    recordAudit({
-                      actionType: audit.actionType,
-                      module: 'DAFTAR_WARGA',
-                      targetId: audit.targetId,
-                      targetLabel: audit.targetLabel,
-                      summary: audit.summary,
-                      details: audit.details,
-                      severity: audit.actionType === 'ACCESS_CHANGE' ? 'warning' : 'info',
-                    });
-                  }}
-                />
-              </div>
-            </AdminCollapsibleBar>
-
-            {/* KARTU SUB-MENU 04: Master Data Layanan */}
-            <AdminCollapsibleBar
-              sectionKey="admin_warga_master_data"
-              title="04. Manajemen Pelayanan &amp; Master Data Layanan Kelurahan"
-              subtitle="Konfigurasi master layanan surat, daftar persyaratan berkas, formulir dinamis, dan kategori pengaduan"
-              icon={<Layers className="w-5 h-5 text-[#0277BD]" />}
-              badge={
-                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-50 border border-sky-200 text-[#0277BD]">
-                  Master Katalog
-                </span>
-              }
-              isCollapsed={isSectionCollapsed('admin_warga_master_data')}
-              onToggle={() => toggleSectionCollapse('admin_warga_master_data')}
-            >
-              <div className="p-4 sm:p-5">
-                <AdminMasterDataLayananPanel
-                  masterLayananList={masterLayananList}
-                  masterPersyaratanList={masterPersyaratanList}
-                  kategoriPengaduanList={kategoriPengaduanList}
-                  onSaveMasterLayanan={onSaveMasterLayanan || (async () => ({ ok: true }))}
-                  onSaveMasterPersyaratan={onSaveMasterPersyaratan || (async () => ({ ok: true }))}
-                  onSaveKategoriPengaduan={onSaveKategoriPengaduan}
-                />
-              </div>
-            </AdminCollapsibleBar>
-          </div>
-        )}
-
-      {/* ================= TAB LOG AKTIFITAS APLIKASI ================= */}
-      {activeTab === 'log_aktivitas' && isTabAllowed('log_aktivitas') && (
-        <div className="mt-6 space-y-5">
-          <AdminCollapsibleBar
-            sectionKey="log_audit_trail"
-            title={`01. Riwayat Log Aktifitas Aplikasi & Audit Trail (${activityLogs.length} Log)`}
-            subtitle="Rekam jejak seluruh aktivitas administrator, perubahan data, persetujuan surat, dan pengiriman WhatsApp"
-            icon={<History className="w-5 h-5 text-[#0277BD]" />}
-            badge={
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-sky-50 text-[#0D3868] border border-sky-200">
-                {activityLogs.length} Audit Trail
-              </span>
-            }
-            isCollapsed={isSectionCollapsed('log_audit_trail')}
-            onToggle={() => toggleSectionCollapse('log_audit_trail')}
-          >
-            <div className="p-4 sm:p-5">
-              <AdminActivityLogPanel
-                activityLogs={activityLogs}
-                adminUsers={adminUsers}
-                profile={profile}
-                currentUser={
-                  currentAdminAccount || {
-                    id: adminSession?.userId || 'usr-master-lurah',
-                    username: adminSession?.username || 'lurah',
-                    password: '',
-                    fullName: adminSession?.fullName || profile.lurahName || 'Muthmainnah, SE, MM',
-                    nip: adminSession?.nip || profile.lurahNip || '198607092015042001',
-                    jabatan: adminSession?.role || 'Lurah Panaikang',
-                    unitBidang: 'Pimpinan Kelurahan Panaikang',
-                    phone: '',
-                    roleLevel: isLurahSession ? 'master_admin' : 'admin_bidang',
-                    isMasterLurah: isLurahSession,
-                    isActive: true,
-                    allowedAdminTabs: effectiveAllowedTabs,
-                    allowedServiceCategories: [],
-                    actionPermissions: effectiveActionPermissions,
-                    createdAt: '',
-                    updatedAt: '',
-                  }
-                }
-                onAddManualLog={(entry) => {
-                  recordAudit({
-                    actionType: entry.actionType,
-                    module: entry.module,
-                    targetLabel: entry.targetLabel,
-                    summary: entry.summary,
-                    details: entry.details,
-                    beforeValue: entry.beforeValue,
-                    afterValue: entry.afterValue,
-                    severity: entry.severity,
-                  });
-                  setSuccessMessage('Catatan audit trail baru berhasil ditambahkan ke Log Aktivitas.');
-                }}
-                onDeleteLogEntry={onDeleteActivityLog}
-                onClearLogs={onResetActivityLogs}
-              />
-            </div>
-          </AdminCollapsibleBar>
-        </div>
-      )}
-
-      {/* ================= PROTEKSI BATASAN AKSES MODUL OLEH SUPER ADMIN (LURAH) ================= */}
-      {activeTab !== 'kelola_admin_warga' &&
-        activeTab !== 'parameter_user' &&
-        activeTab !== 'user_warga' &&
-        activeTab !== 'dashboard_lurah' &&
-        !isTabAllowed(activeTab) && (
-          <div className="mt-6 bg-white rounded-2xl border border-amber-200 p-6 sm:p-8 text-center shadow-xs">
-            <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto mb-3">
-              <Lock className="w-6 h-6" />
-            </div>
-            <h2 className="text-lg font-extrabold text-[#0D3868]">
-              Akses Modul Ini Dibatasi oleh Master Admin (Lurah)
-            </h2>
-            <p className="mt-1.5 text-xs sm:text-sm text-slate-600 max-w-xl mx-auto">
-              Akun Anda (<strong>{adminSession.fullName}</strong> — @{adminSession.username}) tidak
-              memiliki izin untuk mengakses modul ini berdasarkan pengaturan{' '}
-              <strong>Parameter User & Batasan Hak Akses</strong> yang ditetapkan oleh Lurah
-              Panaikang.
-            </p>
-            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-              {effectiveAllowedTabs.map((allowedTab) => (
-                <button
-                  key={allowedTab}
-                  type="button"
-                  onClick={() => handleTabSwitch(allowedTab)}
-                  className="px-3.5 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold cursor-pointer"
-                >
-                  Buka Modul: {allowedTab.replace('_', ' ').toUpperCase()}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-      {/* ================= TAB ADMIN LAYANAN KELURAHAN (BAGIAN 1: PELAYANAN & PENGURUSAN WARGA) ================= */}
-      {(activeTab === 'pengurusan_warga' || activeTab === 'laporan') &&
-        (isTabAllowed('pengurusan_warga') || isTabAllowed('laporan')) && (
-          <div className="mt-6 space-y-5">
-            <AdminCollapsibleBar
-              sectionKey="layanan_pengurusan_utama"
-              title="01. Pelayanan Administrasi &amp; Pengurusan Surat Resmi Warga (7 Bidang · 44 Sub-Menu)"
-              subtitle="Pemrosesan berkas pra-registrasi online, verifikasi persyaratan, penerbitan nomor surat, dan cetak KOP resmi"
-              icon={<FileText className="w-5 h-5 text-[#0277BD]" />}
-              badge={
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-sky-50 text-[#0D3868] border border-sky-200">
-                  {reports.length} Berkas &amp; Pengajuan
-                </span>
-              }
-              isCollapsed={isSectionCollapsed('layanan_pengurusan_utama')}
-              onToggle={() => toggleSectionCollapse('layanan_pengurusan_utama')}
-            >
-              <div className="p-4 sm:p-5">
-                <AdminPengurusanWargaPanel
-                  reports={reports}
-                  praRegistrasiList={praRegistrasiList}
-                  pengaduanList={pengaduanList}
-                  profile={profile}
-                  rwGroups={rwGroups}
-                  whatsappRecipients={whatsappRecipients}
-                  citizenUsers={citizenUsers}
-                  serviceCatalog={serviceCatalog}
-                  adminOfficerName={
-                    adminSession?.fullName || 'Administrator / Operator Kelurahan Panaikang'
-                  }
-                  allowedServiceCategories={effectiveAllowedCategories}
-                  actionPermissions={effectiveActionPermissions}
-                  onCreateReport={auditedOnCreateReport}
-                  onUpdateReport={auditedOnUpdateReport}
-                  onDeleteReport={auditedOnDeleteReport}
-                  onSaveServiceCatalog={auditedOnSaveServiceCatalog}
-                  onLurahApproveService={onLurahApproveService}
-                />
-              </div>
-            </AdminCollapsibleBar>
-          </div>
-        )}
-
-      {/* ================= TAB 0: DASHBOARD LURAH (KHUSUS LURAH) ================= */}
+      {/* ================= TAB 0: DASHBOARD LURAH (KHUSUS LURAH — MEMILIKI SIDEBAR KONTEKSTUAL & CONTENT WORKSPACE TERSENDIRI) ================= */}
       {activeTab === 'dashboard_lurah' && (
-        <div className="mt-6">
+        <div className="mt-5">
           {isLurahSession ? (
             <DashboardLurahView
               reports={reports}
@@ -5824,12 +6286,18 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               cleanupEvents={cleanupEvents}
               praRegistrasiList={praRegistrasiList}
               pengaduanList={pengaduanList}
+              masterLayananList={masterLayananList}
+              masterPersyaratanList={masterPersyaratanList}
+              activityLogs={activityLogs}
               profile={profile}
               rwGroups={rwGroups}
               whatsappRecipients={whatsappRecipients}
               onSaveWhatsAppRecipients={onSaveWhatsAppRecipients}
               onLurahApproveService={onLurahApproveService}
               onOpenWhatsAppManager={() => handleTabSwitch('whatsapp_gateway')}
+              onLogout={handleLogout}
+              onSwitchToOperatorMode={() => handleSelectOperatorNav('dashboard')}
+              onOpenAdminTab={(tab) => handleTabSwitch(tab as AdminTab)}
               onUpdateReportStatus={(id, newStatus, assignedTeam, responseNote) => {
                 const targetRep = reports.find((r) => r.id === id);
                 if (onUpdateReportStatus) {
@@ -5892,6 +6360,670 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           )}
         </div>
       )}
+
+      {/* ================= DYNAMIC CONTEXTUAL SIDEBAR (BAWAH KIRI) + CONTENT WORKSPACE (BAWAH KANAN) UNTUK SELURUH MENU ADMIN ================= */}
+      {activeTab !== 'dashboard_lurah' && (
+        <ContextualSubmenuContext.Provider value={{ activeSubmenuKey: activeContextualSubmenuKey }}>
+          <div className="mt-5 flex flex-col md:flex-row gap-4 items-start">
+            {/* 1. Mobile (HP < md) Top Trigger Bar & Quick Horizontal Submenu Bar */}
+            <div className="w-full md:hidden bg-[#0D3868] text-white rounded-2xl p-3 space-y-2.5 shadow-xs">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsOperatorDrawerOpen(true)}
+                    className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-white/15 hover:bg-white/25 text-white cursor-pointer shrink-0"
+                    aria-label="Buka Sidebar Kontekstual"
+                  >
+                    <Menu className="w-5 h-5" />
+                  </button>
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-extrabold uppercase tracking-wider text-sky-300">
+                      Sidebar · {currentSidebarConfig.moduleTitle}
+                    </div>
+                    <div className="text-xs font-bold text-white truncate">
+                      {activeContextualSubmenuKey === 'ALL'
+                        ? 'Semua Sub-Menu'
+                        : activeContextualItem?.label || currentSidebarConfig.moduleTitle}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsOperatorDrawerOpen(true)}
+                  className="px-2.5 py-1.5 rounded-xl bg-[#0277BD] hover:bg-sky-600 text-[11px] font-extrabold text-white shrink-0 cursor-pointer"
+                >
+                  Menu Sidebar
+                </button>
+              </div>
+
+              {/* Quick Horizontal Submenu Strip on HP */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                {currentSidebarConfig.items.map((item) => {
+                  const isActive = activeContextualSubmenuKey === item.key;
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => handleSelectContextualSubmenu(item.key)}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap shrink-0 transition cursor-pointer ${
+                        isActive
+                          ? 'bg-[#0277BD] text-white shadow-2xs border border-sky-300/40'
+                          : 'bg-white/10 text-slate-100 hover:bg-white/20'
+                      }`}
+                    >
+                      {item.icon}
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
+                {currentSidebarConfig.allowShowAll && currentSidebarConfig.items.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => handleSelectContextualSubmenu('ALL')}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap shrink-0 transition cursor-pointer ${
+                      activeContextualSubmenuKey === 'ALL'
+                        ? 'bg-emerald-600 text-white shadow-2xs border border-emerald-300/40'
+                        : 'bg-white/10 text-emerald-200 hover:bg-white/20'
+                    }`}
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Semua</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* 2. Mobile (HP < md) Slide-Over Drawer */}
+            {isOperatorDrawerOpen && (
+              <div className="fixed inset-0 z-50 md:hidden flex">
+                <div
+                  className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs"
+                  onClick={() => setIsOperatorDrawerOpen(false)}
+                />
+                <div className="relative w-72 max-w-[85vw] h-full shadow-2xl z-10">
+                  {renderDynamicContextualSidebar()}
+                </div>
+              </div>
+            )}
+
+            {/* 3. Tablet & Desktop (md+) Sticky Left Contextual Sidebar */}
+            <aside className="hidden md:block w-60 lg:w-68 shrink-0 sticky top-4 rounded-2xl overflow-hidden shadow-xs border border-slate-200/80">
+              {renderDynamicContextualSidebar()}
+            </aside>
+
+            {/* 4. Right Column: Content Workspace */}
+            <div className="flex-1 min-w-0 w-full space-y-4">
+              {/* Content Workspace Top Context Header */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-4 shadow-xs space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+                      <span className="inline-flex items-center gap-1 font-extrabold text-[#0277BD] uppercase tracking-wider">
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        <span>
+                          {currentSidebarConfig.moduleNumber}: {currentSidebarConfig.moduleTitle}
+                        </span>
+                      </span>
+                      <span>·</span>
+                      <span>
+                        Sub-Menu Aktif:{' '}
+                        <strong className="text-[#0D3868]">
+                          {activeContextualSubmenuKey === 'ALL'
+                            ? 'Semua Sub-Menu'
+                            : activeContextualItem?.label || currentSidebarConfig.moduleTitle}
+                        </strong>
+                      </span>
+                    </div>
+                    <h2 className="text-sm sm:text-base font-extrabold text-[#0D3868] tracking-tight truncate mt-0.5">
+                      {activeContextualSubmenuKey === 'ALL'
+                        ? `Seluruh Sub-Menu ${currentSidebarConfig.moduleTitle}`
+                        : `${activeContextualItem?.label || currentSidebarConfig.moduleTitle} — ${
+                            activeContextualItem?.subtitle || currentSidebarConfig.moduleSubtitle
+                          }`}
+                    </h2>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 self-start sm:self-center shrink-0">
+                    {currentSidebarConfig.allowShowAll && currentSidebarConfig.items.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleSelectContextualSubmenu(
+                            activeContextualSubmenuKey === 'ALL'
+                              ? currentSidebarConfig.items[0].key
+                              : 'ALL'
+                          )
+                        }
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-[11px] font-bold transition-colors cursor-pointer"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-[#0277BD]" />
+                        <span>
+                          {activeContextualSubmenuKey === 'ALL'
+                            ? 'Mode Per Sub-Menu'
+                            : 'Tampilkan Semua'}
+                        </span>
+                      </button>
+                    )}
+
+                    {isLurahSession && (
+                      <button
+                        type="button"
+                        onClick={() => handleTabSwitch('dashboard_lurah')}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold transition-colors cursor-pointer"
+                      >
+                        <BarChart3 className="w-3.5 h-3.5" />
+                        <span>Ke Dashboard Lurah</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Compact KPI Strip specifically when on Admin Operator & Layanan */}
+                {(activeTab === 'pengurusan_warga' || activeTab === 'laporan') && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectOperatorNav('dashboard')}
+                      className={`px-3 py-2 rounded-xl border flex items-center justify-between gap-2 text-left transition cursor-pointer ${
+                        (operatorNav === 'dashboard' || operatorNav === null) &&
+                        pengurusanMainFilter === 'ALL'
+                          ? 'bg-slate-900 border-slate-900 text-white'
+                          : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-800'
+                      }`}
+                    >
+                      <span className="text-[11px] font-bold truncate">Total Data</span>
+                      <span className="text-sm sm:text-base font-extrabold font-mono-num shrink-0">
+                        {reports.length}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSelectOperatorNav('pra_registrasi')}
+                      className={`px-3 py-2 rounded-xl border flex items-center justify-between gap-2 text-left transition cursor-pointer ${
+                        operatorNav === 'pra_registrasi' || pengurusanMainFilter === 'SURAT'
+                          ? 'bg-[#0D3868] border-[#0D3868] text-white'
+                          : 'bg-sky-50/70 hover:bg-sky-100/70 border-sky-200 text-[#0D3868]'
+                      }`}
+                    >
+                      <span className="text-[11px] font-bold truncate">Pengajuan Surat</span>
+                      <span className="text-sm sm:text-base font-extrabold font-mono-num shrink-0">
+                        {totalSuratReportsCount}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSelectOperatorNav('pra_registrasi')}
+                      className="px-3 py-2 rounded-xl bg-amber-50/80 hover:bg-amber-100/70 border border-amber-200 flex items-center justify-between gap-2 text-left transition cursor-pointer"
+                    >
+                      <span className="text-[11px] font-bold text-amber-900 truncate">
+                        Surat Proses
+                      </span>
+                      <span className="text-sm sm:text-base font-extrabold font-mono-num text-amber-900 shrink-0">
+                        {pendingSuratCount}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSelectOperatorNav('pengaduan')}
+                      className={`px-3 py-2 rounded-xl border flex items-center justify-between gap-2 text-left transition cursor-pointer ${
+                        operatorNav === 'pengaduan' || pengurusanMainFilter === 'ADUAN'
+                          ? 'bg-amber-600 border-amber-600 text-white'
+                          : 'bg-orange-50/80 hover:bg-orange-100/70 border-orange-200 text-orange-950'
+                      }`}
+                    >
+                      <span className="text-[11px] font-bold truncate">Pengaduan</span>
+                      <span className="text-sm sm:text-base font-extrabold font-mono-num shrink-0">
+                        {totalAduanReportsCount}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSelectOperatorNav('pengaduan')}
+                      className="px-3 py-2 rounded-xl bg-rose-50/80 hover:bg-rose-100/70 border border-rose-200 flex items-center justify-between gap-2 text-left transition cursor-pointer"
+                    >
+                      <span className="text-[11px] font-bold text-rose-800 truncate">Ditangani</span>
+                      <span className="text-sm sm:text-base font-extrabold font-mono-num text-rose-800 shrink-0">
+                        {pendingAduanCount}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSelectOperatorNav('dashboard')}
+                      className="px-3 py-2 rounded-xl bg-emerald-50/80 hover:bg-emerald-100/70 border border-emerald-200 flex items-center justify-between gap-2 text-left transition cursor-pointer"
+                    >
+                      <span className="text-[11px] font-bold text-emerald-800 truncate">Selesai</span>
+                      <span className="text-sm sm:text-base font-extrabold font-mono-num text-emerald-800 shrink-0">
+                        {completedReportsCount}
+                      </span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* ================= TAB TRAFFIC WEB & APLIKASI ================= */}
+              {activeTab === 'traffic' && isTabAllowed('traffic') && (
+                <div className="space-y-5">
+                  <AdminCollapsibleBar
+                    sectionKey="traffic_analitik"
+                    title="01. Statistik Kunjungan & Analitik Traffic Web dan App"
+                    subtitle="Pemantauan trafik pengunjung harian, perangkat warga, dan interaksi halaman aplikasi secara real-time"
+                    icon={<Activity className="w-5 h-5 text-[#00838F]" />}
+                    badge={
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-cyan-50 text-[#006064] border border-cyan-300">
+                        Real-Time Analytics
+                      </span>
+                    }
+                    isCollapsed={isSectionCollapsed('traffic_analitik')}
+                    onToggle={() => toggleSectionCollapse('traffic_analitik')}
+                  >
+                    <div className="p-4 sm:p-5">
+                      <AdminTrafficView onNavigateToView={onNavigate} />
+                    </div>
+                  </AdminCollapsibleBar>
+                </div>
+              )}
+
+              {/* ================= TAB KELOLA ADMIN DAN USER (4 KARTU SUB-MENU PERKARTU) ================= */}
+              {(activeTab === 'kelola_admin_warga' ||
+                activeTab === 'parameter_user' ||
+                activeTab === 'user_warga') &&
+                isTabAllowed('kelola_admin_warga') && (
+                  <div className="space-y-5">
+                    {/* KARTU SUB-MENU 01: Otoritas Master Admin */}
+                    <AdminCollapsibleBar
+                      sectionKey="admin_warga_otoritas"
+                      title="01. Otoritas Master Admin (Verifikasi Login Google, Whitelist & Force Sesi)"
+                      subtitle="Pusat kendali tunggal otoritas Lurah, persetujuan permohonan verifikasi Google masuk, whitelist, dan sesi login"
+                      icon={<ShieldCheck className="w-5 h-5 text-indigo-700" />}
+                      badge={
+                        <div className="flex items-center gap-1.5">
+                          {(googleAdminRequests || []).filter(
+                            (r) =>
+                              (r.status || 'Menunggu Persetujuan') === 'Menunggu Persetujuan'
+                          ).length > 0 && (
+                            <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-500 text-white shadow-xs animate-pulse">
+                              {
+                                (googleAdminRequests || []).filter(
+                                  (r) =>
+                                    (r.status || 'Menunggu Persetujuan') ===
+                                    'Menunggu Persetujuan'
+                                ).length
+                              }{' '}
+                              Permohonan Masuk
+                            </span>
+                          )}
+                          <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700">
+                            Otoritas Lurah
+                          </span>
+                        </div>
+                      }
+                      isCollapsed={isSectionCollapsed('admin_warga_otoritas')}
+                      onToggle={() => toggleSectionCollapse('admin_warga_otoritas')}
+                    >
+                      <div className="p-4 sm:p-5">
+                        <AdminOtoritasMasterPanel
+                          adminUsers={adminUsers}
+                          googleAdminRequests={googleAdminRequests}
+                          isMasterLurah={isLurahSession}
+                          currentUsername={adminSession?.username || ''}
+                          onSaveAdminUsers={auditedOnSaveAdminUsers}
+                          onForceTakeover={async (pwd) => {
+                            return await forceLogoutFirestore(pwd);
+                          }}
+                          onRecordAudit={(audit) => {
+                            recordAudit({
+                              actionType: audit.actionType,
+                              module: 'PARAMETER_USER',
+                              targetLabel: audit.targetLabel,
+                              summary: audit.summary,
+                              details: audit.details,
+                              severity: 'warning',
+                            });
+                          }}
+                          onSwitchSubTab={(sub) => {
+                            setKelolaAdminWargaSubTab(sub);
+                            if (sub === 'parameter_admin') {
+                              setContextualSubmenu('admin_warga_parameter');
+                            } else if (sub === 'user_warga') {
+                              setContextualSubmenu('admin_warga_user');
+                            }
+                          }}
+                        />
+                      </div>
+                    </AdminCollapsibleBar>
+
+                    {/* KARTU SUB-MENU 02: Parameter Admin */}
+                    <AdminCollapsibleBar
+                      sectionKey="admin_warga_parameter"
+                      title={`02. Parameter Admin & Manajemen Akun Pejabat Struktural (${adminUsers.length} Akun)`}
+                      subtitle="Pengaturan hak akses modul (RBAC), izin aksi petugas, dan kredensial login pejabat kelurahan"
+                      icon={<Sliders className="w-5 h-5 text-amber-600" />}
+                      badge={
+                        <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800">
+                          {adminUsers.length} Akun Admin
+                        </span>
+                      }
+                      isCollapsed={isSectionCollapsed('admin_warga_parameter')}
+                      onToggle={() => toggleSectionCollapse('admin_warga_parameter')}
+                    >
+                      <div className="p-4 sm:p-5">
+                        <AdminParameterUserPanel
+                          adminUsers={adminUsers}
+                          serviceCatalog={serviceCatalog}
+                          profile={profile}
+                          rwGroups={rwGroups}
+                          currentUsername={adminSession?.username || ''}
+                          isMasterLurah={isLurahSession}
+                          onSaveAdminUsers={auditedOnSaveAdminUsers}
+                        />
+                      </div>
+                    </AdminCollapsibleBar>
+
+                    {/* KARTU SUB-MENU 03: User Warga Terdaftar */}
+                    <AdminCollapsibleBar
+                      sectionKey="admin_warga_user"
+                      title={`03. User Warga Terdaftar & Parameter Batasan Akses Menu (${citizenUsers.length} Warga)`}
+                      subtitle="Database akun warga terdaftar, riwayat pengajuan per warga, serta pengaturan visibilitas menu warga"
+                      icon={<Users className="w-5 h-5 text-emerald-600" />}
+                      badge={
+                        <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800">
+                          {citizenUsers.length} Akun Warga
+                        </span>
+                      }
+                      isCollapsed={isSectionCollapsed('admin_warga_user')}
+                      onToggle={() => toggleSectionCollapse('admin_warga_user')}
+                    >
+                      <div className="p-4 sm:p-5">
+                        <AdminDaftarWargaPanel
+                          reports={reports}
+                          rwGroups={rwGroups}
+                          citizenUsers={citizenUsers}
+                          citizenMenuConfig={citizenMenuConfig}
+                          onSaveCitizenMenuConfig={onSaveCitizenMenuConfig}
+                          onUpdateCitizenUser={onUpdateCitizenUser}
+                          onDeleteCitizenUser={onDeleteCitizenUser}
+                          onRecordAudit={(audit) => {
+                            recordAudit({
+                              actionType: audit.actionType,
+                              module: 'DAFTAR_WARGA',
+                              targetId: audit.targetId,
+                              targetLabel: audit.targetLabel,
+                              summary: audit.summary,
+                              details: audit.details,
+                              severity: audit.actionType === 'ACCESS_CHANGE' ? 'warning' : 'info',
+                            });
+                          }}
+                        />
+                      </div>
+                    </AdminCollapsibleBar>
+
+                    {/* KARTU SUB-MENU 04: Master Data Layanan */}
+                    <AdminCollapsibleBar
+                      sectionKey="admin_warga_master_data"
+                      title="04. Manajemen Pelayanan & Master Data Layanan Kelurahan"
+                      subtitle="Konfigurasi master layanan surat, daftar persyaratan berkas, formulir dinamis, dan kategori pengaduan"
+                      icon={<Layers className="w-5 h-5 text-[#0277BD]" />}
+                      badge={
+                        <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-50 border border-sky-200 text-[#0277BD]">
+                          Master Katalog
+                        </span>
+                      }
+                      isCollapsed={isSectionCollapsed('admin_warga_master_data')}
+                      onToggle={() => toggleSectionCollapse('admin_warga_master_data')}
+                    >
+                      <div className="p-4 sm:p-5">
+                        <AdminMasterDataLayananPanel
+                          masterLayananList={masterLayananList}
+                          masterPersyaratanList={masterPersyaratanList}
+                          kategoriPengaduanList={kategoriPengaduanList}
+                          onSaveMasterLayanan={onSaveMasterLayanan || (async () => ({ ok: true }))}
+                          onSaveMasterPersyaratan={
+                            onSaveMasterPersyaratan || (async () => ({ ok: true }))
+                          }
+                          onSaveKategoriPengaduan={onSaveKategoriPengaduan}
+                        />
+                      </div>
+                    </AdminCollapsibleBar>
+                  </div>
+                )}
+
+              {/* ================= TAB LOG AKTIFITAS APLIKASI ================= */}
+              {activeTab === 'log_aktivitas' && isTabAllowed('log_aktivitas') && (
+                <div className="space-y-5">
+                  <AdminCollapsibleBar
+                    sectionKey="log_audit_trail"
+                    title={`01. Riwayat Log Aktifitas Aplikasi & Audit Trail (${activityLogs.length} Log)`}
+                    subtitle="Rekam jejak seluruh aktivitas administrator, perubahan data, persetujuan surat, dan pengiriman WhatsApp"
+                    icon={<History className="w-5 h-5 text-[#0277BD]" />}
+                    badge={
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-sky-50 text-[#0D3868] border border-sky-200">
+                        {activityLogs.length} Audit Trail
+                      </span>
+                    }
+                    isCollapsed={isSectionCollapsed('log_audit_trail')}
+                    onToggle={() => toggleSectionCollapse('log_audit_trail')}
+                  >
+                    <div className="p-4 sm:p-5">
+                      <AdminActivityLogPanel
+                        activityLogs={activityLogs}
+                        adminUsers={adminUsers}
+                        profile={profile}
+                        currentUser={
+                          currentAdminAccount || {
+                            id: adminSession?.userId || 'usr-master-lurah',
+                            username: adminSession?.username || 'lurah',
+                            password: '',
+                            fullName:
+                              adminSession?.fullName ||
+                              profile.lurahName ||
+                              'Muthmainnah, SE, MM',
+                            nip:
+                              adminSession?.nip ||
+                              profile.lurahNip ||
+                              '198607092015042001',
+                            jabatan: adminSession?.role || 'Lurah Panaikang',
+                            unitBidang: 'Pimpinan Kelurahan Panaikang',
+                            phone: '',
+                            roleLevel: isLurahSession ? 'master_admin' : 'admin_bidang',
+                            isMasterLurah: isLurahSession,
+                            isActive: true,
+                            allowedAdminTabs: effectiveAllowedTabs,
+                            allowedServiceCategories: [],
+                            actionPermissions: effectiveActionPermissions,
+                            createdAt: '',
+                            updatedAt: '',
+                          }
+                        }
+                        onAddManualLog={(entry) => {
+                          recordAudit({
+                            actionType: entry.actionType,
+                            module: entry.module,
+                            targetLabel: entry.targetLabel,
+                            summary: entry.summary,
+                            details: entry.details,
+                            beforeValue: entry.beforeValue,
+                            afterValue: entry.afterValue,
+                            severity: entry.severity,
+                          });
+                          setSuccessMessage(
+                            'Catatan audit trail baru berhasil ditambahkan ke Log Aktivitas.'
+                          );
+                        }}
+                        onDeleteLogEntry={onDeleteActivityLog}
+                        onClearLogs={onResetActivityLogs}
+                      />
+                    </div>
+                  </AdminCollapsibleBar>
+                </div>
+              )}
+
+              {/* ================= PROTEKSI BATASAN AKSES MODUL OLEH SUPER ADMIN (LURAH) ================= */}
+              {activeTab !== 'kelola_admin_warga' &&
+                activeTab !== 'parameter_user' &&
+                activeTab !== 'user_warga' &&
+                !isTabAllowed(activeTab) && (
+                  <div className="bg-white rounded-2xl border border-amber-200 p-6 sm:p-8 text-center shadow-xs">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto mb-3">
+                      <Lock className="w-6 h-6" />
+                    </div>
+                    <h2 className="text-lg font-extrabold text-[#0D3868]">
+                      Akses Modul Ini Dibatasi oleh Master Admin (Lurah)
+                    </h2>
+                    <p className="mt-1.5 text-xs sm:text-sm text-slate-600 max-w-xl mx-auto">
+                      Akun Anda (<strong>{adminSession.fullName}</strong> — @{adminSession.username}
+                      ) tidak memiliki izin untuk mengakses modul ini berdasarkan pengaturan{' '}
+                      <strong>Parameter User & Batasan Hak Akses</strong> yang ditetapkan oleh Lurah
+                      Panaikang.
+                    </p>
+                    <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                      {effectiveAllowedTabs.map((allowedTab) => (
+                        <button
+                          key={allowedTab}
+                          type="button"
+                          onClick={() => handleTabSwitch(allowedTab)}
+                          className="px-3.5 py-2 rounded-xl bg-[#0D3868] hover:bg-[#072647] text-white text-xs font-bold cursor-pointer"
+                        >
+                          Buka Modul: {allowedTab.replace('_', ' ').toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+              {/* ================= WORKSPACE ADMIN OPERATOR LAYANAN ================= */}
+              {(activeTab === 'pengurusan_warga' || activeTab === 'laporan') &&
+                (isTabAllowed('pengurusan_warga') || isTabAllowed('laporan')) && (
+                  <div className="space-y-4">
+                    {(operatorNav === null ||
+                      operatorNav === 'dashboard' ||
+                      operatorNav === 'pra_registrasi' ||
+                      operatorNav === 'pengaduan') && (
+                      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs">
+                        <AdminPengurusanWargaPanel
+                          reports={reports}
+                          praRegistrasiList={praRegistrasiList}
+                          pengaduanList={pengaduanList}
+                          profile={profile}
+                          rwGroups={rwGroups}
+                          whatsappRecipients={whatsappRecipients}
+                          citizenUsers={citizenUsers}
+                          serviceCatalog={serviceCatalog}
+                          adminOfficerName={
+                            adminSession?.fullName ||
+                            'Administrator / Operator Kelurahan Panaikang'
+                          }
+                          allowedServiceCategories={effectiveAllowedCategories}
+                          actionPermissions={effectiveActionPermissions}
+                          initialMainFilter={pengurusanMainFilter}
+                          onCreateReport={auditedOnCreateReport}
+                          onUpdateReport={auditedOnUpdateReport}
+                          onDeleteReport={auditedOnDeleteReport}
+                          onSaveServiceCatalog={auditedOnSaveServiceCatalog}
+                          onLurahApproveService={onLurahApproveService}
+                        />
+                      </div>
+                    )}
+
+                    {(operatorNav === 'daftar_layanan' ||
+                      operatorNav === 'persyaratan_layanan') && (
+                      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs">
+                        <AdminMasterDataLayananPanel
+                          masterLayananList={masterLayananList}
+                          masterPersyaratanList={masterPersyaratanList}
+                          kategoriPengaduanList={kategoriPengaduanList}
+                          initialSubTab={masterLayananSubTab}
+                          onSaveMasterLayanan={onSaveMasterLayanan || (async () => ({ ok: true }))}
+                          onSaveMasterPersyaratan={
+                            onSaveMasterPersyaratan || (async () => ({ ok: true }))
+                          }
+                          onSaveKategoriPengaduan={onSaveKategoriPengaduan}
+                        />
+                      </div>
+                    )}
+
+                    {operatorNav &&
+                      ['penugasan', 'sla', 'notifikasi', 'pengaturan'].includes(operatorNav) && (
+                        <AdminOperatorModulesPanel
+                          activeSection={
+                            operatorNav as 'penugasan' | 'sla' | 'notifikasi' | 'pengaturan'
+                          }
+                          reports={reports}
+                          praRegistrasiList={praRegistrasiList}
+                          pengaduanList={pengaduanList}
+                          masterLayananList={masterLayananList}
+                          masterPersyaratanList={masterPersyaratanList}
+                          whatsappRecipients={whatsappRecipients}
+                          activityLogs={activityLogs}
+                          adminOfficerName={
+                            adminSession?.fullName || 'Operator Kelurahan Panaikang'
+                          }
+                          onSelectSidebarItem={handleSelectOperatorNav}
+                          onOpenAdminModuleTab={(tab) => handleTabSwitch(tab as AdminTab)}
+                          onOpenReportDetail={(rep) => setAdminReportDetailModal({ report: rep })}
+                          onUpdateReport={auditedOnUpdateReport}
+                        />
+                      )}
+
+                    {operatorNav === 'riwayat_aktivitas' && (
+                      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs">
+                        <AdminActivityLogPanel
+                          activityLogs={activityLogs}
+                          adminUsers={adminUsers}
+                          profile={profile}
+                          currentUser={
+                            currentAdminAccount || {
+                              id: adminSession?.userId || 'usr-master-lurah',
+                              username: adminSession?.username || 'lurah',
+                              password: '',
+                              fullName:
+                                adminSession?.fullName ||
+                                profile.lurahName ||
+                                'Muthmainnah, SE, MM',
+                              nip:
+                                adminSession?.nip ||
+                                profile.lurahNip ||
+                                '198607092015042001',
+                              jabatan: adminSession?.role || 'Lurah Panaikang',
+                              unitBidang: 'Pimpinan Kelurahan Panaikang',
+                              phone: '',
+                              roleLevel: isLurahSession ? 'master_admin' : 'admin_bidang',
+                              isMasterLurah: isLurahSession,
+                              isActive: true,
+                              allowedAdminTabs: effectiveAllowedTabs,
+                              allowedServiceCategories: [],
+                              actionPermissions: effectiveActionPermissions,
+                              createdAt: '',
+                              updatedAt: '',
+                            }
+                          }
+                          onAddManualLog={(entry) => {
+                            recordAudit({
+                              actionType: entry.actionType,
+                              module: entry.module,
+                              targetLabel: entry.targetLabel,
+                              summary: entry.summary,
+                              details: entry.details,
+                              beforeValue: entry.beforeValue,
+                              afterValue: entry.afterValue,
+                              severity: entry.severity,
+                            });
+                            setSuccessMessage(
+                              'Catatan audit trail baru berhasil ditambahkan ke Log Aktivitas.'
+                            );
+                          }}
+                          onDeleteLogEntry={onDeleteActivityLog}
+                          onClearLogs={onResetActivityLogs}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
 
       {/* ================= TAB 1: KELOLA PROFIL KELURAHAN ================= */}
       {activeTab === 'profil' && isTabAllowed('profil') && (
@@ -10557,7 +11689,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
       {/* ================= TAB URBAN FARMING (CRUD KEBUN, BIBIT, UPLOAD GAMBAR, SIMPAN DATA) ================= */}
       {activeTab === 'urban_farming' && isTabAllowed('urban_farming') && (
-        <div className="mt-6">
+        <div>
           <AdminCollapsibleBar
             sectionKey="urban_kebun"
             title={`Manajemen Terpadu Urban Farming (${urbanFarmingSpots.length} Titik Binaan & ${seedRequests.length} Permohonan Bibit)`}
@@ -10581,6 +11713,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 adminOfficerName={
                   adminSession?.fullName || 'Administrator Satu Data Panaikang'
                 }
+                activeSubView={contextualSubmenu}
                 onAddSpot={auditedOnAddUrbanFarmingSpot}
                 onUpdateSpot={auditedOnUpdateUrbanFarmingSpot}
                 onDeleteSpot={auditedOnDeleteUrbanFarmingSpot}
@@ -11328,6 +12461,10 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
             </div>
           </AdminCollapsibleBar>
         </div>
+      )}
+            </div>
+          </div>
+        </ContextualSubmenuContext.Provider>
       )}
 
       {/* ================= MODAL: TAMBAH / EDIT JABATAN PERANGKAT KELURAHAN ================= */}

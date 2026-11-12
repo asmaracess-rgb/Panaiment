@@ -44,6 +44,7 @@ interface AdminMasterDataLayananPanelProps {
   onSaveMasterLayanan: (list: MasterLayananItem[]) => Promise<{ ok: boolean; errors?: string[] }>;
   onSaveMasterPersyaratan: (list: MasterPersyaratanItem[]) => Promise<{ ok: boolean; errors?: string[] }>;
   onSaveKategoriPengaduan?: (list: PengaduanKategori[]) => Promise<{ ok: boolean; errors?: string[] }>;
+  initialSubTab?: 'layanan' | 'persyaratan' | 'form_builder' | 'kategori_pengaduan' | 'alur_status';
 }
 
 export const AdminMasterDataLayananPanel: React.FC<AdminMasterDataLayananPanelProps> = ({
@@ -53,10 +54,17 @@ export const AdminMasterDataLayananPanel: React.FC<AdminMasterDataLayananPanelPr
   onSaveMasterLayanan,
   onSaveMasterPersyaratan,
   onSaveKategoriPengaduan,
+  initialSubTab = 'layanan',
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<
     'layanan' | 'persyaratan' | 'form_builder' | 'kategori_pengaduan' | 'alur_status'
-  >('layanan');
+  >(initialSubTab);
+
+  React.useEffect(() => {
+    if (initialSubTab) {
+      setActiveSubTab(initialSubTab);
+    }
+  }, [initialSubTab]);
 
   // Search
   const [searchQuery, setSearchQuery] = useState('');

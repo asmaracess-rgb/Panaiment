@@ -211,7 +211,7 @@ export function createSafeSnapshot(database: PersistedDatabase): PersistedDataba
 
   const preservedLurahPhoto =
     typeof database.profile?.lurahPhotoUrl === 'string' &&
-    database.profile.lurahPhotoUrl.length < 350_000
+    database.profile.lurahPhotoUrl.length < 400_000
       ? database.profile.lurahPhotoUrl
       : '';
 
@@ -257,7 +257,7 @@ export function createSafeSnapshot(database: PersistedDatabase): PersistedDataba
 
   let jsonString = JSON.stringify(safeClone);
   if (jsonString.length > 760_000) {
-    // Free static catalog & secondary log arrays first so all 7 Urban Farming photos always fit under 1 MiB
+    // Free static catalog & secondary log arrays first so custom photos always fit under 1 MiB
     safeClone.serviceCatalog = [];
     safeClone.waDispatchLogs = [];
     if (Array.isArray(safeClone.reports)) {
@@ -271,9 +271,17 @@ export function createSafeSnapshot(database: PersistedDatabase): PersistedDataba
     }
     jsonString = JSON.stringify(safeClone);
   }
-  if (jsonString.length > 900_000 && safeClone.profile) {
-    // If the snapshot is very large, keep lightweight static URL baseline instead of large base64
-    safeClone.profile.lurahPhotoUrl = '/images/lurah_muthmainnah_panaikang_1791548085422.jpg';
+  if (jsonString.length > 900_000) {
+    // Trim remaining historical logs to maintain document headroom without overwriting custom lurah photo
+    if (Array.isArray(safeClone.reports)) {
+      safeClone.reports = safeClone.reports.slice(0, 10);
+    }
+    if (Array.isArray(safeClone.wasteLogs)) {
+      safeClone.wasteLogs = safeClone.wasteLogs.slice(0, 8);
+    }
+    if (Array.isArray(safeClone.activityLogs)) {
+      safeClone.activityLogs = safeClone.activityLogs.slice(0, 5);
+    }
     jsonString = JSON.stringify(safeClone);
   }
 
@@ -498,19 +506,18 @@ export async function seedInitialFirestoreIfEmpty(
 export async function pushProfileToFirestore(profile: KelurahanProfile): Promise<void> {
   if (isQuotaPaused()) return;
   try {
-    const cleanProfile = createSafeSnapshot({ profile } as any).profile || profile;
-    await setDoc(
-      PROFILE_REF,
-      {
-        ...cleanProfile,
-        updatedAt: Date.now(),
-        syncedAt: new Date().toISOString(),
-      },
-      { merge: true }
-    );
+    const payload = {
+      ...profile,
+      lurahPhotoUrl: profile.lurahPhotoUrl?.trim() || '',
+      updatedAt: Date.now(),
+      syncedAt: new Date().toISOString(),
+    };
+    await setDoc(PROFILE_REF, payload, { merge: true });
   } catch (err) {
     if (isQuotaError(err)) {
       tripQuotaCircuitBreaker();
+    } else {
+      console.warn('[Firestore] Error updating kelurahan profile in cloud:', err);
     }
   }
 }

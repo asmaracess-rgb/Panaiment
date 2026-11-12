@@ -824,6 +824,28 @@ export function smartMergeDatabases(
     return [];
   };
 
+  const incPhoto = typeof incProfile.lurahPhotoUrl === 'string' ? incProfile.lurahPhotoUrl.trim() : '';
+  const localPhoto = typeof baseProfile.lurahPhotoUrl === 'string' ? baseProfile.lurahPhotoUrl.trim() : '';
+
+  let resolvedLurahPhoto: string;
+  if (incPhoto && incPhoto !== DEFAULT_LURAH_PHOTO_URL) {
+    resolvedLurahPhoto = incPhoto;
+  } else if (localPhoto && localPhoto !== DEFAULT_LURAH_PHOTO_URL) {
+    resolvedLurahPhoto = localPhoto;
+  } else if (incPhoto) {
+    resolvedLurahPhoto = incPhoto;
+  } else if (localPhoto) {
+    resolvedLurahPhoto = localPhoto;
+  } else {
+    resolvedLurahPhoto = getRecoveredLurahPhotoUrl() || DEFAULT_LURAH_PHOTO_URL;
+  }
+
+  if (typeof window !== 'undefined' && resolvedLurahPhoto && resolvedLurahPhoto !== DEFAULT_LURAH_PHOTO_URL) {
+    try {
+      window.localStorage.setItem(LURAH_PHOTO_BACKUP_KEY, resolvedLurahPhoto);
+    } catch {}
+  }
+
   const resolvedProfile: KelurahanProfile = {
     ...baseProfile,
     ...secondaryProfile,
@@ -831,7 +853,7 @@ export function smartMergeDatabases(
     officials: resolvedOfficials,
     lurahName: pickNonEmpty('lurahName'),
     lurahNip: pickNonEmpty('lurahNip'),
-    lurahPhotoUrl: pickNonEmpty('lurahPhotoUrl') || getRecoveredLurahPhotoUrl() || DEFAULT_LURAH_PHOTO_URL,
+    lurahPhotoUrl: resolvedLurahPhoto,
     lurahRank: pickNonEmpty('lurahRank'),
     lurahPeriod: pickNonEmpty('lurahPeriod'),
     lurahMessage: pickNonEmpty('lurahMessage'),

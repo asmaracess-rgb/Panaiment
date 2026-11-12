@@ -1672,7 +1672,11 @@ async function startServer() {
     res.json({ ok: true, data: db.waDispatchLogs });
   });
 
-  // 2. Update Kelurahan Profile (Edit, Validate & Save)
+  // 2. Kelurahan Profile Endpoints (GET & PUT)
+  app.get('/api/profile', (_req, res) => {
+    res.json({ ok: true, data: db.profile });
+  });
+
   app.put('/api/profile', (req, res) => {
     const incoming = req.body as KelurahanProfile;
     const errors = validateProfile(incoming);
