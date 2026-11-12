@@ -123,6 +123,8 @@ const LURAH_PHOTO_BACKUP_KEY = 'pnk_lurah_photo_backup_v1';
 const JOURNAL_REPORTS_KEY = 'pnk_smart_env_user_reports_v2';
 const JOURNAL_LOGS_KEY = 'pnk_smart_env_user_logs_v2';
 const JOURNAL_CITIZENS_KEY = 'pnk_smart_env_user_citizens_v2';
+const JOURNAL_PENGADUAN_KEY = 'pnk_smart_env_user_pengaduan_v1';
+const JOURNAL_PRA_REGISTRASI_KEY = 'pnk_smart_env_user_prareg_v1';
 const CITIZEN_MENU_ACCESS_KEY = 'pnk_citizen_menu_access_v2';
 const ADMIN_USERS_JOURNAL_KEY = 'pnk_admin_users_journal_v1';
 const DELETED_IDS_KEY = 'pnk_smart_env_deleted_ids_v2';
@@ -519,6 +521,13 @@ export function recordDeletedItemId(id: string): void {
     // Clean up from citizen users journal
     const jCitizens = loadCitizensJournal().filter((c) => c && c.uid !== id);
     window.localStorage.setItem(JOURNAL_CITIZENS_KEY, JSON.stringify(jCitizens));
+
+    // Clean up from pengaduan & pra-registrasi journals
+    const jPengaduan = loadPengaduanJournal().filter((p) => p && p.id !== id && p.ticketCode !== id);
+    window.localStorage.setItem(JOURNAL_PENGADUAN_KEY, JSON.stringify(jPengaduan));
+
+    const jPra = loadPraRegistrasiJournal().filter((p) => p && p.id !== id && p.ticketCode !== id);
+    window.localStorage.setItem(JOURNAL_PRA_REGISTRASI_KEY, JSON.stringify(jPra));
   } catch (err) {
     console.warn('Failed to record deleted item id:', err);
   }
@@ -561,6 +570,30 @@ export function loadCitizensJournal(): AuthenticatedUserProfile[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = window.localStorage.getItem(JOURNAL_CITIZENS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function loadPengaduanJournal(): PengaduanOnlineRecord[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(JOURNAL_PENGADUAN_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function loadPraRegistrasiJournal(): PraRegistrasiRecord[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(JOURNAL_PRA_REGISTRASI_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -623,11 +656,12 @@ export function saveCitizenToJournal(citizen: AuthenticatedUserProfile): void {
 }
 
 /**
- * Helper to merge an entity collection by unique item ID.
+ * Helper to merge an entity collection by unique item ID (non-destructive union).
  * - Items in deletedSet are NEVER included.
- * - When incoming is newer or equal (!localIsNewer), incoming list is authoritative and deleted items are never revived.
- * - If only local exists (e.g. offline first visit before backend is reached), local is returned.
- * - If neither local nor incoming has ever been set, fall back to initialList.
+ * - Performs a full union of localList and incomingList so newly created items on ANY device
+ *   are NEVER wiped out when another device pushes a snapshot.
+ * - For items present in both localList and incomingList, the newer snapshot wins while
+ *   preserving non-empty media/photo fields.
  */
 function mergeEntityCollection<T extends { id: string }>(
   localList: T[] | undefined,
@@ -639,60 +673,75 @@ function mergeEntityCollection<T extends { id: string }>(
   const hasLocal = Array.isArray(localList);
   const hasIncoming = Array.isArray(incomingList);
 
-  // If neither local nor incoming has ever been set, seed from initialList
   if (!hasLocal && !hasIncoming) {
     return initialList.filter((item) => item && item.id && !deletedSet.has(item.id));
   }
-
-  // When incoming is authoritative (server is newer or equal):
-  // Take incoming list directly without resurrecting items that other admins deleted,
-  // while preserving local image data if incoming omitted heavy base64.
-  if (hasIncoming && !localIsNewer) {
-    const localMap = new Map((localList || []).map((item: any) => [item?.id, item]));
-    return incomingList!
-      .filter((item) => item && item.id && !deletedSet.has(item.id))
-      .map((incItem) => {
-        const localItem = localMap.get(incItem.id) as any;
-        if (!localItem) return incItem;
-        const incAny = incItem as any;
-        return {
-          ...incItem,
-          ...(localItem.imageUrl && !incAny.imageUrl ? { imageUrl: localItem.imageUrl } : {}),
-          ...(localItem.photoUrl && !incAny.photoUrl ? { photoUrl: localItem.photoUrl } : {}),
-          ...(Array.isArray(localItem.documentationPhotos) &&
-          localItem.documentationPhotos.length > 0 &&
-          (!Array.isArray(incAny.documentationPhotos) || incAny.documentationPhotos.length === 0)
-            ? { documentationPhotos: localItem.documentationPhotos }
-            : {}),
-        };
-      });
-  }
-
-  // If only local exists
   if (hasLocal && !hasIncoming) {
     return localList!.filter((item) => item && item.id && !deletedSet.has(item.id));
   }
+  if (!hasLocal && hasIncoming) {
+    return incomingList!.filter((item) => item && item.id && !deletedSet.has(item.id));
+  }
 
-  // If local is explicitly newer (uncommitted offline edits)
+  const olderList = localIsNewer ? incomingList! : localList!;
+  const newerList = localIsNewer ? localList! : incomingList!;
+
   const map = new Map<string, T>();
-  if (hasIncoming) {
-    for (const item of incomingList!) {
-      if (item && item.id && !deletedSet.has(item.id)) {
-        map.set(item.id, item);
-      }
+
+  const getKey = (item: any): string => {
+    if (!item) return '';
+    return String(item.id || item.ticketCode || '');
+  };
+
+  for (const item of olderList) {
+    const k = getKey(item);
+    if (!k || deletedSet.has(k) || (item as any).ticketCode && deletedSet.has((item as any).ticketCode)) {
+      continue;
+    }
+    map.set(k, item);
+  }
+
+  for (const item of newerList) {
+    const k = getKey(item);
+    if (!k || deletedSet.has(k) || (item as any).ticketCode && deletedSet.has((item as any).ticketCode)) {
+      continue;
+    }
+    const existing = map.get(k) as any;
+    if (!existing) {
+      map.set(k, item);
+    } else {
+      const incAny = item as any;
+      map.set(k, {
+        ...existing,
+        ...item,
+        ...(existing.imageUrl && !incAny.imageUrl ? { imageUrl: existing.imageUrl } : {}),
+        ...(existing.photoUrl && !incAny.photoUrl ? { photoUrl: existing.photoUrl } : {}),
+        ...(Array.isArray(existing.documentationPhotos) &&
+        existing.documentationPhotos.length > 0 &&
+        (!Array.isArray(incAny.documentationPhotos) || incAny.documentationPhotos.length === 0)
+          ? { documentationPhotos: existing.documentationPhotos }
+          : {}),
+        ...(Array.isArray(existing.proofPhotos) &&
+        existing.proofPhotos.length > 0 &&
+        (!Array.isArray(incAny.proofPhotos) || incAny.proofPhotos.length === 0)
+          ? { proofPhotos: existing.proofPhotos }
+          : {}),
+        ...(Array.isArray(existing.uploadedDocs) &&
+        existing.uploadedDocs.length > 0 &&
+        (!Array.isArray(incAny.uploadedDocs) || incAny.uploadedDocs.length === 0)
+          ? { uploadedDocs: existing.uploadedDocs }
+          : {}),
+      });
     }
   }
 
-  if (hasLocal) {
-    for (const item of localList!) {
-      if (!item || !item.id || deletedSet.has(item.id)) continue;
-      if (localIsNewer) {
-        map.set(item.id, item);
-      }
-    }
-  }
-
-  return Array.from(map.values()).filter((item) => item && item.id && !deletedSet.has(item.id));
+  return Array.from(map.values()).filter(
+    (item) =>
+      item &&
+      item.id &&
+      !deletedSet.has(item.id) &&
+      !((item as any).ticketCode && deletedSet.has((item as any).ticketCode))
+  );
 }
 
 /**
@@ -1445,20 +1494,42 @@ export function smartMergeDatabases(
     siskamlingSchedules: resolvedSiskamlingSchedules,
     citizenUsers: resolvedCitizenUsers,
     citizenMenuConfig: resolvedCitizenMenuConfig,
-    praRegistrasiRecords: mergeEntityCollection(
-      localDb?.praRegistrasiRecords,
-      incoming?.praRegistrasiRecords,
-      [],
-      deletedIds,
-      localIsNewer
-    ),
-    pengaduanRecords: mergeEntityCollection(
-      localDb?.pengaduanRecords,
-      incoming?.pengaduanRecords,
-      [],
-      deletedIds,
-      localIsNewer
-    ),
+    praRegistrasiRecords: (() => {
+      const mergedPra = mergeEntityCollection(
+        localDb?.praRegistrasiRecords,
+        incoming?.praRegistrasiRecords,
+        [],
+        deletedIds,
+        localIsNewer
+      );
+      const praMap = new Map<string, PraRegistrasiRecord>();
+      for (const p of [...mergedPra, ...loadPraRegistrasiJournal()]) {
+        if (!p || (!p.id && !p.ticketCode)) continue;
+        if ((p.id && deletedIds.has(p.id)) || (p.ticketCode && deletedIds.has(p.ticketCode))) continue;
+        const key = p.ticketCode || p.id;
+        const ex = praMap.get(key);
+        praMap.set(key, ex ? { ...ex, ...p } : p);
+      }
+      return Array.from(praMap.values());
+    })(),
+    pengaduanRecords: (() => {
+      const mergedPgd = mergeEntityCollection(
+        localDb?.pengaduanRecords,
+        incoming?.pengaduanRecords,
+        [],
+        deletedIds,
+        localIsNewer
+      );
+      const pgdMap = new Map<string, PengaduanOnlineRecord>();
+      for (const p of [...mergedPgd, ...loadPengaduanJournal()]) {
+        if (!p || (!p.id && !p.ticketCode)) continue;
+        if ((p.id && deletedIds.has(p.id)) || (p.ticketCode && deletedIds.has(p.ticketCode))) continue;
+        const key = p.ticketCode || p.id;
+        const ex = pgdMap.get(key);
+        pgdMap.set(key, ex ? { ...ex, ...p } : p);
+      }
+      return Array.from(pgdMap.values());
+    })(),
     masterLayananList: mergeEntityCollection(
       localDb?.masterLayananList,
       incoming?.masterLayananList,
@@ -1619,6 +1690,20 @@ export function savePersistedDatabase(db: PersistedDatabase): void {
 
     const userCitizens = (db.citizenUsers || []).filter((c) => c && c.uid && !deletedSet.has(c.uid));
     window.localStorage.setItem(JOURNAL_CITIZENS_KEY, JSON.stringify(userCitizens));
+
+    if (Array.isArray(db.pengaduanRecords)) {
+      const cleanPgd = db.pengaduanRecords.filter(
+        (p) => p && (p.id || p.ticketCode) && !deletedSet.has(p.id) && !deletedSet.has(p.ticketCode)
+      );
+      window.localStorage.setItem(JOURNAL_PENGADUAN_KEY, JSON.stringify(cleanPgd));
+    }
+
+    if (Array.isArray(db.praRegistrasiRecords)) {
+      const cleanPra = db.praRegistrasiRecords.filter(
+        (p) => p && (p.id || p.ticketCode) && !deletedSet.has(p.id) && !deletedSet.has(p.ticketCode)
+      );
+      window.localStorage.setItem(JOURNAL_PRA_REGISTRASI_KEY, JSON.stringify(cleanPra));
+    }
 
     if (db.citizenMenuConfig) {
       window.localStorage.setItem(CITIZEN_MENU_ACCESS_KEY, JSON.stringify(db.citizenMenuConfig));

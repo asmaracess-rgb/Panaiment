@@ -21,6 +21,7 @@ import {
   checkIsIncomingEmailSignInLink,
   completePasswordlessEmailSignIn,
   getSavedEmailForSignIn,
+  subscribeToAllCitizenProfiles,
 } from './firebase/authService';
 import {
   AppView,
@@ -98,6 +99,8 @@ import {
   pushProfileToFirestore,
   subscribeToFirestoreProfile,
   pushAdminUsersAndRequestsToFirestore,
+  pushLiveWargaStateToFirestore,
+  subscribeToLiveWargaState,
 } from './firebase/firestoreService';
 import {
   loadPersistedDatabase,
@@ -695,7 +698,11 @@ export default function App() {
   const lastDataEtagRef = useRef<string>('');
 
   const commitPersistence = useCallback(
-    (partial: Partial<Omit<PersistedDatabase, 'updatedAt'>>, syncServer = true) => {
+    (
+      partial: Partial<Omit<PersistedDatabase, 'updatedAt'>>,
+      syncServer = true,
+      immediateCloud = false
+    ) => {
       const deletedSet = getDeletedItemIds();
       const nextDeletedArray = Array.from(
         new Set([
@@ -780,8 +787,26 @@ export default function App() {
 
       savePersistedDatabase(nextSnapshot);
 
+      // Push lightweight real-time warga & aduan state immediately whenever citizen/report collections change
+      if (
+        partial.citizenUsers !== undefined ||
+        partial.reports !== undefined ||
+        partial.pengaduanRecords !== undefined ||
+        partial.praRegistrasiRecords !== undefined ||
+        partial.seedRequests !== undefined
+      ) {
+        pushLiveWargaStateToFirestore({
+          citizenUsers: nextSnapshot.citizenUsers,
+          reports: nextSnapshot.reports,
+          pengaduanRecords: nextSnapshot.pengaduanRecords,
+          praRegistrasiRecords: nextSnapshot.praRegistrasiRecords,
+          seedRequests: nextSnapshot.seedRequests,
+          deletedItemIds: nextSnapshot.deletedItemIds,
+        }).catch(() => {});
+      }
+
       // Primary Cloud Sync: Firebase Firestore Cloud Database (permanent cross-device sync)
-      pushFullDatabaseToFirestore(nextSnapshot).catch((err) => {
+      pushFullDatabaseToFirestore(nextSnapshot, immediateCloud).catch((err) => {
         console.warn('[Firestore Sync Notice]', err);
       });
 
@@ -790,13 +815,16 @@ export default function App() {
         if (serverSyncTimerRef.current) {
           clearTimeout(serverSyncTimerRef.current);
         }
-        serverSyncTimerRef.current = setTimeout(() => {
-          fetch('/api/data', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(nextSnapshot),
-          }).catch(() => {});
-        }, 800);
+        serverSyncTimerRef.current = setTimeout(
+          () => {
+            fetch('/api/data', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(nextSnapshot),
+            }).catch(() => {});
+          },
+          immediateCloud ? 50 : 800
+        );
       }
     },
     []
@@ -863,21 +891,21 @@ export default function App() {
           updatedAt: getRealtimeDateTimeString(),
         };
         nextList = currentList.map((item, idx) => (idx === existingIdx ? mergedItem : item));
+        saveCitizenToJournal(mergedItem);
       } else {
         const nowStr = getRealtimeDateTimeString();
-        nextList = [
-          {
-            ...profile,
-            role: 'warga',
-            createdAt: profile.createdAt || nowStr,
-            updatedAt: nowStr,
-          },
-          ...currentList,
-        ];
+        const newCitizen: AuthenticatedUserProfile = {
+          ...profile,
+          role: 'warga',
+          createdAt: profile.createdAt || nowStr,
+          updatedAt: nowStr,
+        };
+        nextList = [newCitizen, ...currentList];
+        saveCitizenToJournal(newCitizen);
       }
 
       setCitizenUsers(nextList);
-      commitPersistence({ citizenUsers: nextList });
+      commitPersistence({ citizenUsers: nextList }, true, true);
     },
     [commitPersistence]
   );
@@ -912,6 +940,22 @@ export default function App() {
     const currentLocal: PersistedDatabase | null = storedLocal
       ? {
           ...storedLocal,
+          reports:
+            stateRef.current.reports?.length > 0
+              ? stateRef.current.reports
+              : storedLocal.reports,
+          citizenUsers:
+            stateRef.current.citizenUsers?.length > 0
+              ? stateRef.current.citizenUsers
+              : storedLocal.citizenUsers,
+          pengaduanRecords:
+            stateRef.current.pengaduanRecords?.length > 0
+              ? stateRef.current.pengaduanRecords
+              : storedLocal.pengaduanRecords,
+          praRegistrasiRecords:
+            stateRef.current.praRegistrasiRecords?.length > 0
+              ? stateRef.current.praRegistrasiRecords
+              : storedLocal.praRegistrasiRecords,
           urbanFarmingSpots:
             stateRef.current.urbanFarmingSpots?.length > 0
               ? stateRef.current.urbanFarmingSpots
@@ -1242,6 +1286,18 @@ export default function App() {
       }
     });
 
+    // 2C. Dedicated Real-time Citizen & Complaint State Subscription (instant cross-device sync for new registrations & aduan)
+    const unsubscribeLiveWarga = subscribeToLiveWargaState((liveWargaData) => {
+      if (!mounted || !liveWargaData) return;
+      applyRemoteDatabase(liveWargaData);
+    });
+
+    // 2D. Real-time subscription to /user_profiles collection when authenticated via Firebase Auth
+    const unsubscribeUserProfiles = subscribeToAllCitizenProfiles((cloudProfiles) => {
+      if (!mounted || !Array.isArray(cloudProfiles) || cloudProfiles.length === 0) return;
+      applyRemoteDatabase({ citizenUsers: cloudProfiles });
+    });
+
     // 3. Connect to Server-Sent Events (SSE) only when local Express backend is active.
     // On Vercel Serverless Production, real-time cross-device updates are handled by Firestore onSnapshot above.
     let es: EventSource | null = null;
@@ -1384,6 +1440,8 @@ export default function App() {
       mounted = false;
       unsubscribeFirestore();
       unsubscribeProfile();
+      unsubscribeLiveWarga();
+      unsubscribeUserProfiles();
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
       if (es) es.close();
       window.removeEventListener('pnk_google_requests_updated', handleGoogleRequestsUpdated);
@@ -1716,10 +1774,11 @@ export default function App() {
       } else {
         nextCitizenUsers = [citizenEntry, ...nextCitizenUsers];
       }
+      saveCitizenToJournal(citizenEntry);
       setCitizenUsers(nextCitizenUsers);
     }
 
-    commitPersistence({ reports: nextReports, citizenUsers: nextCitizenUsers });
+    commitPersistence({ reports: nextReports, citizenUsers: nextCitizenUsers }, true, true);
 
     // Automatically dispatch WhatsApp notification in background specifically for Complaint Reports (!isDoc)
     if (!isDoc) {
@@ -1785,6 +1844,8 @@ export default function App() {
       const matchingReport: CitizenReport = {
         id: `rep-pra-${Date.now()}`,
         ticketCode,
+        ownerId: authUserProfile?.uid,
+        ownerEmail: authUserProfile?.email,
         category: seksiInfo.category,
         serviceCategoryId: seksiInfo.serviceCategoryId,
         serviceCategoryTitle: seksiInfo.serviceCategoryTitle,
@@ -1817,14 +1878,72 @@ export default function App() {
       const nextReports = [matchingReport, ...stateRef.current.reports];
       setReports(nextReports);
 
-      commitPersistence({
-        praRegistrasiRecords: nextPraList,
-        reports: nextReports,
-      });
+      // Ensure applicant citizen is also persisted in citizenUsers
+      let nextCitizenUsers = stateRef.current.citizenUsers || [];
+      const cleanApplicant = (record.applicantName || '').trim();
+      if (cleanApplicant) {
+        const targetUid =
+          authUserProfile?.uid ||
+          (authUserProfile?.email
+            ? `warga_${authUserProfile.email.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_')}`
+            : `warga_${(record.applicantNik || cleanApplicant).toLowerCase().replace(/[^a-z0-9_-]/g, '_')}`);
+        const existingIdx = nextCitizenUsers.findIndex(
+          (c) =>
+            c.uid === targetUid ||
+            (authUserProfile?.email &&
+              c.email &&
+              c.email.trim().toLowerCase() === authUserProfile.email.trim().toLowerCase()) ||
+            (record.applicantNik && c.nik === record.applicantNik) ||
+            c.fullName.trim().toLowerCase() === cleanApplicant.toLowerCase()
+        );
+        const citizenEntry: AuthenticatedUserProfile = {
+          uid: existingIdx >= 0 ? nextCitizenUsers[existingIdx].uid : targetUid,
+          email:
+            authUserProfile?.email ||
+            (existingIdx >= 0 ? nextCitizenUsers[existingIdx].email : '') ||
+            '',
+          fullName: cleanApplicant,
+          nik:
+            record.applicantNik ||
+            authUserProfile?.nik ||
+            (existingIdx >= 0 ? nextCitizenUsers[existingIdx].nik : '') ||
+            '',
+          phone:
+            record.applicantPhone ||
+            authUserProfile?.phone ||
+            (existingIdx >= 0 ? nextCitizenUsers[existingIdx].phone : '') ||
+            '',
+          rw: record.applicantRw || authUserProfile?.rw || 'RW 01',
+          rt: record.applicantRt || authUserProfile?.rt || 'RT 01',
+          address: record.applicantAddress || authUserProfile?.address || 'Kelurahan Panaikang',
+          role: 'warga',
+          createdAt: existingIdx >= 0 ? nextCitizenUsers[existingIdx].createdAt || nowTime : nowTime,
+          updatedAt: nowTime,
+        };
+        if (existingIdx >= 0) {
+          nextCitizenUsers = nextCitizenUsers.map((item, idx) =>
+            idx === existingIdx ? citizenEntry : item
+          );
+        } else {
+          nextCitizenUsers = [citizenEntry, ...nextCitizenUsers];
+        }
+        saveCitizenToJournal(citizenEntry);
+        setCitizenUsers(nextCitizenUsers);
+      }
+
+      commitPersistence(
+        {
+          praRegistrasiRecords: nextPraList,
+          reports: nextReports,
+          citizenUsers: nextCitizenUsers,
+        },
+        true,
+        true
+      );
 
       return ticketCode;
     },
-    [commitPersistence]
+    [commitPersistence, authUserProfile]
   );
 
   const handleAddPengaduan = useCallback(
@@ -1861,6 +1980,8 @@ export default function App() {
       const matchingReport: CitizenReport = {
         id: `rep-pgd-${Date.now()}`,
         ticketCode,
+        ownerId: authUserProfile?.uid,
+        ownerEmail: authUserProfile?.email,
         category: (record.category as any) || 'Laporan Warga',
         serviceCategoryId: 'pengaduan_permasalahan_warga',
         serviceCategoryTitle: 'Laporan dan Pengaduan Warga',
@@ -1872,6 +1993,7 @@ export default function App() {
         createdAt: nowTime,
         updatedAt: nowTime,
         reporterName: record.isAnonymous ? 'Warga Panaikang (Anonim)' : record.reporterName,
+        applicantNik: authUserProfile?.nik,
         reporterPhone: record.reporterPhone,
         rw: record.reporterRw,
         rt: record.reporterRt,
@@ -1888,10 +2010,66 @@ export default function App() {
       const nextReports = [matchingReport, ...stateRef.current.reports];
       setReports(nextReports);
 
-      commitPersistence({
-        pengaduanRecords: nextPengaduanList,
-        reports: nextReports,
-      });
+      // Ensure the citizen who submitted this complaint is also recorded in citizenUsers
+      let nextCitizenUsers = stateRef.current.citizenUsers || [];
+      const cleanReporter = (record.reporterName || authUserProfile?.fullName || '').trim();
+      if (!record.isAnonymous && cleanReporter && cleanReporter.toLowerCase() !== 'warga anonim') {
+        const targetUid =
+          authUserProfile?.uid ||
+          (authUserProfile?.email
+            ? `warga_${authUserProfile.email.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_')}`
+            : `warga_${cleanReporter.toLowerCase().replace(/[^a-z0-9_-]/g, '_')}`);
+        const existingIdx = nextCitizenUsers.findIndex(
+          (c) =>
+            c.uid === targetUid ||
+            (authUserProfile?.email &&
+              c.email &&
+              c.email.trim().toLowerCase() === authUserProfile.email.trim().toLowerCase()) ||
+            c.fullName.trim().toLowerCase() === cleanReporter.toLowerCase()
+        );
+        const citizenEntry: AuthenticatedUserProfile = {
+          uid: existingIdx >= 0 ? nextCitizenUsers[existingIdx].uid : targetUid,
+          email:
+            authUserProfile?.email ||
+            (existingIdx >= 0 ? nextCitizenUsers[existingIdx].email : '') ||
+            '',
+          fullName: cleanReporter,
+          nik:
+            authUserProfile?.nik ||
+            (existingIdx >= 0 ? nextCitizenUsers[existingIdx].nik : '') ||
+            '',
+          phone:
+            record.reporterPhone ||
+            authUserProfile?.phone ||
+            (existingIdx >= 0 ? nextCitizenUsers[existingIdx].phone : '') ||
+            '',
+          rw: record.reporterRw || authUserProfile?.rw || 'RW 01',
+          rt: record.reporterRt || authUserProfile?.rt || 'RT 01',
+          address: record.locationAddress || authUserProfile?.address || 'Kelurahan Panaikang',
+          role: 'warga',
+          createdAt: existingIdx >= 0 ? nextCitizenUsers[existingIdx].createdAt || nowTime : nowTime,
+          updatedAt: nowTime,
+        };
+        if (existingIdx >= 0) {
+          nextCitizenUsers = nextCitizenUsers.map((item, idx) =>
+            idx === existingIdx ? citizenEntry : item
+          );
+        } else {
+          nextCitizenUsers = [citizenEntry, ...nextCitizenUsers];
+        }
+        saveCitizenToJournal(citizenEntry);
+        setCitizenUsers(nextCitizenUsers);
+      }
+
+      commitPersistence(
+        {
+          pengaduanRecords: nextPengaduanList,
+          reports: nextReports,
+          citizenUsers: nextCitizenUsers,
+        },
+        true,
+        true
+      );
 
       // Automatically dispatch WhatsApp notification in background to registered recipients (Lurah, etc.)
       void dispatchComplaintToRegisteredWhatsApp({
@@ -1917,7 +2095,7 @@ export default function App() {
 
       return ticketCode;
     },
-    [commitPersistence]
+    [commitPersistence, authUserProfile]
   );
 
   const handleLurahApproveService = useCallback(

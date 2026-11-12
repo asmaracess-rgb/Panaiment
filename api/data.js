@@ -172,22 +172,76 @@ export default async function handler(req, res) {
           dataToSave.adminUsers = Array.from(userMap.values());
         }
 
+        const deletedSet = new Set([
+          ...(Array.isArray(existingDb.deletedItemIds) ? existingDb.deletedItemIds : []),
+          ...(Array.isArray(dataToSave.deletedItemIds) ? dataToSave.deletedItemIds : []),
+        ]);
+        dataToSave.deletedItemIds = Array.from(deletedSet);
+
         // 2B. Merge citizenUsers by uid/email so registered citizen profiles are never overwritten
         if (Array.isArray(existingDb.citizenUsers) || Array.isArray(dataToSave.citizenUsers)) {
           const citizenMap = new Map();
           for (const c of existingDb.citizenUsers || []) {
-            if (c && (c.uid || c.email)) {
-              const key = c.uid || c.email.toLowerCase();
+            if (c && (c.uid || c.email) && (!c.uid || !deletedSet.has(c.uid))) {
+              const key = (c.email ? String(c.email).trim().toLowerCase() : '') || c.uid;
               citizenMap.set(key, c);
             }
           }
           for (const inc of dataToSave.citizenUsers || []) {
-            if (!inc || (!inc.uid && !inc.email)) continue;
-            const key = inc.uid || inc.email.toLowerCase();
-            const prev = citizenMap.get(key);
-            citizenMap.set(key, { ...prev, ...inc });
+            if (!inc || (!inc.uid && !inc.email) || (inc.uid && deletedSet.has(inc.uid))) continue;
+            const key = (inc.email ? String(inc.email).trim().toLowerCase() : '') || inc.uid;
+            const prev = citizenMap.get(key) || (inc.uid ? citizenMap.get(inc.uid) : null);
+            citizenMap.set(key, prev ? { ...prev, ...inc } : inc);
           }
           dataToSave.citizenUsers = Array.from(citizenMap.values());
+        }
+
+        // 2C. Merge reports by id so new citizen complaints/letter requests are never overwritten
+        if (Array.isArray(existingDb.reports) || Array.isArray(dataToSave.reports)) {
+          const reportMap = new Map();
+          for (const r of existingDb.reports || []) {
+            if (r && r.id && !deletedSet.has(r.id)) {
+              reportMap.set(r.id, r);
+            }
+          }
+          for (const inc of dataToSave.reports || []) {
+            if (!inc || !inc.id || deletedSet.has(inc.id)) continue;
+            const prev = reportMap.get(inc.id);
+            reportMap.set(inc.id, prev ? { ...prev, ...inc } : inc);
+          }
+          dataToSave.reports = Array.from(reportMap.values());
+        }
+
+        // 2D. Merge pengaduanRecords by ticketCode/id so online complaints are never overwritten
+        if (Array.isArray(existingDb.pengaduanRecords) || Array.isArray(dataToSave.pengaduanRecords)) {
+          const pgdMap = new Map();
+          for (const p of existingDb.pengaduanRecords || []) {
+            const key = p && (p.ticketCode || p.id);
+            if (key && !deletedSet.has(p.id || key)) pgdMap.set(key, p);
+          }
+          for (const inc of dataToSave.pengaduanRecords || []) {
+            const key = inc && (inc.ticketCode || inc.id);
+            if (!key || deletedSet.has(inc.id || key)) continue;
+            const prev = pgdMap.get(key);
+            pgdMap.set(key, prev ? { ...prev, ...inc } : inc);
+          }
+          dataToSave.pengaduanRecords = Array.from(pgdMap.values());
+        }
+
+        // 2E. Merge praRegistrasiRecords by ticketCode/id so letter requests are never overwritten
+        if (Array.isArray(existingDb.praRegistrasiRecords) || Array.isArray(dataToSave.praRegistrasiRecords)) {
+          const praMap = new Map();
+          for (const p of existingDb.praRegistrasiRecords || []) {
+            const key = p && (p.ticketCode || p.id);
+            if (key && !deletedSet.has(p.id || key)) praMap.set(key, p);
+          }
+          for (const inc of dataToSave.praRegistrasiRecords || []) {
+            const key = inc && (inc.ticketCode || inc.id);
+            if (!key || deletedSet.has(inc.id || key)) continue;
+            const prev = praMap.get(key);
+            praMap.set(key, prev ? { ...prev, ...inc } : inc);
+          }
+          dataToSave.praRegistrasiRecords = Array.from(praMap.values());
         }
 
         // 3. Preserve profile and lurahPhotoUrl if client sends an empty photo

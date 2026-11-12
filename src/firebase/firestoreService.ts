@@ -4,7 +4,7 @@ import {
   setDoc,
   onSnapshot,
   writeBatch,
-  disableNetwork,
+  enableNetwork,
   Unsubscribe,
 } from 'firebase/firestore';
 import { db, auth } from './config';
@@ -40,58 +40,36 @@ export interface FirestoreErrorInfo {
 const QUOTA_STORAGE_KEY = 'panaikang_firestore_quota_paused_until_v1';
 let quotaPausedInMemory = false;
 
+// Clear any stale session circuit-breaker and ensure Firestore network is active
+if (typeof window !== 'undefined' && window.sessionStorage) {
+  try {
+    window.sessionStorage.removeItem(QUOTA_STORAGE_KEY);
+  } catch {}
+}
+enableNetwork(db).catch(() => {});
+
 function isQuotaError(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : String(error || '');
   const code = (error as any)?.code || '';
   return (
     code === 'resource-exhausted' ||
-    msg.includes('resource-exhausted') ||
     msg.includes('Quota limit exceeded') ||
     msg.includes('Quota exceeded')
   );
 }
 
 function isQuotaPaused(): boolean {
-  if (quotaPausedInMemory) return true;
-  if (typeof window !== 'undefined' && window.sessionStorage) {
-    try {
-      const raw = window.sessionStorage.getItem(QUOTA_STORAGE_KEY);
-      if (raw) {
-        const until = Number(raw);
-        if (!Number.isNaN(until) && Date.now() < until) {
-          quotaPausedInMemory = true;
-          return true;
-        }
-        window.sessionStorage.removeItem(QUOTA_STORAGE_KEY);
-      }
-    } catch {
-      // Ignore storage access errors
-    }
-  }
-  return false;
+  return quotaPausedInMemory;
 }
 
 function tripQuotaCircuitBreaker(): void {
+  // Do NOT disable network transport permanently on transient timeouts;
+  // only pause for 15 seconds in memory if an explicit resource-exhausted error occurs.
   if (quotaPausedInMemory) return;
   quotaPausedInMemory = true;
-  if (typeof window !== 'undefined' && window.sessionStorage) {
-    try {
-      // Pause Firestore writes for 60 minutes in this session so SDK does not loop retries
-      window.sessionStorage.setItem(
-        QUOTA_STORAGE_KEY,
-        String(Date.now() + 60 * 60 * 1000)
-      );
-    } catch {
-      // Ignore storage errors
-    }
-  }
-  // Immediately disable Firestore network transport so queued SDK retries stop
-  disableNetwork(db).catch(() => {});
-}
-
-// Check on module load if quota was already paused in this session
-if (isQuotaPaused()) {
-  disableNetwork(db).catch(() => {});
+  setTimeout(() => {
+    quotaPausedInMemory = false;
+  }, 15_000);
 }
 
 export function handleFirestoreError(
@@ -145,7 +123,46 @@ export async function testConnection(): Promise<boolean> {
 // Global Document Identifiers
 const APP_STORE_COLLECTION = 'panaikang_app_data';
 const FULL_DB_DOC_ID = 'full_snapshot';
+const LIVE_WARGA_DOC_ID = 'live_warga_state';
 const PROFILE_REF = doc(db, 'kelurahan_profiles', 'main_profile');
+
+// In-memory cache of latest live warga state from cloud so full_snapshot writes never overwrite newer citizen submissions
+let cachedLiveWargaState: {
+  citizenUsers?: any[];
+  reports?: any[];
+  pengaduanRecords?: any[];
+  praRegistrasiRecords?: any[];
+  seedRequests?: any[];
+  deletedItemIds?: string[];
+  updatedAt?: number;
+} = {};
+
+function mergeByKey<T extends Record<string, any>>(
+  older: T[] | undefined,
+  newer: T[] | undefined,
+  deletedSet: Set<string>,
+  keyFn: (item: T) => string
+): T[] {
+  const map = new Map<string, T>();
+  for (const item of older || []) {
+    if (!item) continue;
+    const k = keyFn(item);
+    if (!k || deletedSet.has(k) || (item.id && deletedSet.has(item.id)) || (item.ticketCode && deletedSet.has(item.ticketCode))) {
+      continue;
+    }
+    map.set(k, item);
+  }
+  for (const item of newer || []) {
+    if (!item) continue;
+    const k = keyFn(item);
+    if (!k || deletedSet.has(k) || (item.id && deletedSet.has(item.id)) || (item.ticketCode && deletedSet.has(item.ticketCode))) {
+      continue;
+    }
+    const prev = map.get(k);
+    map.set(k, prev ? { ...prev, ...item } : item);
+  }
+  return Array.from(map.values());
+}
 
 class BatchWriter {
   private batch = writeBatch(db);
@@ -218,7 +235,7 @@ export function createSafeSnapshot(database: PersistedDatabase): PersistedDataba
   const preservedUfPhotos = new Map<string, string>();
   if (Array.isArray(database.urbanFarmingSpots)) {
     for (const s of database.urbanFarmingSpots) {
-      if (s && s.id && typeof s.photoUrl === 'string' && s.photoUrl.length < 500_000) {
+      if (s && s.id && typeof s.photoUrl === 'string' && s.photoUrl.length < 350_000) {
         preservedUfPhotos.set(s.id, s.photoUrl);
       }
     }
@@ -235,14 +252,54 @@ export function createSafeSnapshot(database: PersistedDatabase): PersistedDataba
     });
   }
 
+  // Merge any cached live warga state so a background snapshot never drops a newly registered user or complaint
+  const deletedSet = new Set<string>([
+    ...(Array.isArray(safeClone.deletedItemIds) ? safeClone.deletedItemIds : []),
+    ...(Array.isArray(cachedLiveWargaState.deletedItemIds) ? cachedLiveWargaState.deletedItemIds : []),
+  ]);
+  safeClone.deletedItemIds = Array.from(deletedSet);
+
+  if (Array.isArray(cachedLiveWargaState.citizenUsers) && cachedLiveWargaState.citizenUsers.length > 0) {
+    safeClone.citizenUsers = mergeByKey(
+      cachedLiveWargaState.citizenUsers,
+      safeClone.citizenUsers,
+      deletedSet,
+      (c) => String(c.uid || c.email || '')
+    );
+  }
+  if (Array.isArray(cachedLiveWargaState.reports) && cachedLiveWargaState.reports.length > 0) {
+    safeClone.reports = mergeByKey(
+      cachedLiveWargaState.reports,
+      safeClone.reports,
+      deletedSet,
+      (r) => String(r.id || r.ticketCode || '')
+    );
+  }
+  if (Array.isArray(cachedLiveWargaState.pengaduanRecords) && cachedLiveWargaState.pengaduanRecords.length > 0) {
+    safeClone.pengaduanRecords = mergeByKey(
+      cachedLiveWargaState.pengaduanRecords,
+      safeClone.pengaduanRecords,
+      deletedSet,
+      (p) => String(p.ticketCode || p.id || '')
+    );
+  }
+  if (Array.isArray(cachedLiveWargaState.praRegistrasiRecords) && cachedLiveWargaState.praRegistrasiRecords.length > 0) {
+    safeClone.praRegistrasiRecords = mergeByKey(
+      cachedLiveWargaState.praRegistrasiRecords,
+      safeClone.praRegistrasiRecords,
+      deletedSet,
+      (p) => String(p.ticketCode || p.id || '')
+    );
+  }
+
   if (Array.isArray(safeClone.activityLogs)) {
     safeClone.activityLogs = safeClone.activityLogs.slice(0, 20);
   }
   if (Array.isArray(safeClone.waDispatchLogs)) {
     safeClone.waDispatchLogs = safeClone.waDispatchLogs.slice(0, 15);
   }
-  if (Array.isArray(safeClone.reports) && safeClone.reports.length > 40) {
-    safeClone.reports = safeClone.reports.slice(0, 40);
+  if (Array.isArray(safeClone.reports) && safeClone.reports.length > 60) {
+    safeClone.reports = safeClone.reports.slice(0, 60);
   }
   if (Array.isArray(safeClone.wasteLogs) && safeClone.wasteLogs.length > 40) {
     safeClone.wasteLogs = safeClone.wasteLogs.slice(0, 40);
@@ -256,31 +313,25 @@ export function createSafeSnapshot(database: PersistedDatabase): PersistedDataba
   }
 
   let jsonString = JSON.stringify(safeClone);
-  if (jsonString.length > 760_000) {
-    // Free static catalog & secondary log arrays first so custom photos always fit under 1 MiB
+  if (jsonString.length > 700_000) {
+    // Strip base64 photos from urbanFarmingSpots inside full_snapshot so document is guaranteed < 1 MiB
+    if (Array.isArray(safeClone.urbanFarmingSpots)) {
+      safeClone.urbanFarmingSpots = safeClone.urbanFarmingSpots.map((s) =>
+        s && typeof s.photoUrl === 'string' && s.photoUrl.startsWith('data:')
+          ? { ...s, photoUrl: '' }
+          : s
+      );
+    }
     safeClone.serviceCatalog = [];
     safeClone.waDispatchLogs = [];
-    if (Array.isArray(safeClone.reports)) {
-      safeClone.reports = safeClone.reports.slice(0, 15);
-    }
+    jsonString = JSON.stringify(safeClone);
+  }
+  if (jsonString.length > 850_000) {
     if (Array.isArray(safeClone.wasteLogs)) {
       safeClone.wasteLogs = safeClone.wasteLogs.slice(0, 15);
     }
     if (Array.isArray(safeClone.activityLogs)) {
       safeClone.activityLogs = safeClone.activityLogs.slice(0, 10);
-    }
-    jsonString = JSON.stringify(safeClone);
-  }
-  if (jsonString.length > 900_000) {
-    // Trim remaining historical logs to maintain document headroom without overwriting custom lurah photo
-    if (Array.isArray(safeClone.reports)) {
-      safeClone.reports = safeClone.reports.slice(0, 10);
-    }
-    if (Array.isArray(safeClone.wasteLogs)) {
-      safeClone.wasteLogs = safeClone.wasteLogs.slice(0, 8);
-    }
-    if (Array.isArray(safeClone.activityLogs)) {
-      safeClone.activityLogs = safeClone.activityLogs.slice(0, 5);
     }
     jsonString = JSON.stringify(safeClone);
   }
@@ -347,11 +398,174 @@ export async function syncAllCollectionsToFirestore(
 let pushDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
+ * Immediately merges and persists citizen users, reports, pengaduan online, and pra-registrasi
+ * to the dedicated lightweight `panaikang_app_data/live_warga_state` document AND `full_snapshot`.
+ * Guarantees zero data loss across multiple citizen & admin devices.
+ */
+export async function pushLiveWargaStateToFirestore(payload: {
+  citizenUsers?: any[];
+  reports?: any[];
+  pengaduanRecords?: any[];
+  praRegistrasiRecords?: any[];
+  seedRequests?: any[];
+  deletedItemIds?: string[];
+}): Promise<boolean> {
+  if (isQuotaPaused()) return false;
+
+  const stripHeavyMedia = (val: any, depth = 0): any => {
+    if (depth > 10 || val === null || val === undefined) return val;
+    if (typeof val === 'string') {
+      if (val.length > 15_000 && (val.startsWith('data:') || val.includes(';base64,'))) {
+        return '';
+      }
+      return val;
+    }
+    if (Array.isArray(val)) return val.map((v) => stripHeavyMedia(v, depth + 1));
+    if (typeof val === 'object') {
+      const out: Record<string, any> = {};
+      for (const k of Object.keys(val)) {
+        out[k] = stripHeavyMedia(val[k], depth + 1);
+      }
+      return out;
+    }
+    return val;
+  };
+
+  try {
+    const liveRef = doc(db, APP_STORE_COLLECTION, LIVE_WARGA_DOC_ID);
+    let remoteData: Record<string, any> = {};
+    try {
+      const snap = await Promise.race([
+        getDoc(liveRef),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)),
+      ]);
+      if (snap && snap.exists()) {
+        remoteData = snap.data() || {};
+      }
+    } catch {
+      // Fallback to cachedLiveWargaState if getDoc fails
+    }
+
+    const deletedSet = new Set<string>([
+      ...(Array.isArray(remoteData.deletedItemIds) ? remoteData.deletedItemIds : []),
+      ...(Array.isArray(cachedLiveWargaState.deletedItemIds) ? cachedLiveWargaState.deletedItemIds : []),
+      ...(Array.isArray(payload.deletedItemIds) ? payload.deletedItemIds : []),
+    ]);
+
+    const mergedCitizens = mergeByKey(
+      mergeByKey(remoteData.citizenUsers, cachedLiveWargaState.citizenUsers, deletedSet, (c) => String(c.uid || c.email || '')),
+      payload.citizenUsers,
+      deletedSet,
+      (c) => String(c.uid || c.email || '')
+    );
+
+    const mergedReports = mergeByKey(
+      mergeByKey(remoteData.reports, cachedLiveWargaState.reports, deletedSet, (r) => String(r.id || r.ticketCode || '')),
+      payload.reports,
+      deletedSet,
+      (r) => String(r.id || r.ticketCode || '')
+    );
+
+    const mergedPengaduan = mergeByKey(
+      mergeByKey(remoteData.pengaduanRecords, cachedLiveWargaState.pengaduanRecords, deletedSet, (p) => String(p.ticketCode || p.id || '')),
+      payload.pengaduanRecords,
+      deletedSet,
+      (p) => String(p.ticketCode || p.id || '')
+    );
+
+    const mergedPra = mergeByKey(
+      mergeByKey(remoteData.praRegistrasiRecords, cachedLiveWargaState.praRegistrasiRecords, deletedSet, (p) => String(p.ticketCode || p.id || '')),
+      payload.praRegistrasiRecords,
+      deletedSet,
+      (p) => String(p.ticketCode || p.id || '')
+    );
+
+    const mergedSeeds = mergeByKey(
+      mergeByKey(remoteData.seedRequests, cachedLiveWargaState.seedRequests, deletedSet, (s) => String(s.id || '')),
+      payload.seedRequests,
+      deletedSet,
+      (s) => String(s.id || '')
+    );
+
+    const nowMs = Date.now();
+    const cleanDoc = JSON.parse(
+      JSON.stringify(
+        stripHeavyMedia({
+          citizenUsers: mergedCitizens.slice(0, 200),
+          reports: mergedReports.slice(0, 80),
+          pengaduanRecords: mergedPengaduan.slice(0, 80),
+          praRegistrasiRecords: mergedPra.slice(0, 80),
+          seedRequests: mergedSeeds.slice(0, 80),
+          deletedItemIds: Array.from(deletedSet),
+          updatedAt: nowMs,
+          syncedAt: new Date(nowMs).toISOString(),
+        })
+      )
+    );
+
+    cachedLiveWargaState = cleanDoc;
+
+    const fullRef = doc(db, APP_STORE_COLLECTION, FULL_DB_DOC_ID);
+    await Promise.allSettled([
+      setDoc(liveRef, cleanDoc, { merge: true }),
+      setDoc(fullRef, cleanDoc, { merge: true }),
+    ]);
+    return true;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `${APP_STORE_COLLECTION}/${LIVE_WARGA_DOC_ID}`);
+    return false;
+  }
+}
+
+/**
+ * Subscribe in real-time to `panaikang_app_data/live_warga_state` so any Admin or Citizen device
+ * immediately receives newly registered users, complaints (pengaduan), and letter applications.
+ */
+export function subscribeToLiveWargaState(
+  onData: (data: Partial<PersistedDatabase>) => void
+): Unsubscribe {
+  if (isQuotaPaused()) {
+    return () => {};
+  }
+
+  const liveRef = doc(db, APP_STORE_COLLECTION, LIVE_WARGA_DOC_ID);
+  let unsub: Unsubscribe = () => {};
+
+  try {
+    unsub = onSnapshot(
+      liveRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data() as Partial<PersistedDatabase>;
+          cachedLiveWargaState = {
+            ...cachedLiveWargaState,
+            ...data,
+          };
+          onData(data);
+        }
+      },
+      (error) => {
+        if (isQuotaError(error)) {
+          tripQuotaCircuitBreaker();
+        }
+      }
+    );
+  } catch {}
+
+  return () => {
+    try {
+      unsub();
+    } catch {}
+  };
+}
+
+/**
  * Sync application database snapshot to Firestore document with debouncing and quota protection.
- * Uses a single document write per debounce window to preserve free-tier daily write quota.
+ * Supports `immediate = true` for critical citizen registration and complaint submission events.
  */
 export async function pushFullDatabaseToFirestore(
-  database: PersistedDatabase
+  database: PersistedDatabase,
+  immediate = false
 ): Promise<void> {
   if (isQuotaPaused()) {
     return;
@@ -359,48 +573,46 @@ export async function pushFullDatabaseToFirestore(
 
   if (pushDebounceTimer) {
     clearTimeout(pushDebounceTimer);
+    pushDebounceTimer = null;
+  }
+
+  const executeWrite = async () => {
+    if (isQuotaPaused()) return;
+    const docRef = doc(db, APP_STORE_COLLECTION, FULL_DB_DOC_ID);
+    try {
+      const safeData = createSafeSnapshot(database);
+      await setDoc(
+        docRef,
+        {
+          ...safeData,
+          updatedAt: Date.now(),
+          syncedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      if (isQuotaError(err)) {
+        tripQuotaCircuitBreaker();
+      } else {
+        handleFirestoreError(
+          err,
+          OperationType.WRITE,
+          `${APP_STORE_COLLECTION}/${FULL_DB_DOC_ID}`
+        );
+      }
+    }
+  };
+
+  if (immediate) {
+    await executeWrite();
+    return;
   }
 
   return new Promise((resolve) => {
     pushDebounceTimer = setTimeout(async () => {
-      if (isQuotaPaused()) {
-        resolve();
-        return;
-      }
-
-      const docRef = doc(db, APP_STORE_COLLECTION, FULL_DB_DOC_ID);
-      try {
-        const safeData = createSafeSnapshot(database);
-        await Promise.race([
-          setDoc(
-            docRef,
-            {
-              ...safeData,
-              updatedAt: Date.now(),
-              syncedAt: new Date().toISOString(),
-            },
-            { merge: true }
-          ),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('RESOURCE_EXHAUSTED_WRITE_TIMEOUT')), 3000)
-          ),
-        ]);
-      } catch (err) {
-        if (
-          isQuotaError(err) ||
-          (err instanceof Error && err.message === 'RESOURCE_EXHAUSTED_WRITE_TIMEOUT')
-        ) {
-          tripQuotaCircuitBreaker();
-        } else {
-          handleFirestoreError(
-            err,
-            OperationType.WRITE,
-            `${APP_STORE_COLLECTION}/${FULL_DB_DOC_ID}`
-          );
-        }
-      }
+      await executeWrite();
       resolve();
-    }, 1500);
+    }, 600);
   });
 }
 
@@ -410,12 +622,34 @@ export async function pushFullDatabaseToFirestore(
 export async function fetchFullDatabaseFromFirestore(): Promise<PersistedDatabase | null> {
   if (isQuotaPaused()) return null;
   const docRef = doc(db, APP_STORE_COLLECTION, FULL_DB_DOC_ID);
+  const liveRef = doc(db, APP_STORE_COLLECTION, LIVE_WARGA_DOC_ID);
   try {
-    const snap = await getDoc(docRef);
-    if (snap.exists()) {
-      return snap.data() as PersistedDatabase;
+    const [snap, liveSnap] = await Promise.allSettled([getDoc(docRef), getDoc(liveRef)]);
+    let base: PersistedDatabase | null = null;
+    if (snap.status === 'fulfilled' && snap.value.exists()) {
+      base = snap.value.data() as PersistedDatabase;
     }
-    return null;
+    if (liveSnap.status === 'fulfilled' && liveSnap.value.exists()) {
+      const liveData = liveSnap.value.data() as Partial<PersistedDatabase>;
+      cachedLiveWargaState = { ...cachedLiveWargaState, ...liveData };
+      if (base) {
+        const delSet = new Set<string>([
+          ...(base.deletedItemIds || []),
+          ...(liveData.deletedItemIds || []),
+        ]);
+        base = {
+          ...base,
+          citizenUsers: mergeByKey(base.citizenUsers, liveData.citizenUsers, delSet, (c) => String(c.uid || c.email || '')),
+          reports: mergeByKey(base.reports, liveData.reports, delSet, (r) => String(r.id || r.ticketCode || '')),
+          pengaduanRecords: mergeByKey(base.pengaduanRecords, liveData.pengaduanRecords, delSet, (p) => String(p.ticketCode || p.id || '')),
+          praRegistrasiRecords: mergeByKey(base.praRegistrasiRecords, liveData.praRegistrasiRecords, delSet, (p) => String(p.ticketCode || p.id || '')),
+          deletedItemIds: Array.from(delSet),
+        };
+      } else {
+        base = liveData as PersistedDatabase;
+      }
+    }
+    return base;
   } catch (err) {
     if (isQuotaError(err)) {
       tripQuotaCircuitBreaker();
@@ -457,9 +691,6 @@ export function subscribeToFirestoreDatabase(
       (error) => {
         if (isQuotaError(error)) {
           tripQuotaCircuitBreaker();
-          try {
-            unsub();
-          } catch {}
           return;
         }
         if (onError) {

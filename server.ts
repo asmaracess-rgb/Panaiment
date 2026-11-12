@@ -108,6 +108,11 @@ interface DatabaseSchema {
   waDispatchLogs?: any[];
   citizenUsers?: AuthenticatedUserProfile[];
   citizenMenuConfig?: CitizenMenuAccessConfig;
+  praRegistrasiRecords?: any[];
+  pengaduanRecords?: any[];
+  masterLayananList?: any[];
+  masterPersyaratanList?: any[];
+  kategoriPengaduanList?: any[];
   googleAdminVerificationRequests?: GoogleAdminVerificationRequest[];
   deletedItemIds?: string[];
   lastModified: string;
@@ -271,6 +276,23 @@ function loadDatabase(): DatabaseSchema {
             ? parsed.citizenUsers.filter((c) => c && c.uid && !deletedSet.has(c.uid))
             : [],
           citizenMenuConfig: parsed.citizenMenuConfig,
+          praRegistrasiRecords: Array.isArray(parsed.praRegistrasiRecords)
+            ? parsed.praRegistrasiRecords.filter(
+                (r: any) => r && (r.id || r.ticketCode) && !deletedSet.has(r.id || r.ticketCode)
+              )
+            : [],
+          pengaduanRecords: Array.isArray(parsed.pengaduanRecords)
+            ? parsed.pengaduanRecords.filter(
+                (r: any) => r && (r.id || r.ticketCode) && !deletedSet.has(r.id || r.ticketCode)
+              )
+            : [],
+          masterLayananList: Array.isArray(parsed.masterLayananList) ? parsed.masterLayananList : undefined,
+          masterPersyaratanList: Array.isArray(parsed.masterPersyaratanList)
+            ? parsed.masterPersyaratanList
+            : undefined,
+          kategoriPengaduanList: Array.isArray(parsed.kategoriPengaduanList)
+            ? parsed.kategoriPengaduanList
+            : undefined,
           googleAdminVerificationRequests: Array.isArray(parsed.googleAdminVerificationRequests)
             ? parsed.googleAdminVerificationRequests.filter((r) => r && r.email && (!r.id || !deletedSet.has(r.id)))
             : [],
@@ -1115,7 +1137,20 @@ async function startServer() {
         0
       );
     }
-    if (Array.isArray(incoming.reports)) db.reports = incoming.reports;
+    if (Array.isArray(incoming.reports)) {
+      const reportMap = new Map<string, CitizenReport>();
+      for (const r of db.reports || []) {
+        if (r && r.id && !deletedSet.has(r.id)) {
+          reportMap.set(r.id, r);
+        }
+      }
+      for (const inc of incoming.reports) {
+        if (!inc || !inc.id || deletedSet.has(inc.id)) continue;
+        const prev = reportMap.get(inc.id);
+        reportMap.set(inc.id, prev ? { ...prev, ...inc } : inc);
+      }
+      db.reports = Array.from(reportMap.values());
+    }
     if (Array.isArray(incoming.wasteUnits)) db.wasteUnits = incoming.wasteUnits;
     if (Array.isArray(incoming.wasteLogs)) db.wasteLogs = incoming.wasteLogs;
     if (Array.isArray(incoming.tebaSpots)) db.tebaSpots = incoming.tebaSpots;
@@ -1191,8 +1226,18 @@ async function startServer() {
       db.activityLogs = incoming.activityLogs;
     if (Array.isArray(incoming.urbanFarmingSpots))
       db.urbanFarmingSpots = incoming.urbanFarmingSpots;
-    if (Array.isArray(incoming.seedRequests))
-      db.seedRequests = incoming.seedRequests;
+    if (Array.isArray(incoming.seedRequests)) {
+      const seedMap = new Map<string, SeedRequestItem>();
+      for (const s of db.seedRequests || []) {
+        if (s && s.id && !deletedSet.has(s.id)) seedMap.set(s.id, s);
+      }
+      for (const inc of incoming.seedRequests) {
+        if (!inc || !inc.id || deletedSet.has(inc.id)) continue;
+        const prev = seedMap.get(inc.id);
+        seedMap.set(inc.id, prev ? { ...prev, ...inc } : inc);
+      }
+      db.seedRequests = Array.from(seedMap.values());
+    }
     if (Array.isArray(incoming.urbanFarmingLocations))
       db.urbanFarmingLocations = incoming.urbanFarmingLocations;
     if (Array.isArray(incoming.farmerGroups))
@@ -1217,8 +1262,77 @@ async function startServer() {
       }
       db.waDispatchLogs = Array.from(logMap.values()).slice(0, 120);
     }
-    if (Array.isArray(incoming.citizenUsers))
-      db.citizenUsers = incoming.citizenUsers;
+    if (Array.isArray(incoming.citizenUsers)) {
+      const citizenMap = new Map<string, AuthenticatedUserProfile>();
+      for (const c of db.citizenUsers || []) {
+        if (!c || !c.uid || deletedSet.has(c.uid)) continue;
+        const key = (c.email ? c.email.trim().toLowerCase() : '') || c.uid;
+        citizenMap.set(key, c);
+      }
+      for (const inc of incoming.citizenUsers) {
+        if (!inc || !inc.uid || deletedSet.has(inc.uid)) continue;
+        const key = (inc.email ? inc.email.trim().toLowerCase() : '') || inc.uid;
+        const prev = citizenMap.get(key) || citizenMap.get(inc.uid);
+        if (prev) {
+          const resolvedUid = prev.uid.startsWith('warga_') ? inc.uid : prev.uid;
+          citizenMap.set(key, {
+            ...prev,
+            ...inc,
+            uid: resolvedUid,
+            fullName:
+              (inc.fullName && inc.fullName !== 'Warga Panaikang' ? inc.fullName : prev.fullName) ||
+              'Warga Panaikang',
+            email: inc.email || prev.email || '',
+            nik: inc.nik || prev.nik || '',
+            phone: (inc.phone && inc.phone !== '-' ? inc.phone : prev.phone) || '',
+            rw: inc.rw || prev.rw || 'RW 01',
+            rt: inc.rt || prev.rt || 'RT 01',
+            address: inc.address || prev.address || 'Kelurahan Panaikang',
+            role: 'warga',
+          });
+        } else {
+          citizenMap.set(key, inc);
+        }
+      }
+      db.citizenUsers = Array.from(citizenMap.values());
+    }
+    if (Array.isArray(incoming.pengaduanRecords)) {
+      const pgdMap = new Map<string, any>();
+      for (const p of db.pengaduanRecords || []) {
+        const key = p && (p.ticketCode || p.id);
+        if (key && !deletedSet.has(p.id || key)) pgdMap.set(key, p);
+      }
+      for (const inc of incoming.pengaduanRecords) {
+        const key = inc && (inc.ticketCode || inc.id);
+        if (!key || deletedSet.has(inc.id || key)) continue;
+        const prev = pgdMap.get(key);
+        pgdMap.set(key, prev ? { ...prev, ...inc } : inc);
+      }
+      db.pengaduanRecords = Array.from(pgdMap.values());
+    }
+    if (Array.isArray(incoming.praRegistrasiRecords)) {
+      const praMap = new Map<string, any>();
+      for (const p of db.praRegistrasiRecords || []) {
+        const key = p && (p.ticketCode || p.id);
+        if (key && !deletedSet.has(p.id || key)) praMap.set(key, p);
+      }
+      for (const inc of incoming.praRegistrasiRecords) {
+        const key = inc && (inc.ticketCode || inc.id);
+        if (!key || deletedSet.has(inc.id || key)) continue;
+        const prev = praMap.get(key);
+        praMap.set(key, prev ? { ...prev, ...inc } : inc);
+      }
+      db.praRegistrasiRecords = Array.from(praMap.values());
+    }
+    if (Array.isArray(incoming.masterLayananList)) {
+      db.masterLayananList = incoming.masterLayananList;
+    }
+    if (Array.isArray(incoming.masterPersyaratanList)) {
+      db.masterPersyaratanList = incoming.masterPersyaratanList;
+    }
+    if (Array.isArray(incoming.kategoriPengaduanList)) {
+      db.kategoriPengaduanList = incoming.kategoriPengaduanList;
+    }
     if (incoming.citizenMenuConfig && typeof incoming.citizenMenuConfig === 'object') {
       const incMs = incoming.citizenMenuConfig.updatedAtMs || 0;
       const curMs = db.citizenMenuConfig?.updatedAtMs || 0;
