@@ -570,6 +570,59 @@ export function loadCitizensJournal(): AuthenticatedUserProfile[] {
 }
 
 /**
+ * Persists an updated citizen profile into local journal and database snapshot
+ */
+export function saveCitizenToJournal(citizen: AuthenticatedUserProfile): void {
+  if (typeof window === 'undefined' || !citizen || !citizen.uid) return;
+  try {
+    const existing = loadCitizensJournal();
+    const cleanEmail = citizen.email ? citizen.email.trim().toLowerCase() : '';
+    const idx = existing.findIndex(
+      (c) =>
+        c.uid === citizen.uid ||
+        (cleanEmail && c.email && c.email.trim().toLowerCase() === cleanEmail)
+    );
+    let updated: AuthenticatedUserProfile[];
+    const nowStr = new Date().toISOString();
+    if (idx >= 0) {
+      updated = existing.map((c, i) =>
+        i === idx ? { ...c, ...citizen, updatedAt: nowStr } : c
+      );
+    } else {
+      updated = [{ ...citizen, createdAt: nowStr, updatedAt: nowStr }, ...existing];
+    }
+    window.localStorage.setItem(JOURNAL_CITIZENS_KEY, JSON.stringify(updated));
+
+    // Also update main local database snapshot
+    const rawDb = window.localStorage.getItem(STORAGE_KEY);
+    if (rawDb) {
+      try {
+        const parsed = JSON.parse(rawDb);
+        if (parsed && typeof parsed === 'object') {
+          const list: AuthenticatedUserProfile[] = Array.isArray(parsed.citizenUsers)
+            ? parsed.citizenUsers
+            : [];
+          const cIdx = list.findIndex(
+            (c: any) =>
+              c.uid === citizen.uid ||
+              (cleanEmail && c.email && c.email.trim().toLowerCase() === cleanEmail)
+          );
+          if (cIdx >= 0) {
+            list[cIdx] = { ...list[cIdx], ...citizen };
+          } else {
+            list.unshift(citizen);
+          }
+          parsed.citizenUsers = list;
+          window.localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+        }
+      } catch {}
+    }
+  } catch (err) {
+    console.warn('Failed to save citizen to journal:', err);
+  }
+}
+
+/**
  * Helper to merge an entity collection by unique item ID.
  * - Items in deletedSet are NEVER included.
  * - When incoming is newer or equal (!localIsNewer), incoming list is authoritative and deleted items are never revived.

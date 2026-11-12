@@ -172,6 +172,24 @@ export default async function handler(req, res) {
           dataToSave.adminUsers = Array.from(userMap.values());
         }
 
+        // 2B. Merge citizenUsers by uid/email so registered citizen profiles are never overwritten
+        if (Array.isArray(existingDb.citizenUsers) || Array.isArray(dataToSave.citizenUsers)) {
+          const citizenMap = new Map();
+          for (const c of existingDb.citizenUsers || []) {
+            if (c && (c.uid || c.email)) {
+              const key = c.uid || c.email.toLowerCase();
+              citizenMap.set(key, c);
+            }
+          }
+          for (const inc of dataToSave.citizenUsers || []) {
+            if (!inc || (!inc.uid && !inc.email)) continue;
+            const key = inc.uid || inc.email.toLowerCase();
+            const prev = citizenMap.get(key);
+            citizenMap.set(key, { ...prev, ...inc });
+          }
+          dataToSave.citizenUsers = Array.from(citizenMap.values());
+        }
+
         // 3. Preserve profile and lurahPhotoUrl if client sends an empty photo
         if (existingDb && existingDb.profile) {
           if (!dataToSave.profile) {

@@ -118,6 +118,7 @@ import {
   loadKerjaBaktiIgHighlights,
   saveKerjaBaktiIgHighlights,
   setExplicitUrbanFarmingSpotPhoto,
+  saveCitizenToJournal,
 } from './utils/persistentStorage';
 import { getLayananSeksiInfo, isSuratAdministrasi } from './utils/layananSeksiHelper';
 import { compressDataUrlIfNeeded } from './utils/compressImage';
@@ -3641,7 +3642,11 @@ export default function App() {
               onAddPengaduan={handleAddPengaduan}
               onNavigate={handleNavigate}
               onLogout={handleFirebaseLogout}
-              onProfileUpdated={(updatedProfile) => setAuthUserProfile(updatedProfile)}
+              onProfileUpdated={(updatedProfile) => {
+                setAuthUserProfile(updatedProfile);
+                upsertCitizenUser(updatedProfile);
+                saveCitizenToJournal(updatedProfile);
+              }}
             />
           )
         )}

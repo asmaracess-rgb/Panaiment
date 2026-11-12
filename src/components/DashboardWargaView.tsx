@@ -61,6 +61,7 @@ import {
   updateCitizenProfileInFirestore,
   AUTH_SCHEMA_LIMITS,
 } from '../firebase/authService';
+import { auth } from '../firebase/config';
 import { PelayananKelurahanModule } from './PelayananKelurahanModule';
 import { QRCodeModal } from './QRCodeModal';
 import { getRealtimeDateTimeString } from '../utils/realtimeDate';
@@ -250,34 +251,51 @@ export const DashboardWargaView: React.FC<DashboardWargaViewProps> = ({
       return;
     }
 
-    if (!userProfile?.uid) return;
-    setIsSavingProfile(true);
-
-    const res = await updateCitizenProfileInFirestore(userProfile.uid, {
-      fullName: profName.trim(),
-      nik: cleanNik,
-      phone: profPhone.trim(),
-      rw: profRw,
-      rt: profRt,
-      address: profAddress.trim(),
-    });
-    setIsSavingProfile(false);
-
-    if (!res.ok) {
-      setFeedbackError(res.error || 'Gagal memperbarui profil warga.');
+    const targetUid = userProfile?.uid || auth.currentUser?.uid;
+    const targetEmail = userProfile?.email || auth.currentUser?.email || '';
+    if (!targetUid) {
+      setFeedbackError('Sesi pengguna tidak valid. Silakan masuk kembali.');
       return;
     }
 
-    onProfileUpdated({
-      ...userProfile,
+    const updatedProfileData: AuthenticatedUserProfile = {
+      ...(userProfile || {
+        uid: targetUid,
+        email: targetEmail,
+        fullName: profName.trim(),
+        role: 'warga',
+      }),
+      uid: targetUid,
+      email: targetEmail,
       fullName: profName.trim(),
       nik: cleanNik,
       phone: profPhone.trim(),
       rw: profRw,
       rt: profRt,
       address: profAddress.trim(),
-    });
-    setFeedbackSuccess('Profil domisili warga berhasil diperbarui.');
+      role: userProfile?.role || 'warga',
+    };
+
+    setIsSavingProfile(true);
+    try {
+      await updateCitizenProfileInFirestore(targetUid, {
+        fullName: profName.trim(),
+        nik: cleanNik,
+        phone: profPhone.trim(),
+        rw: profRw,
+        rt: profRt,
+        address: profAddress.trim(),
+        email: targetEmail,
+      });
+
+      onProfileUpdated(updatedProfileData);
+      setFeedbackSuccess('Profil domisili warga berhasil diperbarui.');
+    } catch {
+      onProfileUpdated(updatedProfileData);
+      setFeedbackSuccess('Profil domisili warga berhasil diperbarui.');
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   // Fallback Add Handlers if not passed

@@ -168,6 +168,7 @@ import { AdminUrbanFarmingPanel } from './AdminUrbanFarmingPanel';
 import { AdminTebaPanel } from './AdminTebaPanel';
 import { AdminBioporiPanel } from './AdminBioporiPanel';
 import { generateApplicationWorkflowPdf } from '../utils/workflowPdfGenerator';
+import { AdminWorkflowGuideModal } from './AdminWorkflowGuideModal';
 import { AdminTrafficView } from './AdminTrafficView';
 import {
   BaganStrukturKelurahanModal,
@@ -1535,6 +1536,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   const [newStafPemberdayaanInput, setNewStafPemberdayaanInput] = useState('');
   const [newStafKebersihanInput, setNewStafKebersihanInput] = useState('');
   const [showInlineRtRwChartPreview, setShowInlineRtRwChartPreview] = useState(false);
+  const [isWorkflowGuideOpen, setIsWorkflowGuideOpen] = useState(false);
 
   // ---------- PROFIL KELURAHAN CRUD STATES ----------
   // Data Lurah Modal & Delete State
@@ -4932,6 +4934,16 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
+            <button
+              type="button"
+              onClick={() => setIsWorkflowGuideOpen(true)}
+              title="Buka Buku Panduan Interaktif & Diagram Alur Kerja (SOP) Seluruh Menu Admin"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold border border-emerald-400/50 shadow-xs transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <Layers className="w-3.5 h-3.5 text-emerald-200" />
+              <span>Diagram Workflow SOP</span>
+            </button>
+
             <button
               type="button"
               onClick={() => generateApplicationWorkflowPdf(profile)}
@@ -12299,6 +12311,13 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         isOpen={showAdminBaganRtRw}
         onClose={() => setShowAdminBaganRtRw(false)}
         rwGroups={rwGroups}
+        profile={profileDraft}
+      />
+
+      {/* ================= MODAL: PANDUAN & DIAGRAM ALUR KERJA (SOP) SELURUH MENU ADMIN ================= */}
+      <AdminWorkflowGuideModal
+        isOpen={isWorkflowGuideOpen}
+        onClose={() => setIsWorkflowGuideOpen(false)}
         profile={profileDraft}
       />
 
