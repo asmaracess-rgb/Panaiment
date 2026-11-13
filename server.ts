@@ -216,25 +216,28 @@ function loadDatabase(): DatabaseSchema {
           kelurahanInfos: (() => {
             const legacyIds = new Set(['info-1', 'info-2', 'info-3', 'info-4', 'info-5', 'info-6']);
             const existingInfos = filterDeleted(parsed.kelurahanInfos, INITIAL_KELURAHAN_INFOS);
+            const getCode = (item: KelurahanInfoItem) => {
+              const combined = `${item.instagramPostUrl || ''} ${item.imageUrl || ''}`;
+              const m1 = combined.match(/instagram\.com\/(?:p|reel|tv)\/([A-Za-z0-9_-]+)/i);
+              if (m1?.[1]) return m1[1];
+              const m2 = combined.match(/[?&]code=([A-Za-z0-9_-]+)/i);
+              if (m2?.[1]) return m2[1];
+              return item.instagramPostUrl?.trim() || item.id;
+            };
             const map = new Map<string, KelurahanInfoItem>();
-            const seenUrls = new Set<string>();
             for (const item of existingInfos) {
               if (!item || !item.id || deletedSet.has(item.id) || legacyIds.has(item.id)) continue;
-              const urlKey = item.instagramPostUrl ? item.instagramPostUrl.trim() : '';
-              if (urlKey && seenUrls.has(urlKey)) continue;
-              if (urlKey) seenUrls.add(urlKey);
-              map.set(item.id, item);
+              const key = getCode(item);
+              if (!map.has(key)) map.set(key, item);
             }
-            for (const initItem of INITIAL_KELURAHAN_INFOS) {
-              if (!initItem || !initItem.id || deletedSet.has(initItem.id)) continue;
-              const urlKey = initItem.instagramPostUrl ? initItem.instagramPostUrl.trim() : '';
-              if (urlKey && seenUrls.has(urlKey)) continue;
-              if (!map.has(initItem.id)) {
-                if (urlKey) seenUrls.add(urlKey);
-                map.set(initItem.id, initItem);
+            if (map.size < 5) {
+              for (const initItem of INITIAL_KELURAHAN_INFOS) {
+                if (!initItem || !initItem.id || deletedSet.has(initItem.id)) continue;
+                const key = getCode(initItem);
+                if (!map.has(key)) map.set(key, initItem);
               }
             }
-            return Array.from(map.values());
+            return Array.from(map.values()).sort((a, b) => (b.takenAtMs || 0) - (a.takenAtMs || 0));
           })(),
           whatsappRecipients: (() => {
             const legacyWaIds = new Set([
@@ -3046,8 +3049,46 @@ async function startServer() {
     res.status(204).end();
   });
 
+  const IG_MONTHS_ID = [
+    'Januari',
+    'Februari',
+    'Maret',
+    'April',
+    'Mei',
+    'Juni',
+    'Juli',
+    'Agustus',
+    'September',
+    'Oktober',
+    'November',
+    'Desember',
+  ];
+  const formatIgIndonesianDateWita = (tsSeconds?: number) => {
+    const ms = tsSeconds ? Number(tsSeconds) * 1000 : Date.now();
+    const wita = new Date(ms + 8 * 60 * 60 * 1000);
+    const day = String(wita.getUTCDate()).padStart(2, '0');
+    const month = IG_MONTHS_ID[wita.getUTCMonth()] || 'November';
+    const year = wita.getUTCFullYear();
+    return `${day} ${month} ${year}`;
+  };
+  const isIgKerjaBakti = (rawCaption: string) => {
+    const lowerCap = (rawCaption || '').toLowerCase();
+    return (
+      lowerCap.includes('kerja bakti') ||
+      lowerCap.includes('jumat asri') ||
+      lowerCap.includes('jumat bersih') ||
+      lowerCap.includes('kebersihan') ||
+      lowerCap.includes('pengelolaan sampah') ||
+      lowerCap.includes('gotong royong') ||
+      lowerCap.includes('clean up') ||
+      lowerCap.includes('drainase') ||
+      lowerCap.includes('sabtu bersih')
+    );
+  };
+
   app.post('/api/cleanup-events/sync-ig-highlights', async (_req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
     let syncedStories: KerjaBaktiIgHighlightItem[] = INITIAL_KERJABAKTI_IG_HIGHLIGHTS.slice(0, 3);
     try {
       const embedRes = await fetch('https://www.instagram.com/kelurahan.panaikang/embed/', {
@@ -3070,31 +3111,16 @@ async function startServer() {
             if (!sm || !sm.shortcode) continue;
             const code = String(sm.shortcode);
             const rawCaption = sm.edge_media_to_caption?.edges?.[0]?.node?.text?.trim() || '';
-            const lowerCap = rawCaption.toLowerCase();
-            const isKerjaBakti =
-              lowerCap.includes('kerja bakti') ||
-              lowerCap.includes('jumat asri') ||
-              lowerCap.includes('kebersihan') ||
-              lowerCap.includes('pengelolaan sampah') ||
-              lowerCap.includes('gotong royong') ||
-              lowerCap.includes('clean up') ||
-              lowerCap.includes('drainase') ||
-              INITIAL_KERJABAKTI_IG_HIGHLIGHTS.some((h) => h.shortcode === code);
-            if (!isKerjaBakti) continue;
+            if (!isIgKerjaBakti(rawCaption) && !INITIAL_KERJABAKTI_IG_HIGHLIGHTS.some((h) => h.shortcode === code)) {
+              continue;
+            }
 
             const existingInit = INITIAL_KERJABAKTI_IG_HIGHLIGHTS.find((h) => h.shortcode === code);
             if (existingInit) {
               kbMatches.push(existingInit);
             } else {
               const firstLine = rawCaption.split('\n')[0].trim();
-              const dateObj = sm.taken_at_timestamp
-                ? new Date(sm.taken_at_timestamp * 1000)
-                : new Date();
-              const dateFormatted = dateObj.toLocaleDateString('id-ID', {
-                day: '2-digit',
-                month: 'long',
-                year: 'numeric',
-              });
+              const dateFormatted = formatIgIndonesianDateWita(sm.taken_at_timestamp);
               const isVideo = Boolean(sm.is_video);
               kbMatches.push({
                 id: `kb-ig-story-${kbMatches.length + 1}-${code}`,
@@ -3115,7 +3141,6 @@ async function startServer() {
             }
             if (kbMatches.length >= 3) break;
           }
-          // Ensure we always have 3 stories by filling from INITIAL_KERJABAKTI_IG_HIGHLIGHTS if needed
           for (const fallbackItem of INITIAL_KERJABAKTI_IG_HIGHLIGHTS) {
             if (kbMatches.length >= 3) break;
             if (!kbMatches.some((m) => m.shortcode === fallbackItem.shortcode)) {
@@ -3188,6 +3213,7 @@ async function startServer() {
 
   app.post('/api/infos/sync-instagram', async (_req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
     const legacyIds = new Set(['info-1', 'info-2', 'info-3', 'info-4', 'info-5', 'info-6']);
     let liveSyncedPosts: KelurahanInfoItem[] = [...INITIAL_KELURAHAN_INFOS];
     let liveKbHighlights: KerjaBaktiIgHighlightItem[] = INITIAL_KERJABAKTI_IG_HIGHLIGHTS.slice(0, 3);
@@ -3204,87 +3230,87 @@ async function startServer() {
         if (match && match[1]) {
           const rawJsonStr = JSON.parse(match[1]);
           const parsed = JSON.parse(rawJsonStr);
-          const mediaList = Array.isArray(parsed?.context?.graphql_media)
-            ? parsed.context.graphql_media.slice(0, 6)
+          const allMedia = Array.isArray(parsed?.context?.graphql_media)
+            ? parsed.context.graphql_media
             : [];
-          if (mediaList.length > 0) {
+          const mediaList = allMedia.slice(0, 6);
+          if (allMedia.length > 0) {
             const fetchedItems: KelurahanInfoItem[] = [];
             const kbMatches: KerjaBaktiIgHighlightItem[] = [];
-            for (let i = 0; i < mediaList.length; i++) {
-              const sm = mediaList[i]?.shortcode_media;
+            for (let i = 0; i < allMedia.length; i++) {
+              const sm = allMedia[i]?.shortcode_media;
               if (!sm || !sm.shortcode) continue;
               const code = String(sm.shortcode);
               const rawCaption =
                 sm.edge_media_to_caption?.edges?.[0]?.node?.text?.trim() ||
                 'Publikasi terbaru Instagram Resmi Pemerintah Kelurahan Panaikang (@kelurahan.panaikang).';
               const firstLine = rawCaption.split('\n')[0].trim();
-              const dateObj = sm.taken_at_timestamp
-                ? new Date(sm.taken_at_timestamp * 1000)
-                : new Date();
-              const dateFormatted = dateObj.toLocaleDateString('id-ID', {
-                day: '2-digit',
-                month: 'long',
-                year: 'numeric',
-              });
+              const takenAtMs = sm.taken_at_timestamp
+                ? Number(sm.taken_at_timestamp) * 1000
+                : Date.now() - i * 1000;
+              const dateFormatted = formatIgIndonesianDateWita(sm.taken_at_timestamp);
               const isVideo = Boolean(sm.is_video);
+              const imageUrl = LOCAL_IG_FILE_MAP[code]
+                ? `/images/${LOCAL_IG_FILE_MAP[code]}`
+                : `/api/ig-media?code=${code}`;
+              const postUrl = `https://www.instagram.com/${isVideo ? 'reel' : 'p'}/${code}/`;
 
-              const existingInit = INITIAL_KELURAHAN_INFOS.find(
-                (init) => init.id.includes(code) || init.instagramPostUrl?.includes(code)
-              );
-              if (existingInit) {
-                fetchedItems.push({
-                  ...existingInit,
-                  instagramLikes:
-                    sm.edge_liked_by?.count ??
-                    sm.edge_media_preview_like?.count ??
-                    existingInit.instagramLikes,
-                  instagramCommentsCount:
-                    sm.edge_media_to_comment?.count ?? existingInit.instagramCommentsCount,
-                });
-              } else {
-                fetchedItems.push({
-                  id: `ig-latest-${i + 1}-${code}`,
-                  title:
-                    firstLine.length > 10 && firstLine.length <= 100
-                      ? firstLine
-                      : `${rawCaption.slice(0, 82)}...`,
-                  category: 'Kegiatan Lingkungan',
-                  summary:
-                    rawCaption.length > 130 ? `${rawCaption.slice(0, 130)}...` : rawCaption,
-                  content: rawCaption,
-                  imageUrl: LOCAL_IG_FILE_MAP[code]
-                    ? `/images/${LOCAL_IG_FILE_MAP[code]}`
-                    : `/api/ig-media?code=${code}`,
-                  publishedAt: dateFormatted,
-                  author: 'Lurah Panaikang · @kelurahan.panaikang',
-                  instagramHandle: '@kelurahan.panaikang',
-                  instagramPostUrl: `https://www.instagram.com/${isVideo ? 'reel' : 'p'}/${code}/`,
-                  instagramLikes:
-                    sm.edge_liked_by?.count ?? sm.edge_media_preview_like?.count ?? 25,
-                  instagramCommentsCount: sm.edge_media_to_comment?.count ?? 2,
-                  isInstagramSynced: true,
-                  hashtags: [
-                    '#KelurahanPanaikang',
-                    '#PanaikangSmartEnvironment',
-                    '#KecamatanPanakkukang',
-                    '#KotaMakassar',
-                  ],
-                });
+              if (i < mediaList.length) {
+                const existingInit = INITIAL_KELURAHAN_INFOS.find(
+                  (init) => init.id.includes(code) || init.instagramPostUrl?.includes(code)
+                );
+                if (existingInit) {
+                  fetchedItems.push({
+                    ...existingInit,
+                    takenAtMs,
+                    publishedAt: dateFormatted,
+                    instagramLikes:
+                      sm.edge_liked_by?.count ??
+                      sm.edge_media_preview_like?.count ??
+                      existingInit.instagramLikes,
+                    instagramCommentsCount:
+                      sm.edge_media_to_comment?.count ?? existingInit.instagramCommentsCount,
+                  });
+                } else {
+                  fetchedItems.push({
+                    id: `ig-latest-${i + 1}-${code}`,
+                    title:
+                      firstLine.length > 10 && firstLine.length <= 105
+                        ? firstLine
+                        : rawCaption.length > 85
+                        ? `${rawCaption.slice(0, 82)}...`
+                        : rawCaption,
+                    category: isIgKerjaBakti(rawCaption)
+                      ? 'Kegiatan Lingkungan'
+                      : 'Pengumuman Kelurahan',
+                    summary:
+                      rawCaption.length > 140 ? `${rawCaption.slice(0, 140)}...` : rawCaption,
+                    content: rawCaption,
+                    imageUrl,
+                    publishedAt: dateFormatted,
+                    takenAtMs,
+                    author: 'Lurah Panaikang · @kelurahan.panaikang',
+                    instagramHandle: '@kelurahan.panaikang',
+                    instagramPostUrl: postUrl,
+                    instagramLikes:
+                      sm.edge_liked_by?.count ?? sm.edge_media_preview_like?.count ?? 25,
+                    instagramCommentsCount: sm.edge_media_to_comment?.count ?? 2,
+                    isInstagramSynced: true,
+                    hashtags: [
+                      '#KelurahanPanaikang',
+                      '#PanaikangSmartEnvironment',
+                      '#KecamatanPanakkukang',
+                      '#KotaMakassar',
+                    ],
+                  });
+                }
               }
 
-              // Also check if this post qualifies for Sorotan Kerja Bakti & Kebersihan
-              const lowerCap = rawCaption.toLowerCase();
-              const isKerjaBakti =
-                lowerCap.includes('kerja bakti') ||
-                lowerCap.includes('jumat asri') ||
-                lowerCap.includes('kebersihan') ||
-                lowerCap.includes('pengelolaan sampah') ||
-                lowerCap.includes('gotong royong') ||
-                lowerCap.includes('clean up') ||
-                lowerCap.includes('drainase') ||
-                INITIAL_KERJABAKTI_IG_HIGHLIGHTS.some((h) => h.shortcode === code);
-
-              if (isKerjaBakti && kbMatches.length < 3) {
+              if (
+                (isIgKerjaBakti(rawCaption) ||
+                  INITIAL_KERJABAKTI_IG_HIGHLIGHTS.some((h) => h.shortcode === code)) &&
+                kbMatches.length < 3
+              ) {
                 const existingKb = INITIAL_KERJABAKTI_IG_HIGHLIGHTS.find((h) => h.shortcode === code);
                 if (existingKb) {
                   kbMatches.push(existingKb);
@@ -3299,16 +3325,15 @@ async function startServer() {
                     caption: rawCaption.length > 220 ? `${rawCaption.slice(0, 220)}...` : rawCaption,
                     publishedAt: dateFormatted,
                     rwScope: 'Kelurahan Panaikang',
-                    imageUrl: LOCAL_IG_FILE_MAP[code]
-                      ? `/images/${LOCAL_IG_FILE_MAP[code]}`
-                      : `/api/ig-media?code=${code}`,
-                    instagramPostUrl: `https://www.instagram.com/${isVideo ? 'reel' : 'p'}/${code}/`,
+                    imageUrl,
+                    instagramPostUrl: postUrl,
                     highlightName: 'Sorotan: Kerja Bakti & Kebersihan',
                   });
                 }
               }
             }
             if (fetchedItems.length > 0) {
+              fetchedItems.sort((a, b) => (b.takenAtMs || 0) - (a.takenAtMs || 0));
               liveSyncedPosts = fetchedItems;
             }
             for (const fallbackItem of INITIAL_KERJABAKTI_IG_HIGHLIGHTS) {
@@ -3327,15 +3352,24 @@ async function startServer() {
       // Fallback to INITIAL_KELURAHAN_INFOS
     }
 
-    const syncedUrls = new Set(liveSyncedPosts.map((p) => p.instagramPostUrl).filter(Boolean));
+    const syncedCodes = new Set(
+      liveSyncedPosts
+        .map((p) => {
+          const m = `${p.instagramPostUrl || ''} ${p.imageUrl || ''}`.match(
+            /instagram\.com\/(?:p|reel|tv)\/([A-Za-z0-9_-]+)/i
+          );
+          return m?.[1] || p.instagramPostUrl || p.id;
+        })
+        .filter(Boolean)
+    );
     const customPosts = db.kelurahanInfos.filter(
       (i) =>
         i &&
         i.id &&
         !legacyIds.has(i.id) &&
         !i.id.startsWith('ig-latest-') &&
-        !(i.instagramPostUrl && syncedUrls.has(i.instagramPostUrl)) &&
-        !INITIAL_KELURAHAN_INFOS.some((init) => init.id === i.id)
+        i.isInstagramSynced === false &&
+        !(i.instagramPostUrl && syncedCodes.has(i.instagramPostUrl))
     );
     db.kelurahanInfos = [...liveSyncedPosts, ...customPosts];
     saveDatabase(db);

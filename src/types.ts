@@ -726,6 +726,7 @@ export interface KelurahanInfoItem {
   content: string;
   imageUrl: string;
   publishedAt: string;
+  takenAtMs?: number;
   author: string;
   instagramHandle?: string;
   instagramPostUrl?: string;

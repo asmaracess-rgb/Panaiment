@@ -115,7 +115,8 @@ export default async function handler(req, res) {
       const mediaMatch =
         html.match(/class="EmbeddedMediaImage"[^>]*src="([^"]+)"/i) ||
         html.match(/src="([^"]+)"[^>]*class="EmbeddedMediaImage"/i) ||
-        html.match(/<img[^>]+src="(https:\/\/[^"]*cdninstagram\.com\/v\/t51\.82787-15\/[^"]+)"/i);
+        html.match(/<img[^>]+src="(https:\/\/[^"]*cdninstagram\.com\/v\/t51\.82787-15\/[^"]+)"/i) ||
+        html.match(/<img[^>]+src="(https:\/\/[^"]*cdninstagram\.com[^"]+)"/i);
       if (mediaMatch && mediaMatch[1]) {
         targetImageUrl = mediaMatch[1].replace(/&amp;/g, '&');
       }

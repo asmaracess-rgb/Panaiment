@@ -3245,8 +3245,20 @@ export default function App() {
     const cloudBackendBase =
       'https://ais-pre-xdr54nppc6d3xrjatu4qda-341890100407.asia-southeast1.run.app';
 
+    const getIgKey = (item: KelurahanInfoItem) => {
+      const combined = `${item.instagramPostUrl || ''} ${item.imageUrl || ''}`;
+      const m1 = combined.match(/instagram\.com\/(?:p|reel|tv)\/([A-Za-z0-9_-]+)/i);
+      if (m1?.[1]) return m1[1];
+      const m2 = combined.match(/[?&]code=([A-Za-z0-9_-]+)/i);
+      if (m2?.[1]) return m2[1];
+      return item.instagramPostUrl?.trim() || item.id;
+    };
+
     try {
-      let res = await fetch('/api/infos/sync-instagram', { method: 'POST' }).catch(() => null);
+      let res = await fetch('/api/infos/sync-instagram', {
+        method: 'POST',
+        cache: 'no-store',
+      }).catch(() => null);
       let ct = res?.headers.get('content-type') || '';
       if (
         (!res || !res.ok || !ct.includes('application/json')) &&
@@ -3255,6 +3267,7 @@ export default function App() {
       ) {
         res = await fetch(`${cloudBackendBase}/api/infos/sync-instagram`, {
           method: 'POST',
+          cache: 'no-store',
         }).catch(() => null);
         ct = res?.headers.get('content-type') || '';
       }
@@ -3266,16 +3279,25 @@ export default function App() {
           setKerjaBaktiHighlights(top3);
           setKerjaBaktiHighlightsSyncedAt(syncedFull);
           saveKerjaBaktiIgHighlights(top3, syncedFull);
-        } else {
-          const fallbackTop3 = INITIAL_KERJABAKTI_IG_HIGHLIGHTS.slice(0, 3);
-          setKerjaBaktiHighlights(fallbackTop3);
-          setKerjaBaktiHighlightsSyncedAt(syncedFull);
-          saveKerjaBaktiIgHighlights(fallbackTop3, syncedFull);
         }
 
         if (json.ok && Array.isArray(json.data) && json.data.length > 0) {
-          setKelurahanInfos(json.data);
-          commitPersistence({ kelurahanInfos: json.data });
+          const livePosts = json.data as KelurahanInfoItem[];
+          const liveKeys = new Set(livePosts.map((p) => getIgKey(p)));
+          const customPosts = (stateRef.current.kelurahanInfos || []).filter(
+            (i) =>
+              i &&
+              i.id &&
+              !i.id.startsWith('ig-latest-') &&
+              i.isInstagramSynced === false &&
+              !liveKeys.has(getIgKey(i))
+          );
+          const nextInfos = [...livePosts, ...customPosts].sort(
+            (a, b) => (b.takenAtMs || 0) - (a.takenAtMs || 0)
+          );
+          setKelurahanInfos(nextInfos);
+          stateRef.current.kelurahanInfos = nextInfos;
+          commitPersistence({ kelurahanInfos: nextInfos });
           return { ok: true, syncedAt: json.syncedAt || syncedTime };
         }
       }
@@ -3322,6 +3344,7 @@ export default function App() {
     try {
       let res = await fetch('/api/cleanup-events/sync-ig-highlights', {
         method: 'POST',
+        cache: 'no-store',
       }).catch(() => null);
       let ct = res?.headers.get('content-type') || '';
       if (
@@ -3331,6 +3354,7 @@ export default function App() {
       ) {
         res = await fetch(`${cloudBackendBase}/api/cleanup-events/sync-ig-highlights`, {
           method: 'POST',
+          cache: 'no-store',
         }).catch(() => null);
         ct = res?.headers.get('content-type') || '';
       }

@@ -8606,7 +8606,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
 
           {/* Daftar Artikel Informasi Kelurahan */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {kelurahanInfos.map((info) => (
+            {[...kelurahanInfos]
+              .sort((a, b) => (b.takenAtMs || 0) - (a.takenAtMs || 0))
+              .map((info) => (
               <div
                 key={info.id}
                 className="bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col justify-between"
@@ -8614,7 +8616,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                 <div>
                   <div className="h-44 w-full bg-slate-100 overflow-hidden">
                     <img
-                      src={resolveImageUrl(info.imageUrl)}
+                      src={resolveImageUrl(info.imageUrl, info.instagramPostUrl)}
                       alt={info.title}
                       referrerPolicy="no-referrer"
                       className="w-full h-full object-cover"

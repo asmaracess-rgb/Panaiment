@@ -1062,35 +1062,46 @@ export function smartMergeDatabases(
   );
 
   // 8. Kelurahan Infos & WhatsApp Recipients
+  const getIgDedupeKey = (item: KelurahanInfoItem): string => {
+    const combined = `${item.instagramPostUrl || ''} ${item.imageUrl || ''}`;
+    const m1 = combined.match(/instagram\.com\/(?:p|reel|tv)\/([A-Za-z0-9_-]+)/i);
+    if (m1?.[1]) return `ig:${m1[1]}`;
+    const m2 = combined.match(/[?&]code=([A-Za-z0-9_-]+)/i);
+    if (m2?.[1]) return `ig:${m2[1]}`;
+    const imgFileMatch = combined.match(/ig_post_(?:latest|kerjabakti|\d+)_(?:\d+b?_)?([A-Za-z0-9_-]+)\./i);
+    if (imgFileMatch?.[1]) return `ig:${imgFileMatch[1]}`;
+    return item.instagramPostUrl?.trim() || item.id;
+  };
   const mergedKelurahanInfos = mergeEntityCollection(
     localDb?.kelurahanInfos,
     incoming?.kelurahanInfos,
-    INITIAL_KELURAHAN_INFOS,
+    [],
     deletedIds,
     localIsNewer
   );
-  // Keep all synced ig-latest-* posts and custom posts, deduplicated by instagramPostUrl or id
   const legacyIds = new Set(['info-1', 'info-2', 'info-3', 'info-4', 'info-5', 'info-6']);
   const infoMap = new Map<string, KelurahanInfoItem>();
-  const seenPostUrls = new Set<string>();
 
   for (const item of mergedKelurahanInfos) {
     if (!item || !item.id || deletedIds.has(item.id) || legacyIds.has(item.id)) continue;
-    const urlKey = item.instagramPostUrl ? item.instagramPostUrl.trim() : '';
-    if (urlKey && seenPostUrls.has(urlKey)) continue;
-    if (urlKey) seenPostUrls.add(urlKey);
-    infoMap.set(item.id, item);
-  }
-  for (const initInfo of INITIAL_KELURAHAN_INFOS) {
-    if (!initInfo || !initInfo.id || deletedIds.has(initInfo.id)) continue;
-    const urlKey = initInfo.instagramPostUrl ? initInfo.instagramPostUrl.trim() : '';
-    if (urlKey && seenPostUrls.has(urlKey)) continue;
-    if (!infoMap.has(initInfo.id)) {
-      if (urlKey) seenPostUrls.add(urlKey);
-      infoMap.set(initInfo.id, initInfo);
+    const key = getIgDedupeKey(item);
+    const existing = infoMap.get(key);
+    if (!existing || (item.takenAtMs || 0) >= (existing.takenAtMs || 0)) {
+      infoMap.set(key, existing ? { ...existing, ...item } : item);
     }
   }
-  const resolvedKelurahanInfos = Array.from(infoMap.values());
+  if (infoMap.size < 5) {
+    for (const initInfo of INITIAL_KELURAHAN_INFOS) {
+      if (!initInfo || !initInfo.id || deletedIds.has(initInfo.id)) continue;
+      const key = getIgDedupeKey(initInfo);
+      if (!infoMap.has(key)) {
+        infoMap.set(key, initInfo);
+      }
+    }
+  }
+  const resolvedKelurahanInfos = Array.from(infoMap.values()).sort(
+    (a, b) => (b.takenAtMs || 0) - (a.takenAtMs || 0)
+  );
 
   const resolvedWhatsappRecipients = mergeEntityCollection(
     localDb?.whatsappRecipients,

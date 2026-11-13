@@ -34,6 +34,7 @@ import {
 import {
   resolveImageUrl,
   resolveUrbanFarmingPhoto,
+  extractInstagramShortcode,
   getInstagramEmbedUrl,
   getInstagramProxyUrl,
 } from '../utils/resolveImageUrl';
@@ -63,17 +64,32 @@ interface HomePortalProps {
 
 const INDONESIAN_MONTHS: Record<string, number> = {
   januari: 0,
+  jan: 0,
   februari: 1,
+  feb: 1,
   maret: 2,
+  mar: 2,
   april: 3,
+  apr: 3,
   mei: 4,
+  may: 4,
   juni: 5,
+  jun: 5,
   juli: 6,
+  jul: 6,
   agustus: 7,
+  agu: 7,
+  aug: 7,
   september: 8,
+  sep: 8,
   oktober: 9,
+  okt: 9,
+  oct: 9,
   november: 10,
+  nov: 10,
   desember: 11,
+  des: 11,
+  dec: 11,
 };
 
 function parseIndonesianDateScore(dateStr?: string): number {
@@ -136,32 +152,38 @@ export const HomePortal: React.FC<HomePortalProps> = ({
 
   // Display current kelurahanInfos with latest @kelurahan.panaikang posts prioritized
   const activeInfos = React.useMemo(() => {
+    const getDedupeKey = (item: KelurahanInfoItem) => {
+      const code = extractInstagramShortcode(item.imageUrl, item.instagramPostUrl);
+      if (code) return `ig:${code}`;
+      return item.instagramPostUrl?.trim() || item.id;
+    };
     const map = new Map<string, KelurahanInfoItem>();
-    const seenUrls = new Set<string>();
     if (Array.isArray(kelurahanInfos) && kelurahanInfos.length > 0) {
       for (const item of kelurahanInfos) {
         if (!item || !item.id) continue;
-        const urlKey = item.instagramPostUrl ? item.instagramPostUrl.trim() : '';
-        if (urlKey && seenUrls.has(urlKey)) continue;
-        if (urlKey) seenUrls.add(urlKey);
-        map.set(item.id, item);
+        const key = getDedupeKey(item);
+        const existing = map.get(key);
+        if (!existing || (item.takenAtMs || 0) >= (existing.takenAtMs || 0)) {
+          map.set(key, item);
+        }
       }
     }
-    for (const initItem of INITIAL_KELURAHAN_INFOS) {
-      const urlKey = initItem.instagramPostUrl ? initItem.instagramPostUrl.trim() : '';
-      if (urlKey && seenUrls.has(urlKey)) continue;
-      if (!map.has(initItem.id)) {
-        if (urlKey) seenUrls.add(urlKey);
-        map.set(initItem.id, initItem);
+    if (map.size < 3) {
+      for (const initItem of INITIAL_KELURAHAN_INFOS) {
+        const key = getDedupeKey(initItem);
+        if (!map.has(key)) {
+          map.set(key, initItem);
+        }
       }
     }
     return Array.from(map.values());
   }, [kelurahanInfos]);
 
-  // Urutkan berdasarkan tanggal terbaru (Terbaru ke Terlama) dengan menjaga urutan kronologis asli
+  // Urutkan berdasarkan waktu/tanggal terbaru (Terbaru ke Terlama)
   const sortedInfosByLatest = [...activeInfos].sort((a, b) => {
-    const diff = parseIndonesianDateScore(b.publishedAt) - parseIndonesianDateScore(a.publishedAt);
-    return diff;
+    const scoreA = a.takenAtMs || parseIndonesianDateScore(a.publishedAt);
+    const scoreB = b.takenAtMs || parseIndonesianDateScore(b.publishedAt);
+    return scoreB - scoreA;
   });
 
   const handleToggleLike = (e: React.MouseEvent, info: KelurahanInfoItem) => {

@@ -181,7 +181,17 @@ function mergeSnapshots(seedData, fullSnapshot, liveWarga, mainProfile) {
   merged.tebaSpots = mergeByKey(seedData?.tebaSpots, fullSnapshot?.tebaSpots, deletedSet, (s) => String(s.id || ''));
   merged.bioporiPoints = mergeByKey(seedData?.bioporiPoints, fullSnapshot?.bioporiPoints, deletedSet, (b) => String(b.id || ''));
   merged.cleanupEvents = mergeByKey(seedData?.cleanupEvents, fullSnapshot?.cleanupEvents, deletedSet, (e) => String(e.id || ''));
-  merged.kelurahanInfos = mergeByKey(seedData?.kelurahanInfos, fullSnapshot?.kelurahanInfos, deletedSet, (i) => String(i.id || ''));
+  const getIgKey = (i) => {
+    const combined = `${i?.instagramPostUrl || ''} ${i?.imageUrl || ''}`;
+    const m1 = combined.match(/instagram\.com\/(?:p|reel|tv)\/([A-Za-z0-9_-]+)/i);
+    if (m1?.[1]) return `ig:${m1[1]}`;
+    const m2 = combined.match(/[?&]code=([A-Za-z0-9_-]+)/i);
+    if (m2?.[1]) return `ig:${m2[1]}`;
+    return String(i?.id || '');
+  };
+  merged.kelurahanInfos = mergeByKey(seedData?.kelurahanInfos, fullSnapshot?.kelurahanInfos, deletedSet, getIgKey).sort(
+    (a, b) => (b?.takenAtMs || 0) - (a?.takenAtMs || 0)
+  );
   merged.whatsappRecipients = mergeByKey(seedData?.whatsappRecipients, fullSnapshot?.whatsappRecipients, deletedSet, (w) => String(w.id || ''));
   merged.adminUsers = mergeByKey(seedData?.adminUsers, fullSnapshot?.adminUsers, deletedSet, (u) => String(u.id || ''));
   merged.urbanFarmingSpots = mergeByKey(seedData?.urbanFarmingSpots, fullSnapshot?.urbanFarmingSpots, deletedSet, (s) => String(s.id || ''));

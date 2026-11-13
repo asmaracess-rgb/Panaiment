@@ -348,12 +348,28 @@ export function createSafeSnapshot(database: PersistedDatabase): PersistedDataba
     deletedSet,
     (e) => String(e.id || '')
   );
-  safeClone.kelurahanInfos = mergeByKey(
-    remoteBase.kelurahanInfos,
-    safeClone.kelurahanInfos,
-    deletedSet,
-    (i) => String(i.id || '')
-  );
+  safeClone.kelurahanInfos = (() => {
+    const getCode = (i: any) => {
+      const combined = `${i?.instagramPostUrl || ''} ${i?.imageUrl || ''}`;
+      const m1 = combined.match(/instagram\.com\/(?:p|reel|tv)\/([A-Za-z0-9_-]+)/i);
+      if (m1?.[1]) return `ig:${m1[1]}`;
+      const m2 = combined.match(/[?&]code=([A-Za-z0-9_-]+)/i);
+      if (m2?.[1]) return `ig:${m2[1]}`;
+      const mf = combined.match(/ig_post_(?:latest|kerjabakti|\d+)_(?:\d+b?_)?([A-Za-z0-9_-]+)\./i);
+      if (mf?.[1]) return `ig:${mf[1]}`;
+      return String(i?.id || '');
+    };
+    const localHasLiveIg = Array.isArray(safeClone.kelurahanInfos) && safeClone.kelurahanInfos.some((i: any) => i?.id?.startsWith('ig-latest-') && i?.takenAtMs);
+    const filteredRemote = (remoteBase.kelurahanInfos || []).filter((i: any) =>
+      i && i.id && !deletedSet.has(i.id) && (!localHasLiveIg || !i.id.startsWith('ig-latest-'))
+    );
+    return mergeByKey(
+      safeClone.kelurahanInfos,
+      filteredRemote,
+      deletedSet,
+      (i) => getCode(i)
+    ).sort((a: any, b: any) => (b?.takenAtMs || 0) - (a?.takenAtMs || 0));
+  })();
   safeClone.whatsappRecipients = mergeByKey(
     remoteBase.whatsappRecipients,
     safeClone.whatsappRecipients,
