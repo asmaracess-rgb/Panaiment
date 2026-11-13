@@ -3279,9 +3279,6 @@ export default function App() {
     if (!sponsor.logoUrl || !sponsor.logoUrl.trim()) {
       errors.push('Gambar logo sponsor wajib diunggah terlebih dahulu.');
     }
-    if (!sponsor.caption || sponsor.caption.trim().length < 2) {
-      errors.push('Keterangan gambar sponsor wajib diisi (minimal 2 karakter).');
-    }
     if (errors.length > 0) {
       return { ok: false, errors };
     }
@@ -3289,7 +3286,7 @@ export default function App() {
     const createdItem: SponsorItem = {
       id: `sp-${Date.now()}`,
       logoUrl: sponsor.logoUrl!.trim(),
-      caption: sponsor.caption!.trim(),
+      caption: (sponsor.caption || '').trim(),
       linkUrl: normalizeSponsorLinkUrl(sponsor.linkUrl),
       createdAt: nowStr,
       updatedAt: nowStr,
@@ -3308,9 +3305,6 @@ export default function App() {
     if (!sponsor.logoUrl || !sponsor.logoUrl.trim()) {
       errors.push('Gambar logo sponsor wajib diunggah terlebih dahulu.');
     }
-    if (!sponsor.caption || sponsor.caption.trim().length < 2) {
-      errors.push('Keterangan gambar sponsor wajib diisi (minimal 2 karakter).');
-    }
     if (errors.length > 0) {
       return { ok: false, errors };
     }
@@ -3320,7 +3314,7 @@ export default function App() {
         ? {
             ...item,
             logoUrl: sponsor.logoUrl!.trim(),
-            caption: sponsor.caption!.trim(),
+            caption: (sponsor.caption || '').trim(),
             linkUrl: normalizeSponsorLinkUrl(sponsor.linkUrl),
             updatedAt: nowStr,
           }

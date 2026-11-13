@@ -292,7 +292,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
       </section>
 
       {/* ================= WELCOME & COMPACT 5 PORTAL MENU CARDS SECTION ================= */}
-      <section className="relative z-10 mx-auto max-w-5xl px-4 sm:px-6 pt-2 pb-12">
+      <section className="relative z-10 mx-auto max-w-5xl px-4 sm:px-6 pt-2 pb-4 sm:pb-6">
         {/* Section-Anchored Background Watermark behind Welcome & Main Menu Cards */}
         <div
           aria-hidden="true"
@@ -1113,13 +1113,13 @@ export const HomePortal: React.FC<HomePortalProps> = ({
       {sponsors.length > 0 && (
         <section
           aria-label="Support dan Sponsor"
-          className="w-full pt-8 sm:pt-12 pb-2 px-4 sm:px-6"
+          className="w-full pt-2 sm:pt-3 pb-0 px-4 sm:px-6"
         >
           <div className="mx-auto max-w-5xl text-center">
-            <p className="text-[11px] font-semibold tracking-wider uppercase text-slate-400 mb-5">
+            <p className="text-[11px] font-semibold tracking-wider uppercase text-slate-400 mb-2.5">
               Support &amp; Sponsor
             </p>
-            <div className="flex flex-wrap items-start justify-center gap-7 sm:gap-11">
+            <div className="flex flex-wrap items-center justify-center gap-5 sm:gap-8">
               {sponsors.map((sp) => {
                 const rawLink = (sp.linkUrl || '').trim();
                 const href = rawLink
@@ -1127,18 +1127,18 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                     ? rawLink
                     : `https://${rawLink}`
                   : '';
+                const cleanCaption = (sp.caption || '').trim();
                 const content = (
                   <>
                     <img
                       src={resolveImageUrl(sp.logoUrl)}
-                      alt={sp.caption || 'Logo Sponsor'}
+                      alt={cleanCaption || 'Logo Sponsor'}
                       referrerPolicy="no-referrer"
                       className="h-9 sm:h-11 w-auto max-w-[120px] object-contain transition-transform duration-150 group-hover:scale-105"
                     />
-                    {(sp.caption || href) && (
-                      <span className="text-[11px] sm:text-xs font-medium text-slate-600 leading-snug text-center inline-flex items-center justify-center gap-1 group-hover:text-[#0D3868] group-hover:underline">
-                        <span>{sp.caption || href.replace(/^https?:\/\//i, '')}</span>
-                        {href && <ExternalLink className="w-3 h-3 shrink-0 text-[#0277BD]" />}
+                    {cleanCaption && (
+                      <span className="text-[11px] font-medium text-slate-600 leading-tight text-center group-hover:text-[#0D3868]">
+                        {cleanCaption}
                       </span>
                     )}
                   </>
@@ -1150,15 +1150,16 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="group inline-flex flex-col items-center gap-1.5 max-w-[165px] focus:outline-none"
-                    title={sp.caption ? `${sp.caption} — ${href}` : href}
+                    className="group inline-flex flex-col items-center gap-1 max-w-[150px] focus:outline-none"
+                    title={cleanCaption ? `${cleanCaption} (${href})` : href}
+                    aria-label={cleanCaption || href}
                   >
                     {content}
                   </a>
                 ) : (
                   <div
                     key={sp.id}
-                    className="inline-flex flex-col items-center gap-1.5 max-w-[165px]"
+                    className="inline-flex flex-col items-center gap-1 max-w-[150px]"
                   >
                     {content}
                   </div>
@@ -1172,7 +1173,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
       {/* ================= SIGNATURE WAVE FOOTER MATCHING PROTOTYPE ================= */}
       <footer
         className={`relative w-full ${
-          sponsors.length > 0 ? 'pt-6 sm:pt-10' : 'pt-16 sm:pt-24 lg:pt-32'
+          sponsors.length > 0 ? 'pt-1 sm:pt-2' : 'pt-2 sm:pt-4'
         } overflow-hidden select-none`}
       >
         {/* Multi-layered Curved Green & Deep Navy Wave SVG */}
@@ -1181,7 +1182,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
             viewBox="0 0 1440 220"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
-            className="w-full h-24 sm:h-36 lg:h-44 block preserve-3d"
+            className="w-full h-14 sm:h-20 lg:h-24 block preserve-3d"
             preserveAspectRatio="none"
           >
             {/* Soft Mint Back Wave */}
@@ -1203,8 +1204,8 @@ export const HomePortal: React.FC<HomePortalProps> = ({
           </svg>
 
           {/* Footer Content Bar on Deep Navy Canvas */}
-          <div className="bg-[#073763] text-white px-6 sm:px-12 pb-8 pt-2">
-            <div className="mx-auto max-w-5xl flex flex-col sm:flex-row items-start sm:items-end justify-between gap-6">
+          <div className="bg-[#073763] text-white px-6 sm:px-12 pb-6 pt-1">
+            <div className="mx-auto max-w-5xl flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 sm:gap-6">
               {/* Bottom Left: Pin Icon + Kelurahan Panaikang Kota Makassar */}
               <div className="flex items-center gap-3.5">
                 <div className="flex items-center justify-center w-11 h-11 rounded-full bg-white text-[#073763] shadow-md shrink-0">
@@ -1245,7 +1246,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
             </div>
 
             {/* Bottom Credit Line */}
-            <div className="mx-auto max-w-5xl mt-6 pt-4 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-sky-200/70">
+            <div className="mx-auto max-w-5xl mt-4 pt-3 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-sky-200/70">
               <div>© {new Date().getFullYear()} Kelurahan Panaikang · Kota Makassar</div>
               <div className="flex flex-col items-center sm:items-end gap-1">
                 <span className="font-medium tracking-wide text-sky-100">
