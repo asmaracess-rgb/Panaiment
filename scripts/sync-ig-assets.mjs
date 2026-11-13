@@ -115,4 +115,62 @@ async function syncAllInstagramAssets() {
   );
 }
 
+function generatePublicSeedSnapshot() {
+  const sourcePath = path.join(ROOT_DIR, 'data', 'panaikang_db.json');
+  const publicDir = path.join(ROOT_DIR, 'public');
+  const destPath = path.join(publicDir, 'seed-snapshot.json');
+
+  if (!fs.existsSync(sourcePath)) {
+    return;
+  }
+
+  try {
+    const raw = fs.readFileSync(sourcePath, 'utf8');
+    const db = JSON.parse(raw);
+    if (!db || typeof db !== 'object') return;
+
+    const cleanValue = (val, key = '', depth = 0) => {
+      if (depth > 10 || val === null || val === undefined) return val;
+      if (typeof val === 'string') {
+        if (key === 'lurahPhotoUrl') {
+          if (val.length > 180_000) {
+            return '/images/lurah_muthmainnah_panaikang_1791548085422.jpg';
+          }
+          return val;
+        }
+        if ((val.startsWith('data:') || val.includes(';base64,')) && val.length > 15_000) {
+          return '';
+        }
+        return val;
+      }
+      if (Array.isArray(val)) {
+        return val.map((item) => cleanValue(item, '', depth + 1));
+      }
+      if (typeof val === 'object') {
+        const out = {};
+        for (const k of Object.keys(val)) {
+          out[k] = cleanValue(val[k], k, depth + 1);
+        }
+        return out;
+      }
+      return val;
+    };
+
+    const seed = cleanValue(db);
+    if (Array.isArray(seed.siskamlingSchedules)) {
+      seed.siskamlingSchedules = seed.siskamlingSchedules.filter((s) => s && s.rw);
+    }
+    seed.updatedAt = 1;
+
+    fs.mkdirSync(publicDir, { recursive: true });
+    const serialized = JSON.stringify(seed);
+    fs.writeFileSync(destPath, serialized);
+    console.log(`[sync-ig-assets] Generated public/seed-snapshot.json (${serialized.length} bytes)`);
+  } catch (err) {
+    console.warn('[sync-ig-assets] Failed to generate public/seed-snapshot.json:', err?.message || err);
+  }
+}
+
+generatePublicSeedSnapshot();
 syncAllInstagramAssets();
+

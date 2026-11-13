@@ -94,6 +94,7 @@ import {
 import {
   testConnection,
   subscribeToFirestoreDatabase,
+  fetchFullDatabaseFromFirestore,
   pushFullDatabaseToFirestore,
   seedInitialFirestoreIfEmpty,
   pushProfileToFirestore,
@@ -696,6 +697,7 @@ export default function App() {
 
   const serverSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastDataEtagRef = useRef<string>('');
+  const hasHydratedRemoteRef = useRef<boolean>(false);
 
   const commitPersistence = useCallback(
     (
@@ -905,6 +907,23 @@ export default function App() {
       }
 
       setCitizenUsers(nextList);
+      stateRef.current.citizenUsers = nextList;
+
+      if (!hasHydratedRemoteRef.current) {
+        // Before remote DB has hydrated, only push lightweight citizen list to live_warga_state
+        // so we NEVER overwrite full_snapshot with unhydrated empty initial arrays.
+        const currentLocal = loadPersistedDatabase();
+        if (currentLocal) {
+          savePersistedDatabase({
+            ...currentLocal,
+            citizenUsers: nextList,
+            updatedAt: Date.now(),
+          });
+        }
+        pushLiveWargaStateToFirestore({ citizenUsers: nextList }).catch(() => {});
+        return;
+      }
+
       commitPersistence({ citizenUsers: nextList }, true, true);
     },
     [commitPersistence]
@@ -936,6 +955,7 @@ export default function App() {
 
   const applyRemoteDatabase = useCallback((serverDb: Partial<PersistedDatabase>) => {
     if (!serverDb) return;
+    hasHydratedRemoteRef.current = true;
     const storedLocal = loadPersistedDatabase();
     const currentLocal: PersistedDatabase | null = storedLocal
       ? {
@@ -1153,18 +1173,78 @@ export default function App() {
       }
     }
 
-    // 1B. Hydrate from /api/data and /api/google-admin-requests (Express or Vercel Serverless)
+    const loadStaticSeedBaseline = async () => {
+      try {
+        const res = await fetch('/seed-snapshot.json', { cache: 'no-store' });
+        const ct = (res.headers.get('content-type') || '').toLowerCase();
+        if (!res.ok || !ct.includes('application/json')) return null;
+        const seedJson = await res.json();
+        if (seedJson && typeof seedJson === 'object' && Array.isArray(seedJson.rwGroups)) {
+          return seedJson as Partial<PersistedDatabase>;
+        }
+      } catch {}
+      return null;
+    };
+
+    // 1B. Hydrate from /api/data (Express / Vercel / Cloudflare Pages Function) with /seed-snapshot.json fallback
     fetch('/api/data', { cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((json) => {
-        if (mounted && json?.data) {
+      .then(async (res) => {
+        const ct = (res.headers.get('content-type') || '').toLowerCase();
+        if (!res.ok || !ct.includes('application/json')) return null;
+        return res.json();
+      })
+      .then(async (json) => {
+        if (!mounted) return;
+        if (json?.data) {
           applyRemoteDatabase(json.data);
+          return;
+        }
+        const seedData = await loadStaticSeedBaseline();
+        if (mounted && seedData) {
+          applyRemoteDatabase({ ...seedData, updatedAt: 1 });
+        }
+      })
+      .catch(async () => {
+        const seedData = await loadStaticSeedBaseline();
+        if (mounted && seedData) {
+          applyRemoteDatabase({ ...seedData, updatedAt: 1 });
+        }
+      });
+
+    // 1C. Direct Firestore fetch on boot so fresh domains (pages.dev / vercel.app) hydrate immediately
+    fetchFullDatabaseFromFirestore()
+      .then(async (firestoreData) => {
+        if (!mounted) return;
+        if (firestoreData) {
+          applyRemoteDatabase(firestoreData);
+        } else {
+          const seedData = await loadStaticSeedBaseline();
+          if (mounted && seedData) {
+            applyRemoteDatabase({ ...seedData, updatedAt: 1 });
+          }
         }
       })
       .catch(() => {});
 
+    // 1D. Safety check after 1.6s: if core collections are still empty on a static domain, merge static baseline
+    const baselineCheckTimer = setTimeout(async () => {
+      if (!mounted) return;
+      const missingReports = !stateRef.current.reports || stateRef.current.reports.length === 0;
+      const missingWaste = !stateRef.current.wasteUnits || stateRef.current.wasteUnits.length === 0;
+      const missingRts = !stateRef.current.rwGroups || stateRef.current.rwGroups.every((rw) => !rw.rtList || rw.rtList.length === 0);
+      if (missingReports || missingWaste || missingRts) {
+        const seedData = await loadStaticSeedBaseline();
+        if (mounted && seedData) {
+          applyRemoteDatabase({ ...seedData, updatedAt: 1 });
+        }
+      }
+    }, 1600);
+
     fetch('/api/profile', { cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : null))
+      .then((res) => {
+        const ct = (res.headers.get('content-type') || '').toLowerCase();
+        return res.ok && ct.includes('application/json') ? res.json() : null;
+      })
       .then((json) => {
         if (mounted && json?.ok && json.data) {
           const fresh = json.data as KelurahanProfile;
@@ -1189,7 +1269,10 @@ export default function App() {
       .catch(() => {});
 
     fetch('/api/google-admin-requests', { cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : null))
+      .then((res) => {
+        const ct = (res.headers.get('content-type') || '').toLowerCase();
+        return res.ok && ct.includes('application/json') ? res.json() : null;
+      })
       .then((json) => {
         if (mounted && Array.isArray(json?.data) && json.data.length > 0) {
           setGoogleAdminRequests((prev) => {
@@ -1216,8 +1299,6 @@ export default function App() {
       .catch(() => {});
 
     // 2. Real-time Firestore Subscription (instant push across all devices/smartphones/computers)
-    // Also seeds initial Firestore document on first deployment only if snapshot does not exist yet,
-    // avoiding a duplicate getDoc() read on every page load.
     const unsubscribeFirestore = subscribeToFirestoreDatabase(
       (firestoreDb) => {
         if (!mounted || !firestoreDb) return;
@@ -1226,28 +1307,15 @@ export default function App() {
       (err) => {
         console.warn('[Firestore] Realtime subscription notice:', err.message);
       },
-      () => {
-        pushFullDatabaseToFirestore(
-          initialLocal || {
-            profile: INITIAL_KELURAHAN_PROFILE,
-            rwGroups: INITIAL_RW_GROUPS,
-            reports: INITIAL_REPORTS,
-            wasteUnits: INITIAL_WASTE_UNITS,
-            wasteLogs: INITIAL_WASTE_LOGS,
-            tebaSpots: INITIAL_TEBA_SPOTS,
-            bioporiPoints: INITIAL_BIOPORI_POINTS,
-            cleanupEvents: INITIAL_CLEANUP_EVENTS,
-            kelurahanInfos: INITIAL_KELURAHAN_INFOS,
-            whatsappRecipients: INITIAL_WHATSAPP_RECIPIENTS,
-            serviceCatalog: SERVICE_CATEGORY_GROUPS,
-            adminUsers: INITIAL_ADMIN_USERS,
-            activityLogs: INITIAL_ACTIVITY_LOGS,
-            urbanFarmingSpots: INITIAL_URBAN_FARMING_SPOTS,
-            seedRequests: INITIAL_SEED_REQUESTS,
-            deletedItemIds: [],
-            updatedAt: Date.now(),
-          }
-        ).catch(() => {});
+      async () => {
+        // Only seed Firestore if we actually have a populated static seed or local DB — never push empty initialData!
+        const seedData = await loadStaticSeedBaseline();
+        if (seedData && mounted) {
+          applyRemoteDatabase({ ...seedData, updatedAt: 1 });
+          pushFullDatabaseToFirestore(seedData as PersistedDatabase).catch(() => {});
+        } else if (initialLocal && (initialLocal.reports?.length > 0 || initialLocal.wasteUnits?.length > 0)) {
+          pushFullDatabaseToFirestore(initialLocal).catch(() => {});
+        }
       }
     );
 
@@ -1438,6 +1506,7 @@ export default function App() {
 
     return () => {
       mounted = false;
+      clearTimeout(baselineCheckTimer);
       unsubscribeFirestore();
       unsubscribeProfile();
       unsubscribeLiveWarga();

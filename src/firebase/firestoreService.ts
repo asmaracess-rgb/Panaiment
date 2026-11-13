@@ -126,7 +126,9 @@ const FULL_DB_DOC_ID = 'full_snapshot';
 const LIVE_WARGA_DOC_ID = 'live_warga_state';
 const PROFILE_REF = doc(db, 'kelurahan_profiles', 'main_profile');
 
-// In-memory cache of latest live warga state from cloud so full_snapshot writes never overwrite newer citizen submissions
+// In-memory cache of latest live warga state and full snapshot from cloud so writes never overwrite newer/existing records
+let lastKnownRemoteSnapshot: Partial<PersistedDatabase> | null = null;
+
 let cachedLiveWargaState: {
   citizenUsers?: any[];
   reports?: any[];
@@ -252,44 +254,120 @@ export function createSafeSnapshot(database: PersistedDatabase): PersistedDataba
     });
   }
 
-  // Merge any cached live warga state so a background snapshot never drops a newly registered user or complaint
+  // Merge lastKnownRemoteSnapshot + cachedLiveWargaState so an unhydrated/fresh device NEVER wipes existing cloud data
+  const remoteBase = lastKnownRemoteSnapshot || {};
   const deletedSet = new Set<string>([
-    ...(Array.isArray(safeClone.deletedItemIds) ? safeClone.deletedItemIds : []),
+    ...(Array.isArray(remoteBase.deletedItemIds) ? remoteBase.deletedItemIds : []),
     ...(Array.isArray(cachedLiveWargaState.deletedItemIds) ? cachedLiveWargaState.deletedItemIds : []),
+    ...(Array.isArray(safeClone.deletedItemIds) ? safeClone.deletedItemIds : []),
   ]);
   safeClone.deletedItemIds = Array.from(deletedSet);
 
-  if (Array.isArray(cachedLiveWargaState.citizenUsers) && cachedLiveWargaState.citizenUsers.length > 0) {
-    safeClone.citizenUsers = mergeByKey(
-      cachedLiveWargaState.citizenUsers,
-      safeClone.citizenUsers,
-      deletedSet,
-      (c) => String(c.uid || c.email || '')
-    );
+  // Preserve populated rwGroups (Ketua RW & 62 RTs) if local rwGroups has blank entries
+  if (Array.isArray(remoteBase.rwGroups) && remoteBase.rwGroups.length > 0) {
+    const rwMap = new Map<string, any>();
+    const rwKey = (rw: any) => String(rw?.rwCode || rw?.id || '').trim().toLowerCase().replace(/\s+/g, '');
+    for (const r of remoteBase.rwGroups) {
+      if (r && rwKey(r)) rwMap.set(rwKey(r), r);
+    }
+    for (const localRw of safeClone.rwGroups || []) {
+      const k = rwKey(localRw);
+      if (!k) continue;
+      const ex = rwMap.get(k);
+      if (!ex) {
+        rwMap.set(k, localRw);
+      } else {
+        const rtMap = new Map<string, any>();
+        for (const rt of ex.rtList || []) if (rt?.id) rtMap.set(rt.id, rt);
+        for (const rt of localRw.rtList || []) if (rt?.id) rtMap.set(rt.id, rt);
+        rwMap.set(k, {
+          ...ex,
+          ...localRw,
+          ketuaRwName: (localRw.ketuaRwName && localRw.ketuaRwName.trim()) || ex.ketuaRwName || '',
+          rwName: (localRw.rwName && localRw.rwName.trim()) || ex.rwName || localRw.rwCode,
+          phone: (localRw.phone && localRw.phone.trim()) || ex.phone || '',
+          areaDescription: (localRw.areaDescription && localRw.areaDescription.trim()) || ex.areaDescription || '',
+          rtList: Array.from(rtMap.values()),
+        });
+      }
+    }
+    safeClone.rwGroups = Array.from(rwMap.values());
   }
-  if (Array.isArray(cachedLiveWargaState.reports) && cachedLiveWargaState.reports.length > 0) {
-    safeClone.reports = mergeByKey(
-      cachedLiveWargaState.reports,
-      safeClone.reports,
-      deletedSet,
-      (r) => String(r.id || r.ticketCode || '')
-    );
-  }
-  if (Array.isArray(cachedLiveWargaState.pengaduanRecords) && cachedLiveWargaState.pengaduanRecords.length > 0) {
-    safeClone.pengaduanRecords = mergeByKey(
-      cachedLiveWargaState.pengaduanRecords,
-      safeClone.pengaduanRecords,
-      deletedSet,
-      (p) => String(p.ticketCode || p.id || '')
-    );
-  }
-  if (Array.isArray(cachedLiveWargaState.praRegistrasiRecords) && cachedLiveWargaState.praRegistrasiRecords.length > 0) {
-    safeClone.praRegistrasiRecords = mergeByKey(
-      cachedLiveWargaState.praRegistrasiRecords,
-      safeClone.praRegistrasiRecords,
-      deletedSet,
-      (p) => String(p.ticketCode || p.id || '')
-    );
+
+  safeClone.citizenUsers = mergeByKey(
+    mergeByKey(remoteBase.citizenUsers, cachedLiveWargaState.citizenUsers, deletedSet, (c) => String(c.uid || c.email || '')),
+    safeClone.citizenUsers,
+    deletedSet,
+    (c) => String(c.uid || c.email || '')
+  );
+  safeClone.reports = mergeByKey(
+    mergeByKey(remoteBase.reports, cachedLiveWargaState.reports, deletedSet, (r) => String(r.id || r.ticketCode || '')),
+    safeClone.reports,
+    deletedSet,
+    (r) => String(r.id || r.ticketCode || '')
+  );
+  safeClone.pengaduanRecords = mergeByKey(
+    mergeByKey(remoteBase.pengaduanRecords, cachedLiveWargaState.pengaduanRecords, deletedSet, (p) => String(p.ticketCode || p.id || '')),
+    safeClone.pengaduanRecords,
+    deletedSet,
+    (p) => String(p.ticketCode || p.id || '')
+  );
+  safeClone.praRegistrasiRecords = mergeByKey(
+    mergeByKey(remoteBase.praRegistrasiRecords, cachedLiveWargaState.praRegistrasiRecords, deletedSet, (p) => String(p.ticketCode || p.id || '')),
+    safeClone.praRegistrasiRecords,
+    deletedSet,
+    (p) => String(p.ticketCode || p.id || '')
+  );
+  safeClone.wasteUnits = mergeByKey(
+    remoteBase.wasteUnits,
+    safeClone.wasteUnits,
+    deletedSet,
+    (u) => String(u.id || '')
+  );
+  safeClone.wasteLogs = mergeByKey(
+    remoteBase.wasteLogs,
+    safeClone.wasteLogs,
+    deletedSet,
+    (l) => String(l.id || '')
+  );
+  safeClone.tebaSpots = mergeByKey(
+    remoteBase.tebaSpots,
+    safeClone.tebaSpots,
+    deletedSet,
+    (s) => String(s.id || '')
+  );
+  safeClone.bioporiPoints = mergeByKey(
+    remoteBase.bioporiPoints,
+    safeClone.bioporiPoints,
+    deletedSet,
+    (b) => String(b.id || '')
+  );
+  safeClone.cleanupEvents = mergeByKey(
+    remoteBase.cleanupEvents,
+    safeClone.cleanupEvents,
+    deletedSet,
+    (e) => String(e.id || '')
+  );
+  safeClone.kelurahanInfos = mergeByKey(
+    remoteBase.kelurahanInfos,
+    safeClone.kelurahanInfos,
+    deletedSet,
+    (i) => String(i.id || '')
+  );
+  safeClone.whatsappRecipients = mergeByKey(
+    remoteBase.whatsappRecipients,
+    safeClone.whatsappRecipients,
+    deletedSet,
+    (w) => String(w.id || '')
+  );
+  safeClone.seedRequests = mergeByKey(
+    mergeByKey(remoteBase.seedRequests, cachedLiveWargaState.seedRequests, deletedSet, (s) => String(s.id || '')),
+    safeClone.seedRequests,
+    deletedSet,
+    (s) => String(s.id || '')
+  );
+  if (Array.isArray(remoteBase.siskamlingSchedules) && remoteBase.siskamlingSchedules.length > 0 && (!Array.isArray(safeClone.siskamlingSchedules) || safeClone.siskamlingSchedules.length === 0)) {
+    safeClone.siskamlingSchedules = remoteBase.siskamlingSchedules;
   }
 
   if (Array.isArray(safeClone.activityLogs)) {
@@ -580,7 +658,21 @@ export async function pushFullDatabaseToFirestore(
     if (isQuotaPaused()) return;
     const docRef = doc(db, APP_STORE_COLLECTION, FULL_DB_DOC_ID);
     try {
+      // Ensure we have fetched existing remote snapshot before writing so we NEVER wipe cloud arrays from a fresh browser
+      if (!lastKnownRemoteSnapshot) {
+        try {
+          const existingSnap = await Promise.race([
+            getDoc(docRef),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
+          ]);
+          if (existingSnap && existingSnap.exists()) {
+            lastKnownRemoteSnapshot = existingSnap.data() as Partial<PersistedDatabase>;
+          }
+        } catch {}
+      }
+
       const safeData = createSafeSnapshot(database);
+      lastKnownRemoteSnapshot = safeData;
       await setDoc(
         docRef,
         {
@@ -628,6 +720,7 @@ export async function fetchFullDatabaseFromFirestore(): Promise<PersistedDatabas
     let base: PersistedDatabase | null = null;
     if (snap.status === 'fulfilled' && snap.value.exists()) {
       base = snap.value.data() as PersistedDatabase;
+      lastKnownRemoteSnapshot = base;
     }
     if (liveSnap.status === 'fulfilled' && liveSnap.value.exists()) {
       const liveData = liveSnap.value.data() as Partial<PersistedDatabase>;
@@ -643,6 +736,7 @@ export async function fetchFullDatabaseFromFirestore(): Promise<PersistedDatabas
           reports: mergeByKey(base.reports, liveData.reports, delSet, (r) => String(r.id || r.ticketCode || '')),
           pengaduanRecords: mergeByKey(base.pengaduanRecords, liveData.pengaduanRecords, delSet, (p) => String(p.ticketCode || p.id || '')),
           praRegistrasiRecords: mergeByKey(base.praRegistrasiRecords, liveData.praRegistrasiRecords, delSet, (p) => String(p.ticketCode || p.id || '')),
+          seedRequests: mergeByKey(base.seedRequests, liveData.seedRequests, delSet, (s) => String(s.id || '')),
           deletedItemIds: Array.from(delSet),
         };
       } else {
@@ -682,6 +776,7 @@ export function subscribeToFirestoreDatabase(
       (snapshot) => {
         if (snapshot.exists()) {
           const data = snapshot.data() as PersistedDatabase;
+          lastKnownRemoteSnapshot = data;
           onData(data);
         } else if (!snapshot.metadata.fromCache && !seededOnce && onEmpty) {
           seededOnce = true;
@@ -998,18 +1093,10 @@ export async function pushAdminUsersAndRequestsToFirestore(
     }
     // Strip all undefined values so Firestore SDK never throws synchronous "Unsupported field value: undefined"
     const cleanPayload = JSON.parse(JSON.stringify(rawPayload));
-    await Promise.race([
-      setDoc(fullRef, cleanPayload, { merge: true }),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('RESOURCE_EXHAUSTED_WRITE_TIMEOUT')), 2500)
-      ),
-    ]);
+    await setDoc(fullRef, cleanPayload, { merge: true });
     return true;
   } catch (err) {
-    if (
-      isQuotaError(err) ||
-      (err instanceof Error && err.message === 'RESOURCE_EXHAUSTED_WRITE_TIMEOUT')
-    ) {
+    if (isQuotaError(err)) {
       tripQuotaCircuitBreaker();
     }
     return false;

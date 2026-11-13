@@ -244,6 +244,71 @@ export default async function handler(req, res) {
           dataToSave.praRegistrasiRecords = Array.from(praMap.values());
         }
 
+        // 2F. Union-merge core master & environmental collections so an unhydrated client cannot blank them
+        const unionMergeById = (key) => {
+          if (!Array.isArray(existingDb[key]) && !Array.isArray(dataToSave[key])) return;
+          const map = new Map();
+          for (const item of existingDb[key] || []) {
+            if (item && item.id && !deletedSet.has(item.id)) map.set(item.id, item);
+          }
+          for (const inc of dataToSave[key] || []) {
+            if (!inc || !inc.id || deletedSet.has(inc.id)) continue;
+            const prev = map.get(inc.id);
+            map.set(inc.id, prev ? { ...prev, ...inc } : inc);
+          }
+          dataToSave[key] = Array.from(map.values());
+        };
+        [
+          'wasteUnits',
+          'wasteLogs',
+          'tebaSpots',
+          'bioporiPoints',
+          'cleanupEvents',
+          'kelurahanInfos',
+          'whatsappRecipients',
+          'seedRequests',
+          'urbanFarmingSpots',
+        ].forEach(unionMergeById);
+
+        if (Array.isArray(existingDb.rwGroups) && existingDb.rwGroups.length > 0) {
+          const rwKey = (rw) => String(rw?.rwCode || rw?.id || '').trim().toLowerCase().replace(/\s+/g, '');
+          const rwMap = new Map();
+          for (const r of existingDb.rwGroups) {
+            const k = rwKey(r);
+            if (k) rwMap.set(k, r);
+          }
+          for (const incRw of dataToSave.rwGroups || []) {
+            const k = rwKey(incRw);
+            if (!k) continue;
+            const prevRw = rwMap.get(k);
+            if (!prevRw) {
+              rwMap.set(k, incRw);
+            } else {
+              const rtMap = new Map();
+              for (const rt of prevRw.rtList || []) if (rt && rt.id) rtMap.set(rt.id, rt);
+              for (const rt of incRw.rtList || []) if (rt && rt.id) rtMap.set(rt.id, rt);
+              rwMap.set(k, {
+                ...prevRw,
+                ...incRw,
+                ketuaRwName: (incRw.ketuaRwName && String(incRw.ketuaRwName).trim()) || prevRw.ketuaRwName || '',
+                rwName: (incRw.rwName && String(incRw.rwName).trim()) || prevRw.rwName || incRw.rwCode,
+                phone: (incRw.phone && String(incRw.phone).trim()) || prevRw.phone || '',
+                areaDescription: (incRw.areaDescription && String(incRw.areaDescription).trim()) || prevRw.areaDescription || '',
+                rtList: Array.from(rtMap.values()),
+              });
+            }
+          }
+          dataToSave.rwGroups = Array.from(rwMap.values());
+        }
+
+        if (
+          Array.isArray(existingDb.siskamlingSchedules) &&
+          existingDb.siskamlingSchedules.length > 0 &&
+          (!Array.isArray(dataToSave.siskamlingSchedules) || dataToSave.siskamlingSchedules.length === 0)
+        ) {
+          dataToSave.siskamlingSchedules = existingDb.siskamlingSchedules.filter((s) => s && s.rw);
+        }
+
         // 3. Preserve profile and lurahPhotoUrl if client sends an empty photo
         if (existingDb && existingDb.profile) {
           if (!dataToSave.profile) {
