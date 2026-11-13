@@ -736,6 +736,15 @@ export interface KelurahanInfoItem {
   hashtags?: string[];
 }
 
+export interface SponsorItem {
+  id: string;
+  logoUrl: string;
+  caption: string;
+  linkUrl: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface WhatsAppRecipient {
   id: string;
   name: string;

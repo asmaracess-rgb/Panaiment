@@ -37,6 +37,7 @@ export default async function handler(req, res) {
         'seedRequests',
         'crops',
         'farmerGroups',
+        'sponsors',
       ];
       for (const k of arrayKeys) {
         if (Array.isArray(rawObj[k])) {
@@ -268,6 +269,7 @@ export default async function handler(req, res) {
           'whatsappRecipients',
           'seedRequests',
           'urbanFarmingSpots',
+          'sponsors',
         ].forEach(unionMergeById);
 
         if (Array.isArray(existingDb.rwGroups) && existingDb.rwGroups.length > 0) {

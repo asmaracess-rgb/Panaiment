@@ -32,6 +32,7 @@ import {
   MasterPersyaratanItem,
   PengaduanKategori,
   GoogleAdminVerificationRequest,
+  SponsorItem,
 } from '../types';
 import {
   INITIAL_MASTER_LAYANAN,
@@ -63,6 +64,7 @@ import {
   INITIAL_HARVEST_RECORDS,
   INITIAL_FARMING_INVENTORIES,
   INITIAL_SUPPLY_REQUESTS,
+  INITIAL_SPONSORS,
 } from '../data/initialData';
 import { INITIAL_SISKAMLING_SCHEDULES } from '../data/siskamlingData';
 import { SERVICE_CATEGORY_GROUPS, ServiceCategoryGroup } from '../data/wargaServiceCatalog';
@@ -101,6 +103,7 @@ export interface PersistedDatabase {
   masterPersyaratanList?: MasterPersyaratanItem[];
   kategoriPengaduanList?: PengaduanKategori[];
   googleAdminVerificationRequests?: GoogleAdminVerificationRequest[];
+  sponsors?: SponsorItem[];
   deletedItemIds?: string[];
   updatedAt: number;
 }
@@ -716,6 +719,7 @@ function mergeEntityCollection<T extends { id: string }>(
         ...item,
         ...(existing.imageUrl && !incAny.imageUrl ? { imageUrl: existing.imageUrl } : {}),
         ...(existing.photoUrl && !incAny.photoUrl ? { photoUrl: existing.photoUrl } : {}),
+        ...(existing.logoUrl && !incAny.logoUrl ? { logoUrl: existing.logoUrl } : {}),
         ...(Array.isArray(existing.documentationPhotos) &&
         existing.documentationPhotos.length > 0 &&
         (!Array.isArray(incAny.documentationPhotos) || incAny.documentationPhotos.length === 0)
@@ -1560,6 +1564,13 @@ export function smartMergeDatabases(
       localDb?.kategoriPengaduanList ||
       DAFTAR_KATEGORI_PENGADUAN,
     googleAdminVerificationRequests: resolvedGoogleAdminRequests,
+    sponsors: mergeEntityCollection(
+      localDb?.sponsors,
+      incoming?.sponsors,
+      INITIAL_SPONSORS,
+      deletedIds,
+      localIsNewer
+    ),
     deletedItemIds: Array.from(deletedIds),
     updatedAt: maxUpdatedAt,
   };
@@ -1636,6 +1647,7 @@ export function savePersistedDatabase(db: PersistedDatabase): void {
       db.adminUsers = (db.adminUsers || []).filter((u) => u && u.id && !deletedSet.has(u.id));
       db.urbanFarmingSpots = (db.urbanFarmingSpots || []).filter((s) => s && s.id && !deletedSet.has(s.id));
       db.seedRequests = (db.seedRequests || []).filter((s) => s && s.id && !deletedSet.has(s.id));
+      db.sponsors = (db.sponsors || []).filter((s) => s && s.id && !deletedSet.has(s.id));
       db.citizenUsers = (db.citizenUsers || []).filter((c) => c && c.uid && !deletedSet.has(c.uid));
     }
 

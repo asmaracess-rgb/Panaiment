@@ -56,6 +56,7 @@ import {
   MasterPersyaratanItem,
   PengaduanKategori,
   GoogleAdminVerificationRequest,
+  SponsorItem,
 } from './types';
 import {
   DEFAULT_LURAH_PHOTO_URL,
@@ -74,6 +75,7 @@ import {
   INITIAL_ACTIVITY_LOGS,
   INITIAL_URBAN_FARMING_SPOTS,
   INITIAL_SEED_REQUESTS,
+  INITIAL_SPONSORS,
 } from './data/initialData';
 import { INITIAL_SISKAMLING_SCHEDULES } from './data/siskamlingData';
 import {
@@ -340,6 +342,14 @@ export default function App() {
       }
     }
     return Array.from(map.values());
+  });
+
+  const [sponsors, setSponsors] = useState<SponsorItem[]>(() => {
+    const deleted = getDeletedItemIds();
+    const source = Array.isArray(initialPersisted?.sponsors)
+      ? initialPersisted.sponsors
+      : INITIAL_SPONSORS;
+    return source.filter((s) => s && s.id && !deleted.has(s.id));
   });
 
   const [siskamlingSchedules, setSiskamlingSchedules] = useState<SiskamlingRwSchedule[]>(() => {
@@ -639,6 +649,7 @@ export default function App() {
     masterPersyaratanList,
     kategoriPengaduanList,
     googleAdminVerificationRequests: googleAdminRequests,
+    sponsors,
   });
 
   useEffect(() => {
@@ -667,6 +678,7 @@ export default function App() {
       masterPersyaratanList,
       kategoriPengaduanList,
       googleAdminVerificationRequests: googleAdminRequests,
+      sponsors,
     };
   }, [
     kelurahanProfile,
@@ -693,6 +705,7 @@ export default function App() {
     masterPersyaratanList,
     kategoriPengaduanList,
     googleAdminRequests,
+    sponsors,
   ]);
 
   const serverSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -756,6 +769,7 @@ export default function App() {
           }
           return Array.from(map.values()).sort((a, b) => (b.requestedAtMs || 0) - (a.requestedAtMs || 0));
         })(),
+        sponsors: (partial.sponsors ?? stateRef.current.sponsors).filter((s) => s && s.id && !deletedSet.has(s.id)),
         deletedItemIds: nextDeletedArray,
         updatedAt: Date.now(),
       };
@@ -785,6 +799,7 @@ export default function App() {
         masterPersyaratanList: nextSnapshot.masterPersyaratanList ?? INITIAL_MASTER_PERSYARATAN,
         kategoriPengaduanList: nextSnapshot.kategoriPengaduanList ?? DAFTAR_KATEGORI_PENGADUAN,
         googleAdminVerificationRequests: nextSnapshot.googleAdminVerificationRequests ?? [],
+        sponsors: nextSnapshot.sponsors ?? [],
       };
 
       savePersistedDatabase(nextSnapshot);
@@ -1000,6 +1015,7 @@ export default function App() {
     if (merged.siskamlingSchedules) setSiskamlingSchedules(merged.siskamlingSchedules);
     if (merged.citizenUsers) setCitizenUsers(merged.citizenUsers);
     if (merged.citizenMenuConfig) setCitizenMenuConfig(merged.citizenMenuConfig);
+    if (Array.isArray(merged.sponsors)) setSponsors(merged.sponsors);
 
     const deleted = getDeletedItemIds();
     const effectivePra = Array.isArray(merged.praRegistrasiRecords) ? [...merged.praRegistrasiRecords] : [];
@@ -1131,6 +1147,7 @@ export default function App() {
       masterPersyaratanList: merged.masterPersyaratanList ?? INITIAL_MASTER_PERSYARATAN,
       kategoriPengaduanList: merged.kategoriPengaduanList ?? DAFTAR_KATEGORI_PENGADUAN,
       googleAdminVerificationRequests: merged.googleAdminVerificationRequests ?? [],
+      sponsors: merged.sponsors ?? [],
     };
 
     savePersistedDatabase(merged);
@@ -1170,6 +1187,9 @@ export default function App() {
       if (initialLocal.kategoriPengaduanList) setKategoriPengaduanList(initialLocal.kategoriPengaduanList);
       if (initialLocal.googleAdminVerificationRequests) {
         setGoogleAdminRequests(initialLocal.googleAdminVerificationRequests);
+      }
+      if (Array.isArray(initialLocal.sponsors)) {
+        setSponsors(initialLocal.sponsors);
       }
     }
 
@@ -1489,6 +1509,9 @@ export default function App() {
             }
             setTebaSpots(updated.tebaSpots ?? []);
             setBioporiPoints(updated.bioporiPoints ?? []);
+            if (Array.isArray(updated.sponsors)) {
+              setSponsors(updated.sponsors);
+            }
           }
         } catch {}
       }
@@ -1610,6 +1633,7 @@ export default function App() {
       activityLogs,
       urbanFarmingSpots,
       seedRequests,
+      sponsors,
       updatedAt: Date.now(),
     };
     exportDatabaseToJson(currentSnapshot);
@@ -1629,6 +1653,7 @@ export default function App() {
     activityLogs,
     urbanFarmingSpots,
     seedRequests,
+    sponsors,
   ]);
 
   const handleImportDatabase = useCallback(
@@ -1652,6 +1677,7 @@ export default function App() {
       if (parsed.activityLogs) setActivityLogs(parsed.activityLogs);
       if (parsed.urbanFarmingSpots) setUrbanFarmingSpots(parsed.urbanFarmingSpots);
       if (parsed.seedRequests) setSeedRequests(parsed.seedRequests);
+      if (Array.isArray(parsed.sponsors)) setSponsors(parsed.sponsors);
 
       commitPersistence(parsed, true);
       return {
@@ -3238,6 +3264,83 @@ export default function App() {
     return { ok: true };
   };
 
+  // 5B. Support Dan Sponsor CRUD
+  const normalizeSponsorLinkUrl = (raw?: string): string => {
+    const trimmed = (raw || '').trim();
+    if (!trimmed) return '';
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    return `https://${trimmed}`;
+  };
+
+  const handleAdminCreateSponsor = async (
+    sponsor: Partial<SponsorItem>
+  ): Promise<{ ok: boolean; errors?: string[] }> => {
+    const errors: string[] = [];
+    if (!sponsor.logoUrl || !sponsor.logoUrl.trim()) {
+      errors.push('Gambar logo sponsor wajib diunggah terlebih dahulu.');
+    }
+    if (!sponsor.caption || sponsor.caption.trim().length < 2) {
+      errors.push('Keterangan gambar sponsor wajib diisi (minimal 2 karakter).');
+    }
+    if (errors.length > 0) {
+      return { ok: false, errors };
+    }
+    const nowStr = getRealtimeDateTimeString();
+    const createdItem: SponsorItem = {
+      id: `sp-${Date.now()}`,
+      logoUrl: sponsor.logoUrl!.trim(),
+      caption: sponsor.caption!.trim(),
+      linkUrl: normalizeSponsorLinkUrl(sponsor.linkUrl),
+      createdAt: nowStr,
+      updatedAt: nowStr,
+    };
+    const nextSponsors = [...(stateRef.current.sponsors || []), createdItem];
+    setSponsors(nextSponsors);
+    commitPersistence({ sponsors: nextSponsors }, true, true);
+    return { ok: true };
+  };
+
+  const handleAdminUpdateSponsor = async (
+    id: string,
+    sponsor: Partial<SponsorItem>
+  ): Promise<{ ok: boolean; errors?: string[] }> => {
+    const errors: string[] = [];
+    if (!sponsor.logoUrl || !sponsor.logoUrl.trim()) {
+      errors.push('Gambar logo sponsor wajib diunggah terlebih dahulu.');
+    }
+    if (!sponsor.caption || sponsor.caption.trim().length < 2) {
+      errors.push('Keterangan gambar sponsor wajib diisi (minimal 2 karakter).');
+    }
+    if (errors.length > 0) {
+      return { ok: false, errors };
+    }
+    const nowStr = getRealtimeDateTimeString();
+    const nextSponsors = (stateRef.current.sponsors || []).map((item) =>
+      item.id === id
+        ? {
+            ...item,
+            logoUrl: sponsor.logoUrl!.trim(),
+            caption: sponsor.caption!.trim(),
+            linkUrl: normalizeSponsorLinkUrl(sponsor.linkUrl),
+            updatedAt: nowStr,
+          }
+        : item
+    );
+    setSponsors(nextSponsors);
+    commitPersistence({ sponsors: nextSponsors }, true, true);
+    return { ok: true };
+  };
+
+  const handleAdminDeleteSponsor = async (
+    id: string
+  ): Promise<{ ok: boolean; errors?: string[] }> => {
+    recordDeletedItemId(id);
+    const nextSponsors = (stateRef.current.sponsors || []).filter((item) => item.id !== id);
+    setSponsors(nextSponsors);
+    commitPersistence({ sponsors: nextSponsors }, true, true);
+    return { ok: true };
+  };
+
   const handleSyncInstagram = useCallback(async (): Promise<{ ok: boolean; syncedAt?: string }> => {
     const nowDate = new Date();
     const syncedTime = getRealtimeTimeString(nowDate);
@@ -3832,6 +3935,7 @@ export default function App() {
             wasteUnits={wasteUnits}
             cleanupEvents={cleanupEvents}
             kelurahanInfos={kelurahanInfos}
+            sponsors={sponsors}
             rwGroups={rwGroups}
             urbanFarmingSpots={urbanFarmingSpots}
             onSyncInstagram={handleSyncInstagram}
@@ -4047,6 +4151,10 @@ export default function App() {
             onCreateInfo={handleAdminCreateInfo}
             onUpdateInfo={handleAdminUpdateInfo}
             onDeleteInfo={handleAdminDeleteInfo}
+            sponsors={sponsors}
+            onCreateSponsor={handleAdminCreateSponsor}
+            onUpdateSponsor={handleAdminUpdateSponsor}
+            onDeleteSponsor={handleAdminDeleteSponsor}
             onSyncInstagram={handleSyncInstagram}
             kerjaBaktiHighlights={kerjaBaktiHighlights}
             kerjaBaktiHighlightsSyncedAt={kerjaBaktiHighlightsSyncedAt}

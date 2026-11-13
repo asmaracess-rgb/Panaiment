@@ -23,6 +23,7 @@ import type {
   HarvestRecord,
   FarmingInventoryItem,
   SupplyRequestItem,
+  SponsorItem,
 } from '../types.ts';
 
 export const HERO_IMAGE_PATH = '/images/hero_nipah_mall_panaikang_1791355921119.jpg';
@@ -877,3 +878,5 @@ export const INITIAL_FARMING_INVENTORIES: FarmingInventoryItem[] = [];
 export const INITIAL_SUPPLY_REQUESTS: SupplyRequestItem[] = [];
 
 export const INITIAL_SEED_REQUESTS: SeedRequestItem[] = [];
+
+export const INITIAL_SPONSORS: SponsorItem[] = [];

@@ -243,6 +243,15 @@ export function createSafeSnapshot(database: PersistedDatabase): PersistedDataba
     }
   }
 
+  const preservedSponsorLogos = new Map<string, string>();
+  if (Array.isArray(database.sponsors)) {
+    for (const sp of database.sponsors) {
+      if (sp && sp.id && typeof sp.logoUrl === 'string' && sp.logoUrl.length < 120_000) {
+        preservedSponsorLogos.set(sp.id, sp.logoUrl);
+      }
+    }
+  }
+
   const safeClone = cleanObject(database) as PersistedDatabase;
   if (safeClone.profile && preservedLurahPhoto) {
     safeClone.profile.lurahPhotoUrl = preservedLurahPhoto;
@@ -251,6 +260,12 @@ export function createSafeSnapshot(database: PersistedDatabase): PersistedDataba
     safeClone.urbanFarmingSpots = safeClone.urbanFarmingSpots.map((s) => {
       const savedPhoto = s?.id ? preservedUfPhotos.get(s.id) : undefined;
       return savedPhoto ? { ...s, photoUrl: savedPhoto } : s;
+    });
+  }
+  if (Array.isArray(safeClone.sponsors)) {
+    safeClone.sponsors = safeClone.sponsors.map((sp) => {
+      const savedLogo = sp?.id ? preservedSponsorLogos.get(sp.id) : undefined;
+      return savedLogo ? { ...sp, logoUrl: savedLogo } : sp;
     });
   }
 
@@ -379,6 +394,12 @@ export function createSafeSnapshot(database: PersistedDatabase): PersistedDataba
   safeClone.seedRequests = mergeByKey(
     mergeByKey(remoteBase.seedRequests, cachedLiveWargaState.seedRequests, deletedSet, (s) => String(s.id || '')),
     safeClone.seedRequests,
+    deletedSet,
+    (s) => String(s.id || '')
+  );
+  safeClone.sponsors = mergeByKey(
+    remoteBase.sponsors,
+    safeClone.sponsors,
     deletedSet,
     (s) => String(s.id || '')
   );

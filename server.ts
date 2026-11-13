@@ -114,6 +114,7 @@ interface DatabaseSchema {
   masterPersyaratanList?: any[];
   kategoriPengaduanList?: any[];
   googleAdminVerificationRequests?: GoogleAdminVerificationRequest[];
+  sponsors?: any[];
   deletedItemIds?: string[];
   lastModified: string;
   updatedAt?: number;
@@ -299,6 +300,7 @@ function loadDatabase(): DatabaseSchema {
           googleAdminVerificationRequests: Array.isArray(parsed.googleAdminVerificationRequests)
             ? parsed.googleAdminVerificationRequests.filter((r) => r && r.email && (!r.id || !deletedSet.has(r.id)))
             : [],
+          sponsors: filterDeleted(parsed.sponsors, []),
           deletedItemIds: Array.from(deletedSet),
           lastModified: parsed.lastModified || new Date().toISOString(),
           updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : 0,
@@ -334,6 +336,7 @@ function loadDatabase(): DatabaseSchema {
     supplyRequests: INITIAL_SUPPLY_REQUESTS,
     siskamlingSchedules: INITIAL_SISKAMLING_SCHEDULES,
     waDispatchLogs: [],
+    sponsors: [],
     deletedItemIds: [],
     lastModified: new Date().toISOString(),
     updatedAt: 0,
@@ -1336,6 +1339,9 @@ async function startServer() {
     if (Array.isArray(incoming.kategoriPengaduanList)) {
       db.kategoriPengaduanList = incoming.kategoriPengaduanList;
     }
+    if (Array.isArray(incoming.sponsors)) {
+      db.sponsors = incoming.sponsors;
+    }
     if (incoming.citizenMenuConfig && typeof incoming.citizenMenuConfig === 'object') {
       const incMs = incoming.citizenMenuConfig.updatedAtMs || 0;
       const curMs = db.citizenMenuConfig?.updatedAtMs || 0;
@@ -1363,6 +1369,9 @@ async function startServer() {
       db.seedRequests = db.seedRequests.filter((s) => s && s.id && !deletedSet.has(s.id));
       db.crops = db.crops.filter((c) => c && c.id && !deletedSet.has(c.id));
       db.farmerGroups = db.farmerGroups.filter((f) => f && f.id && !deletedSet.has(f.id));
+      if (Array.isArray(db.sponsors)) {
+        db.sponsors = db.sponsors.filter((s) => s && s.id && !deletedSet.has(s.id));
+      }
       if (Array.isArray(db.citizenUsers)) {
         db.citizenUsers = db.citizenUsers.filter((c) => c && c.uid && !deletedSet.has(c.uid));
       }

@@ -57,6 +57,8 @@ import {
   Menu,
   Bell,
   ClipboardCheck,
+  Award,
+  Link2,
 } from 'lucide-react';
 import {
   SiskamlingRwSchedule,
@@ -93,6 +95,7 @@ import {
   PraRegistrasiRecord,
   PengaduanOnlineRecord,
   GoogleAdminVerificationRequest,
+  SponsorItem,
 } from '../types';
 import {
   INITIAL_MASTER_LAYANAN,
@@ -134,7 +137,7 @@ import {
   INITIAL_KERJABAKTI_IG_HIGHLIGHTS,
 } from '../data/initialData';
 import { resolveImageUrl } from '../utils/resolveImageUrl';
-import { compressImageFile } from '../utils/compressImage';
+import { compressImageFile, compressLogoFile } from '../utils/compressImage';
 import {
   getRealtimeDateTimeString,
   getRealtimeDateTimeWithSecondsString,
@@ -295,6 +298,15 @@ interface AdminPanelViewProps {
     info: Partial<KelurahanInfoItem>
   ) => Promise<{ ok: boolean; errors?: string[] }>;
   onDeleteInfo: (id: string) => Promise<{ ok: boolean; errors?: string[] }>;
+  sponsors?: SponsorItem[];
+  onCreateSponsor?: (
+    sponsor: Partial<SponsorItem>
+  ) => Promise<{ ok: boolean; errors?: string[] }>;
+  onUpdateSponsor?: (
+    id: string,
+    sponsor: Partial<SponsorItem>
+  ) => Promise<{ ok: boolean; errors?: string[] }>;
+  onDeleteSponsor?: (id: string) => Promise<{ ok: boolean; errors?: string[] }>;
   onSyncInstagram: () => Promise<{ ok: boolean; syncedAt?: string }>;
   kerjaBaktiHighlights?: KerjaBaktiIgHighlightItem[];
   kerjaBaktiHighlightsSyncedAt?: string;
@@ -433,7 +445,6 @@ const ContextualSubmenuContext = React.createContext<{
 
 const SINGLE_PANEL_SECTION_KEYS = new Set([
   'urban_kebun',
-  'info_berita',
   'traffic_analitik',
   'log_audit_trail',
 ]);
@@ -457,7 +468,8 @@ const AdminCollapsibleBar: React.FC<AdminCollapsibleBarProps> = ({
     activeSubmenuKey &&
     activeSubmenuKey !== 'ALL' &&
     !SINGLE_PANEL_SECTION_KEYS.has(sectionKey) &&
-    sectionKey !== activeSubmenuKey
+    sectionKey !== activeSubmenuKey &&
+    !(sectionKey === 'info_berita' && activeSubmenuKey === 'info_tambah')
   ) {
     return null;
   }
@@ -555,7 +567,7 @@ const TAB_SECTION_KEYS: Record<string, string[]> = {
   ],
   info: [
     'info_berita',
-    'info_instagram',
+    'info_sponsor',
   ],
   sampah: [
     'sampah_bsu',
@@ -645,6 +657,10 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
   onCreateInfo,
   onUpdateInfo,
   onDeleteInfo,
+  sponsors = [],
+  onCreateSponsor,
+  onUpdateSponsor,
+  onDeleteSponsor,
   onSyncInstagram,
   kerjaBaktiHighlights = INITIAL_KERJABAKTI_IG_HIGHLIGHTS,
   kerjaBaktiHighlightsSyncedAt = '06 November 2026 WITA',
@@ -2072,6 +2088,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
       activityLogs,
       urbanFarmingSpots,
       seedRequests,
+      sponsors,
       siskamlingSchedules: siskamlingSchedules || [],
       updatedAt: Date.now(),
     };
@@ -2635,6 +2652,113 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     }
   };
 
+  // ================= 5B. SUPPORT DAN SPONSOR CRUD STATE =================
+  const [editingSponsorId, setEditingSponsorId] = useState<string | null>(null);
+  const [showSponsorForm, setShowSponsorForm] = useState(false);
+  const [confirmDeleteSponsorId, setConfirmDeleteSponsorId] = useState<string | null>(null);
+  const [sponsorForm, setSponsorForm] = useState<Partial<SponsorItem>>({
+    logoUrl: '',
+    caption: '',
+    linkUrl: '',
+  });
+
+  const handleSponsorLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setValidationErrors(['File logo harus berupa gambar (PNG, JPG, WEBP, atau SVG).']);
+      return;
+    }
+    try {
+      const compressed = await compressLogoFile(file);
+      setSponsorForm((prev) => ({ ...prev, logoUrl: compressed }));
+      clearFeedback();
+    } catch {
+      setValidationErrors(['Gagal memproses file logo yang dipilih.']);
+    }
+  };
+
+  const openAddSponsorForm = () => {
+    clearFeedback();
+    setEditingSponsorId(null);
+    setSponsorForm({
+      logoUrl: '',
+      caption: '',
+      linkUrl: '',
+    });
+    setShowSponsorForm(true);
+  };
+
+  const openEditSponsorForm = (item: SponsorItem) => {
+    clearFeedback();
+    setEditingSponsorId(item.id);
+    setSponsorForm({
+      logoUrl: item.logoUrl || '',
+      caption: item.caption || '',
+      linkUrl: item.linkUrl || '',
+    });
+    setShowSponsorForm(true);
+  };
+
+  const handleSponsorFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    clearFeedback();
+    if (!onCreateSponsor || !onUpdateSponsor) return;
+    setIsSubmitting(true);
+    const payload: Partial<SponsorItem> = {
+      logoUrl: sponsorForm.logoUrl?.trim() || '',
+      caption: sponsorForm.caption?.trim() || '',
+      linkUrl: sponsorForm.linkUrl?.trim() || '',
+    };
+    const res = editingSponsorId
+      ? await onUpdateSponsor(editingSponsorId, payload)
+      : await onCreateSponsor(payload);
+    setIsSubmitting(false);
+
+    if (!res.ok) {
+      setValidationErrors(res.errors || ['Validasi data sponsor gagal.']);
+    } else {
+      recordAudit({
+        actionType: editingSponsorId ? 'UPDATE' : 'CREATE',
+        module: 'INFORMASI_KELURAHAN',
+        targetId: editingSponsorId || undefined,
+        targetLabel: `Sponsor: ${payload.caption || 'Logo Sponsor'}`,
+        summary: editingSponsorId
+          ? `Memperbarui Support & Sponsor "${payload.caption}"`
+          : `Menambahkan Support & Sponsor baru "${payload.caption}"`,
+        details: payload.linkUrl ? `Link: ${payload.linkUrl}` : 'Tanpa tautan eksternal',
+        severity: 'info',
+      });
+      setShowSponsorForm(false);
+      setEditingSponsorId(null);
+      setSponsorForm({ logoUrl: '', caption: '', linkUrl: '' });
+      setSuccessMessage(
+        editingSponsorId
+          ? 'Data Support & Sponsor berhasil diperbarui dan langsung tampil di Halaman Beranda.'
+          : 'Support & Sponsor baru berhasil ditambahkan dan tampil di atas Bottom Page Halaman Beranda.'
+      );
+    }
+  };
+
+  const handleExecuteDeleteSponsor = async (id: string) => {
+    if (!onDeleteSponsor) return;
+    clearFeedback();
+    const target = sponsors.find((s) => s.id === id);
+    const res = await onDeleteSponsor(id);
+    setConfirmDeleteSponsorId(null);
+    if (res.ok) {
+      recordAudit({
+        actionType: 'DELETE',
+        module: 'INFORMASI_KELURAHAN',
+        targetId: id,
+        targetLabel: `Sponsor: ${target?.caption || id}`,
+        summary: `Menghapus Support & Sponsor "${target?.caption || id}"`,
+        severity: 'critical',
+      });
+      setSuccessMessage('Data Support & Sponsor berhasil dihapus dari Halaman Beranda.');
+    }
+  };
+
   const clearFeedback = () => {
     setValidationErrors([]);
     setSuccessMessage('');
@@ -2736,7 +2860,11 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
     if (activeTab === 'info') {
       if (subKey === 'info_tambah') {
         openAddInfoForm();
+        setShowSponsorForm(false);
       } else if (subKey === 'info_berita') {
+        setShowInfoForm(false);
+        setShowSponsorForm(false);
+      } else if (subKey === 'info_sponsor') {
         setShowInfoForm(false);
       }
     }
@@ -5359,7 +5487,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
         return {
           moduleNumber: 'Modul 08',
           moduleTitle: 'Informasi dan IG',
-          moduleSubtitle: 'Berita Kelurahan & Feed Instagram',
+          moduleSubtitle: 'Berita Kelurahan, IG & Support Sponsor',
           allowShowAll: false,
           items: [
             {
@@ -5375,6 +5503,14 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               label: '02. + Tambah Berita Baru',
               subtitle: 'Formulir Publikasi Informasi',
               icon: <Plus className="w-4 h-4 shrink-0" />,
+            },
+            {
+              key: 'info_sponsor',
+              label: '03. Support Dan Sponsor',
+              subtitle: 'Logo, Keterangan & Link Beranda',
+              icon: <Award className="w-4 h-4 shrink-0" />,
+              badge: sponsors.length,
+              badgeClass: 'bg-emerald-400 text-slate-950',
             },
           ],
         };
@@ -6045,7 +6181,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
                     activeTab === 'info' ? 'text-emerald-100' : 'text-slate-500'
                   }`}
                 >
-                  {kelurahanInfos.length} Postingan Aktif
+                  {kelurahanInfos.length} Postingan · {sponsors.length} Sponsor
                 </span>
               </button>
 
@@ -8681,6 +8817,284 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({
               </div>
             ))}
           </div>
+        </div>
+      </AdminCollapsibleBar>
+
+      {/* Sub-Menu 03: Support Dan Sponsor */}
+      <AdminCollapsibleBar
+        sectionKey="info_sponsor"
+        title={`Support Dan Sponsor (${sponsors.length} Logo)`}
+        subtitle="Kelola logo sponsor kecil beserta keterangan gambar dan tautan link di atas Bottom Page beranda"
+        icon={<Award className="w-5 h-5 text-[#1C8237]" />}
+        isCollapsed={isSectionCollapsed('info_sponsor')}
+        onToggle={() => toggleSectionCollapse('info_sponsor')}
+        headerActions={
+          <button
+            type="button"
+            onClick={openAddSponsorForm}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold cursor-pointer whitespace-nowrap shadow-xs"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>+ Tambah Sponsor</span>
+          </button>
+        }
+      >
+        <div className="p-5 sm:p-6 space-y-6">
+          {showSponsorForm && (
+            <form
+              onSubmit={handleSponsorFormSubmit}
+              className="bg-white rounded-2xl border border-emerald-300 p-5 sm:p-6 space-y-5"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                <h3 className="text-base font-bold text-[#0D3868]">
+                  {editingSponsorId
+                    ? 'Edit Logo Support & Sponsor'
+                    : 'Tambah Logo Support & Sponsor Baru'}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSponsorForm(false);
+                    setEditingSponsorId(null);
+                  }}
+                  className="p-1 text-slate-400 hover:text-slate-700 cursor-pointer"
+                  aria-label="Tutup form sponsor"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
+                <div className="md:col-span-7 space-y-4">
+                  {/* Upload Gambar (Logo) */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-semibold text-slate-700">
+                      Upload Gambar (Logo) *
+                    </label>
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-xs font-bold text-slate-800 cursor-pointer transition-colors">
+                        <Upload className="w-4 h-4 text-[#1C8237]" />
+                        <span>Pilih File Logo dari Perangkat</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleSponsorLogoUpload}
+                          className="hidden"
+                        />
+                      </label>
+                      <span className="text-[11px] text-slate-500">
+                        Mendukung PNG transparan, WEBP, JPG, SVG
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      value={sponsorForm.logoUrl || ''}
+                      onChange={(e) =>
+                        setSponsorForm((prev) => ({ ...prev, logoUrl: e.target.value }))
+                      }
+                      placeholder="Atau tempel URL gambar logo (opsional jika sudah upload file)"
+                      className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs text-slate-700"
+                    />
+                  </div>
+
+                  {/* Keterangan Gambar */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Keterangan Gambar *
+                    </label>
+                    <input
+                      type="text"
+                      value={sponsorForm.caption || ''}
+                      onChange={(e) =>
+                        setSponsorForm((prev) => ({ ...prev, caption: e.target.value }))
+                      }
+                      placeholder="Contoh: Didukung oleh Bank Sulselbar / Komunitas Peduli Lingkungan"
+                      className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm"
+                    />
+                  </div>
+
+                  {/* Link Tujuan */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Link Tujuan (URL Website / Media Sosial Sponsor)
+                    </label>
+                    <div className="relative">
+                      <Link2 className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={sponsorForm.linkUrl || ''}
+                        onChange={(e) =>
+                          setSponsorForm((prev) => ({ ...prev, linkUrl: e.target.value }))
+                        }
+                        placeholder="https://contoh-sponsor.co.id"
+                        className="w-full rounded-xl border border-slate-300 pl-9 pr-3.5 py-2 text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Live Preview Tampilan di Beranda */}
+                <div className="md:col-span-5">
+                  <div className="text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
+                    <ImageIcon className="w-3.5 h-3.5 text-[#1C8237]" />
+                    <span>Pratinjau Tampilan di Beranda:</span>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-6 flex flex-col items-center justify-center min-h-[168px] text-center">
+                    {sponsorForm.logoUrl ? (
+                      <div className="inline-flex flex-col items-center gap-1.5 max-w-[170px]">
+                        <img
+                          src={resolveImageUrl(sponsorForm.logoUrl)}
+                          alt={sponsorForm.caption || 'Pratinjau Logo Sponsor'}
+                          referrerPolicy="no-referrer"
+                          className="h-11 w-auto max-w-[120px] object-contain"
+                        />
+                        <span className="text-xs font-medium text-slate-600 inline-flex items-center gap-1">
+                          <span>{sponsorForm.caption || 'Keterangan sponsor'}</span>
+                          {sponsorForm.linkUrl?.trim() && (
+                            <ExternalLink className="w-3 h-3 text-[#0277BD] shrink-0" />
+                          )}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-slate-400 space-y-1">
+                        <ImageIcon className="w-7 h-7 mx-auto text-slate-300" />
+                        <div>Belum ada logo dipilih</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSponsorForm(false);
+                    setEditingSponsorId(null);
+                  }}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs sm:text-sm font-bold cursor-pointer whitespace-nowrap"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>
+                    {editingSponsorId ? 'Simpan Perubahan Sponsor' : 'Simpan Support & Sponsor'}
+                  </span>
+                </button>
+              </div>
+            </form>
+          )}
+
+          {sponsors.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 p-8 text-center space-y-3">
+              <Award className="w-9 h-9 text-slate-400 mx-auto" />
+              <div className="space-y-1">
+                <h4 className="text-sm font-bold text-[#0D3868]">
+                  Belum Ada Logo Support &amp; Sponsor
+                </h4>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  Logo sponsor yang ditambahkan di sini akan tampil ringkas beserta keterangan dan
+                  tautan link tepat di atas Bottom Page halaman beranda.
+                </p>
+              </div>
+              {!showSponsorForm && (
+                <button
+                  type="button"
+                  onClick={openAddSponsorForm}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1C8237] hover:bg-[#146329] text-white text-xs font-bold cursor-pointer whitespace-nowrap"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Tambah Logo Sponsor Pertama</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {sponsors.map((sp) => (
+                <div
+                  key={sp.id}
+                  className="bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col justify-between"
+                >
+                  <div className="p-4 flex items-center gap-4">
+                    <div className="w-24 h-16 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-center p-2 shrink-0">
+                      <img
+                        src={resolveImageUrl(sp.logoUrl)}
+                        alt={sp.caption || 'Logo Sponsor'}
+                        referrerPolicy="no-referrer"
+                        className="max-h-full max-w-full object-contain"
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="text-sm font-bold text-[#0D3868] line-clamp-2">
+                        {sp.caption}
+                      </div>
+                      {sp.linkUrl ? (
+                        <a
+                          href={sp.linkUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-[#0277BD] hover:underline truncate max-w-full"
+                        >
+                          <Link2 className="w-3 h-3 shrink-0" />
+                          <span className="truncate">{sp.linkUrl}</span>
+                          <ExternalLink className="w-3 h-3 shrink-0" />
+                        </a>
+                      ) : (
+                        <div className="text-[11px] text-slate-400">Tanpa tautan link</div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-slate-500">Tampil di Beranda</span>
+
+                    {confirmDeleteSponsorId === sp.id ? (
+                      <div className="inline-flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleExecuteDeleteSponsor(sp.id)}
+                          className="px-2.5 py-1 rounded-lg bg-red-600 text-white text-xs font-bold cursor-pointer"
+                        >
+                          Ya, Hapus
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteSponsorId(null)}
+                          className="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer"
+                        >
+                          Batal
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => openEditSponsorForm(sp)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 cursor-pointer"
+                        >
+                          <Edit3 className="w-3 h-3 text-[#1C8237]" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteSponsorId(sp.id)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-red-200 bg-red-50/70 hover:bg-red-100 text-xs font-semibold text-red-700 cursor-pointer"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Hapus</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </AdminCollapsibleBar>
     </div>

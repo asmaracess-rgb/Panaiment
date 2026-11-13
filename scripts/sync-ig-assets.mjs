@@ -138,6 +138,9 @@ function generatePublicSeedSnapshot() {
           }
           return val;
         }
+        if (key === 'logoUrl' && val.length <= 120_000) {
+          return val;
+        }
         if ((val.startsWith('data:') || val.includes(';base64,')) && val.length > 15_000) {
           return '';
         }

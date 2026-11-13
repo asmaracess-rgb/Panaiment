@@ -195,6 +195,7 @@ function mergeSnapshots(seedData, fullSnapshot, liveWarga, mainProfile) {
   merged.whatsappRecipients = mergeByKey(seedData?.whatsappRecipients, fullSnapshot?.whatsappRecipients, deletedSet, (w) => String(w.id || ''));
   merged.adminUsers = mergeByKey(seedData?.adminUsers, fullSnapshot?.adminUsers, deletedSet, (u) => String(u.id || ''));
   merged.urbanFarmingSpots = mergeByKey(seedData?.urbanFarmingSpots, fullSnapshot?.urbanFarmingSpots, deletedSet, (s) => String(s.id || ''));
+  merged.sponsors = mergeByKey(seedData?.sponsors, fullSnapshot?.sponsors, deletedSet, (s) => String(s.id || ''));
   merged.activityLogs = mergeByKey(seedData?.activityLogs, fullSnapshot?.activityLogs, deletedSet, (l) => String(l.id || '')).slice(0, 50);
 
   const rawSchedules =

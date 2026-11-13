@@ -22,6 +22,7 @@ import {
   WasteBankUnit,
   CleanupEvent,
   KelurahanInfoItem,
+  SponsorItem,
   RwGroup,
   UrbanFarmingSpot,
 } from '../types';
@@ -56,6 +57,7 @@ interface HomePortalProps {
   wasteUnits: WasteBankUnit[];
   cleanupEvents: CleanupEvent[];
   kelurahanInfos: KelurahanInfoItem[];
+  sponsors?: SponsorItem[];
   rwGroups?: RwGroup[];
   urbanFarmingSpots?: UrbanFarmingSpot[];
   onSyncInstagram: () => Promise<{ ok: boolean; syncedAt?: string }>;
@@ -117,6 +119,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
   wasteUnits,
   cleanupEvents,
   kelurahanInfos,
+  sponsors = [],
   rwGroups = [],
   urbanFarmingSpots = [],
   onSyncInstagram,
@@ -1106,8 +1109,72 @@ export const HomePortal: React.FC<HomePortalProps> = ({
         </div>
       )}
 
+      {/* ================= SUPPORT & SPONSOR LOGOS ABOVE BOTTOM PAGE ================= */}
+      {sponsors.length > 0 && (
+        <section
+          aria-label="Support dan Sponsor"
+          className="w-full pt-8 sm:pt-12 pb-2 px-4 sm:px-6"
+        >
+          <div className="mx-auto max-w-5xl text-center">
+            <p className="text-[11px] font-semibold tracking-wider uppercase text-slate-400 mb-5">
+              Support &amp; Sponsor
+            </p>
+            <div className="flex flex-wrap items-start justify-center gap-7 sm:gap-11">
+              {sponsors.map((sp) => {
+                const rawLink = (sp.linkUrl || '').trim();
+                const href = rawLink
+                  ? /^https?:\/\//i.test(rawLink)
+                    ? rawLink
+                    : `https://${rawLink}`
+                  : '';
+                const content = (
+                  <>
+                    <img
+                      src={resolveImageUrl(sp.logoUrl)}
+                      alt={sp.caption || 'Logo Sponsor'}
+                      referrerPolicy="no-referrer"
+                      className="h-9 sm:h-11 w-auto max-w-[120px] object-contain transition-transform duration-150 group-hover:scale-105"
+                    />
+                    {(sp.caption || href) && (
+                      <span className="text-[11px] sm:text-xs font-medium text-slate-600 leading-snug text-center inline-flex items-center justify-center gap-1 group-hover:text-[#0D3868] group-hover:underline">
+                        <span>{sp.caption || href.replace(/^https?:\/\//i, '')}</span>
+                        {href && <ExternalLink className="w-3 h-3 shrink-0 text-[#0277BD]" />}
+                      </span>
+                    )}
+                  </>
+                );
+
+                return href ? (
+                  <a
+                    key={sp.id}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group inline-flex flex-col items-center gap-1.5 max-w-[165px] focus:outline-none"
+                    title={sp.caption ? `${sp.caption} — ${href}` : href}
+                  >
+                    {content}
+                  </a>
+                ) : (
+                  <div
+                    key={sp.id}
+                    className="inline-flex flex-col items-center gap-1.5 max-w-[165px]"
+                  >
+                    {content}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ================= SIGNATURE WAVE FOOTER MATCHING PROTOTYPE ================= */}
-      <footer className="relative w-full pt-16 sm:pt-24 lg:pt-32 overflow-hidden select-none">
+      <footer
+        className={`relative w-full ${
+          sponsors.length > 0 ? 'pt-6 sm:pt-10' : 'pt-16 sm:pt-24 lg:pt-32'
+        } overflow-hidden select-none`}
+      >
         {/* Multi-layered Curved Green & Deep Navy Wave SVG */}
         <div className="relative w-full">
           <svg
