@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   ArrowRight,
-  MapPin,
   CheckCircle2,
   Calendar,
   X,
@@ -1173,7 +1172,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
       {/* ================= SIGNATURE WAVE FOOTER MATCHING PROTOTYPE ================= */}
       <footer
         className={`relative w-full ${
-          sponsors.length > 0 ? 'pt-1 sm:pt-2' : 'pt-2 sm:pt-4'
+          sponsors.length > 0 ? 'pt-1 sm:pt-1.5' : 'pt-2 sm:pt-3'
         } overflow-hidden select-none`}
       >
         {/* Multi-layered Curved Green & Deep Navy Wave SVG */}
@@ -1182,7 +1181,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
             viewBox="0 0 1440 220"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
-            className="w-full h-14 sm:h-20 lg:h-24 block preserve-3d"
+            className="w-full h-9 sm:h-12 lg:h-14 block preserve-3d"
             preserveAspectRatio="none"
           >
             {/* Soft Mint Back Wave */}
@@ -1204,26 +1203,24 @@ export const HomePortal: React.FC<HomePortalProps> = ({
           </svg>
 
           {/* Footer Content Bar on Deep Navy Canvas */}
-          <div className="bg-[#073763] text-white px-6 sm:px-12 pb-6 pt-1">
-            <div className="mx-auto max-w-5xl flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 sm:gap-6">
-              {/* Bottom Left: Pin Icon + Kelurahan Panaikang Kota Makassar */}
-              <div className="flex items-center gap-3.5">
-                <div className="flex items-center justify-center w-11 h-11 rounded-full bg-white text-[#073763] shadow-md shrink-0">
-                  <MapPin className="w-6 h-6 stroke-[2.5]" />
-                </div>
+          <div className="bg-[#073763] text-white px-4 sm:px-8 pb-3.5 pt-0.5">
+            <div className="mx-auto max-w-5xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4">
+              {/* Bottom Left: Logo Kelurahan Panaikang + Kelurahan Panaikang Kota Makassar */}
+              <div className="flex items-center gap-2.5">
+                <EmblemKelurahanPanaikang className="w-8 h-9 sm:w-9 sm:h-10 drop-shadow-[0_1px_4px_rgba(255,255,255,0.28)] shrink-0" />
                 <div>
-                  <div className="text-base sm:text-xl font-bold tracking-tight text-white leading-snug">
+                  <div className="text-xs sm:text-sm font-bold tracking-tight text-white leading-tight">
                     Kelurahan <span className="font-extrabold">Panaikang</span>
                   </div>
-                  <div className="text-sm sm:text-lg font-medium text-sky-100 leading-snug">
+                  <div className="text-[11px] sm:text-xs font-medium text-sky-100 leading-tight">
                     Kota Makassar
                   </div>
                 </div>
               </div>
 
-              {/* Bottom Right: Tilted Brush Script "Panaikang Lebih Bersih Lebih Maju" */}
-              <div className="self-end sm:self-auto text-right transform -rotate-6 pr-2">
-                <div className="font-script text-2xl sm:text-4xl font-bold text-white leading-[1.05] tracking-wide drop-shadow-xs">
+              {/* Bottom Right: Compact Tilted Brush Script "Panaikang Lebih Bersih Lebih Maju" */}
+              <div className="self-end sm:self-auto text-right transform -rotate-4 pr-1">
+                <div className="font-script text-lg sm:text-2xl font-bold text-white leading-[1.02] tracking-wide drop-shadow-xs">
                   <div>Panaikang</div>
                   <div>Lebih Bersih</div>
                   <div>Lebih Maju</div>
@@ -1233,7 +1230,7 @@ export const HomePortal: React.FC<HomePortalProps> = ({
                   viewBox="0 0 180 18"
                   fill="none"
                   xmlns="http://www.w3.org/2000/svg"
-                  className="w-36 sm:w-48 h-4 ml-auto mt-0.5"
+                  className="w-24 sm:w-32 h-2.5 ml-auto mt-0.5"
                 >
                   <path
                     d="M4 14C55 6 115 4 176 8"
@@ -1246,16 +1243,19 @@ export const HomePortal: React.FC<HomePortalProps> = ({
             </div>
 
             {/* Bottom Credit Line */}
-            <div className="mx-auto max-w-5xl mt-4 pt-3 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-sky-200/70">
+            <div className="mx-auto max-w-5xl mt-2.5 pt-2 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-1 text-[10px] text-sky-200/75">
               <div>© {new Date().getFullYear()} Kelurahan Panaikang · Kota Makassar</div>
-              <div className="flex flex-col items-center sm:items-end gap-1">
+              <div className="flex flex-wrap items-center justify-center sm:justify-end gap-x-3 gap-y-0.5">
                 <span className="font-medium tracking-wide text-sky-100">
                   Developed by @asmaracess
+                </span>
+                <span aria-hidden="true" className="hidden sm:inline text-sky-200/40">
+                  ·
                 </span>
                 <button
                   type="button"
                   onClick={() => onNavigate('admin')}
-                  className="inline-flex items-center gap-1.5 text-[10px] text-sky-300/80 hover:text-white transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1 text-[10px] text-sky-300/80 hover:text-white transition-colors cursor-pointer"
                   title="Akses Sistem Internal"
                 >
                   <Lock className="w-2.5 h-2.5" />
